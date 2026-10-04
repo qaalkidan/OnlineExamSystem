@@ -18,10 +18,17 @@ class InstructorQuestionBankController extends Controller
     {
         $instructor = $request->user();
 
-        // Scope to instructor's single assigned course
-        $banks = QuestionBank::where('user_id', $instructor->id)
-            ->where('course_code', $instructor->course_code)
-            ->withCount('questions')
+        // Scope to instructor's banks (optionally filtered by course_code or all=true)
+        $query = QuestionBank::where('user_id', $instructor->id);
+        if ($request->filled('course_code')) {
+            $query->where('course_code', $request->course_code);
+        } elseif (!$request->boolean('all') && $instructor->course_code) {
+            $courseQuery = (clone $query)->where('course_code', $instructor->course_code);
+            if ($courseQuery->exists()) {
+                $query = $courseQuery;
+            }
+        }
+        $banks = $query->withCount('questions')
             ->latest()
             ->get();
 

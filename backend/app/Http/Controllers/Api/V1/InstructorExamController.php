@@ -147,7 +147,7 @@ class InstructorExamController extends Controller
                     'correct_answer' => $q['correct_answer'] ?? null,
                     'marks'          => $q['marks'] ?? 5,
                     'marks_per_item' => isset($q['marks_per_item']) ? (float)$q['marks_per_item'] : null,
-                    'difficulty'     => 'Medium',
+                    'difficulty'     => $q['difficulty'] ?? 'Medium',
                     'status'         => 1,
                 ]);
             }
@@ -254,7 +254,7 @@ class InstructorExamController extends Controller
                     'correct_answer' => $q['correct_answer'] ?? null,
                     'marks'          => $q['marks'] ?? 5,
                     'marks_per_item' => isset($q['marks_per_item']) ? (float)$q['marks_per_item'] : null,
-                    'difficulty'     => 'Medium',
+                    'difficulty'     => $q['difficulty'] ?? 'Medium',
                     'status'         => 1,
                 ]);
             }

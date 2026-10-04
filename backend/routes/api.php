@@ -107,14 +107,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::get('reports/stats', [\App\Http\Controllers\Api\V1\AdminReportController::class, 'stats']);
         Route::get('reports/export', [\App\Http\Controllers\Api\V1\AdminReportController::class, 'export']);
 
-        // List all instructors (for assign-head modal), optionally filter by department_id
+        // List all instructors (for assign-head modal), filtered strictly by department_id when provided
         Route::get('instructors', function (Request $request) {
             $query = \App\Models\User::whereIn('role', ['instructor', 'dept_head']);
-            if ($request->has('department_id') && $request->department_id) {
-                $deptQuery = (clone $query)->where('department_id', $request->department_id);
-                if ($deptQuery->exists()) {
-                    $query = $deptQuery;
-                }
+            if ($request->filled('department_id')) {
+                $query->where('department_id', $request->department_id);
             }
             return response()->json([
                 'data' => $query->select('id', 'name', 'email', 'role', 'department_id', 'course_code', 'section')

@@ -130,6 +130,16 @@ class DepartmentController extends Controller
 
         $instructor = User::findOrFail($request->instructor_id);
 
+        // Ensure the instructor belongs to this department
+        if ($instructor->department_id != $department->id) {
+            return response()->json([
+                'message' => 'The selected instructor does not belong to this department.',
+                'errors' => [
+                    'instructor_id' => ['Only instructors belonging to this department can be assigned as Department Head.']
+                ]
+            ], 422);
+        }
+
         DB::transaction(function () use ($department, $instructor) {
             // If there was a previous head, revert them to instructor role
             if ($department->head_id && $department->head_id !== $instructor->id) {

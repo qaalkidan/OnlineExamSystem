@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\Question;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -30,22 +31,13 @@ class StudentExamController extends Controller
             ->whereNotNull('percentage')
             ->avg('percentage');
 
-        // Count upcoming published exams for student's department & year_level that haven't been attempted
-        $attemptedExamIds = ExamAttempt::where('user_id', $student->id)->pluck('exam_id');
+        // Count upcoming published/scheduled exams for student's department & year_level that haven't been completed
+        $completedAttemptExamIds = ExamAttempt::where('user_id', $student->id)
+            ->whereIn('status', ['submitted', 'graded'])
+            ->pluck('exam_id');
 
-        $upcomingCount = Exam::where('status', 'published')
-            ->where(function ($query) use ($student) {
-                $query->whereNull('section')
-                      ->orWhere('section', '')
-                      ->orWhere('section', $student->section)
-                      ->orWhere('section', 'Section A and B')
-                      ->orWhere('section', 'Both');
-            })
-            ->whereHas('instructor', function ($query) use ($student) {
-                $query->where('department_id', $student->department_id)
-                      ->where('year_level', $student->year_level);
-            })
-            ->whereNotIn('id', $attemptedExamIds)
+        $upcomingCount = $this->getAvailableExamsQuery($student)
+            ->whereNotIn('id', $completedAttemptExamIds)
             ->count();
 
         return response()->json([
@@ -58,7 +50,7 @@ class StudentExamController extends Controller
     }
 
     /**
-     * List all published exams for the student's course.
+     * List all published/scheduled exams for the student's course.
      * Returns ALL non-submitted exams in "upcoming_exams" with an attemptStatus field.
      * The frontend Ready Card decides what to show based on time window + attemptStatus.
      */
@@ -66,19 +58,8 @@ class StudentExamController extends Controller
     {
         $student = $request->user();
 
-        // Get all published exams for the student's department & year_level & section
-        $exams = Exam::where('status', 'published')
-            ->where(function ($query) use ($student) {
-                $query->whereNull('section')
-                      ->orWhere('section', '')
-                      ->orWhere('section', $student->section)
-                      ->orWhere('section', 'Section A and B')
-                      ->orWhere('section', 'Both');
-            })
-            ->whereHas('instructor', function ($query) use ($student) {
-                $query->where('department_id', $student->department_id)
-                      ->where('year_level', $student->year_level);
-            })
+        // Get all published/scheduled exams for the student's department & year_level & section
+        $exams = $this->getAvailableExamsQuery($student)
             ->with('instructor:id,name')
             ->latest('scheduled_at')
             ->get();
@@ -101,6 +82,21 @@ class StudentExamController extends Controller
 
             $scheduledIso = $exam->scheduled_at ? $exam->scheduled_at->toISOString() : null;
 
+            // Determine status for student UI (Ready if currently in ongoing/ready window or in progress)
+            $status = 'Upcoming';
+            if ($attemptStatus === 'in_progress') {
+                $status = 'Ready';
+            } elseif ($exam->scheduled_at) {
+                $now = Carbon::now();
+                $examStart = $exam->scheduled_at;
+                $examEnd = $exam->scheduled_at->copy()->addMinutes($exam->duration_minutes);
+                if ($now->gte($examStart->copy()->subMinutes(10)) && $now->lt($examEnd)) {
+                    $status = 'Ready';
+                }
+            } else {
+                $status = 'Ready';
+            }
+
             $upcomingExams[] = [
                 'id'              => $exam->id,
                 'courseCode'      => $exam->course_code,
@@ -113,7 +109,7 @@ class StudentExamController extends Controller
                 'durationMinutes' => $exam->duration_minutes,
                 'totalMarks'      => $exam->total_marks,
                 'totalQuestions'  => $exam->questions()->count(),
-                'status'          => 'Upcoming',
+                'status'          => $status,
                 // Attempt tracking — allows card to show Continue vs Start
                 'attemptStatus'   => $attemptStatus, // null or 'in_progress'
                 'attemptId'       => $attempt ? $attempt->id : null,
@@ -151,14 +147,104 @@ class StudentExamController extends Controller
     }
 
     /**
+     * Build base query for exams available to a given student based on department, year_level, and section.
+     */
+    public function getAvailableExamsQuery($student)
+    {
+        $studentSec = trim($student->section ?? '');
+        $cleanStudentSec = strtoupper(trim(preg_replace('/^section\s*/i', '', $studentSec)));
+        $yearNum = preg_replace('/[^0-9]/', '', $student->year_level ?? '');
+
+        // Build list of acceptable year level strings
+        $allowedYearLevels = array_unique(array_filter([
+            $student->year_level,
+            trim($student->year_level ?? ''),
+        ]));
+        $yearWords = [
+            '1' => ['1st Year', '1st year', 'Year 1', 'year 1', '1', 'First Year', 'first year', '1st', 'Year-1'],
+            '2' => ['2nd Year', '2nd year', 'Year 2', 'year 2', '2', 'Second Year', 'second year', '2nd', 'Year-2'],
+            '3' => ['3rd Year', '3rd year', 'Year 3', 'year 3', '3', 'Third Year', 'third year', '3rd', 'Year-3'],
+            '4' => ['4th Year', '4th year', 'Year 4', 'year 4', '4', 'Fourth Year', 'fourth year', '4th', 'Year-4'],
+            '5' => ['5th Year', '5th year', 'Year 5', 'year 5', '5', 'Fifth Year', 'fifth year', '5th', 'Year-5'],
+        ];
+        if ($yearNum && isset($yearWords[$yearNum])) {
+            $allowedYearLevels = array_unique(array_merge($allowedYearLevels, $yearWords[$yearNum]));
+        }
+
+        // Build list of acceptable section strings
+        $allowedSections = [
+            '', 'Both', 'both', 'Both Sections', 'both sections', 'BOTH SECTIONS',
+            'All', 'all', 'All Sections', 'all sections', 'ALL SECTIONS',
+            'Section A and B', 'Section A & B', 'Section A, B', 'A and B', 'A & B', 'A, B'
+        ];
+        if ($studentSec !== '') {
+            $allowedSections[] = $studentSec;
+        }
+        if ($cleanStudentSec !== '') {
+            $allowedSections[] = $cleanStudentSec;
+            $allowedSections[] = strtolower($cleanStudentSec);
+            $allowedSections[] = "Section $cleanStudentSec";
+            $allowedSections[] = "section " . strtolower($cleanStudentSec);
+            $allowedSections[] = "SECTION $cleanStudentSec";
+        }
+        $allowedSections = array_unique($allowedSections);
+
+        return Exam::whereIn('status', ['published', 'scheduled'])
+            ->where(function ($query) use ($allowedSections, $cleanStudentSec, $studentSec) {
+                $query->whereNull('section')
+                      ->orWhere('section', '')
+                      ->orWhereIn('section', $allowedSections)
+                      ->orWhereRaw("LOWER(TRIM(section)) IN ('all', 'all sections', 'both', 'both sections', 'section a and b', 'section a & b', 'a and b', 'a & b', 'section a, b', 'a, b', 'a,b')");
+
+                if ($cleanStudentSec !== '') {
+                    $query->orWhereRaw("LOWER(TRIM(REPLACE(section, 'Section', ''))) = ?", [strtolower($cleanStudentSec)])
+                          ->orWhereRaw("LOWER(TRIM(section)) = ?", [strtolower($studentSec)])
+                          ->orWhereRaw("LOWER(TRIM(section)) = ?", ['section ' . strtolower($cleanStudentSec)]);
+                }
+            })
+            ->where(function ($query) use ($student, $allowedYearLevels) {
+                // 1. Match via direct student enrollment in exam_student
+                $query->whereHas('students', function ($sq) use ($student) {
+                    $sq->where('users.id', $student->id);
+                })
+                // 2. OR match via Instructor's department & year_level
+                ->orWhereHas('instructor', function ($q) use ($student, $allowedYearLevels) {
+                    if ($student->department_id) {
+                        $q->where('department_id', $student->department_id);
+                    }
+                    if (!empty($allowedYearLevels)) {
+                        $q->where(function ($yq) use ($allowedYearLevels) {
+                            $yq->whereNull('year_level')
+                               ->orWhere('year_level', '')
+                               ->orWhereIn('year_level', $allowedYearLevels);
+                        });
+                    }
+                })
+                // 3. OR match via Exam's course department & level
+                ->orWhereHas('course', function ($q) use ($student, $allowedYearLevels) {
+                    if ($student->department_id) {
+                        $q->where('department_id', $student->department_id);
+                    }
+                    if (!empty($allowedYearLevels)) {
+                        $q->where(function ($yq) use ($allowedYearLevels) {
+                            $yq->whereNull('level')
+                               ->orWhere('level', '')
+                               ->orWhereIn('level', $allowedYearLevels);
+                        });
+                    }
+                });
+            });
+    }
+
+    /**
      * Start an exam attempt. Returns questions WITHOUT correct answers.
      */
     public function start(Request $request, Exam $exam): JsonResponse
     {
         $student = $request->user();
 
-        // Verify exam is published
-        if ($exam->status !== 'published') {
+        // Verify exam is published or scheduled
+        if (!in_array($exam->status, ['published', 'scheduled'])) {
             return response()->json(['message' => 'This exam is not available.'], 403);
         }
 

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 import apiClient from '../../../core/api/apiClient'
+
+const router = useRouter()
 
 const search = ref('')
 const statusFilter = ref('all')
@@ -60,6 +63,7 @@ const showListAssignHeadModal = ref(false)
 const assignHeadTarget = ref<any>(null)
 const assignHeadSearch = ref('')
 const availableInstructors = ref<any[]>([])
+const isLoadingInstructors = ref(false)
 const isAssigningHead = ref(false)
 const assignHeadStatus = ref<{type: 'success' | 'error' | null, message: string}>({ type: null, message: '' })
 
@@ -288,14 +292,23 @@ const openAssignHeadFromList = async (dept: any) => {
   assignHeadTarget.value = dept
   assignHeadSearch.value = ''
   assignHeadStatus.value = { type: null, message: '' }
+  availableInstructors.value = []
+  isLoadingInstructors.value = true
   showListAssignHeadModal.value = true
   try {
     const res = await apiClient.get(`/admin/instructors?department_id=${dept.id}`)
-    availableInstructors.value = res.data.data
+    availableInstructors.value = res.data.data || []
   } catch (err) {
     console.error('Failed to fetch instructors:', err)
     availableInstructors.value = []
+  } finally {
+    isLoadingInstructors.value = false
   }
+}
+
+const goToInstructors = () => {
+  showListAssignHeadModal.value = false
+  router.push('/admin/instructors')
 }
 
 const filteredInstructorsForAssign = computed(() => {
@@ -1120,40 +1133,105 @@ const deleteDept = async () => {
           <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <div>
               <h3 class="text-[16px] font-bold text-slate-800">Assign Department Head</h3>
-              <p class="text-[12px] text-slate-500 mt-0.5">{{ assignHeadTarget?.name }} ({{ assignHeadTarget?.code }})</p>
+              <p class="text-[12px] text-slate-500 mt-0.5">{{ assignHeadTarget?.name }} <span class="font-mono text-slate-400">({{ assignHeadTarget?.code }})</span></p>
             </div>
-            <button @click="showListAssignHeadModal = false" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            <button @click="showListAssignHeadModal = false" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
           </div>
+          
           <div class="px-6 py-5 space-y-4">
-
-            <div v-if="assignHeadStatus.type" :class="assignHeadStatus.type === 'success' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'" class="p-3 text-[12px] font-medium border rounded-xl flex items-center gap-2">
-              <svg v-if="assignHeadStatus.type === 'success'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              {{ assignHeadStatus.message }}
+            <!-- Status Notification -->
+            <div v-if="assignHeadStatus.type" :class="assignHeadStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'" class="p-3 text-[12px] font-medium border rounded-xl flex items-center gap-2">
+              <svg v-if="assignHeadStatus.type === 'success'" class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <svg v-else class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>{{ assignHeadStatus.message }}</span>
             </div>
 
-            <div class="relative">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-              <input v-model="assignHeadSearch" type="text" placeholder="Search instructors by name or email..." class="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] placeholder:text-slate-400" />
+            <!-- 1. Loading State -->
+            <div v-if="isLoadingInstructors" class="py-12 flex flex-col items-center justify-center text-center">
+              <div class="w-8 h-8 border-3 border-indigo-200 border-t-[#4338ca] rounded-full animate-spin mb-3"></div>
+              <p class="text-[13px] font-semibold text-slate-700">Loading department instructors...</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">Fetching instructors assigned to {{ assignHeadTarget?.name }}</p>
             </div>
-            <div class="border border-slate-200 rounded-lg overflow-hidden max-h-[280px] overflow-y-auto">
-              <div v-if="filteredInstructorsForAssign.length === 0" class="py-8 text-center">
-                <p class="text-[13px] text-slate-400">No instructors found. Add instructors first.</p>
+
+            <!-- 2. Empty State: No instructors in this department -->
+            <div v-else-if="availableInstructors.length === 0" class="py-6 px-2 flex flex-col items-center text-center">
+              <div class="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mb-3.5 border border-amber-100">
+                <svg class="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
               </div>
-              <div v-for="inst in filteredInstructorsForAssign" :key="inst.id"
-                @click="doAssignHead(inst)"
-                class="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-b-0"
-                :class="assignHeadTarget?.head === inst.name ? 'bg-indigo-50' : ''">
-                <img :src="getAvatarUrl(inst.name)" :alt="inst.name" class="w-9 h-9 rounded-full border-2 border-slate-100" />
-                <div class="flex-1 min-w-0">
-                  <p class="text-[13px] font-semibold text-slate-700 truncate">{{ inst.name }}</p>
-                  <p class="text-[11px] text-slate-400 truncate">{{ inst.email }}</p>
+              <h4 class="text-[15px] font-bold text-slate-800 mb-1.5">No Instructors in this Department</h4>
+              <p class="text-[12.5px] text-slate-500 leading-relaxed max-w-sm mb-4">
+                The <span class="font-bold text-slate-700">{{ assignHeadTarget?.name }}</span> department has no assigned instructors yet. You cannot assign a Department Head until instructors are added to this department.
+              </p>
+              
+              <div class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11.5px] text-slate-500 mb-4 flex items-center gap-2 text-left">
+                <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Only instructors registered under this department can be appointed as Department Head.</span>
+              </div>
+
+              <button 
+                type="button"
+                @click="goToInstructors" 
+                class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white text-[13px] font-bold rounded-xl shadow-sm shadow-indigo-200 transition-all"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                Go to Instructors Management
+              </button>
+            </div>
+
+            <!-- 3. Instructors List Available -->
+            <template v-else>
+              <p class="text-[12px] text-slate-500">
+                Select an instructor from <strong class="text-slate-700">{{ assignHeadTarget?.name }}</strong> to appoint as Department Head:
+              </p>
+
+              <div class="relative">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <input 
+                  v-model="assignHeadSearch" 
+                  type="text" 
+                  placeholder="Search instructors by name or email..." 
+                  class="w-full pl-9 pr-8 py-2.5 border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] placeholder:text-slate-400" 
+                />
+                <button 
+                  v-if="assignHeadSearch" 
+                  @click="assignHeadSearch = ''" 
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+              </div>
+
+              <div class="border border-slate-200 rounded-lg overflow-hidden max-h-[280px] overflow-y-auto">
+                <div v-if="filteredInstructorsForAssign.length === 0" class="py-8 text-center px-4">
+                  <p class="text-[13px] font-medium text-slate-600">No matching instructors found</p>
+                  <p class="text-[11px] text-slate-400 mt-1">Try another search term.</p>
                 </div>
-                <span v-if="inst.role === 'dept_head'" class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full shrink-0">Dept Head</span>
-                <span v-if="assignHeadTarget?.head === inst.name" class="text-[10px] font-bold text-[#4338ca] bg-indigo-100 px-2 py-0.5 rounded-full shrink-0">Current</span>
+                <div 
+                  v-for="inst in filteredInstructorsForAssign" 
+                  :key="inst.id"
+                  @click="!isAssigningHead && doAssignHead(inst)"
+                  class="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-b-0"
+                  :class="[
+                    assignHeadTarget?.head === inst.name ? 'bg-indigo-50/70' : '',
+                    isAssigningHead ? 'opacity-60 pointer-events-none' : ''
+                  ]"
+                >
+                  <img :src="getAvatarUrl(inst.name)" :alt="inst.name" class="w-9 h-9 rounded-full border-2 border-slate-100 object-cover" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-semibold text-slate-800 truncate">{{ inst.name }}</p>
+                    <p class="text-[11px] text-slate-400 truncate">{{ inst.email }}</p>
+                  </div>
+                  <span v-if="inst.role === 'dept_head'" class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full shrink-0">Dept Head</span>
+                  <span v-if="assignHeadTarget?.head === inst.name" class="text-[10px] font-bold text-[#4338ca] bg-indigo-100 px-2 py-0.5 rounded-full shrink-0">Current Head</span>
+                </div>
               </div>
-            </div>
+            </template>
           </div>
+
           <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
             <button @click="showListAssignHeadModal = false" class="px-5 py-2.5 text-[13px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">Close</button>
           </div>

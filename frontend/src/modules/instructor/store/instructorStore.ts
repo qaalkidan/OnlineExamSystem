@@ -16,6 +16,7 @@ export interface Exam {
   title: string
   course_code: string
   course_name: string
+  section?: string | null
   scheduled_at: string | null
   duration_minutes: number
   total_marks: number

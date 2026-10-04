@@ -4,10 +4,20 @@ import { useCreateExamStore } from '../../store/createExamStore'
 import MinimalEditor from './MinimalEditor.vue'
 import SharedEditorToolbar from './SharedEditorToolbar.vue'
 import { GripVertical } from 'lucide-vue-next'
+import SelectFromQuestionBank from './SelectFromQuestionBank.vue'
+import ImportQuestionsFile from './ImportQuestionsFile.vue'
+import AddedQuestionsList from './AddedQuestionsList.vue'
 
 const props = defineProps<{ isSaving?: boolean }>()
 const emit = defineEmits(['cancel', 'next', 'save-draft', 'prev'])
 const formStore = useCreateExamStore()
+
+// Question Source Tab: 'manual' | 'bank' | 'file'
+const activeSourceTab = ref<'manual' | 'bank' | 'file'>('manual')
+
+const onQuestionsAdded = () => {
+  validationError.value = ''
+}
 
 // Common Form State
 const questionType = ref('Multiple Choice (MCQ)')
@@ -336,10 +346,12 @@ const addQuestionToExam = () => {
 
 
 const handleNext = () => {
-  // Determine if the instructor has started filling the current form
-  const hasText = questionType.value === 'Matching'
-    ? matchPairs.value.some(p => p.left.replace(/<[^>]*>?/gm, '').trim() || p.right.replace(/<[^>]*>?/gm, '').trim())
-    : questionText.value.replace(/<[^>]*>?/gm, '').trim()
+  // Determine if the instructor has started filling the manual question form
+  const hasText = activeSourceTab.value === 'manual' && (
+    questionType.value === 'Matching'
+      ? matchPairs.value.some(p => p.left.replace(/<[^>]*>?/gm, '').trim() || p.right.replace(/<[^>]*>?/gm, '').trim())
+      : questionText.value.replace(/<[^>]*>?/gm, '').trim()
+  )
 
   if (hasText) {
     // Attempt to add - this runs full validation
@@ -379,6 +391,70 @@ const getQuestionTypeLabel = (type: string) => {
 <template>
   <div class="space-y-6 w-full">
     
+    <!-- Question Source Selector (Manual, Question Bank, Import from File) -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 p-2 shadow-xs">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <!-- Tab 1: Manual Input -->
+        <button
+          type="button"
+          @click="activeSourceTab = 'manual'"
+          :class="activeSourceTab === 'manual' ? 'bg-[#5138ed] text-white shadow-sm ring-1 ring-indigo-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'"
+          class="flex items-center gap-3 p-3.5 rounded-xl transition-all text-left cursor-pointer group"
+        >
+          <div :class="activeSourceTab === 'manual' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-[#5138ed]'" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <p class="text-[13px] font-bold">1. Manual Input</p>
+              <span v-if="activeSourceTab === 'manual'" class="text-[10px] font-bold uppercase bg-white/20 px-2 py-0.5 rounded-full">Active</span>
+            </div>
+            <p :class="activeSourceTab === 'manual' ? 'text-indigo-100' : 'text-slate-400'" class="text-[11px] truncate mt-0.5">Write custom questions directly</p>
+          </div>
+        </button>
+
+        <!-- Tab 2: From Question Bank -->
+        <button
+          type="button"
+          @click="activeSourceTab = 'bank'"
+          :class="activeSourceTab === 'bank' ? 'bg-[#5138ed] text-white shadow-sm ring-1 ring-indigo-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'"
+          class="flex items-center gap-3 p-3.5 rounded-xl transition-all text-left cursor-pointer group"
+        >
+          <div :class="activeSourceTab === 'bank' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-600'" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <p class="text-[13px] font-bold">2. From Question Bank</p>
+              <span v-if="activeSourceTab === 'bank'" class="text-[10px] font-bold uppercase bg-white/20 px-2 py-0.5 rounded-full">Active</span>
+            </div>
+            <p :class="activeSourceTab === 'bank' ? 'text-indigo-100' : 'text-slate-400'" class="text-[11px] truncate mt-0.5">Select from question repositories</p>
+          </div>
+        </button>
+
+        <!-- Tab 3: Import from File -->
+        <button
+          type="button"
+          @click="activeSourceTab = 'file'"
+          :class="activeSourceTab === 'file' ? 'bg-[#5138ed] text-white shadow-sm ring-1 ring-indigo-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'"
+          class="flex items-center gap-3 p-3.5 rounded-xl transition-all text-left cursor-pointer group"
+        >
+          <div :class="activeSourceTab === 'file' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-600'" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <p class="text-[13px] font-bold">3. Import from File</p>
+              <span v-if="activeSourceTab === 'file'" class="text-[10px] font-bold uppercase bg-white/20 px-2 py-0.5 rounded-full">Active</span>
+            </div>
+            <p :class="activeSourceTab === 'file' ? 'text-indigo-100' : 'text-slate-400'" class="text-[11px] truncate mt-0.5">Upload Excel (.xlsx) or CSV file</p>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- 1. MANUAL QUESTION INPUT SECTION -->
+    <div v-show="activeSourceTab === 'manual'" class="space-y-6">
     <!-- Base Information -->
     <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
       <div class="flex items-center justify-between mb-6">
@@ -651,19 +727,57 @@ const getQuestionTypeLabel = (type: string) => {
       <span class="text-[13px] font-semibold text-rose-700">{{ validationError }}</span>
       <button @click="clearError" class="ml-auto p-1 text-rose-400 hover:text-rose-600"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
     </div>
+    </div> <!-- END 1. MANUAL QUESTION INPUT SECTION -->
+
+    <!-- 2. FROM QUESTION BANK SECTION -->
+    <div v-if="activeSourceTab === 'bank'">
+      <SelectFromQuestionBank
+        @added="onQuestionsAdded"
+        @switch-to-manual="activeSourceTab = 'manual'"
+        @switch-to-file="activeSourceTab = 'file'"
+      />
+    </div>
+
+    <!-- 3. IMPORT FROM FILE SECTION -->
+    <div v-if="activeSourceTab === 'file'">
+      <ImportQuestionsFile
+        @imported="onQuestionsAdded"
+        @switch-to-manual="activeSourceTab = 'manual'"
+        @switch-to-bank="activeSourceTab = 'bank'"
+      />
+    </div>
+
+    <!-- QUESTIONS CURRENTLY ADDED TO DRAFT -->
+    <AddedQuestionsList />
 
     <!-- Action Bar -->
     <div class="flex items-center justify-between pt-6 border-t border-slate-200">
       <div class="flex items-center gap-3">
-        <button @click="emit('prev')" class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors flex items-center gap-2">
+        <button @click="emit('prev')" class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors flex items-center gap-2 cursor-pointer">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Previous
         </button>
-        <button @click="addQuestionToExam" class="px-6 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-[#5138ed] font-bold text-[13px] rounded-xl transition-colors shadow-sm border border-indigo-100">+ Add Question to Draft</button>
+        <button
+          v-if="activeSourceTab === 'manual'"
+          type="button"
+          @click="addQuestionToExam"
+          class="px-6 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-[#5138ed] font-bold text-[13px] rounded-xl transition-colors shadow-sm border border-indigo-100 cursor-pointer"
+        >
+          + Add Question to Draft
+        </button>
+        <button
+          v-else
+          type="button"
+          @click="activeSourceTab = 'manual'"
+          class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[13px] rounded-xl transition-colors cursor-pointer flex items-center gap-2"
+        >
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          Write Question Manually
+        </button>
       </div>
       <div class="flex gap-3">
-        <button @click="emit('cancel')" class="px-6 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors">Cancel</button>
-        <button @click="handleNext" class="px-6 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl transition-colors flex items-center gap-2 shadow-sm">
+        <button @click="emit('cancel')" class="px-6 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors cursor-pointer">Cancel</button>
+        <button @click="handleNext" class="px-6 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl transition-colors flex items-center gap-2 shadow-sm cursor-pointer">
           Next: Exam Settings
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
         </button>

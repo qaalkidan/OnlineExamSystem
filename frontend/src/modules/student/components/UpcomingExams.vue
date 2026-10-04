@@ -17,18 +17,24 @@ const displayedExams = computed(() => {
 })
 
 // Helper to format date into Month and Day for the calendar box
-const formatMonth = (dateString: string) => {
-  if (!dateString) return 'JAN'
-  const parts = dateString.split(' ') // "July 12, 2026"
-  if (parts.length > 0) return parts[0].substring(0, 3).toUpperCase()
-  return 'MON'
+const formatMonth = (dateString?: string | null) => {
+  if (!dateString) return 'UPC'
+  const d = new Date(dateString)
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleString('en-US', { month: 'short' }).toUpperCase()
+  }
+  const parts = dateString.split(' ')
+  return parts.length > 0 ? parts[0].substring(0, 3).toUpperCase() : 'UPC'
 }
 
-const formatDay = (dateString: string) => {
-  if (!dateString) return '01'
-  const parts = dateString.split(' ') // "July 12, 2026"
-  if (parts.length > 1) return parts[1].replace(',', '')
-  return '01'
+const formatDay = (dateString?: string | null) => {
+  if (!dateString) return '--'
+  const d = new Date(dateString)
+  if (!isNaN(d.getTime())) {
+    return String(d.getDate()).padStart(2, '0')
+  }
+  const parts = dateString.split(' ')
+  return parts.length > 1 ? parts[1].replace(',', '') : '01'
 }
 </script>
 
