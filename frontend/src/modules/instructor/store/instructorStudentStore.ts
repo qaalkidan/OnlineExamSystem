@@ -21,6 +21,49 @@ export interface StudentStats {
   active_students: number
   average_score: number
   top_performers: number
+  average_attendance?: number
+}
+
+export interface CourseOverview {
+  course_name: string
+  course_code: string
+  section: string
+  semester: string
+  academic_year: string
+  instructor: string
+}
+
+export interface StudentProgress {
+  completed_exams_percent: number
+  pending_exams_percent: number
+  average_attendance: number
+  average_exam_score: number
+  students_at_risk_percent: number
+  completed_exams_count: number
+  pending_exams_count: number
+  students_at_risk_count: number
+  total_students: number
+}
+
+const DEFAULT_COURSE_OVERVIEW: CourseOverview = {
+  course_name: 'Database Systems',
+  course_code: 'CS-304',
+  section: 'CS-304-A',
+  semester: 'Semester I',
+  academic_year: '2025/2026',
+  instructor: 'Dr. Abebe Kebede'
+}
+
+const DEFAULT_STUDENT_PROGRESS: StudentProgress = {
+  completed_exams_percent: 58.3,
+  pending_exams_percent: 41.7,
+  average_attendance: 78.4,
+  average_exam_score: 72.6,
+  students_at_risk_percent: 12.5,
+  completed_exams_count: 7,
+  pending_exams_count: 5,
+  students_at_risk_count: 1,
+  total_students: 8
 }
 
 const MOCK_STATS: StudentStats = {
@@ -28,6 +71,7 @@ const MOCK_STATS: StudentStats = {
   active_students: 298,
   average_score: 72.4,
   top_performers: 46,
+  average_attendance: 78.4
 }
 
 const MOCK_STUDENTS: Student[] = [
@@ -42,9 +86,12 @@ const MOCK_STUDENTS: Student[] = [
 ]
 
 export const useInstructorStudentStore = defineStore('instructorStudent', () => {
-  const students = ref<Student[]>([...MOCK_STUDENTS])
+  const students = ref<Student[]>([])
   const stats = ref<StudentStats>({ ...MOCK_STATS })
+  const courseOverview = ref<CourseOverview>({ ...DEFAULT_COURSE_OVERVIEW })
+  const studentProgress = ref<StudentProgress>({ ...DEFAULT_STUDENT_PROGRESS })
   const isLoading = ref(false)
+  const isExporting = ref(false)
   const error = ref<string | null>(null)
   const usingMockData = ref(false)
 
@@ -54,8 +101,6 @@ export const useInstructorStudentStore = defineStore('instructorStudent', () => 
     usingMockData.value = false
 
     try {
-      students.value = []
-      
       const storedContext = localStorage.getItem('instructor_context')
       const context = storedContext ? JSON.parse(storedContext) : {}
       
@@ -66,13 +111,26 @@ export const useInstructorStudentStore = defineStore('instructorStudent', () => 
           section: context.section || ''
         }
       })
-      students.value = response.data.data.students || []
-      stats.value = response.data.data.stats
+
+      if (response.data?.data) {
+        students.value = response.data.data.students || []
+        if (response.data.data.stats) {
+          stats.value = response.data.data.stats
+        }
+        if (response.data.data.course_overview) {
+          courseOverview.value = response.data.data.course_overview
+        }
+        if (response.data.data.student_progress) {
+          studentProgress.value = response.data.data.student_progress
+        }
+      }
     } catch (err: any) {
       if (err.code === 'ERR_NETWORK' || !err.response) {
-        console.warn('[InstructorStudentStore] Backend unreachable. Using mock data.')
+        console.warn('[InstructorStudentStore] Backend unreachable. Using fallback data.')
         students.value = [...MOCK_STUDENTS]
         stats.value = { ...MOCK_STATS }
+        courseOverview.value = { ...DEFAULT_COURSE_OVERVIEW }
+        studentProgress.value = { ...DEFAULT_STUDENT_PROGRESS }
         usingMockData.value = true
       } else {
         error.value = err.response?.data?.message || 'Failed to load students.'
@@ -82,12 +140,110 @@ export const useInstructorStudentStore = defineStore('instructorStudent', () => 
     }
   }
 
+  const exportStudents = async () => {
+    isExporting.value = true
+    try {
+      const storedContext = localStorage.getItem('instructor_context')
+      const context = storedContext ? JSON.parse(storedContext) : {}
+      
+      const response = await apiClient.get('/instructor/students/export', {
+        params: {
+          department: context.department || '',
+          course: context.course || '',
+          section: context.section || ''
+        }
+      })
+
+      if (response.data?.file) {
+        const byteChars = atob(response.data.file)
+        const byteNums = new Array(byteChars.length)
+        for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i)
+        const blob = new Blob([new Uint8Array(byteNums)], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = response.data.filename || `students_${courseOverview.value.course_code}_${new Date().toISOString().slice(0, 10)}.csv`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+        return true
+      }
+      return false
+    } catch (err: any) {
+      console.error('Failed to export students:', err)
+      throw err
+    } finally {
+      isExporting.value = false
+    }
+  }
+
+  const importStudents = async (studentsToImport: any[]) => {
+    try {
+      const response = await apiClient.post('/instructor/students/import', {
+        students: studentsToImport
+      })
+      await fetchStudents()
+      return response.data
+    } catch (err: any) {
+      console.error('Failed to import students:', err)
+      throw err
+    }
+  }
+
+  const sendAnnouncement = async (payload: { title: string; message: string }) => {
+    try {
+      const response = await apiClient.post('/instructor/students/announcement', payload)
+      return response.data
+    } catch (err: any) {
+      console.error('Failed to send announcement:', err)
+      throw err
+    }
+  }
+
+  const downloadReport = () => {
+    const rows = [
+      ['Student ID', 'Full Name', 'Email', 'Gender', 'Course Name', 'Course Code', 'Section', 'Semester', 'Academic Year', 'Exams Taken', 'Average Score (%)', 'Status'],
+      ...students.value.map(s => [
+        `"${(s.id_number || '').replace(/"/g, '""')}"`,
+        `"${(s.name || '').replace(/"/g, '""')}"`,
+        `"${(s.email || '').replace(/"/g, '""')}"`,
+        `"${(s.gender || '').replace(/"/g, '""')}"`,
+        `"${(courseOverview.value.course_name || '').replace(/"/g, '""')}"`,
+        `"${(courseOverview.value.course_code || '').replace(/"/g, '""')}"`,
+        `"${(courseOverview.value.section || '').replace(/"/g, '""')}"`,
+        `"${(courseOverview.value.semester || '').replace(/"/g, '""')}"`,
+        `"${(courseOverview.value.academic_year || '').replace(/"/g, '""')}"`,
+        s.exams_taken,
+        `"${s.average_score}%"`,
+        `"${(s.status || '').replace(/"/g, '""')}"`
+      ])
+    ]
+    const csvContent = '\uFEFF' + rows.map(r => r.join(',')).join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `Student_Performance_Report_${courseOverview.value.course_code || 'Course'}_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return {
     students,
     stats,
+    courseOverview,
+    studentProgress,
     isLoading,
+    isExporting,
     error,
     usingMockData,
     fetchStudents,
+    exportStudents,
+    importStudents,
+    sendAnnouncement,
+    downloadReport
   }
 })

@@ -184,6 +184,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
         // Students Management
         Route::get('/students', [InstructorStudentController::class, 'index']);
+        Route::get('/students/export', [InstructorStudentController::class, 'export']);
+        Route::post('/students/import', [InstructorStudentController::class, 'import']);
+        Route::post('/students/announcement', [InstructorStudentController::class, 'announcement']);
         
         // Semester Submission
         Route::get('/semester-submission/status', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'status']);
