@@ -76,15 +76,7 @@ const deptFormErrors = ref<Record<string, string>>({})
 const deptFormTouched = ref<Record<string, boolean>>({})
 
 const collegeOptions = [
-  'College of Computing and Informatics',
-  'College of Medicine and Health Sciences',
-  'College of Natural Sciences',
-  'College of Engineering and Technology',
-  'College of Business and Economics',
-  'College of Social Sciences and Humanities',
-  'College of Agriculture',
-  'School of Law',
-  'School of Veterinary Medicine'
+  'College of Computing and Informatics'
 ]
 
 const touchDeptField = (field: string) => {
@@ -1186,6 +1178,7 @@ const deleteDept = async () => {
                 <select v-model="editData.college" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca]">
                   <option value="">Select College/School</option>
                   <option v-for="col in collegeOptions" :key="'edit-'+col" :value="col">{{ col }}</option>
+                  <option v-if="editData.college && !collegeOptions.includes(editData.college)" :value="editData.college">{{ editData.college }}</option>
                 </select>
               </div>
             </div>
