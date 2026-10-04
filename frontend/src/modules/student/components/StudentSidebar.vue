@@ -96,10 +96,10 @@ const isActive = (path: string) => route.path === path
               <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <span>Schedule</span>
             </a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors focus:outline-none focus:bg-indigo-50 focus:text-indigo-600">
+            <button @click="navigate('/student/profile')" :class="['w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors focus:outline-none', isActive('/student/profile') ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600']">
               <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
               <span>Profile</span>
-            </a>
+            </button>
           </nav>
         </div>
         

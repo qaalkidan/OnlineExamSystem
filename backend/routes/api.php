@@ -36,10 +36,11 @@ Route::prefix('v1')->group(function () {
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
     // Current user info
-    Route::get('/user', fn(Request $request) => $request->user()->load('department'));
+    Route::get('/user', fn(Request $request) => $request->user()->load('department.head'));
 
     // Auth — logout & change password
     Route::post('/logout', [\App\Http\Controllers\Api\V1\AuthController::class, 'logout']);
+    Route::put('/user/profile', [\App\Http\Controllers\Api\V1\AuthController::class, 'updateProfile']);
     Route::put('/user/change-password', [\App\Http\Controllers\Api\V1\AuthController::class, 'changePassword']);
     Route::post('/user/profile-photo', [\App\Http\Controllers\Api\V1\AuthController::class, 'updateProfilePhoto']);
     Route::delete('/user/profile-photo', [\App\Http\Controllers\Api\V1\AuthController::class, 'removeProfilePhoto']);

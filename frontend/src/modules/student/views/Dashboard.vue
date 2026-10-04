@@ -189,7 +189,7 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
       document.getElementById('calendar-section')?.scrollIntoView({ behavior: 'smooth' })
       break
     case 'update-profile':
-      isProfileOpen.value = true
+      router.push('/student/profile')
       break
   }
 }

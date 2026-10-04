@@ -125,7 +125,7 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         // Load department so the frontend has it immediately upon login
-        $user->load('department');
+        $user->load('department.head');
 
         return response()->json([
             'data' => [
@@ -312,6 +312,41 @@ class AuthController extends Controller
                 'profile_picture'     => null,
                 'profile_picture_url' => null,
             ],
+        ]);
+    }
+
+    /**
+     * Update user profile information.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name'                     => 'sometimes|required|string|max:255',
+            'phone'                    => 'nullable|string|max:30',
+            'gender'                   => 'nullable|string|in:male,female,other,Male,Female,Other',
+            'office'                   => 'nullable|string|max:255',
+            'notification_preferences' => 'nullable|array',
+        ]);
+
+        if (isset($validated['gender'])) {
+            $validated['gender'] = strtolower($validated['gender']);
+        }
+
+        $user->fill($validated);
+        $user->save();
+        $user->load('department.head');
+
+        \App\Helpers\LogActivity::record(
+            'Updated',
+            'Users',
+            "Updated profile information for \"{$user->name}\""
+        );
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'data'    => $user,
         ]);
     }
 }

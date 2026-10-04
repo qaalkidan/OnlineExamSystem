@@ -165,6 +165,11 @@ export const routes: Array<RouteRecordRaw> = [
     name: 'StudentAcademicCalendar',
     component: () => import('../modules/student/views/AcademicCalendar.vue')
   },
+  {
+    path: '/student/profile',
+    name: 'StudentProfile',
+    component: () => import('../modules/student/views/Profile.vue')
+  },
 
   // ── Super Admin Routes ──
   {

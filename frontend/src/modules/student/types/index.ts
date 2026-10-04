@@ -9,6 +9,14 @@ export interface StudentProfile {
   avatar: string;
   cgpa: number;
   creditsCompleted: number;
+  phone?: string;
+  gender?: string;
+  section?: string;
+  yearLevel?: string;
+  office?: string;
+  username?: string;
+  status?: string;
+  rawUser?: any;
 }
 
 export interface Question {

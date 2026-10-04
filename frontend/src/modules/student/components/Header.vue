@@ -28,6 +28,7 @@ const toggleProfileDropdown = () => {
 const handleOpenProfile = () => {
   isProfileDropdownOpen.value = false
   emit('open-profile')
+  router.push('/student/profile')
 }
 
 const handleLogout = () => {
