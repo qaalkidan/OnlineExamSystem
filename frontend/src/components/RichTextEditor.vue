@@ -49,7 +49,10 @@ const wrapper = ref<HTMLElement | null>(null)
 const editor = useEditor({
   content: props.modelValue,
   extensions: [
-    StarterKit,
+    StarterKit.configure({
+      underline: false,
+      link: false,
+    }),
     Underline,
     TextStyle,
     Color,

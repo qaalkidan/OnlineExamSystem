@@ -41,7 +41,11 @@ onMounted(() => {
   editor.value = new Editor({
     content: props.modelValue,
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      StarterKit.configure({
+        codeBlock: false,
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({ openOnClick: false }),
       Image,

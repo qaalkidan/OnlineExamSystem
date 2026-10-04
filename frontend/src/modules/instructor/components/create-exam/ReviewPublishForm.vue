@@ -294,8 +294,8 @@ const handlePublish = async () => {
   try {
     const payload = {
       title: formStore.title || 'Untitled Exam',
-      course_code: formStore.courseCode || 'SWE-301',
-      course_name: formStore.examType || 'Software Engineering',
+      course_code: formStore.courseCode || 'NT-00',
+      course_name: formStore.courseName || formStore.examType || 'Networking',
       section: formStore.section,
       duration_minutes: formStore.durationMinutes,
       total_marks: formStore.totalMarks,

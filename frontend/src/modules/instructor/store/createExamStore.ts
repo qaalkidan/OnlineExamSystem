@@ -4,8 +4,9 @@ import { ref } from 'vue'
 export const useCreateExamStore = defineStore('createExam', () => {
   const title = ref('')
   const courseCode = ref('')
+  const courseName = ref('')
   const examType = ref('Mid Exam')
-  const section = ref('A')
+  const section = ref('Section B')
   const totalMarks = ref(100)
   const passingMarks = ref(60)
   const description = ref('')
@@ -63,9 +64,12 @@ export const useCreateExamStore = defineStore('createExam', () => {
     editingExamId.value = exam.id
     title.value = exam.title || ''
     courseCode.value = exam.course_code || ''
-    examType.value = exam.course_name || 'Mid Exam'
-    section.value = exam.section || 'A'
+    courseName.value = exam.course_name || ''
+    examType.value = exam.exam_type || exam.course_name || 'Mid Exam'
+    section.value = exam.section || 'Section B'
     totalMarks.value = exam.total_marks || 100
+    passingMarks.value = exam.passing_marks || 60
+    description.value = exam.description || ''
     durationMinutes.value = exam.duration_minutes || 90
 
     // Parse scheduled_at back to date/time fields
@@ -155,8 +159,9 @@ export const useCreateExamStore = defineStore('createExam', () => {
     editingExamId.value = null
     title.value = ''
     courseCode.value = ''
+    courseName.value = ''
     examType.value = 'Mid Exam'
-    section.value = 'A'
+    section.value = 'Section B'
     totalMarks.value = 100
     passingMarks.value = 60
     description.value = ''
@@ -185,7 +190,9 @@ export const useCreateExamStore = defineStore('createExam', () => {
   return {
     title,
     courseCode,
+    courseName,
     examType,
+    section,
     totalMarks,
     passingMarks,
     description,
