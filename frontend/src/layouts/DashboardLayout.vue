@@ -17,7 +17,7 @@ import Header from './components/Header.vue'
 
       <!-- Page Content -->
       <main class="flex-1 p-8">
-        <router-view :key="$route.fullPath" />
+        <router-view :key="$route.path" />
       </main>
 
     </div>

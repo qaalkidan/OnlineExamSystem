@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCreateExamStore } from '../store/createExamStore'
 import { useInstructorExamStore } from '../store/instructorExamStore'
 
@@ -27,26 +27,18 @@ import ReadyPublishSidebar from '../components/create-exam/ReadyPublishSidebar.v
 import WhatHappensNextSidebar from '../components/create-exam/WhatHappensNextSidebar.vue'
 
 const router = useRouter()
-const route = useRoute()
 const formStore = useCreateExamStore()
 const examStore = useInstructorExamStore()
 
-const currentStep = computed({
-  get: () => Number(route.query.step) || 1,
-  set: (val) => router.push({ query: { ...route.query, step: val } })
-})
-
+// State-driven step navigation (does not alter URL to prevent component remounting)
+const currentStep = ref(1)
 const errorMessage = ref('')
 
 onMounted(() => {
-  formStore.reset()
-  if (route.query.step && Number(route.query.step) !== 1) {
-    router.replace({ query: { step: 1 } })
+  // Only reset if entering clean without an ongoing draft in progress
+  if (!formStore.editingExamId && !formStore.title && formStore.questions.length === 0) {
+    formStore.reset()
   }
-})
-
-onBeforeUnmount(() => {
-  formStore.reset()
 })
 
 const validateStep1 = (): boolean => {
@@ -92,6 +84,11 @@ const handleStepChange = (targetStep: number) => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+const handleCancel = () => {
+  formStore.reset()
+  router.push('/instructor/exams')
+}
+
 const isSavingDraft = ref(false)
 const saveAsDraft = async () => {
   isSavingDraft.value = true
@@ -123,10 +120,13 @@ const saveAsDraft = async () => {
     <!-- Top Bar with Navigation and Quick Actions -->
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2">
-        <router-link to="/instructor/exams" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors shadow-xs flex items-center gap-2 cursor-pointer">
+        <button
+          @click="handleCancel"
+          class="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors shadow-xs flex items-center gap-2 cursor-pointer"
+        >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Exams
-        </router-link>
+        </button>
       </div>
 
       <div class="flex items-center gap-3">
@@ -173,7 +173,7 @@ const saveAsDraft = async () => {
 
           <!-- Bottom Action Buttons -->
           <div class="flex items-center justify-between pt-2 pb-10">
-            <button @click="router.push('/instructor/exams')" class="px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors cursor-pointer">
+            <button @click="handleCancel" class="px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors cursor-pointer">
               Cancel
             </button>
             
@@ -191,17 +191,17 @@ const saveAsDraft = async () => {
 
         <!-- STEP 2: Add Questions -->
         <template v-else-if="currentStep === 2">
-          <AddQuestionForm @cancel="router.push('/instructor/exams')" @next="nextStep" @prev="handleStepChange(1)" @save-draft="saveAsDraft" :isSaving="isSavingDraft" />
+          <AddQuestionForm @cancel="handleCancel" @next="nextStep" @prev="handleStepChange(1)" @save-draft="saveAsDraft" :isSaving="isSavingDraft" />
         </template>
 
         <!-- STEP 3: Exam Settings -->
         <template v-else-if="currentStep === 3">
-          <ExamSettingsForm @cancel="router.push('/instructor/exams')" @next="nextStep" @prev="handleStepChange(2)" @save-draft="saveAsDraft" :isSaving="isSavingDraft" />
+          <ExamSettingsForm @cancel="handleCancel" @next="nextStep" @prev="handleStepChange(2)" @save-draft="saveAsDraft" :isSaving="isSavingDraft" />
         </template>
 
         <!-- STEP 4: Review & Publish -->
         <template v-else-if="currentStep === 4">
-          <ReviewPublishForm @edit-step="(step) => handleStepChange(step)" @cancel="router.push('/instructor/exams')" @save-draft="saveAsDraft" :isSaving="isSavingDraft" />
+          <ReviewPublishForm @edit-step="(step) => handleStepChange(step)" @cancel="handleCancel" @save-draft="saveAsDraft" :isSaving="isSavingDraft" />
         </template>
 
       </div>
