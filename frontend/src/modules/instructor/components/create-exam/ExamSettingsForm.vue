@@ -155,8 +155,8 @@ const handleSaveDraft = () => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.shuffleQuestions" name="toggle" id="shuffleQuestions" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="shuffleQuestions" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.shuffleQuestions" name="toggle" id="shuffleQuestions" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.shuffleQuestions ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="shuffleQuestions" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.shuffleQuestions ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="shuffleQuestions" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Shuffle Questions</label>
@@ -166,8 +166,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.showReviewScreen" name="toggle" id="showReview" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="showReview" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.showReviewScreen" name="toggle" id="showReview" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.showReviewScreen ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="showReview" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.showReviewScreen ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="showReview" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Show Review Screen</label>
@@ -177,8 +177,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.shuffleAnswers" name="toggle" id="shuffleAnswers" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="shuffleAnswers" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.shuffleAnswers" name="toggle" id="shuffleAnswers" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.shuffleAnswers ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="shuffleAnswers" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.shuffleAnswers ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="shuffleAnswers" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Shuffle Answer Options</label>
@@ -188,8 +188,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.allowBacktracking" name="toggle" id="allowBacktracking" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="allowBacktracking" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.allowBacktracking" name="toggle" id="allowBacktracking" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.allowBacktracking ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="allowBacktracking" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.allowBacktracking ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="allowBacktracking" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Allow Backtracking</label>
@@ -199,8 +199,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.showOneQuestionAtATime" name="toggle" id="oneQuestion" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-slate-300 appearance-none cursor-pointer transition-transform duration-200 ease-in-out"/>
-            <label for="oneQuestion" class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-300 cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.showOneQuestionAtATime" name="toggle" id="oneQuestion" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.showOneQuestionAtATime ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="oneQuestion" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.showOneQuestionAtATime ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="oneQuestion" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Show One Question at a Time</label>
@@ -210,8 +210,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.autoSubmitOnTimeFinish" name="toggle" id="autoSubmit" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="autoSubmit" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.autoSubmitOnTimeFinish" name="toggle" id="autoSubmit" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.autoSubmitOnTimeFinish ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="autoSubmit" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.autoSubmitOnTimeFinish ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="autoSubmit" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Auto Submit on Time Finish</label>
@@ -231,8 +231,8 @@ const handleSaveDraft = () => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.enableFullscreenMode" name="toggle" id="fullscreen" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="fullscreen" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.enableFullscreenMode" name="toggle" id="fullscreen" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.enableFullscreenMode ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="fullscreen" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.enableFullscreenMode ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="fullscreen" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Enable Fullscreen Mode</label>
@@ -242,8 +242,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.enableBrowserTabMonitoring" name="toggle" id="tabMonitoring" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="tabMonitoring" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.enableBrowserTabMonitoring" name="toggle" id="tabMonitoring" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.enableBrowserTabMonitoring ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="tabMonitoring" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.enableBrowserTabMonitoring ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="tabMonitoring" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Enable Browser Tab Monitoring</label>
@@ -253,8 +253,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.disableRightClick" name="toggle" id="disableRightClick" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="disableRightClick" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.disableRightClick" name="toggle" id="disableRightClick" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.disableRightClick ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="disableRightClick" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.disableRightClick ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="disableRightClick" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Disable Right Click</label>
@@ -264,8 +264,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.allowCalculator" name="toggle" id="allowCalculator" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-slate-300 appearance-none cursor-pointer transition-transform duration-200 ease-in-out"/>
-            <label for="allowCalculator" class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-300 cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.allowCalculator" name="toggle" id="allowCalculator" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.allowCalculator ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="allowCalculator" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.allowCalculator ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="allowCalculator" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Allow Calculator</label>
@@ -275,8 +275,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.disableCopyPaste" name="toggle" id="disableCopyPaste" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-[#5138ed] appearance-none cursor-pointer transition-transform duration-200 ease-in-out translate-x-5"/>
-            <label for="disableCopyPaste" class="toggle-label block overflow-hidden h-5 rounded-full bg-[#5138ed] cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.disableCopyPaste" name="toggle" id="disableCopyPaste" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.disableCopyPaste ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="disableCopyPaste" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.disableCopyPaste ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="disableCopyPaste" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Disable Copy & Paste</label>
@@ -286,8 +286,8 @@ const handleSaveDraft = () => {
 
         <div class="flex gap-3">
           <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in mt-0.5">
-            <input type="checkbox" v-model="formStore.webcamMonitoring" name="toggle" id="webcamMonitoring" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-slate-300 appearance-none cursor-pointer transition-transform duration-200 ease-in-out"/>
-            <label for="webcamMonitoring" class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-300 cursor-pointer"></label>
+            <input type="checkbox" v-model="formStore.webcamMonitoring" name="toggle" id="webcamMonitoring" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out" :class="formStore.webcamMonitoring ? 'translate-x-5 border-[#5138ed]' : 'translate-x-0 border-slate-300'"/>
+            <label for="webcamMonitoring" class="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200" :class="formStore.webcamMonitoring ? 'bg-[#5138ed]' : 'bg-slate-300'"></label>
           </div>
           <div>
             <label for="webcamMonitoring" class="text-[12px] font-bold text-slate-700 cursor-pointer block mb-0.5">Webcam Monitoring</label>

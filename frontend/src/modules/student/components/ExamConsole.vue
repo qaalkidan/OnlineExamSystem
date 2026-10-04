@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { ActiveExam, Question } from '../types'
 import wolloLogo from '@/assets/images/logo.png'
+import ScientificCalculator from './ScientificCalculator.vue'
 
 const props = defineProps<{
   exam: ActiveExam
@@ -58,6 +59,12 @@ const tabSwitches = ref<number>(0)
 
 // Exam settings
 const settings = ref<Record<string, any>>((props.exam as any).settings || {})
+
+const isCalculatorAllowed = computed(() => {
+  const s = (props.exam as any)?.settings || settings.value || {}
+  const val = s.allowCalculator ?? s.allow_calculator
+  return val === true || val === 1 || val === '1' || val === 'true'
+})
 
 const activeQuestion = computed(() => questions.value[currentIndex.value])
 
@@ -737,5 +744,8 @@ const confirmCancel = () => {
         </div>
       </div>
     </div>
+
+    <!-- Scientific Calculator Widget (conditionally rendered when instructor allows calculator in exam settings) -->
+    <ScientificCalculator :allowed="isCalculatorAllowed" />
   </div>
 </template>

@@ -1,21 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-
-interface UpcomingExam {
-  id: number
-  courseCode: string
-  courseName: string
-  examType: string
-  instructor?: string
-  scheduledAt?: string | null
-  scheduledDate?: string | null
-  startTime?: string
-  durationMinutes: number
-  totalMarks?: number
-  attemptStatus?: 'in_progress' | null
-  attemptId?: number | null
-  attemptStartedAt?: string | null
-}
+import type { UpcomingExam } from '../types'
 
 const props = defineProps<{
   exam: UpcomingExam

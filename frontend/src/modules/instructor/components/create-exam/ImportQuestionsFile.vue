@@ -418,7 +418,7 @@ const importSelectedQuestions = () => {
       description: q.description || '',
       options: q.options,
       correct_answer: corrAns,
-      question_data: q.question_data || {},
+      question_data: (q as any).question_data || {},
     })
     importedCount++
     totalMarks += q.marks

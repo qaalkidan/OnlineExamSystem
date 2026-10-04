@@ -63,7 +63,7 @@ export interface UpcomingExam {
   totalMarks: number;
   status: 'Soon' | 'Pending' | 'Ready' | 'Upcoming';
   // Attempt tracking
-  attemptStatus?: 'in_progress' | null;
+  attemptStatus?: 'in_progress' | 'submitted' | 'graded' | 'published' | null;
   attemptId?: number | null;
   attemptStartedAt?: string | null;
 }
