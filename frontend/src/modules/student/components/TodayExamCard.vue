@@ -39,16 +39,27 @@ onUnmounted(() => {
 })
 
 // ─── Date / time helpers ───────────────────────────────────────────────────
+// ─── Phase & Completion checks ─────────────────────────────────────────────
+const isSubmitted = computed(() => {
+  const status = props.exam.attemptStatus as string | undefined | null
+  return status === 'submitted' || status === 'graded' || status === 'published'
+})
+
+// ─── Date / time helpers ───────────────────────────────────────────────────
 const startDateTime = computed((): Date => {
   const raw = props.exam.scheduledAt || props.exam.scheduledDate
-  if (!raw) return new Date(0)
+  if (!raw) return currentTime.value
   const d = new Date(raw)
-  return isNaN(d.getTime()) ? new Date(0) : d
+  return isNaN(d.getTime()) ? currentTime.value : d
 })
 
 const endDateTime = computed((): Date => {
+  const raw = props.exam.scheduledAt || props.exam.scheduledDate
+  if (!raw) {
+    const started = props.exam.attemptStartedAt ? new Date(props.exam.attemptStartedAt).getTime() : currentTime.value.getTime()
+    return new Date(started + props.exam.durationMinutes * 60 * 1000)
+  }
   const start = startDateTime.value
-  if (!start.getTime()) return new Date(0)
   return new Date(start.getTime() + props.exam.durationMinutes * 60 * 1000)
 })
 
@@ -58,10 +69,21 @@ const endMs   = computed(() => endDateTime.value.getTime())
 const TEN_MIN = 10 * 60 * 1000
 
 // ─── Phase flags ───────────────────────────────────────────────────────────
-const isReady   = computed(() => now.value >= startMs.value - TEN_MIN && now.value < startMs.value)
-const isOngoing = computed(() => now.value >= startMs.value && now.value < endMs.value)
-const isVisible = computed(() => isReady.value || isOngoing.value)
 const isContinue = computed(() => props.exam.attemptStatus === 'in_progress')
+const isReady   = computed(() => {
+  if (isSubmitted.value) return false
+  const raw = props.exam.scheduledAt || props.exam.scheduledDate
+  if (!raw) return false
+  return now.value >= startMs.value - TEN_MIN && now.value < startMs.value
+})
+const isOngoing = computed(() => {
+  if (isSubmitted.value) return false
+  if (isContinue.value) return true
+  const raw = props.exam.scheduledAt || props.exam.scheduledDate
+  if (!raw) return true // Immediate published exam is available now
+  return now.value >= startMs.value && now.value < endMs.value
+})
+const isVisible = computed(() => !isSubmitted.value && (isReady.value || isOngoing.value))
 
 // ─── Countdown / remaining ─────────────────────────────────────────────────
 const countdownMs       = computed(() => Math.max(0, startMs.value - now.value))

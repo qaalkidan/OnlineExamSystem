@@ -78,11 +78,11 @@ const formatDay = (dateString?: string | null) => {
         <!-- Status / Action -->
         <div class="flex-shrink-0 pt-1">
           <button
-            v-if="exam.status === 'Ready'"
+            v-if="exam.status === 'Ready' || exam.attemptStatus === 'in_progress'"
             @click="emit('start-exam', exam.id)"
             class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 hover:bg-emerald-100 transition-colors"
           >
-            Ready to Start
+            {{ exam.attemptStatus === 'in_progress' ? 'Continue Exam' : 'Ready to Start' }}
           </button>
           <span
             v-else

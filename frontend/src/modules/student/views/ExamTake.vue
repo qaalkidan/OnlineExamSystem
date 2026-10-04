@@ -14,6 +14,7 @@ const activeExam = computed(() => examStore.activeExam)
 
 // Modal state
 const showModal       = ref(false)
+const isAutoSubmitted = ref(false)
 const resultData      = ref<RecentResult | null>(null)
 const examDisplayName = ref('')
 
@@ -76,15 +77,20 @@ const detailedBreakdown = computed(() => {
 
 onMounted(async () => {
   if (!activeExam.value) await examStore.fetchExams()
-  if (!activeExam.value) router.replace('/student')
+  const status = (activeExam.value as any)?.attemptStatus
+  if (!activeExam.value || status === 'submitted' || status === 'graded' || status === 'published') {
+    router.replace('/student')
+  }
 })
 
 const handleExamCompleted = async (
   answers: Record<number, string>,
   _scored: number,
-  _pct: number
+  _pct: number,
+  isAuto = false
 ) => {
   if (!activeExam.value) return
+  isAutoSubmitted.value = !!isAuto
   examDisplayName.value = activeExam.value.courseName
   const examId = activeExam.value.id
   try {
@@ -93,8 +99,9 @@ const handleExamCompleted = async (
     profile.value.cgpa = Math.min(4.00, Number((profile.value.cgpa + 0.02).toFixed(2)))
     resultData.value = result
     showModal.value  = true
-  } catch {
-    router.push('/student')
+  } catch (err) {
+    console.error('Submit exam error', err)
+    router.replace('/student')
   }
 }
 
@@ -154,8 +161,12 @@ const getPctColor = (pct: number, isPending: boolean) => {
                 <div class="absolute -bottom-1 right-0 w-1.5 h-1.5 rounded-full bg-pink-400"></div>
                 <div class="absolute bottom-1 -left-2 w-1 h-1 rounded-full bg-blue-400"></div>
               </div>
-              <h2 class="text-xl font-black text-slate-900">Exam Submitted Successfully!</h2>
-              <p class="text-[13px] text-slate-500 mt-1">Your exam has been submitted. Here are your results.</p>
+              <h2 class="text-xl font-black text-slate-900">
+                {{ isAutoSubmitted ? 'Time Expired — Exam Submitted Automatically!' : 'Exam Submitted Successfully!' }}
+              </h2>
+              <p class="text-[13px] text-slate-500 mt-1">
+                {{ isAutoSubmitted ? 'Your exam time limit has ended. Your answers were safely recorded and submitted.' : 'Your exam has been submitted. Here are your results.' }}
+              </p>
             </div>
 
             <!-- Score / Result Box -->

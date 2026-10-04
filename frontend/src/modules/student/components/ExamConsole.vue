@@ -9,7 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'cancel'): void
-  (e: 'submit-exam', answers: Record<number, string>, scores: number, percentage: number): void
+  (e: 'submit-exam', answers: Record<number, string>, scores: number, percentage: number, isAuto?: boolean): void
 }>()
 
 const groupQuestionsByInstruction = (qs: Question[]) => {
@@ -35,8 +35,25 @@ const currentIndex = ref<number>(0)
 const answers = ref<Record<number, string>>({})
 const matchingAnswers = ref<Record<number, Record<number, string>>>({}) // for matching questions: qId -> {pairIndex -> selectedRight}
 const flagged = ref<Record<number, boolean>>({})
-const secondsRemaining = ref<number>(props.exam.durationMinutes * 60)
+
+// Calculate initial seconds remaining considering startedAt timestamp
+const calculateInitialSeconds = () => {
+  const startedAt = (props.exam as any).startedAt
+  if (startedAt) {
+    const startedMs = new Date(startedAt).getTime()
+    if (!isNaN(startedMs)) {
+      const elapsedSeconds = Math.floor((Date.now() - startedMs) / 1000)
+      const totalSeconds = props.exam.durationMinutes * 60
+      return Math.max(0, totalSeconds - elapsedSeconds)
+    }
+  }
+  return props.exam.durationMinutes * 60
+}
+
+const secondsRemaining = ref<number>(calculateInitialSeconds())
 const showConfirmSubmit = ref<boolean>(false)
+const isSubmitting = ref<boolean>(false)
+const isAutoSubmitting = ref<boolean>(false)
 const tabSwitches = ref<number>(0)
 
 // Exam settings
@@ -91,11 +108,19 @@ const stopWebcam = () => {
 // Live timer countdown
 onMounted(() => {
   startWebcam()
+  if (secondsRemaining.value <= 0) {
+    secondsRemaining.value = 0
+    triggerAutoSubmit()
+    return
+  }
   timer = window.setInterval(() => {
     if (secondsRemaining.value <= 1) {
-      if (timer) clearInterval(timer)
-      triggerAutoSubmit()
+      if (timer) {
+        clearInterval(timer)
+        timer = null
+      }
       secondsRemaining.value = 0
+      triggerAutoSubmit()
     } else {
       secondsRemaining.value--
     }
@@ -196,11 +221,17 @@ const isQuestionAnswered = (qId: number) => {
 }
 
 const triggerAutoSubmit = () => {
-  alert("Time limit reached! Your academic response sheet is being compiled and submitted automatically.")
-  processAndSubmit()
+  if (isAutoSubmitting.value || isSubmitting.value) return
+  isAutoSubmitting.value = true
+  isSubmitting.value = true
+  showConfirmSubmit.value = false
+  processAndSubmit(true)
 }
 
-const processAndSubmit = () => {
+const processAndSubmit = (isAuto = false) => {
+  if (!isAuto && isSubmitting.value) return
+  isSubmitting.value = true
+
   let correctCount = 0
   questions.value.forEach(q => {
     if (q.type === 'multiple-choice') {
@@ -219,7 +250,7 @@ const processAndSubmit = () => {
   const scoredMarks = correctCount * 10
   const percentage = (scoredMarks / 50) * 100
 
-  emit('submit-exam', answers.value, scoredMarks, percentage)
+  emit('submit-exam', answers.value, scoredMarks, percentage, isAuto)
 }
 
 const confirmCancel = () => {
@@ -265,9 +296,10 @@ const confirmCancel = () => {
 
         <button
           @click="showConfirmSubmit = true"
-          class="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/10 active:scale-[0.98]"
+          :disabled="isSubmitting"
+          class="rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/10 active:scale-[0.98]"
         >
-          Submit Response Sheet
+          {{ isSubmitting ? 'Submitting...' : 'Submit Response Sheet' }}
         </button>
       </div>
     </header>
@@ -697,9 +729,10 @@ const confirmCancel = () => {
           </button>
           <button
             @click="() => { showConfirmSubmit = false; processAndSubmit() }"
-            class="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10"
+            :disabled="isSubmitting"
+            class="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-lg shadow-emerald-600/10"
           >
-            Confirm Final Submit
+            {{ isSubmitting ? 'Submitting...' : 'Confirm Final Submit' }}
           </button>
         </div>
       </div>

@@ -36,9 +36,12 @@ export const useStudentExamStore = defineStore('studentExam', () => {
   /**
    * Fetch published exams (upcoming + active) from API.
    * Falls back to mock data if backend is offline.
+   * Accepts silent boolean to avoid flashing loading spinners during background polling.
    */
-  const fetchExams = async () => {
-    isLoading.value = true
+  const fetchExams = async (silent = false) => {
+    if (!silent) {
+      isLoading.value = true
+    }
     error.value = null
     usingMockData.value = false
 
@@ -47,7 +50,7 @@ export const useStudentExamStore = defineStore('studentExam', () => {
       const data = response.data.data
 
       // Map active exam from API to frontend ActiveExam shape
-      if (data.active_exam) {
+      if (data.active_exam && !['submitted', 'graded', 'published'].includes(data.active_exam.attemptStatus)) {
         const ae = data.active_exam
         activeExam.value = {
           id: ae.id,
@@ -66,32 +69,38 @@ export const useStudentExamStore = defineStore('studentExam', () => {
         activeExam.value = null
       }
 
-      // Map upcoming exams — keep scheduledAt as ISO string for time math
-      upcomingExams.value = data.upcoming_exams.map((e: any) => ({
-        id: e.id,
-        courseCode: e.courseCode,
-        courseName: e.courseName,
-        instructor: e.instructor,
-        examType: e.examType,
-        scheduledAt: e.scheduledAt || e.scheduledDate || null, // ISO string
-        scheduledDate: e.scheduledAt || e.scheduledDate || null, // legacy alias
-        startTime: e.startTime,
-        durationMinutes: e.durationMinutes,
-        totalQuestions: e.totalQuestions,
-        totalMarks: e.totalMarks,
-        status: e.status as 'Soon' | 'Pending' | 'Ready' | 'Upcoming',
-        // Attempt tracking — drives Ready Card button state
-        attemptStatus: e.attemptStatus as 'in_progress' | null | undefined,
-        attemptId: e.attemptId as number | null | undefined,
-        attemptStartedAt: e.attemptStartedAt as string | null | undefined,
-      }))
+      // Map upcoming exams — exclude any that are already submitted, graded, or published
+      upcomingExams.value = (data.upcoming_exams || [])
+        .filter((e: any) => !['submitted', 'graded', 'published'].includes(e.attemptStatus))
+        .map((e: any) => ({
+          id: e.id,
+          courseCode: e.courseCode,
+          courseName: e.courseName,
+          instructor: e.instructor,
+          examType: e.examType,
+          scheduledAt: e.scheduledAt || e.scheduledDate || null, // ISO string
+          scheduledDate: e.scheduledAt || e.scheduledDate || null, // legacy alias
+          startTime: e.startTime,
+          durationMinutes: e.durationMinutes,
+          totalQuestions: e.totalQuestions,
+          totalMarks: e.totalMarks,
+          status: e.status as 'Soon' | 'Pending' | 'Ready' | 'Upcoming',
+          // Attempt tracking — drives Ready Card button state
+          attemptStatus: e.attemptStatus as 'in_progress' | null | undefined,
+          attemptId: e.attemptId as number | null | undefined,
+          attemptStartedAt: e.attemptStartedAt as string | null | undefined,
+        }))
     } catch (err: any) {
       console.error('Failed to fetch student exams', err)
       usingMockData.value = false
-      activeExam.value = null
-      upcomingExams.value = []
+      if (!silent) {
+        activeExam.value = null
+        upcomingExams.value = []
+      }
     } finally {
-      isLoading.value = false
+      if (!silent) {
+        isLoading.value = false
+      }
     }
   }
 

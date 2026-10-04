@@ -20,20 +20,29 @@ class StudentExamController extends Controller
     {
         $student = $request->user();
 
-        // Count completed attempts
+        // Count completed attempts (submitted, graded, or auto-published)
         $completedAttempts = ExamAttempt::where('user_id', $student->id)
-            ->whereIn('status', ['submitted', 'graded'])
+            ->where(function($q) {
+                $q->whereIn('status', ['submitted', 'graded', 'published'])
+                  ->orWhereNotNull('submitted_at');
+            })
             ->count();
 
         // Average score across all submitted attempts
         $avgScore = ExamAttempt::where('user_id', $student->id)
-            ->whereIn('status', ['submitted', 'graded'])
+            ->where(function($q) {
+                $q->whereIn('status', ['submitted', 'graded', 'published'])
+                  ->orWhereNotNull('submitted_at');
+            })
             ->whereNotNull('percentage')
             ->avg('percentage');
 
         // Count upcoming published/scheduled exams for student's department & year_level that haven't been completed
         $completedAttemptExamIds = ExamAttempt::where('user_id', $student->id)
-            ->whereIn('status', ['submitted', 'graded'])
+            ->where(function($q) {
+                $q->whereIn('status', ['submitted', 'graded', 'published'])
+                  ->orWhereNotNull('submitted_at');
+            })
             ->pluck('exam_id');
 
         $upcomingCount = $this->getAvailableExamsQuery($student)
@@ -73,10 +82,10 @@ class StudentExamController extends Controller
 
         foreach ($exams as $exam) {
             $attempt = $attempts->get($exam->id);
-            $attemptStatus = $attempt ? $attempt->status : null; // null | 'in_progress' | 'submitted' | 'graded'
+            $attemptStatus = $attempt ? $attempt->status : null; // null | 'in_progress' | 'submitted' | 'graded' | 'published'
 
-            // Exclude exams the student has already submitted/graded (fully completed)
-            if ($attemptStatus === 'submitted' || $attemptStatus === 'graded') {
+            // Exclude exams the student has already submitted/graded/published (fully completed)
+            if ($attempt && (in_array($attempt->status, ['submitted', 'graded', 'published']) || $attempt->submitted_at !== null)) {
                 continue;
             }
 
@@ -301,7 +310,7 @@ class StudentExamController extends Controller
             ]);
         }
 
-        if ($existingAttempt && in_array($existingAttempt->status, ['submitted', 'graded'])) {
+        if ($existingAttempt && (in_array($existingAttempt->status, ['submitted', 'graded', 'published']) || $existingAttempt->submitted_at !== null)) {
             return response()->json(['message' => 'You have already completed this exam.'], 409);
         }
 
@@ -352,7 +361,43 @@ class StudentExamController extends Controller
         $attempt = ExamAttempt::where('exam_id', $exam->id)
             ->where('user_id', $student->id)
             ->where('status', 'in_progress')
-            ->firstOrFail();
+            ->latest()
+            ->first();
+
+        if (!$attempt) {
+            $alreadyDone = ExamAttempt::where('exam_id', $exam->id)
+                ->where('user_id', $student->id)
+                ->where(function($q) {
+                    $q->whereIn('status', ['submitted', 'graded', 'published'])
+                      ->orWhereNotNull('submitted_at');
+                })
+                ->latest()
+                ->first();
+
+            if ($alreadyDone) {
+                return response()->json([
+                    'message' => 'This exam has already been submitted.',
+                    'data' => [
+                        'attempt_id'      => $alreadyDone->id,
+                        'auto_score'      => $alreadyDone->score,
+                        'auto_total'      => $alreadyDone->total_marks,
+                        'pending_total'   => 0,
+                        'has_pending'     => false,
+                        'score'           => $alreadyDone->score,
+                        'total_marks'     => $alreadyDone->total_marks,
+                        'percentage'      => $alreadyDone->percentage,
+                        'grade'           => $alreadyDone->grade,
+                        'status'          => $alreadyDone->status,
+                        'exam_title'      => $exam->title,
+                        'course_code'     => $exam->course_code,
+                        'course_name'     => $exam->course_name,
+                        'questionsReview' => [],
+                    ]
+                ], 200);
+            }
+
+            return response()->json(['message' => 'Active exam attempt not found.'], 404);
+        }
 
         $validated = $request->validate([
             'answers' => 'required|array',
@@ -437,10 +482,11 @@ class StudentExamController extends Controller
                             'totalCount'    => $result['total_count'],
                         ];
                         continue;
+                    } elseif ($q->type === 'true_false' || $q->type === 'true-false') {
+                        $isCorrect = $this->isTrueFalseCorrect($studentAnswer, $q->correct_answer);
                     } else {
-                        // MCQ / True-False: letter comparison (A, B, C... or A/B for T/F)
-                        $isCorrect = strtolower(trim((string)$studentAnswer))
-                                  === strtolower(trim((string)$q->correct_answer));
+                        // MCQ: match letter, option text, index, or option prefix
+                        $isCorrect = $this->gradeMultipleChoice($studentAnswer, $q);
                     }
                 }
 
@@ -457,19 +503,25 @@ class StudentExamController extends Controller
                 $typeBreakdown[$typeKey]['earned'] += $earnedMarks;
                 $typeBreakdown[$typeKey]['total']  += $q->marks;
 
+                $displayCorrect = $q->correct_answer;
+                if ($q->type === 'true_false' || $q->type === 'true-false') {
+                    $cRaw = strtolower(trim((string)$q->correct_answer));
+                    $displayCorrect = in_array($cRaw, ['true', 'a', '1', 'yes', 'correct']) ? 'True' : 'False';
+                }
+
                 $questionsReview[] = [
                     'question_id'   => $q->id,
                     'questionText'  => $q->text,
                     'type'          => $q->type,
                     'studentAnswer' => $studentAnswer,
-                    'correctAnswer' => $q->correct_answer,
+                    'correctAnswer' => $displayCorrect,
                     'isCorrect'     => $isCorrect,
                     'marks'         => $q->marks,
                     'earnedMarks'   => $earnedMarks,
                     'gradingStatus' => 'graded',
                     'explanation'   => $isCorrect
                         ? 'Correct!'
-                        : 'The correct answer is: ' . $q->correct_answer,
+                        : 'The correct answer is: ' . $displayCorrect,
                 ];
             } else {
                 // Manual grading — short_answer, fill_blank, essay, etc.
@@ -540,6 +592,99 @@ class StudentExamController extends Controller
                 'questionsReview' => $questionsReview,
             ]
         ]);
+    }
+
+    /**
+     * Robust auto-grading for True / False questions.
+     * Evaluates 'A', 'B', 'True', 'False', 1, 0, booleans.
+     */
+    private function isTrueFalseCorrect($studentAnswer, $correctAnswer): bool
+    {
+        $sAns = strtolower(trim((string)$studentAnswer));
+        $cAns = strtolower(trim((string)$correctAnswer));
+
+        if ($sAns === '' || $cAns === '') {
+            return false;
+        }
+
+        $sTrue = in_array($sAns, ['a', 'true', 't', '1', 'yes', 'correct']);
+        $sFalse = in_array($sAns, ['b', 'false', 'f', '0', 'no', 'incorrect']);
+        $cTrue = in_array($cAns, ['a', 'true', 't', '1', 'yes', 'correct']);
+        $cFalse = in_array($cAns, ['b', 'false', 'f', '0', 'no', 'incorrect']);
+
+        return ($sTrue && $cTrue) || ($sFalse && $cFalse);
+    }
+
+    /**
+     * Robust auto-grading for multiple choice questions.
+     * Matches student letter selection (A, B, C...) against:
+     * 1. Direct letter answer (A, B, C...)
+     * 2. Full option text (e.g. "Software Requirements Specification")
+     * 3. Numeric index (0, 1, 2...)
+     * 4. Option prefixed strings ("Option A", "A. Text")
+     * 5. Options marked is_correct in database
+     */
+    private function gradeMultipleChoice($studentAnswer, $q): bool
+    {
+        $studentAns = strtoupper(trim((string)$studentAnswer)); // e.g. "A", "B", "C"
+        $correctAns = trim((string)$q->correct_answer);
+
+        if ($studentAns === '' || $correctAns === '') {
+            return false;
+        }
+
+        // 1. Direct letter comparison (e.g. "A" === "A")
+        if (strtoupper($correctAns) === $studentAns) {
+            return true;
+        }
+
+        $options = $q->options ?? [];
+        $studentIdx = ord($studentAns) - 65; // A -> 0, B -> 1, C -> 2...
+
+        // 2. If correct_answer matches the text of the option selected by the student
+        if ($studentIdx >= 0 && isset($options[$studentIdx])) {
+            $opt = $options[$studentIdx];
+            $optText = is_array($opt) ? ($opt['text'] ?? $opt['label'] ?? '') : (string)$opt;
+            $cleanOptText = strtolower(trim(strip_tags((string)$optText)));
+            $cleanCorrect = strtolower(trim(strip_tags((string)$correctAns)));
+            if ($cleanOptText !== '' && $cleanOptText === $cleanCorrect) {
+                return true;
+            }
+        }
+
+        // 3. If correct_answer matches an option text in the options array, compare its index with studentIdx
+        foreach ($options as $optIdx => $opt) {
+            $optText = is_array($opt) ? ($opt['text'] ?? $opt['label'] ?? '') : (string)$opt;
+            $cleanOptText = strtolower(trim(strip_tags((string)$optText)));
+            $cleanCorrect = strtolower(trim(strip_tags((string)$correctAns)));
+            if ($cleanOptText !== '' && $cleanOptText === $cleanCorrect) {
+                if ($optIdx === $studentIdx) {
+                    return true;
+                }
+            }
+        }
+
+        // 4. If correct_answer is a numeric index (0 -> A, 1 -> B, etc.)
+        if (is_numeric($correctAns)) {
+            $cIdx = (int)$correctAns;
+            if ($cIdx === $studentIdx || $cIdx === ($studentIdx + 1)) {
+                return true;
+            }
+        }
+
+        // 5. If correct_answer has a prefix like "Option A" or "A. Some text" or "A) ..."
+        if (preg_match('/^(?:Option\s*)?([A-Za-z])[\.\)\:\s]/i', $correctAns, $matches)) {
+            if (strtoupper($matches[1]) === $studentAns) {
+                return true;
+            }
+        }
+
+        // 6. If options list has is_correct flag
+        if ($studentIdx >= 0 && isset($options[$studentIdx]) && is_array($options[$studentIdx]) && !empty($options[$studentIdx]['is_correct'])) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -647,7 +792,10 @@ class StudentExamController extends Controller
         $student = $request->user();
 
         $attempts = ExamAttempt::where('user_id', $student->id)
-            ->whereIn('status', ['submitted', 'graded'])
+            ->where(function($q) {
+                $q->whereIn('status', ['submitted', 'graded', 'published'])
+                  ->orWhereNotNull('submitted_at');
+            })
             ->with(['exam', 'exam.questions', 'exam.instructor'])
             ->latest('submitted_at')
             ->get();
@@ -661,16 +809,32 @@ class StudentExamController extends Controller
                 $storedAnswers = $attempt->answers ?? [];
                 foreach ($exam->questions as $q) {
                     $studentAnswer = $storedAnswers[$q->id] ?? null;
-                    $canAutoGrade = in_array($q->type, ['multiple_choice', 'true_false']);
-                    $isCorrect = $canAutoGrade
-                        ? strtolower(trim((string)$studentAnswer)) === strtolower(trim((string)$q->correct_answer))
-                        : false;
+                    $isCorrect = false;
+
+                    if ($studentAnswer !== null && $studentAnswer !== '') {
+                        if ($q->type === 'true_false' || $q->type === 'true-false') {
+                            $isCorrect = $this->isTrueFalseCorrect($studentAnswer, $q->correct_answer);
+                        } elseif ($q->type === 'matching') {
+                            $pairs = $q->options ?? [];
+                            $correctAnswers = $q->question_data['correct_answers'] ?? null;
+                            $res = $this->gradeMatchingPartial((string)$studentAnswer, $pairs, 1, $correctAnswers);
+                            $isCorrect = $res['all_correct'];
+                        } else {
+                            $isCorrect = $this->gradeMultipleChoice($studentAnswer, $q);
+                        }
+                    }
+
+                    $displayCorrect = $q->correct_answer ?? 'N/A';
+                    if ($q->type === 'true_false' || $q->type === 'true-false') {
+                        $cRaw = strtolower(trim((string)$q->correct_answer));
+                        $displayCorrect = in_array($cRaw, ['true', 'a', '1', 'yes', 'correct']) ? 'True' : 'False';
+                    }
 
                     $review[] = [
                         'questionText'  => $q->text,
                         'studentAnswer' => $studentAnswer ?? 'Not answered',
-                        'correctAnswer' => $q->correct_answer ?? 'N/A',
-                        'explanation'   => $isCorrect ? 'Correct!' : 'The correct answer is: ' . ($q->correct_answer ?? 'N/A'),
+                        'correctAnswer' => $displayCorrect,
+                        'explanation'   => $isCorrect ? 'Correct!' : 'The correct answer is: ' . $displayCorrect,
                         'isCorrect'     => $isCorrect,
                     ];
                 }
@@ -825,24 +989,27 @@ class StudentExamController extends Controller
                 $correctLetter = strtoupper(trim((string)$q->correct_answer));
                 $studentLetter = strtoupper(trim((string)$studentAns));
 
-                $isCorrect = ($isAnswered && $studentLetter === $correctLetter);
+                $isCorrect = ($isAnswered && $this->gradeMultipleChoice($studentAns, $q));
                 $earnedMarks = $isCorrect ? $qMarks : 0;
 
                 // Find full text
                 $correctOpt = collect($optionsList)->firstWhere('label', $correctLetter);
+                if (!$correctOpt) {
+                    $cleanCorr = strtolower(trim(strip_tags((string)$q->correct_answer)));
+                    $correctOpt = collect($optionsList)->first(fn($o) => strtolower(trim($o['text'])) === $cleanCorr);
+                }
                 $studentOpt = collect($optionsList)->firstWhere('label', $studentLetter);
 
                 $formattedCorrectAnswer = $correctOpt ? "{$correctOpt['label']}. {$correctOpt['text']}" : ($correctLetter ?: 'N/A');
                 $formattedStudentAnswer = $studentOpt ? "{$studentOpt['label']}. {$studentOpt['text']}" : ($studentLetter ?: 'Not answered');
             } elseif ($typeKey === 'true_false') {
-                $correctRaw = strtolower(trim((string)$q->correct_answer));
-                $studentRaw = strtolower(trim((string)$studentAns));
-
-                $correctVal = in_array($correctRaw, ['true', 'a', '1']) ? 'True' : 'False';
-                $studentVal = $isAnswered ? (in_array($studentRaw, ['true', 'a', '1']) ? 'True' : 'False') : 'Not answered';
-
-                $isCorrect = ($isAnswered && $studentVal === $correctVal);
+                $isCorrect = ($isAnswered && $this->isTrueFalseCorrect($studentAns, $q->correct_answer));
                 $earnedMarks = $isCorrect ? $qMarks : 0;
+
+                $cRaw = strtolower(trim((string)$q->correct_answer));
+                $correctVal = in_array($cRaw, ['true', 'a', '1', 'yes', 'correct']) ? 'True' : 'False';
+                $sRaw = strtolower(trim((string)$studentAns));
+                $studentVal = $isAnswered ? (in_array($sRaw, ['true', 'a', '1', 'yes', 'correct']) ? 'True' : 'False') : 'Not answered';
 
                 $formattedCorrectAnswer = $correctVal;
                 $formattedStudentAnswer = $studentVal;

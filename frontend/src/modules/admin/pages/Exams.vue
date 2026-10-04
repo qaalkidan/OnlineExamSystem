@@ -441,7 +441,7 @@ onMounted(async () => {
           <div class="flex items-center justify-between mb-6">
             <div>
               <h2 class="text-[18px] font-bold text-slate-800">Exam Questions</h2>
-              <p class="text-[13px] text-slate-500 mt-0.5">Total Questions: {{ selectedExam?.questions?.length || 0 }} | Total Marks: {{ selectedExam?.totalMarks || selectedExam?.questions?.reduce((sum, q) => sum + (Number(q.marks) || 0), 0) || 0 }}</p>
+              <p class="text-[13px] text-slate-500 mt-0.5">Total Questions: {{ selectedExam?.questions?.length || 0 }} | Total Marks: {{ selectedExam?.totalMarks || selectedExam?.questions?.reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0) || 0 }}</p>
             </div>
             <div class="flex items-center gap-3">
                <!-- Quick Actions at top right -->
@@ -483,7 +483,7 @@ onMounted(async () => {
                       <!-- Options based on question type -->
                       <div v-if="(q.type === 'multiple_choice' || q.type === 'true_false' || q.type === 'Multiple Choice (MCQ)' || q.type === 'True / False') && q.options" class="grid grid-cols-1 sm:grid-cols-2 gap-2 ml-9">
                          <div v-for="(opt, oIdx) in q.options" :key="oIdx" class="bg-slate-50 border-slate-100 text-slate-600 px-3 py-2 rounded-lg border text-[13px] flex items-center gap-2">
-                            <span class="w-5 h-5 rounded-full border flex items-center justify-center text-[10px] shrink-0 border-slate-300 bg-white">{{ opt.label || String.fromCharCode(65+oIdx) }}</span>
+                            <span class="w-5 h-5 rounded-full border flex items-center justify-center text-[10px] shrink-0 border-slate-300 bg-white">{{ opt.label || String.fromCharCode(65 + Number(oIdx)) }}</span>
                             <span v-html="opt.text || opt"></span>
                          </div>
                       </div>
@@ -493,16 +493,16 @@ onMounted(async () => {
                         <!-- Left Side -->
                         <div class="space-y-2">
                           <p class="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Premises</p>
-                          <div v-for="(opt, idx) in q.options.filter(o => o.type==='left')" :key="idx" class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm text-slate-700">
-                            <span class="w-5 h-5 rounded-full bg-white border border-slate-300 flex items-center justify-center text-[10px] font-bold shrink-0">{{ idx + 1 }}</span>
+                          <div v-for="(opt, idx) in q.options.filter((o: any) => o.type==='left')" :key="idx" class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm text-slate-700">
+                            <span class="w-5 h-5 rounded-full bg-white border border-slate-300 flex items-center justify-center text-[10px] font-bold shrink-0">{{ Number(idx) + 1 }}</span>
                             <span v-html="opt.text"></span>
                           </div>
                         </div>
                         <!-- Right Side -->
                         <div class="space-y-2">
                           <p class="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Responses</p>
-                          <div v-for="(opt, idx) in q.options.filter(o => o.type==='right')" :key="idx" class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm text-slate-700">
-                            <span class="w-5 h-5 rounded-full bg-white border border-slate-300 flex items-center justify-center text-[10px] font-bold shrink-0 uppercase">{{ String.fromCharCode(65 + (idx % 26)) }}</span>
+                          <div v-for="(opt, idx) in q.options.filter((o: any) => o.type==='right')" :key="idx" class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 text-sm text-slate-700">
+                            <span class="w-5 h-5 rounded-full bg-white border border-slate-300 flex items-center justify-center text-[10px] font-bold shrink-0 uppercase">{{ String.fromCharCode(65 + (Number(idx) % 26)) }}</span>
                             <span v-html="opt.text"></span>
                           </div>
                         </div>

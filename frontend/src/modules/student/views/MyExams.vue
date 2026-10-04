@@ -147,6 +147,7 @@ const handleStartExam = async (examId: number) => {
     await examStore.startExam(examId)
     router.push('/student/exam/take')
   } catch (err: any) {
+    await examStore.fetchExams(true)
     windowRef.alert(err.message || 'Failed to start exam')
   }
 }

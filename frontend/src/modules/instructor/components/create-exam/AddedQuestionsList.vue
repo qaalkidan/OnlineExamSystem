@@ -130,13 +130,13 @@ const getTypeLabel = (type: string) => {
               v-for="(opt, optIdx) in q.options.slice(0, 4)"
               :key="optIdx"
               :class="[
-                (String.fromCharCode(65 + optIdx) === q.correct_answer || opt === q.correct_answer)
+                (String.fromCharCode(65 + Number(optIdx)) === q.correct_answer || opt === q.correct_answer)
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
                   : 'bg-slate-50 text-slate-500',
                 'text-[10px] px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[140px]'
               ]"
             >
-              {{ String.fromCharCode(65 + optIdx) }}: {{ typeof opt === 'string' ? opt : opt.text }}
+              {{ String.fromCharCode(65 + Number(optIdx)) }}: {{ typeof opt === 'string' ? opt : opt.text }}
             </span>
             <span v-if="q.options.length > 4" class="text-[10px] text-slate-400 px-1">+{{ q.options.length - 4 }} more</span>
           </div>

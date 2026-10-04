@@ -139,12 +139,41 @@ class InstructorExamController extends Controller
         if ($request->has('questions') && is_array($request->input('questions'))) {
             \Log::info('Questions array found: ', $request->input('questions'));
             foreach ($request->input('questions') as $q) {
+                $type = $q['type'] ?? 'multiple_choice';
+                $correctAnswer = $q['correct_answer'] ?? $q['correctAnswer'] ?? null;
+                $questionData = $q['question_data'] ?? null;
+
+                $rawOptions = $q['options'] ?? $q['pairs'] ?? [];
+                $options = collect($rawOptions)->map(function ($opt) { 
+                    return is_string($opt) ? ['text' => $opt] : $opt; 
+                })->toArray();
+
+                if ($type === 'matching') {
+                    if (!$questionData) {
+                        $questionData = [
+                            'column_a'        => $q['column_a'] ?? null,
+                            'column_b'        => $q['column_b'] ?? null,
+                            'correct_answers' => $q['correct_answers'] ?? null,
+                            'pairs'           => $q['pairs'] ?? $options,
+                            'marks_per_item'  => $q['marks_per_item'] ?? null,
+                        ];
+                    }
+                    if (empty($correctAnswer) && !empty($q['correct_answers']) && is_array($q['correct_answers'])) {
+                        $parts = [];
+                        foreach ($q['correct_answers'] as $colA => $colB) {
+                            $parts[] = "{$colA}-{$colB}";
+                        }
+                        $correctAnswer = implode(',', $parts);
+                    }
+                }
+
                 $exam->questions()->create([
-                    'type'           => $q['type'] ?? 'multiple_choice',
+                    'type'           => $type,
                     'instruction'    => $q['instruction'] ?? null,
                     'text'           => $q['text'] ?? 'Untitled Question',
-                    'options'        => collect($q['options'] ?? [])->map(function ($opt) { return is_string($opt) ? ['text' => $opt] : $opt; })->toArray(),
-                    'correct_answer' => $q['correct_answer'] ?? null,
+                    'options'        => $options,
+                    'correct_answer' => $correctAnswer,
+                    'question_data'  => $questionData,
                     'marks'          => $q['marks'] ?? 5,
                     'marks_per_item' => isset($q['marks_per_item']) ? (float)$q['marks_per_item'] : null,
                     'difficulty'     => $q['difficulty'] ?? 'Medium',
@@ -246,12 +275,41 @@ class InstructorExamController extends Controller
             
             // Insert updated questions
             foreach ($request->input('questions') as $q) {
+                $type = $q['type'] ?? 'multiple_choice';
+                $correctAnswer = $q['correct_answer'] ?? $q['correctAnswer'] ?? null;
+                $questionData = $q['question_data'] ?? null;
+
+                $rawOptions = $q['options'] ?? $q['pairs'] ?? [];
+                $options = collect($rawOptions)->map(function ($opt) { 
+                    return is_string($opt) ? ['text' => $opt] : $opt; 
+                })->toArray();
+
+                if ($type === 'matching') {
+                    if (!$questionData) {
+                        $questionData = [
+                            'column_a'        => $q['column_a'] ?? null,
+                            'column_b'        => $q['column_b'] ?? null,
+                            'correct_answers' => $q['correct_answers'] ?? null,
+                            'pairs'           => $q['pairs'] ?? $options,
+                            'marks_per_item'  => $q['marks_per_item'] ?? null,
+                        ];
+                    }
+                    if (empty($correctAnswer) && !empty($q['correct_answers']) && is_array($q['correct_answers'])) {
+                        $parts = [];
+                        foreach ($q['correct_answers'] as $colA => $colB) {
+                            $parts[] = "{$colA}-{$colB}";
+                        }
+                        $correctAnswer = implode(',', $parts);
+                    }
+                }
+
                 $exam->questions()->create([
-                    'type'           => $q['type'] ?? 'multiple_choice',
+                    'type'           => $type,
                     'instruction'    => $q['instruction'] ?? null,
                     'text'           => $q['text'] ?? 'Untitled Question',
-                    'options'        => collect($q['options'] ?? [])->map(function ($opt) { return is_string($opt) ? ['text' => $opt] : $opt; })->toArray(),
-                    'correct_answer' => $q['correct_answer'] ?? null,
+                    'options'        => $options,
+                    'correct_answer' => $correctAnswer,
+                    'question_data'  => $questionData,
                     'marks'          => $q['marks'] ?? 5,
                     'marks_per_item' => isset($q['marks_per_item']) ? (float)$q['marks_per_item'] : null,
                     'difficulty'     => $q['difficulty'] ?? 'Medium',

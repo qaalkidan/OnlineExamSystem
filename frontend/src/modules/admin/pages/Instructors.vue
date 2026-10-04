@@ -11,6 +11,12 @@ import { Doughnut } from 'vue-chartjs'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
+const scrollToTop = () => {
+  if (typeof window !== 'undefined') {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
 // ── State ──
 const search = ref('')
 const deptFilter = ref('all')
@@ -1050,7 +1056,7 @@ const downloadSampleCsv = () => {
               </div>
               <div v-if="recentRegistrations.length === 0" class="text-[12px] text-slate-400 text-center py-2">No recent registrations</div>
             </div>
-            <button @click="window?.scrollTo({ top: 0, behavior: 'smooth' })" class="text-[12px] font-bold text-[#4338ca] hover:underline mt-3">View All</button>
+            <button @click="scrollToTop" class="text-[12px] font-bold text-[#4338ca] hover:underline mt-3">View All</button>
           </div>
 
           <!-- Quick Actions -->

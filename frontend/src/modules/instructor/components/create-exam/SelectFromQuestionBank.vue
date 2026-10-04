@@ -30,9 +30,15 @@ const fetchBanks = async () => {
   try {
     const res = await apiClient.get('/instructor/question-banks?all=true')
     banks.value = res.data?.data?.banks || []
-    if (banks.value.length > 0 && !selectedBankId.value) {
-      selectedBankId.value = banks.value[0].id
-      await loadBankQuestions(banks.value[0].id)
+    if (banks.value.length > 0) {
+      if (!selectedBankId.value || !banks.value.some(b => b.id == selectedBankId.value)) {
+        selectedBankId.value = banks.value[0].id
+      }
+      await loadBankQuestions(selectedBankId.value)
+    } else {
+      selectedBankId.value = ''
+      currentBank.value = null
+      bankQuestions.value = []
     }
   } catch (err) {
     console.error('Failed to load question banks:', err)
@@ -223,6 +229,19 @@ const addSelectedToExam = () => {
     const instruction = q.instruction || (q.topic ? `Topic: ${q.topic}` : getDefaultInstruction(mappedType))
     const marks = Number(q.marks) || 5
 
+    const rawCorrect = q.correct_answer !== undefined && q.correct_answer !== null 
+      ? q.correct_answer 
+      : (q.correctAnswer !== undefined && q.correctAnswer !== null ? q.correctAnswer : '')
+    let finalCorrect = String(rawCorrect).trim()
+    if (!finalCorrect) {
+      if (mappedType === 'multiple_choice') finalCorrect = 'A'
+      else if (mappedType === 'true_false') finalCorrect = 'True'
+    } else if (mappedType === 'true_false') {
+      const lower = finalCorrect.toLowerCase()
+      if (lower === 'true' || lower === 'a' || lower === '1' || lower === 'yes') finalCorrect = 'True'
+      else if (lower === 'false' || lower === 'b' || lower === '0' || lower === 'no') finalCorrect = 'False'
+    }
+
     const questionObj: any = {
       type: mappedType,
       instruction,
@@ -230,8 +249,9 @@ const addSelectedToExam = () => {
       difficulty: q.difficulty || 'Medium',
       marks,
       description: q.description || q.topic || '',
-      correct_answer: q.correct_answer || (mappedType === 'multiple_choice' ? 'A' : (mappedType === 'true_false' ? 'True' : '')),
-      options: normalizeOptions(q.options, mappedType)
+      correct_answer: finalCorrect,
+      options: normalizeOptions(q.options, mappedType),
+      question_data: q.question_data || {}
     }
 
     // Special handling for matching questions
@@ -251,6 +271,13 @@ const addSelectedToExam = () => {
       questionObj.pairs = pairs
       questionObj.marks_per_item = qData.marks_per_item || q.marks_per_item || 1
       questionObj.marks = marks
+      questionObj.question_data = {
+        column_a: columnA,
+        column_b: columnB,
+        correct_answers: correctAnswers,
+        pairs: pairs,
+        marks_per_item: questionObj.marks_per_item
+      }
     }
 
     formStore.questions.push(questionObj)
@@ -300,7 +327,19 @@ const addSelectedToExam = () => {
 
         <!-- Bank Selector Dropdown -->
         <div class="w-full md:w-80">
-          <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Repository</label>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Select Repository</label>
+            <button
+              type="button"
+              @click="fetchBanks"
+              :disabled="isLoadingBanks"
+              title="Refresh Question Banks"
+              class="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 disabled:opacity-50 cursor-pointer transition-colors"
+            >
+              <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': isLoadingBanks }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              Refresh
+            </button>
+          </div>
           <div class="relative">
             <select
               v-model="selectedBankId"
@@ -348,12 +387,32 @@ const addSelectedToExam = () => {
           <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
         </div>
         <h4 class="text-[15px] font-bold text-slate-800 mb-1">No Question Banks Found</h4>
-        <p class="text-[12px] text-slate-500 max-w-sm mx-auto mb-4">You have not created any question banks yet. You can write questions manually or import an Excel/CSV file.</p>
+        <p class="text-[12px] text-slate-500 max-w-sm mx-auto mb-4">You have not created or shared any question banks yet. You can refresh, write questions manually, or import an Excel/CSV file.</p>
         <div class="flex items-center justify-center gap-3">
+          <button @click="fetchBanks" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12px] font-bold rounded-xl transition-colors">
+            ↻ Refresh Banks
+          </button>
           <button @click="emit('switch-to-manual')" class="px-4 py-2 bg-[#5138ed] text-white text-[12px] font-bold rounded-xl hover:bg-indigo-600 transition-colors">
             Switch to Manual Input
           </button>
           <button @click="emit('switch-to-file')" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors">
+            Import from File
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty State if Bank has 0 Questions -->
+      <div v-else-if="!isLoadingQuestions && currentBank && bankQuestions.length === 0" class="mt-4 p-8 text-center bg-slate-50/60 rounded-xl border border-slate-100">
+        <div class="w-10 h-10 bg-indigo-50 text-[#5138ed] rounded-xl flex items-center justify-center mx-auto mb-2 border border-indigo-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        </div>
+        <h5 class="text-[14px] font-bold text-slate-800 mb-1">No Questions in This Bank</h5>
+        <p class="text-[12px] text-slate-500 max-w-sm mx-auto mb-3">This question bank does not have any questions yet.</p>
+        <div class="flex items-center justify-center gap-2">
+          <button @click="emit('switch-to-manual')" class="px-3 py-1.5 bg-[#5138ed] text-white text-[11.5px] font-bold rounded-lg hover:bg-indigo-600 transition-colors">
+            Add Questions Manually
+          </button>
+          <button @click="emit('switch-to-file')" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-[11.5px] font-bold rounded-lg hover:bg-slate-50 transition-colors">
             Import from File
           </button>
         </div>
@@ -525,15 +584,15 @@ const addSelectedToExam = () => {
                 v-for="(opt, oIdx) in q.options"
                 :key="oIdx"
                 :class="[
-                  (String.fromCharCode(65 + oIdx) === q.correct_answer || (typeof opt === 'object' && opt.is_correct))
+                  (String.fromCharCode(65 + Number(oIdx)) === q.correct_answer || (typeof opt === 'object' && opt.is_correct))
                     ? 'bg-emerald-50/70 border-emerald-300 text-emerald-800 font-semibold'
                     : 'bg-slate-50/80 border-slate-100 text-slate-600',
                   'px-3 py-1.5 rounded-lg border text-[12px] flex items-center gap-2'
                 ]"
               >
                 <span class="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold font-mono shrink-0"
-                  :class="(String.fromCharCode(65 + oIdx) === q.correct_answer) ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-700'">
-                  {{ String.fromCharCode(65 + oIdx) }}
+                  :class="(String.fromCharCode(65 + Number(oIdx)) === q.correct_answer) ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-700'">
+                  {{ String.fromCharCode(65 + Number(oIdx)) }}
                 </span>
                 <span class="truncate">{{ typeof opt === 'string' ? opt : opt.text }}</span>
               </div>

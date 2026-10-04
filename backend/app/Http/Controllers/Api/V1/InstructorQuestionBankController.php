@@ -18,27 +18,53 @@ class InstructorQuestionBankController extends Controller
     {
         $instructor = $request->user();
 
-        // Scope to instructor's banks (optionally filtered by course_code or all=true)
-        $query = QuestionBank::where('user_id', $instructor->id);
-        if ($request->filled('course_code')) {
-            $query->where('course_code', $request->course_code);
-        } elseif (!$request->boolean('all') && $instructor->course_code) {
-            $courseQuery = (clone $query)->where('course_code', $instructor->course_code);
-            if ($courseQuery->exists()) {
-                $query = $courseQuery;
+        $query = QuestionBank::query();
+
+        if ($request->boolean('all')) {
+            // Exam creator mode or viewing all banks
+            if ($request->filled('course_code')) {
+                $query->where('course_code', $request->course_code);
+            }
+        } else {
+            // Find banks owned by instructor or in same department/course
+            $deptUserIds = ($instructor && $instructor->department_id)
+                ? \App\Models\User::where('department_id', $instructor->department_id)->pluck('id')
+                : collect();
+
+            $scopedQuery = QuestionBank::where(function ($q) use ($instructor, $deptUserIds) {
+                if ($instructor) {
+                    $q->where('user_id', $instructor->id);
+                    if ($instructor->course_code) {
+                        $q->orWhere('course_code', $instructor->course_code);
+                    }
+                }
+                if ($deptUserIds->isNotEmpty()) {
+                    $q->orWhereIn('user_id', $deptUserIds);
+                }
+            });
+
+            if ($request->filled('course_code')) {
+                $scopedQuery->where('course_code', $request->course_code);
+            }
+
+            // If any banks match the user's scope, use that; otherwise fallback to all banks
+            if ((clone $scopedQuery)->exists()) {
+                $query = $scopedQuery;
             }
         }
-        $banks = $query->withCount('questions')
+
+        $banks = $query->with(['questions', 'instructor.department'])
+            ->withCount('questions')
             ->latest()
             ->get();
 
-        // Fetch questions inside banks to determine types (mcq, sa, essay)
-        // Since doing this efficiently requires some group by queries, for now we will approximate or do a subquery
+        // Fetch questions inside banks to determine types (mcq, sa, essay, tf)
         $banks->each(function ($bank) {
             $questions = $bank->questions;
             $bank->mcq_count = $questions->where('type', 'multiple_choice')->count();
             $bank->sa_count = $questions->where('type', 'short_answer')->count();
             $bank->essay_count = $questions->where('type', 'essay')->count();
+            $bank->tf_count = $questions->where('type', 'true_false')->count();
         });
 
         // Global stats across all banks
@@ -55,13 +81,14 @@ class InstructorQuestionBankController extends Controller
                     'title'            => $bank->title,
                     'description'      => $bank->description,
                     'course_code'      => $bank->course_code,
-                    'course_name'      => $instructor->course_name,
+                    'course_name'      => $bank->course_code ?: ($bank->instructor?->course_name ?? $instructor?->course_name ?? 'General'),
                     'status'           => 'Active', // Mocking status since there isn't one on the model currently
                     'total_questions'  => $bank->questions_count,
                     'types'            => [
                         'mcq'   => $bank->mcq_count,
                         'sa'    => $bank->sa_count,
                         'essay' => $bank->essay_count,
+                        'tf'    => $bank->tf_count ?? 0,
                     ],
                     'updated_at'       => $bank->updated_at->toISOString(),
                 ]),
@@ -83,11 +110,6 @@ class InstructorQuestionBankController extends Controller
     {
         $instructor = $request->user();
 
-        // Ensure the instructor owns this bank
-        if ($questionBank->user_id !== $instructor->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
         // Load questions
         $questions = $questionBank->questions()->orderBy('id')->get();
 
@@ -101,7 +123,7 @@ class InstructorQuestionBankController extends Controller
         // Build categories from chapters
         $categoryCounts = $questions->groupBy('chapter')->map->count()->sortDesc();
 
-        $instructorUser = $instructor->load('department');
+        $bankOwner = $questionBank->instructor?->load('department');
         $totalMarks = $questions->sum('marks');
 
         return response()->json([
@@ -111,10 +133,10 @@ class InstructorQuestionBankController extends Controller
                     'title'            => $questionBank->title,
                     'description'      => $questionBank->description,
                     'course_code'      => $questionBank->course_code,
-                    'course_name'      => $questionBank->course_name ?: ($instructorUser->course_name ?? 'Software Engineering'),
-                    'department'       => $instructorUser->department?->name ?? 'Computer Science',
-                    'instructor'       => $instructorUser->name,
-                    'academic_year'    => $instructorUser->year_level ? $instructorUser->year_level . ' Year' : '3rd Year',
+                    'course_name'      => $questionBank->course_code ?: ($bankOwner?->course_name ?? $instructor?->course_name ?? 'General'),
+                    'department'       => $bankOwner?->department?->name ?? $instructor?->department?->name ?? 'Computer Science',
+                    'instructor'       => $bankOwner?->name ?? $instructor?->name ?? 'Instructor',
+                    'academic_year'    => ($bankOwner?->year_level ?? $instructor?->year_level) ? ($bankOwner?->year_level ?? $instructor?->year_level) . ' Year' : '1st Year',
                     'semester'         => 'Semester I',
                     'total_questions'  => $total,
                     'total_marks'      => $totalMarks,
@@ -161,13 +183,17 @@ class InstructorQuestionBankController extends Controller
         $validated = $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
+            'course_code' => 'nullable|string|max:50',
         ]);
+
+        $courseCode = $validated['course_code'] ?? $instructor->course_code ?? 'GENERAL';
+        $courseName = $instructor->course_name ?? 'General Course';
 
         $bank = QuestionBank::create([
             'user_id'     => $instructor->id,
-            'course_code' => $instructor->course_code,
+            'course_code' => $courseCode,
             'title'       => $validated['title'],
-            'description' => $validated['description'],
+            'description' => $validated['description'] ?? null,
         ]);
 
         return response()->json([
@@ -177,13 +203,14 @@ class InstructorQuestionBankController extends Controller
                 'title'            => $bank->title,
                 'description'      => $bank->description,
                 'course_code'      => $bank->course_code,
-                'course_name'      => $instructor->course_name,
+                'course_name'      => $courseName,
                 'status'           => 'Active',
                 'total_questions'  => 0,
                 'types'            => [
                     'mcq'   => 0,
                     'sa'    => 0,
                     'essay' => 0,
+                    'tf'    => 0,
                 ],
                 'updated_at'       => $bank->updated_at->toISOString(),
             ]
@@ -290,22 +317,23 @@ class InstructorQuestionBankController extends Controller
      */
     public function getInstructions(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $userId = $request->user()?->id;
         $type = $request->query('type');
         $bankId = $request->query('bank_id');
         
-        $query = Question::whereHas('questionBank', function($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })
-        ->whereNotNull('instruction')
-        ->where('instruction', '!=', '');
-
-        if ($type) {
-            $query->where('type', $type);
-        }
+        $query = Question::whereNotNull('instruction')
+            ->where('instruction', '!=', '');
 
         if ($bankId) {
             $query->where('question_bank_id', $bankId);
+        } elseif ($userId) {
+            $query->whereHas('questionBank', function($q) use ($userId) {
+                $q->where('user_id', $userId);
+            });
+        }
+
+        if ($type) {
+            $query->where('type', $type);
         }
 
         $instructions = $query->distinct()->pluck('instruction');

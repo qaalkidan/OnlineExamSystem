@@ -402,6 +402,13 @@ const importSelectedQuestions = () => {
   let totalMarks = 0
 
   questionsToImport.forEach(q => {
+    let corrAns = q.correct_answer || ''
+    if (q.type === 'true_false') {
+      const lower = String(corrAns).toLowerCase().trim()
+      if (lower === 'true' || lower === 'a' || lower === '1' || lower === 'yes') corrAns = 'True'
+      else if (lower === 'false' || lower === 'b' || lower === '0' || lower === 'no') corrAns = 'False'
+    }
+
     formStore.questions.push({
       type: q.type,
       instruction: q.instruction,
@@ -410,7 +417,8 @@ const importSelectedQuestions = () => {
       marks: q.marks,
       description: q.description || '',
       options: q.options,
-      correct_answer: q.correct_answer,
+      correct_answer: corrAns,
+      question_data: q.question_data || {},
     })
     importedCount++
     totalMarks += q.marks

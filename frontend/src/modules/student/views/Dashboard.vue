@@ -42,14 +42,38 @@ const isProfileOpen = ref<boolean>(false)
 const upcomingGuidelines = ref<UpcomingExam | null>(null)
 const isSidebarOpen = ref<boolean>(false)
 
-// Reactive timer for Dashboard
+// Reactive timer for Dashboard & real-time polling
 const currentTime = ref(Date.now())
 let dashboardTimer: number | null = null
+let pollCounter = 0
+
+const handleTabFocus = async () => {
+  if (!document.hidden) {
+    await Promise.all([
+      examStore.fetchExams(true),
+      examStore.fetchDashboard()
+    ])
+  }
+}
 
 onMounted(async () => {
-  dashboardTimer = window.setInterval(() => {
+  dashboardTimer = window.setInterval(async () => {
     currentTime.value = Date.now()
+    pollCounter++
+    // Poll for new/updated exams every 5 seconds silently in the background
+    if (pollCounter >= 5) {
+      pollCounter = 0
+      if (!document.hidden) {
+        await Promise.all([
+          examStore.fetchExams(true),
+          examStore.fetchDashboard()
+        ])
+      }
+    }
   }, 1000)
+
+  window.addEventListener('focus', handleTabFocus)
+  document.addEventListener('visibilitychange', handleTabFocus)
 
   await Promise.all([
     fetchProfile(),           // ← real user data from backend
@@ -65,18 +89,32 @@ onUnmounted(() => {
     clearInterval(dashboardTimer)
     dashboardTimer = null
   }
+  window.removeEventListener('focus', handleTabFocus)
+  document.removeEventListener('visibilitychange', handleTabFocus)
 })
 
-// Today's Exam Logic — show 10 min before start until end of exam
+// Today's Exam Logic — show ready/ongoing window and exclude already submitted exams
 const todayExam = computed(() => {
   if (upcomingExams.value.length === 0) return null
   const now = currentTime.value
   const TEN_MIN = 10 * 60 * 1000
 
-  // Find the first exam that is in the ready/ongoing window
+  // Find the first exam that is in the ready/ongoing window and not completed
   return upcomingExams.value.find(exam => {
+    // 1. Exclude already completed/submitted attempts
+    if (exam.attemptStatus === 'submitted' || exam.attemptStatus === 'graded' || exam.attemptStatus === 'published' || (exam as any).submitted_at) {
+      return false
+    }
+
+    // 2. If in_progress or explicitly marked Ready by backend, show it immediately
+    if (exam.attemptStatus === 'in_progress' || exam.status === 'Ready') {
+      return true
+    }
+
+    // 3. Check scheduled time window
     const rawDate = (exam as any).scheduledAt || exam.scheduledDate
-    if (!rawDate) return false
+    if (!rawDate) return true // Published exam without strict schedule is ready now!
+
     const startMs = new Date(rawDate).getTime()
     const endMs = startMs + (exam.durationMinutes * 60 * 1000)
     // Show card 10 minutes before start until exam ends
@@ -85,8 +123,11 @@ const todayExam = computed(() => {
 })
 
 const filteredUpcomingExams = computed(() => {
-  if (!todayExam.value) return upcomingExams.value
-  return upcomingExams.value.filter(exam => exam.id !== todayExam.value!.id)
+  const nonSubmitted = upcomingExams.value.filter(exam => 
+    !['submitted', 'graded', 'published'].includes(exam.attemptStatus as string)
+  )
+  if (!todayExam.value) return nonSubmitted
+  return nonSubmitted.filter(exam => exam.id !== todayExam.value!.id)
 })
 
 // Stats calculation
@@ -115,6 +156,10 @@ const handleStartUpcomingExam = async (examId: number) => {
     await examStore.startExam(examId)
     router.push('/student/exam/take')
   } catch (err: any) {
+    await Promise.all([
+      examStore.fetchExams(true),
+      examStore.fetchDashboard()
+    ])
     windowRef.alert(err.message || 'Failed to start exam')
   }
 }

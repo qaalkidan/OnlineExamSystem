@@ -471,7 +471,7 @@ const exportResults = () => {
                   </td>
                 </tr>
                 <tr v-for="(q, idx) in (selectedExam?.questionsList || []).slice(0, 4)" :key="q.id || idx" class="hover:bg-slate-50 transition-colors">
-                  <td class="px-4 py-4 text-[13px] font-bold text-slate-600">{{ idx + 1 }}</td>
+                  <td class="px-4 py-4 text-[13px] font-bold text-slate-600">{{ Number(idx) + 1 }}</td>
                   <td class="px-4 py-4"><span :class="[qTypeBadge(q.type), 'text-[12px] font-bold px-2 py-1 rounded']">{{ q.type }}</span></td>
                   <td class="px-4 py-4 text-[13px] text-slate-700">{{ q.text }}</td>
                   <td class="px-4 py-4 text-[13px] font-bold text-slate-600 text-center">{{ q.marks }}</td>
@@ -619,7 +619,7 @@ const exportResults = () => {
           <div v-for="(q, idx) in selectedExam.questionsList" :key="q.id || idx" class="border border-slate-100 rounded-xl p-6">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-3">
-                <span class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[13px] flex items-center justify-center">Q{{ idx + 1 }}</span>
+                <span class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[13px] flex items-center justify-center">Q{{ Number(idx) + 1 }}</span>
                 <span :class="[qTypeBadge(q.full_type || q.type), 'text-[12px] font-bold px-2.5 py-1.5 rounded-lg']">{{ q.full_type || q.type }}</span>
               </div>
               <span class="text-[12px] font-bold text-[#5138ed] bg-indigo-50 px-2.5 py-1.5 rounded-lg">{{ q.marks }} Marks</span>
@@ -633,9 +633,9 @@ const exportResults = () => {
               <p class="text-[12px] font-bold text-slate-500 mb-3">Options</p>
               <div class="space-y-3 mb-6">
                 <div v-for="(opt, optIdx) in q.options" :key="optIdx" class="flex items-center gap-3">
-                  <div :class="[isOptionCorrect(opt, optIdx, q) ? 'border-[5px] border-[#5138ed]' : 'border border-slate-300', 'w-4 h-4 rounded-full bg-white shrink-0']"></div>
-                  <span :class="[isOptionCorrect(opt, optIdx, q) ? 'font-bold text-slate-800' : 'font-medium text-slate-600', 'text-[13px]']">
-                    {{ String.fromCharCode(65 + optIdx) }}. {{ typeof opt === 'string' ? opt : (opt.text || opt.clause || opt.desc || JSON.stringify(opt)) }}
+                  <div :class="[isOptionCorrect(opt, Number(optIdx), q) ? 'border-[5px] border-[#5138ed]' : 'border border-slate-300', 'w-4 h-4 rounded-full bg-white shrink-0']"></div>
+                  <span :class="[isOptionCorrect(opt, Number(optIdx), q) ? 'font-bold text-slate-800' : 'font-medium text-slate-600', 'text-[13px]']">
+                    {{ String.fromCharCode(65 + Number(optIdx)) }}. {{ typeof opt === 'string' ? opt : (opt.text || opt.clause || opt.desc || JSON.stringify(opt)) }}
                   </span>
                 </div>
               </div>
