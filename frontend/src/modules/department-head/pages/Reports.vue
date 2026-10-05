@@ -253,7 +253,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 min-w-0 max-w-full">
 
     <!-- Toast Notification -->
     <transition
@@ -266,7 +266,7 @@ onUnmounted(() => {
     >
       <div
         v-if="toast.show"
-        class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all"
+        class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all max-w-[90vw]"
         :class="toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'"
       >
         <svg v-if="toast.type === 'success'" class="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,23 +275,23 @@ onUnmounted(() => {
         <svg v-else class="w-5 h-5 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        <span>{{ toast.message }}</span>
+        <span class="break-words">{{ toast.message }}</span>
       </div>
     </transition>
 
     <!-- Header Section -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-[22px] font-bold text-slate-800">Department Analytics</h1>
-        <p class="text-[13px] text-slate-500 mt-1">Detailed performance metrics for {{ deptName }}.</p>
+        <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800">Department Analytics</h1>
+        <p class="text-[12px] sm:text-[13px] text-slate-500 mt-1">Detailed performance metrics for {{ deptName }}.</p>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
         <!-- Period Selector -->
         <select
           v-model="selectedPeriod"
           @change="onPeriodChange"
-          class="text-[13px] border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-[#5138ed] text-slate-600 bg-white font-medium cursor-pointer shadow-xs"
+          class="flex-1 sm:flex-initial text-[13px] border border-slate-200 rounded-xl px-4 py-2.5 min-h-[44px] focus:outline-none focus:border-[#5138ed] text-slate-600 bg-white font-medium cursor-pointer shadow-xs"
         >
           <option value="This Semester">This Semester</option>
           <option value="Last Semester">Last Semester</option>
@@ -308,7 +308,7 @@ onUnmounted(() => {
               type="button"
               @click="showExportModal = true"
               :disabled="isExporting"
-              class="flex items-center gap-2 bg-[#5138ed] hover:bg-indigo-700 text-white text-[13px] font-bold pl-4 pr-3 py-2.5 rounded-l-xl transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed border-r border-indigo-500/50"
+              class="flex items-center gap-2 bg-[#5138ed] hover:bg-indigo-700 text-white text-[13px] font-bold pl-4 pr-3 py-2.5 min-h-[44px] rounded-l-xl transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed border-r border-indigo-500/50"
             >
               <svg v-if="!isExporting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -325,7 +325,7 @@ onUnmounted(() => {
               type="button"
               @click.stop="toggleExportDropdown"
               :disabled="isExporting"
-              class="bg-[#5138ed] hover:bg-indigo-700 text-white px-2.5 py-2.5 rounded-r-xl transition-all cursor-pointer disabled:opacity-70"
+              class="bg-[#5138ed] hover:bg-indigo-700 text-white px-3 py-2.5 min-h-[44px] rounded-r-xl transition-all cursor-pointer disabled:opacity-70"
               title="Export Formats"
             >
               <svg class="w-3.5 h-3.5 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,45 +345,45 @@ onUnmounted(() => {
             <button
               type="button"
               @click="handleExport('pdf')"
-              class="w-full flex items-center gap-2.5 px-3.5 py-2 text-[12.5px] hover:bg-slate-50 text-left font-medium text-slate-700 hover:text-[#5138ed] transition-colors cursor-pointer"
+              class="w-full flex items-center gap-2.5 px-3.5 py-2.5 min-h-[44px] hover:bg-slate-50 text-left font-medium text-slate-700 hover:text-[#5138ed] transition-colors cursor-pointer"
             >
-              <div class="w-6 h-6 rounded-md bg-rose-50 flex items-center justify-center text-rose-500 shrink-0">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-7 h-7 rounded-md bg-rose-50 flex items-center justify-center text-rose-500 shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                 </svg>
               </div>
               <div>
-                <p class="font-bold leading-tight">PDF Document</p>
+                <p class="font-bold leading-tight text-[12.5px]">PDF Document</p>
                 <p class="text-[10px] text-slate-400">Formal academic report (.pdf)</p>
               </div>
             </button>
             <button
               type="button"
               @click="handleExport('excel')"
-              class="w-full flex items-center gap-2.5 px-3.5 py-2 text-[12.5px] hover:bg-slate-50 text-left font-medium text-slate-700 hover:text-emerald-600 transition-colors cursor-pointer"
+              class="w-full flex items-center gap-2.5 px-3.5 py-2.5 min-h-[44px] hover:bg-slate-50 text-left font-medium text-slate-700 hover:text-emerald-600 transition-colors cursor-pointer"
             >
-              <div class="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-7 h-7 rounded-md bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
               </div>
               <div>
-                <p class="font-bold leading-tight">Excel Spreadsheet</p>
+                <p class="font-bold leading-tight text-[12.5px]">Excel Spreadsheet</p>
                 <p class="text-[10px] text-slate-400">Data analysis table (.xlsx)</p>
               </div>
             </button>
             <button
               type="button"
               @click="handleExport('csv')"
-              class="w-full flex items-center gap-2.5 px-3.5 py-2 text-[12.5px] hover:bg-slate-50 text-left font-medium text-slate-700 hover:text-sky-600 transition-colors cursor-pointer"
+              class="w-full flex items-center gap-2.5 px-3.5 py-2.5 min-h-[44px] hover:bg-slate-50 text-left font-medium text-slate-700 hover:text-sky-600 transition-colors cursor-pointer"
             >
-              <div class="w-6 h-6 rounded-md bg-sky-50 flex items-center justify-center text-sky-500 shrink-0">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-7 h-7 rounded-md bg-sky-50 flex items-center justify-center text-sky-500 shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
                 </svg>
               </div>
               <div>
-                <p class="font-bold leading-tight">CSV Spreadsheet</p>
+                <p class="font-bold leading-tight text-[12.5px]">CSV Spreadsheet</p>
                 <p class="text-[10px] text-slate-400">Raw data values (.csv)</p>
               </div>
             </button>
@@ -395,10 +395,10 @@ onUnmounted(() => {
     <!-- Export Modal Dialog -->
     <div
       v-if="showExportModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
     >
-      <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+      <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-[95vw] sm:max-w-md w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 space-y-4 sm:space-y-5 animate-in fade-in zoom-in-95 duration-200 my-auto">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h3 class="text-[16px] font-bold text-slate-800">Export Department Report</h3>
             <p class="text-[12px] text-slate-500 mt-0.5">{{ deptName }} &bull; {{ selectedPeriod }}</p>
@@ -406,7 +406,7 @@ onUnmounted(() => {
           <button
             type="button"
             @click="showExportModal = false"
-            class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            class="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
@@ -418,18 +418,18 @@ onUnmounted(() => {
           <!-- Format Choice 1: PDF -->
           <label
             @click="selectedExportFormat = 'pdf'"
-            class="flex items-center gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all"
+            class="flex items-center gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all min-h-[44px]"
             :class="selectedExportFormat === 'pdf' ? 'border-[#5138ed] bg-indigo-50/50 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:bg-slate-50'"
           >
             <input type="radio" v-model="selectedExportFormat" value="pdf" class="hidden" />
             <div class="w-9 h-9 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
             </div>
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
               <p class="text-[13px] font-bold text-slate-800">PDF Document (.pdf)</p>
               <p class="text-[11px] text-slate-500">Official formatted academic report with KPIs, tables, and trends</p>
             </div>
-            <div v-if="selectedExportFormat === 'pdf'" class="w-5 h-5 rounded-full bg-[#5138ed] flex items-center justify-center text-white">
+            <div v-if="selectedExportFormat === 'pdf'" class="w-5 h-5 rounded-full bg-[#5138ed] flex items-center justify-center text-white shrink-0">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
             </div>
           </label>
@@ -437,18 +437,18 @@ onUnmounted(() => {
           <!-- Format Choice 2: Excel -->
           <label
             @click="selectedExportFormat = 'excel'"
-            class="flex items-center gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all"
+            class="flex items-center gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all min-h-[44px]"
             :class="selectedExportFormat === 'excel' ? 'border-[#5138ed] bg-indigo-50/50 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:bg-slate-50'"
           >
             <input type="radio" v-model="selectedExportFormat" value="excel" class="hidden" />
             <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             </div>
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
               <p class="text-[13px] font-bold text-slate-800">Excel Spreadsheet (.xlsx)</p>
               <p class="text-[11px] text-slate-500">Spreadsheet table for data analysis and filtering in Microsoft Excel</p>
             </div>
-            <div v-if="selectedExportFormat === 'excel'" class="w-5 h-5 rounded-full bg-[#5138ed] flex items-center justify-center text-white">
+            <div v-if="selectedExportFormat === 'excel'" class="w-5 h-5 rounded-full bg-[#5138ed] flex items-center justify-center text-white shrink-0">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
             </div>
           </label>
@@ -456,29 +456,29 @@ onUnmounted(() => {
           <!-- Format Choice 3: CSV -->
           <label
             @click="selectedExportFormat = 'csv'"
-            class="flex items-center gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all"
+            class="flex items-center gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all min-h-[44px]"
             :class="selectedExportFormat === 'csv' ? 'border-[#5138ed] bg-indigo-50/50 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:bg-slate-50'"
           >
             <input type="radio" v-model="selectedExportFormat" value="csv" class="hidden" />
             <div class="w-9 h-9 rounded-lg bg-sky-50 flex items-center justify-center text-sky-600 shrink-0">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
             </div>
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
               <p class="text-[13px] font-bold text-slate-800">CSV Spreadsheet (.csv)</p>
               <p class="text-[11px] text-slate-500">Universal comma-separated text values compatible with any tool</p>
             </div>
-            <div v-if="selectedExportFormat === 'csv'" class="w-5 h-5 rounded-full bg-[#5138ed] flex items-center justify-center text-white">
+            <div v-if="selectedExportFormat === 'csv'" class="w-5 h-5 rounded-full bg-[#5138ed] flex items-center justify-center text-white shrink-0">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
             </div>
           </label>
         </div>
 
         <!-- Modal Actions -->
-        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+        <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-3 border-t border-slate-100">
           <button
             type="button"
             @click="showExportModal = false"
-            class="px-4 py-2.5 text-[13px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+            class="px-4 py-2.5 min-h-[44px] text-[13px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-center"
           >
             Cancel
           </button>
@@ -486,7 +486,7 @@ onUnmounted(() => {
             type="button"
             @click="handleExport()"
             :disabled="isExporting"
-            class="flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-700 rounded-xl shadow-sm shadow-indigo-200 transition-all cursor-pointer disabled:opacity-60"
+            class="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-700 rounded-xl shadow-sm shadow-indigo-200 transition-all cursor-pointer disabled:opacity-60"
           >
             <svg v-if="isExporting" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -503,7 +503,7 @@ onUnmounted(() => {
       <div
         v-for="kpi in kpis"
         :key="kpi.label"
-        class="bg-white border border-slate-100 rounded-2xl shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow relative overflow-hidden"
+        class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-5 flex items-center gap-4 hover:shadow-md transition-shadow relative overflow-hidden"
       >
         <div :class="[kpi.bg, 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0']">
           <svg class="w-5 h-5" :class="kpi.ic" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -513,7 +513,7 @@ onUnmounted(() => {
         <div class="min-w-0">
           <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">{{ kpi.label }}</p>
           <div class="flex items-center gap-2 mt-0.5">
-            <span class="text-[20px] font-bold text-slate-800">{{ kpi.value }}</span>
+            <span class="text-[18px] sm:text-[20px] font-bold text-slate-800">{{ kpi.value }}</span>
             <span
               :class="[
                 kpi.trend === 'up' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50',
@@ -531,9 +531,9 @@ onUnmounted(() => {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
       <!-- Exam Performance Trend Chart -->
-      <div class="lg:col-span-2 bg-white border border-slate-100 rounded-2xl shadow-sm p-6 flex flex-col justify-between">
+      <div class="lg:col-span-2 bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
         <div>
-          <div class="flex items-center justify-between mb-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <h3 class="text-[15px] font-bold text-slate-800">Exam Performance Trend</h3>
               <p class="text-[12px] text-slate-400 mt-0.5">Average scores across all {{ deptName }} courses</p>
@@ -544,74 +544,76 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- SVG Visual Chart -->
-          <div class="relative pt-4 pb-2">
-            <!-- Tooltip Popup -->
-            <div
-              v-if="activeHoverPoint"
-              class="absolute z-10 pointer-events-none bg-slate-900 text-white text-[11px] font-medium px-2.5 py-1.5 rounded-lg shadow-md -translate-x-1/2 -translate-y-full transition-transform"
-              :style="{ left: `${(activeHoverPoint.x / 550) * 100}%`, top: `${(activeHoverPoint.y / 200) * 100 - 8}%` }"
-            >
-              <div class="font-bold text-center">{{ activeHoverPoint.month }}</div>
-              <div class="text-indigo-200">Avg Score: {{ activeHoverPoint.avg_score }}%</div>
-              <div class="text-slate-400 text-[10px]" v-if="activeHoverPoint.attempts_count > 0">
-                {{ activeHoverPoint.attempts_count }} attempts
-              </div>
-            </div>
-
-            <svg viewBox="0 0 550 200" class="w-full h-48 overflow-visible" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="rGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#5138ed" stop-opacity="0.18"/>
-                  <stop offset="100%" stop-color="#5138ed" stop-opacity="0.01"/>
-                </linearGradient>
-              </defs>
-
-              <!-- Horizontal Grid Lines -->
-              <line x1="0" y1="40" x2="550" y2="40" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="3 3"/>
-              <line x1="0" y1="90" x2="550" y2="90" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="3 3"/>
-              <line x1="0" y1="140" x2="550" y2="140" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="3 3"/>
-
-              <!-- Filled Area -->
-              <path :d="svgFill" fill="url(#rGrad)"/>
-
-              <!-- Trend Line -->
-              <path :d="svgLine" fill="none" stroke="#5138ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-
-              <!-- Interactive Data Points -->
-              <g v-for="(p, i) in chartPoints" :key="i">
-                <circle
-                  :cx="p[0]"
-                  :cy="p[1]"
-                  r="4"
-                  fill="white"
-                  stroke="#5138ed"
-                  stroke-width="2.5"
-                  class="cursor-pointer hover:r-6 transition-all"
-                  @mouseenter="activeHoverPoint = { month: trendData[i]?.month || '', avg_score: trendData[i]?.avg_score || 0, attempts_count: trendData[i]?.attempts_count || 0, x: p[0], y: p[1] }"
-                  @mouseleave="activeHoverPoint = null"
-                />
-              </g>
-            </svg>
-
-            <!-- Month Axis Labels -->
-            <div class="flex justify-between mt-3 px-1">
-              <span
-                v-for="item in trendData"
-                :key="item.month"
-                class="text-[11px] text-slate-400 font-medium"
+          <!-- SVG Visual Chart with scroll on narrow screens -->
+          <div class="relative pt-4 pb-2 overflow-x-auto min-w-0">
+            <div class="min-w-[420px]">
+              <!-- Tooltip Popup -->
+              <div
+                v-if="activeHoverPoint"
+                class="absolute z-10 pointer-events-none bg-slate-900 text-white text-[11px] font-medium px-2.5 py-1.5 rounded-lg shadow-md -translate-x-1/2 -translate-y-full transition-transform"
+                :style="{ left: `${(activeHoverPoint.x / 550) * 100}%`, top: `${(activeHoverPoint.y / 200) * 100 - 8}%` }"
               >
-                {{ item.month }}
-              </span>
+                <div class="font-bold text-center">{{ activeHoverPoint.month }}</div>
+                <div class="text-indigo-200">Avg Score: {{ activeHoverPoint.avg_score }}%</div>
+                <div class="text-slate-400 text-[10px]" v-if="activeHoverPoint.attempts_count > 0">
+                  {{ activeHoverPoint.attempts_count }} attempts
+                </div>
+              </div>
+
+              <svg viewBox="0 0 550 200" class="w-full h-44 sm:h-48 overflow-visible" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="rGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#5138ed" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#5138ed" stop-opacity="0.01"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Horizontal Grid Lines -->
+                <line x1="0" y1="40" x2="550" y2="40" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="3 3"/>
+                <line x1="0" y1="90" x2="550" y2="90" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="3 3"/>
+                <line x1="0" y1="140" x2="550" y2="140" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="3 3"/>
+
+                <!-- Filled Area -->
+                <path :d="svgFill" fill="url(#rGrad)"/>
+
+                <!-- Trend Line -->
+                <path :d="svgLine" fill="none" stroke="#5138ed" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <!-- Interactive Data Points -->
+                <g v-for="(p, i) in chartPoints" :key="i">
+                  <circle
+                    :cx="p[0]"
+                    :cy="p[1]"
+                    r="4"
+                    fill="white"
+                    stroke="#5138ed"
+                    stroke-width="2.5"
+                    class="cursor-pointer hover:r-6 transition-all"
+                    @mouseenter="activeHoverPoint = { month: trendData[i]?.month || '', avg_score: trendData[i]?.avg_score || 0, attempts_count: trendData[i]?.attempts_count || 0, x: p[0], y: p[1] }"
+                    @mouseleave="activeHoverPoint = null"
+                  />
+                </g>
+              </svg>
+
+              <!-- Month Axis Labels -->
+              <div class="flex justify-between mt-3 px-1">
+                <span
+                  v-for="item in trendData"
+                  :key="item.month"
+                  class="text-[10px] sm:text-[11px] text-slate-400 font-medium"
+                >
+                  {{ item.month }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Course Performance Breakdown -->
-      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 flex flex-col justify-between">
+      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col justify-between">
         <div>
-          <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center justify-between mb-4 sm:mb-5">
             <h3 class="text-[15px] font-bold text-slate-800">Course Performance</h3>
             <span class="text-[11px] text-slate-400 font-medium">{{ coursePerformance.length }} Courses</span>
           </div>
@@ -623,11 +625,11 @@ onUnmounted(() => {
               :key="c.code + c.name"
               class="group"
             >
-              <div class="flex items-center justify-between mb-1.5">
-                <span class="text-[12px] font-bold text-slate-700 truncate max-w-[170px]" :title="c.name">
+              <div class="flex items-center justify-between mb-1.5 gap-2">
+                <span class="text-[12px] font-bold text-slate-700 truncate flex-1 min-w-0" :title="c.name">
                   {{ c.name }}
                 </span>
-                <span class="text-[12px] font-bold text-slate-800">{{ c.passRate }}%</span>
+                <span class="text-[12px] font-bold text-slate-800 shrink-0">{{ c.passRate }}%</span>
               </div>
 
               <!-- Progress Bar -->
@@ -642,9 +644,9 @@ onUnmounted(() => {
               </div>
 
               <!-- Course Info Subtitle -->
-              <div class="flex items-center justify-between mt-1 text-[10px]">
-                <span class="font-mono font-bold text-slate-400">{{ c.code }}</span>
-                <span class="text-slate-500 truncate max-w-[160px]">
+              <div class="flex items-center justify-between mt-1 text-[10px] gap-2">
+                <span class="font-mono font-bold text-slate-400 shrink-0">{{ c.code }}</span>
+                <span class="text-slate-500 truncate min-w-0 text-right">
                   Instructor: <span class="font-bold text-slate-700">{{ c.instructor }}</span>
                 </span>
               </div>

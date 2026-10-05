@@ -323,12 +323,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-[1500px] mx-auto pb-10">
+  <div class="max-w-[1500px] mx-auto pb-10 min-w-0 max-w-full space-y-6">
 
     <!-- Toast Notification -->
     <div
       v-if="toast.show"
-      class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border text-[13px] font-bold transition-all transform animate-bounce-short"
+      class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border text-[13px] font-bold transition-all transform animate-bounce-short max-w-[90vw]"
       :class="toast.type === 'success' ? 'bg-slate-900 text-white border-slate-700' : 'bg-rose-600 text-white border-rose-500'"
     >
       <svg v-if="toast.type === 'success'" class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -337,51 +337,51 @@ onMounted(() => {
       <svg v-else class="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
-      <span>{{ toast.message }}</span>
+      <span class="break-words">{{ toast.message }}</span>
     </div>
 
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
+    <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
       <div class="flex items-center gap-4">
         <div class="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-indigo-100/50">
           <svg class="w-6 h-6 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <div>
-          <h1 class="text-[22px] font-bold text-slate-800">Active Logs</h1>
-          <p class="text-[13px] text-slate-500">Monitor all recent activities and system events in real-time.</p>
-          <div class="flex items-center gap-1.5 mt-1 text-[12px] text-slate-400">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <div class="min-w-0">
+          <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800">Active Logs</h1>
+          <p class="text-[12px] sm:text-[13px] text-slate-500 truncate">Monitor all recent activities and system events in real-time.</p>
+          <div class="flex items-center gap-1.5 mt-1 text-[11px] sm:text-[12px] text-slate-400">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
             <span>Dashboard</span>
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            <span class="text-slate-800 font-bold">Active Logs</span>
+            <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <span class="text-slate-800 font-bold truncate">Active Logs</span>
           </div>
         </div>
       </div>
 
       <!-- Filters Right -->
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
         <!-- Search bar -->
-        <div class="relative min-w-[200px]">
+        <div class="relative flex-1 sm:flex-none min-w-[200px]">
           <input
             v-model="searchQuery"
             @keyup.enter="fetchLogs(1)"
             type="text"
             placeholder="Search logs..."
-            class="w-full pl-9 pr-4 py-2.5 text-[13px] border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-[#5138ed] shadow-sm font-medium text-slate-700 placeholder-slate-400"
+            class="w-full pl-9 pr-4 py-2.5 min-h-[44px] text-[13px] border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-[#5138ed] shadow-sm font-medium text-slate-700 placeholder-slate-400"
           />
-          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
 
         <!-- Activity Dropdown -->
-        <div class="relative">
+        <div class="relative flex-1 sm:flex-none min-w-[150px]">
           <select
             v-model="filterType"
             @change="onFilterTypeChange"
-            class="appearance-none border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-[13px] text-slate-700 font-bold bg-white focus:outline-none focus:border-[#5138ed] shadow-sm cursor-pointer"
+            class="w-full appearance-none border border-slate-200 rounded-xl px-4 py-2.5 pr-10 min-h-[44px] text-[13px] text-slate-700 font-bold bg-white focus:outline-none focus:border-[#5138ed] shadow-sm cursor-pointer"
           >
             <option v-for="f in filterTypes" :key="f.label" :value="f.label">⚙️ {{ f.label }}</option>
           </select>
@@ -391,16 +391,16 @@ onMounted(() => {
         <!-- Date Range Filter Trigger -->
         <button
           @click="showDateFilterModal = !showDateFilterModal"
-          class="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 font-bold bg-white shadow-sm hover:border-[#5138ed] transition-colors"
+          class="inline-flex items-center justify-center gap-2 border border-slate-200 rounded-xl px-4 py-2.5 min-h-[44px] text-[13px] text-slate-700 font-bold bg-white shadow-sm hover:border-[#5138ed] transition-colors flex-1 sm:flex-none"
         >
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          <span>{{ dateRangeLabel }}</span>
+          <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span class="truncate">{{ dateRangeLabel }}</span>
         </button>
 
         <!-- Filter Action Button -->
         <button
           @click="applyFilters"
-          class="flex items-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200 active:scale-95"
+          class="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 min-h-[44px] rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200 active:scale-95 shrink-0"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
           Filter
@@ -409,29 +409,29 @@ onMounted(() => {
     </div>
 
     <!-- Date Range Picker Modal / Popover -->
-    <div v-if="showDateFilterModal" class="relative z-40 mb-6">
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-xl p-5 max-w-md ml-auto">
+    <div v-if="showDateFilterModal" class="relative z-40">
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-xl p-4 sm:p-5 max-w-md ml-auto">
         <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
           <h4 class="text-[14px] font-bold text-slate-800">Filter by Date Range</h4>
-          <button @click="showDateFilterModal = false" class="text-slate-400 hover:text-slate-600">
+          <button @click="showDateFilterModal = false" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-lg">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           <div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">From Date</label>
-            <input v-model="startDate" type="date" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-700 font-medium focus:outline-none focus:border-[#5138ed]" />
+            <input v-model="startDate" type="date" class="w-full border border-slate-200 rounded-xl px-3 py-2 min-h-[44px] text-[12px] text-slate-700 font-medium focus:outline-none focus:border-[#5138ed]" />
           </div>
           <div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">To Date</label>
-            <input v-model="endDate" type="date" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-700 font-medium focus:outline-none focus:border-[#5138ed]" />
+            <input v-model="endDate" type="date" class="w-full border border-slate-200 rounded-xl px-3 py-2 min-h-[44px] text-[12px] text-slate-700 font-medium focus:outline-none focus:border-[#5138ed]" />
           </div>
         </div>
         <div class="flex items-center justify-end gap-2">
-          <button @click="resetDateFilters" class="px-4 py-2 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+          <button @click="resetDateFilters" class="px-4 py-2.5 min-h-[44px] rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-100 transition-colors">
             Reset
           </button>
-          <button @click="applyFilters" class="px-5 py-2 rounded-xl text-[12px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors">
+          <button @click="applyFilters" class="px-5 py-2.5 min-h-[44px] rounded-xl text-[12px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors">
             Apply Date Filter
           </button>
         </div>
@@ -439,7 +439,7 @@ onMounted(() => {
     </div>
 
     <!-- Main Content Layout -->
-    <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-6 min-w-0 max-w-full">
 
       <!-- Top: Log Table -->
       <div class="w-full bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[350px]">
@@ -451,19 +451,19 @@ onMounted(() => {
         </div>
 
         <!-- Empty State -->
-        <div v-else-if="logs.length === 0" class="p-16 flex flex-col items-center justify-center text-center">
+        <div v-else-if="logs.length === 0" class="p-12 sm:p-16 flex flex-col items-center justify-center text-center">
           <div class="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 mb-3">
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           </div>
           <h3 class="text-[15px] font-bold text-slate-800">No activity logs found</h3>
           <p class="text-[12px] text-slate-400 mt-1 max-w-sm">No activity logs match the selected filter or date range.</p>
-          <button @click="filterType = 'All Activities'; searchQuery = ''; startDate = ''; endDate = ''; fetchLogs(1);" class="mt-4 px-4 py-2 bg-indigo-50 text-[#5138ed] rounded-xl text-[12px] font-bold hover:bg-indigo-100 transition-colors">
+          <button @click="filterType = 'All Activities'; searchQuery = ''; startDate = ''; endDate = ''; fetchLogs(1);" class="mt-4 px-4 py-2.5 min-h-[44px] bg-indigo-50 text-[#5138ed] rounded-xl text-[12px] font-bold hover:bg-indigo-100 transition-colors">
             Reset Filters
           </button>
         </div>
 
-        <!-- Table Display -->
-        <div v-else class="flex-1 overflow-x-auto">
+        <!-- Desktop / Tablet Table Display -->
+        <div v-else class="hidden md:block flex-1 overflow-x-auto min-w-0 w-full">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="bg-slate-50/70 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -540,9 +540,9 @@ onMounted(() => {
                   <button
                     @click="openViewModal(log)"
                     title="View Log Details"
-                    class="w-7 h-7 rounded-full bg-indigo-50 text-[#5138ed] flex items-center justify-center hover:bg-[#5138ed] hover:text-white transition-colors mx-auto"
+                    class="w-8 h-8 rounded-full bg-indigo-50 text-[#5138ed] flex items-center justify-center hover:bg-[#5138ed] hover:text-white transition-colors mx-auto"
                   >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                     </svg>
@@ -553,9 +553,73 @@ onMounted(() => {
           </table>
         </div>
 
+        <!-- Mobile Cards Display -->
+        <div v-if="!isLoading && logs.length > 0" class="md:hidden divide-y divide-slate-100">
+          <div v-for="log in logs" :key="log.id" class="p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-3 min-w-0">
+                <div :class="getAvatarColor(log.role)" class="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 shadow-xs">
+                  {{ getAvatarInitials(log.user) }}
+                </div>
+                <div class="min-w-0">
+                  <p class="text-[13px] font-bold text-slate-800 truncate">{{ log.user }}</p>
+                  <p class="text-[11px] text-slate-400 truncate">{{ log.email }}</p>
+                </div>
+              </div>
+              <span v-if="log.status === 'Success'" class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-600 capitalize shrink-0">
+                {{ log.status }}
+              </span>
+              <span v-else class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 text-rose-600 capitalize shrink-0">
+                {{ log.status }}
+              </span>
+            </div>
+
+            <div class="bg-slate-50 p-2.5 rounded-xl space-y-1.5 text-[12px]">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Action:</span>
+                <div class="flex items-center gap-1.5 font-bold text-slate-700">
+                  <svg :class="getActionIcon(log.actionType).color" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getActionIcon(log.actionType).icon"/>
+                  </svg>
+                  <span>{{ log.action }}</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Module:</span>
+                <span class="font-bold text-slate-700">{{ log.module }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Role:</span>
+                <span :class="getRoleBadge(log.role)" class="px-2 py-0.5 rounded text-[10px] font-bold">
+                  {{ log.role }}
+                </span>
+              </div>
+              <div class="pt-1 text-slate-600 text-[11px] leading-relaxed break-words">
+                {{ log.description }}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+              <span>{{ log.time.replace('\n', ' ') }}</span>
+              <span class="font-mono">{{ log.ipAddress }}</span>
+            </div>
+
+            <button
+              @click="openViewModal(log)"
+              class="w-full min-h-[44px] inline-flex items-center justify-center gap-1.5 text-[12px] font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              View Full Details
+            </button>
+          </div>
+        </div>
+
         <!-- Dynamic Pagination -->
-        <div v-if="pagination.total > 0" class="px-5 py-4 border-t border-slate-100 flex items-center justify-between mt-auto">
-          <span class="text-[12px] font-bold text-slate-400">
+        <div v-if="pagination.total > 0" class="px-4 sm:px-5 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 mt-auto">
+          <span class="text-[12px] font-bold text-slate-400 text-center sm:text-left">
             Showing {{ pagination.from || 1 }} to {{ pagination.to || pagination.total }} of {{ pagination.total }} activities
           </span>
           <div class="flex items-center gap-1.5">
@@ -564,19 +628,19 @@ onMounted(() => {
               @click="goToPage(pagination.current_page - 1)"
               :disabled="pagination.current_page <= 1"
               :class="pagination.current_page <= 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'"
-              class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors"
+              class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
 
             <!-- Page Numbers -->
             <template v-for="(p, idx) in displayedPages" :key="idx">
-              <span v-if="p === '...'" class="w-8 h-8 flex items-center justify-center text-slate-400 text-[12px]">...</span>
+              <span v-if="p === '...'" class="w-7 sm:w-8 h-9 sm:h-8 flex items-center justify-center text-slate-400 text-[12px]">...</span>
               <button
                 v-else
                 @click="goToPage(Number(p))"
                 :class="pagination.current_page === p ? 'bg-[#5138ed] text-white shadow-sm shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'"
-                class="w-8 h-8 flex items-center justify-center rounded-lg font-bold text-[12px] transition-colors"
+                class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold text-[12px] transition-colors"
               >
                 {{ p }}
               </button>
@@ -587,7 +651,7 @@ onMounted(() => {
               @click="goToPage(pagination.current_page + 1)"
               :disabled="pagination.current_page >= pagination.last_page"
               :class="pagination.current_page >= pagination.last_page ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'"
-              class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors"
+              class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -599,16 +663,16 @@ onMounted(() => {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <!-- Activity Summary Card -->
-        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
-          <div class="flex items-center justify-between mb-5">
+        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
+          <div class="flex items-center justify-between mb-4 sm:mb-5">
             <h3 class="text-[14px] font-bold text-slate-800">Activity Summary</h3>
             <span class="text-[11px] font-bold text-slate-400">Total: {{ activitySummary.all }}</span>
           </div>
-          <div class="space-y-3.5">
+          <div class="space-y-2.5 sm:space-y-3.5">
             <!-- All Activities -->
             <div
               @click="filterByCategory('All Activities')"
-              class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+              class="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors min-h-[44px]"
               :class="filterType === 'All Activities' ? 'bg-indigo-50/60' : ''"
             >
               <div class="flex items-center gap-3">
@@ -623,7 +687,7 @@ onMounted(() => {
             <!-- Successful -->
             <div
               @click="filterByCategory('Successful')"
-              class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+              class="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors min-h-[44px]"
               :class="filterType === 'Successful' ? 'bg-emerald-50/60' : ''"
             >
               <div class="flex items-center gap-3">
@@ -638,7 +702,7 @@ onMounted(() => {
             <!-- Failed -->
             <div
               @click="filterByCategory('Failed')"
-              class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+              class="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors min-h-[44px]"
               :class="filterType === 'Failed' ? 'bg-rose-50/60' : ''"
             >
               <div class="flex items-center gap-3">
@@ -653,7 +717,7 @@ onMounted(() => {
             <!-- Logins -->
             <div
               @click="filterByCategory('Logins')"
-              class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+              class="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors min-h-[44px]"
               :class="filterType === 'Logins' ? 'bg-indigo-50/60' : ''"
             >
               <div class="flex items-center gap-3">
@@ -668,7 +732,7 @@ onMounted(() => {
             <!-- Data Changes -->
             <div
               @click="filterByCategory('Data Changes')"
-              class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+              class="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors min-h-[44px]"
               :class="filterType === 'Data Changes' ? 'bg-amber-50/60' : ''"
             >
               <div class="flex items-center gap-3">
@@ -683,7 +747,7 @@ onMounted(() => {
             <!-- System Events -->
             <div
               @click="filterByCategory('System Events')"
-              class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+              class="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors min-h-[44px]"
               :class="filterType === 'System Events' ? 'bg-purple-50/60' : ''"
             >
               <div class="flex items-center gap-3">
@@ -699,17 +763,17 @@ onMounted(() => {
         </div>
 
         <!-- Top Active Users Card -->
-        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
-          <div class="flex items-center justify-between mb-5">
+        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
+          <div class="flex items-center justify-between mb-4 sm:mb-5">
             <h3 class="text-[14px] font-bold text-slate-800">Top Active Users</h3>
             <span class="text-[11px] font-bold text-slate-400">By Log Count</span>
           </div>
-          <div class="space-y-4">
+          <div class="space-y-3 sm:space-y-4">
             <div
               v-for="user in topActiveUsers"
               :key="user.name"
               @click="filterByUser(user.name)"
-              class="flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+              class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors min-h-[44px]"
               title="Click to filter activities by this user"
             >
               <div :class="getAvatarColor(user.role)" class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 shadow-xs">
@@ -719,7 +783,7 @@ onMounted(() => {
                 <p class="text-[12px] font-bold text-slate-800 truncate">{{ user.name }}</p>
                 <p class="text-[10px] font-medium text-slate-400">{{ user.role }}</p>
               </div>
-              <span class="text-[11px] font-bold text-slate-600 whitespace-nowrap bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">{{ user.count }} actions</span>
+              <span class="text-[11px] font-bold text-slate-600 whitespace-nowrap bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 shrink-0">{{ user.count }} actions</span>
             </div>
             <div v-if="topActiveUsers.length === 0" class="text-center py-6 text-[12px] text-slate-400">
               No active users recorded yet.
@@ -728,14 +792,14 @@ onMounted(() => {
         </div>
 
         <!-- Quick Actions Card -->
-        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
           <h3 class="text-[14px] font-bold text-slate-800 mb-4">Quick Actions</h3>
           <div class="space-y-3">
             <!-- Export Logs -->
             <button
               @click="handleExportLogs"
               :disabled="isExporting"
-              class="flex items-center justify-between w-full p-2.5 text-left border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group"
+              class="flex items-center justify-between w-full p-3 min-h-[44px] text-left border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group cursor-pointer"
             >
               <div class="flex items-center gap-3">
                 <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -749,7 +813,7 @@ onMounted(() => {
             <!-- Clear Old Logs -->
             <button
               @click="isClearModalOpen = true"
-              class="flex items-center justify-between w-full p-2.5 text-left border border-slate-100 rounded-xl hover:border-rose-200 hover:bg-rose-50/30 transition-all group"
+              class="flex items-center justify-between w-full p-3 min-h-[44px] text-left border border-slate-100 rounded-xl hover:border-rose-200 hover:bg-rose-50/30 transition-all group cursor-pointer"
             >
               <div class="flex items-center gap-3">
                 <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -761,7 +825,7 @@ onMounted(() => {
             <!-- System Audit Report -->
             <button
               @click="filterByCategory('System Events')"
-              class="flex items-center justify-between w-full p-2.5 text-left border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group"
+              class="flex items-center justify-between w-full p-3 min-h-[44px] text-left border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group cursor-pointer"
             >
               <div class="flex items-center gap-3">
                 <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -773,7 +837,7 @@ onMounted(() => {
             <!-- Security Logs -->
             <button
               @click="filterByCategory('Logins')"
-              class="flex items-center justify-between w-full p-2.5 text-left border border-slate-100 rounded-xl hover:border-emerald-200 hover:bg-emerald-50/30 transition-all group"
+              class="flex items-center justify-between w-full p-3 min-h-[44px] text-left border border-slate-100 rounded-xl hover:border-emerald-200 hover:bg-emerald-50/30 transition-all group cursor-pointer"
             >
               <div class="flex items-center gap-3">
                 <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -789,36 +853,36 @@ onMounted(() => {
     </div>
 
     <!-- View Log Details Modal -->
-    <div v-if="isViewModalOpen && selectedLog" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-      <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div v-if="isViewModalOpen && selectedLog" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
+      <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-[95vw] sm:max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
         
         <!-- Modal Header -->
-        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5138ed]">
+        <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+          <div class="flex items-center gap-3 min-w-0 pr-2">
+            <div class="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5138ed] shrink-0">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div>
-              <h3 class="text-[15px] font-bold text-slate-800">Activity Log Details</h3>
+            <div class="min-w-0">
+              <h3 class="text-[15px] font-bold text-slate-800 truncate">Activity Log Details</h3>
               <p class="text-[11px] text-slate-400">Log Record #{{ selectedLog.id }}</p>
             </div>
           </div>
-          <button @click="isViewModalOpen = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+          <button @click="isViewModalOpen = false" class="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
         <!-- Modal Body -->
-        <div class="p-6 space-y-4">
+        <div class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           <!-- User info -->
           <div class="flex items-center gap-3 p-3 bg-slate-50/80 rounded-xl border border-slate-100">
             <div :class="getAvatarColor(selectedLog.role)" class="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0">
               {{ getAvatarInitials(selectedLog.user) }}
             </div>
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <h4 class="text-[13px] font-bold text-slate-800 truncate">{{ selectedLog.user }}</h4>
                 <span :class="getRoleBadge(selectedLog.role)" class="px-2 py-0.5 rounded text-[10px] font-bold">
                   {{ selectedLog.role }}
@@ -829,7 +893,7 @@ onMounted(() => {
           </div>
 
           <!-- Key Details Grid -->
-          <div class="grid grid-cols-2 gap-3 text-[12px]">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
             <div class="bg-slate-50 p-3 rounded-xl">
               <span class="text-slate-400 font-semibold block text-[11px]">Timestamp</span>
               <span class="text-slate-700 font-bold">{{ selectedLog.time.replace('\n', ' ') }}</span>
@@ -841,7 +905,7 @@ onMounted(() => {
             <div class="bg-slate-50 p-3 rounded-xl">
               <span class="text-slate-400 font-semibold block text-[11px]">Action Type</span>
               <span class="text-slate-700 font-bold flex items-center gap-1.5 mt-0.5">
-                <svg :class="getActionIcon(selectedLog.actionType).color" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg :class="getActionIcon(selectedLog.actionType).color" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getActionIcon(selectedLog.actionType).icon"/>
                 </svg>
                 {{ selectedLog.action }}
@@ -856,7 +920,7 @@ onMounted(() => {
                 Failed
               </span>
             </div>
-            <div class="bg-slate-50 p-3 rounded-xl col-span-2">
+            <div class="bg-slate-50 p-3 rounded-xl sm:col-span-2">
               <span class="text-slate-400 font-semibold block text-[11px]">IP Address</span>
               <span class="text-slate-700 font-mono text-[11px] font-bold">{{ selectedLog.ipAddress }}</span>
             </div>
@@ -865,17 +929,17 @@ onMounted(() => {
           <!-- Description / Details -->
           <div>
             <span class="text-slate-500 font-bold block text-[12px] mb-1.5">Description & Payload:</span>
-            <div class="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-[12px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed">
+            <div class="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-[12px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words">
               {{ selectedLog.description }}
             </div>
           </div>
         </div>
 
         <!-- Modal Footer -->
-        <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-end">
+        <div class="px-4 sm:px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-end shrink-0">
           <button
             @click="isViewModalOpen = false"
-            class="px-5 py-2 rounded-xl text-[12px] font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+            class="w-full sm:w-auto px-5 py-2.5 min-h-[44px] rounded-xl text-[12px] font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
           >
             Close
           </button>
@@ -885,10 +949,10 @@ onMounted(() => {
     </div>
 
     <!-- Clear Old Logs Confirmation Modal -->
-    <div v-if="isClearModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-      <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div v-if="isClearModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
+      <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-[95vw] sm:max-w-md w-full max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150 my-auto">
         
-        <div class="p-6">
+        <div class="p-4 sm:p-6">
           <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mb-4">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
@@ -901,7 +965,7 @@ onMounted(() => {
 
           <div class="mb-4">
             <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Select Retention Threshold</label>
-            <select v-model="clearDays" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 bg-white focus:outline-none focus:border-[#5138ed]">
+            <select v-model="clearDays" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 min-h-[44px] text-[13px] font-medium text-slate-700 bg-white focus:outline-none focus:border-[#5138ed]">
               <option :value="7">Older than 7 days</option>
               <option :value="14">Older than 14 days</option>
               <option :value="30">Older than 30 days (Recommended)</option>
@@ -911,18 +975,18 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-2">
+        <div class="px-4 sm:px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
           <button
             @click="isClearModalOpen = false"
             :disabled="isClearing"
-            class="px-4 py-2 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+            class="px-4 py-2.5 min-h-[44px] rounded-xl text-[12px] font-bold text-slate-600 hover:bg-slate-100 transition-colors text-center"
           >
             Cancel
           </button>
           <button
             @click="confirmClearOldLogs"
             :disabled="isClearing"
-            class="px-5 py-2 rounded-xl text-[12px] font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-sm shadow-rose-200 flex items-center gap-2"
+            class="px-5 py-2.5 min-h-[44px] rounded-xl text-[12px] font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-sm shadow-rose-200 inline-flex items-center justify-center gap-2"
           >
             <svg v-if="isClearing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
             <span>{{ isClearing ? 'Clearing...' : 'Yes, Clear Logs' }}</span>

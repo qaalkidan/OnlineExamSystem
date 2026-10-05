@@ -398,23 +398,23 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
     <div v-if="currentView === 'list'" class="space-y-6">
 
       <!-- Page Header -->
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 class="text-[22px] font-bold text-slate-800">Exam Schedule</h1>
-          <p class="text-[13px] text-slate-500 mt-1">Manage and monitor exam schedules for your department.</p>
+          <h1 class="text-xl sm:text-[22px] font-bold text-slate-800">Exam Schedule</h1>
+          <p class="text-[13px] text-slate-500 mt-0.5 sm:mt-1">Manage and monitor exam schedules for your department.</p>
         </div>
       </div>
 
       <!-- Stats Cards -->
-      <div class="grid grid-cols-4 gap-6">
-        <div v-for="stat in stats" :key="stat.label" class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+        <div v-for="stat in stats" :key="stat.label" class="bg-white rounded-2xl p-4 sm:p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
           <div class="flex items-center gap-4">
             <div :class="[stat.bg, stat.iconColor, 'w-12 h-12 rounded-xl flex items-center justify-center shrink-0']">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="stat.icon"></path></svg>
             </div>
             <div>
               <p class="text-[12px] font-bold text-slate-500">{{ stat.label }}</p>
-              <h3 class="text-[24px] font-bold text-slate-800 leading-tight mt-1">{{ stat.value }}</h3>
+              <h3 class="text-xl sm:text-[24px] font-bold text-slate-800 leading-tight mt-1">{{ stat.value }}</h3>
               <p :class="[stat.color, 'text-[11px] font-bold mt-1']">{{ stat.change }}</p>
             </div>
           </div>
@@ -422,58 +422,60 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
       </div>
 
       <!-- Table Card -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden min-w-0 max-w-full">
 
         <!-- Toolbar -->
-        <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
-          <div class="flex flex-wrap items-center gap-4 flex-1">
+        <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4">
+          <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3 flex-1">
             <!-- Search -->
             <div class="relative w-full md:w-80">
-              <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-              <input v-model="search" type="text" placeholder="Search exams by title, course or code..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-600 placeholder:text-slate-400" />
+              <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              <input v-model="search" type="text" placeholder="Search exams by title, course or code..." class="w-full pl-10 pr-4 py-2.5 min-h-[44px] bg-slate-50 border border-slate-200 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-600 placeholder:text-slate-400" />
             </div>
             <!-- Dropdowns -->
-            <div class="relative w-40 shrink-0">
-              <select v-model="semesterFilter" class="w-full appearance-none px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
-                <option value="all">All Semesters</option>
-                <option value="Semester 1">Semester 1</option>
-                <option value="Semester 2">Semester 2</option>
-              </select>
-              <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
-            <div class="relative w-40 shrink-0">
-              <select v-model="courseFilter" class="w-full appearance-none px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
-                <option value="all">All Courses</option>
-                <option v-for="c in availableCourses" :key="c.id" :value="c.code">{{ c.title }}</option>
-              </select>
-              <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
-            <div class="relative w-36 shrink-0">
-              <select v-model="statusFilter" class="w-full appearance-none px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
-                <option value="all">All Status</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="published">Published</option>
-                <option value="completed">Completed</option>
-                <option value="draft">Draft</option>
-              </select>
-              <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+              <div class="relative w-full">
+                <select v-model="semesterFilter" class="w-full appearance-none px-4 py-2.5 min-h-[44px] bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
+                  <option value="all">All Semesters</option>
+                  <option value="Semester 1">Semester 1</option>
+                  <option value="Semester 2">Semester 2</option>
+                </select>
+                <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+              <div class="relative w-full">
+                <select v-model="courseFilter" class="w-full appearance-none px-4 py-2.5 min-h-[44px] bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
+                  <option value="all">All Courses</option>
+                  <option v-for="c in availableCourses" :key="c.id" :value="c.code">{{ c.title }}</option>
+                </select>
+                <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+              <div class="relative w-full">
+                <select v-model="statusFilter" class="w-full appearance-none px-4 py-2.5 min-h-[44px] bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer">
+                  <option value="all">All Status</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="published">Published</option>
+                  <option value="completed">Completed</option>
+                  <option value="draft">Draft</option>
+                </select>
+                <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
             </div>
             <!-- Filter btn -->
-            <button @click="currentPage = 1" class="flex items-center gap-2 px-4 py-2.5 border border-[#5138ed] text-[#5138ed] rounded-xl text-[13px] font-bold hover:bg-indigo-50 transition-colors shrink-0">
+            <button @click="currentPage = 1" class="flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] border border-[#5138ed] text-[#5138ed] rounded-xl text-[13px] font-bold hover:bg-indigo-50 transition-colors shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
               Filter
             </button>
           </div>
           <!-- Schedule btn -->
-          <button @click="currentView = 'schedule'" class="flex items-center gap-2 bg-[#5138ed] text-white px-5 py-2.5 rounded-xl text-[13px] font-bold hover:bg-indigo-600 transition-colors shadow-sm shrink-0">
+          <button @click="currentView = 'schedule'" class="flex items-center justify-center gap-2 bg-[#5138ed] text-white px-5 py-2.5 min-h-[44px] rounded-xl text-[13px] font-bold hover:bg-indigo-600 transition-colors shadow-sm shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Schedule Exam
           </button>
         </div>
 
-        <!-- Table -->
-        <div class="overflow-x-auto">
-          <table class="w-full min-w-[1000px]">
+        <!-- Desktop / Tablet Table -->
+        <div class="hidden md:block overflow-x-auto min-w-0 w-full">
+          <table class="w-full min-w-[900px]">
             <thead class="bg-slate-50 border-b border-slate-100">
               <tr>
                 <th class="text-left px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Exam Title</th>
@@ -520,21 +522,64 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </table>
         </div>
 
+        <!-- Mobile Cards List -->
+        <div class="md:hidden divide-y divide-slate-100">
+          <div v-if="paginatedExams.length === 0" class="p-8 text-center text-slate-400">
+            <p class="text-[14px] font-semibold text-slate-600">No scheduled exams found</p>
+            <p class="text-[12px] text-slate-400 mt-1">Click "Schedule Exam" to create one.</p>
+          </div>
+          <div v-for="exam in paginatedExams" :key="'m-'+exam.id" class="p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span class="inline-block px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-700 mb-1">
+                  {{ exam.code || exam.courseCode }}
+                </span>
+                <h3 class="text-[15px] font-bold text-slate-800 leading-snug">{{ exam.title }}</h3>
+                <p class="text-[12px] text-slate-500 font-medium">{{ exam.course || exam.courseName }}</p>
+              </div>
+              <span :class="[statusBadge(exam.status), 'text-[11px] font-bold px-2 py-0.5 rounded-md capitalize shrink-0']">
+                {{ exam.status }}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[12px] bg-slate-50/70 p-3 rounded-xl">
+              <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Exam Date</span>
+                <span class="font-bold text-slate-700">{{ exam.date }}</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Room</span>
+                <span class="font-medium text-slate-700">{{ exam.room || 'Room 101' }}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-1">
+              <button 
+                @click="deleteExam(exam.id)" 
+                class="min-h-[44px] px-4 py-2 text-[12px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Delete Schedule
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Pagination -->
-        <div class="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <p class="text-[13px] font-medium text-slate-500">
+        <div class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
+          <p class="text-[12px] sm:text-[13px] font-medium text-slate-500 text-center sm:text-left">
             Showing {{ filteredExams.length === 0 ? 0 : (currentPage - 1) * perPage + 1 }} to {{ Math.min(currentPage * perPage, filteredExams.length) }} of {{ filteredExams.length }} exams
           </p>
           <div class="flex items-center gap-1">
-            <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-600 hover:shadow-sm transition-all border border-transparent hover:border-slate-200 disabled:opacity-40">
+            <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="w-9 h-9 min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-600 hover:shadow-sm transition-all border border-transparent hover:border-slate-200 disabled:opacity-40">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
             </button>
             <button
               v-for="page in totalPages" :key="page"
               @click="currentPage = page"
-              :class="['w-8 h-8 flex items-center justify-center rounded-lg text-[13px] font-bold transition-all', currentPage === page ? 'bg-[#5138ed] text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200']"
+              :class="['w-9 h-9 min-h-[36px] flex items-center justify-center rounded-lg text-[13px] font-bold transition-all', currentPage === page ? 'bg-[#5138ed] text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200']"
             >{{ page }}</button>
-            <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-600 hover:shadow-sm transition-all border border-transparent hover:border-slate-200 disabled:opacity-40">
+            <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages" class="w-9 h-9 min-h-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-600 hover:shadow-sm transition-all border border-transparent hover:border-slate-200 disabled:opacity-40">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
             </button>
           </div>
@@ -551,41 +596,41 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
     <div v-else-if="currentView === 'schedule'" class="space-y-6">
 
       <!-- Header -->
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 class="text-[22px] font-bold text-slate-800">Schedule New Examination</h1>
-          <p class="text-[13px] text-slate-500 mt-1">Create a new examination schedule for your department.</p>
+          <h1 class="text-xl sm:text-[22px] font-bold text-slate-800">Schedule New Examination</h1>
+          <p class="text-[13px] text-slate-500 mt-0.5 sm:mt-1">Create a new examination schedule for your department.</p>
         </div>
-        <button @click="currentView = 'list'" class="flex items-center gap-2 px-4 py-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+        <button @click="currentView = 'list'" class="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Schedule
         </button>
       </div>
 
       <!-- 2-Step Stepper -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-8 py-5 flex items-center">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 sm:px-8 py-4 sm:py-5 flex items-center">
         <!-- Step 1 active -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
           <div class="w-8 h-8 rounded-full bg-[#5138ed] text-white flex items-center justify-center font-bold text-[13px] shadow-sm">1</div>
-          <span class="text-[#5138ed] font-bold text-[14px]">Exam Information</span>
+          <span class="text-[#5138ed] font-bold text-[13px] sm:text-[14px]">Exam Information</span>
         </div>
         <!-- Connector line -->
-        <div class="flex-1 mx-6 h-px bg-slate-200"></div>
+        <div class="flex-1 mx-3 sm:mx-6 h-px bg-slate-200"></div>
         <!-- Step 2 inactive -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
           <div class="w-8 h-8 rounded-full border-2 border-slate-200 text-slate-400 flex items-center justify-center font-bold text-[13px]">2</div>
-          <span class="text-slate-400 font-bold text-[14px]">Review &amp; Confirm</span>
+          <span class="text-slate-400 font-bold text-[13px] sm:text-[14px]">Review &amp; Confirm</span>
         </div>
       </div>
 
       <!-- Two-column body -->
-      <div class="flex gap-6 items-start">
+      <div class="flex flex-col xl:flex-row gap-6 items-start">
 
         <!-- ── Left: Form ── -->
-        <div class="flex-1 min-w-0 space-y-6">
+        <div class="flex-1 w-full min-w-0 space-y-6">
 
           <!-- Exam Information card -->
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
             <div class="flex gap-4 mb-6">
               <div class="w-10 h-10 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -597,7 +642,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
             </div>
 
             <!-- Row 1: Academic Year / Semester / Exam Type / Year Level -->
-            <div class="grid grid-cols-4 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div class="space-y-1.5">
                 <label class="text-[12px] font-bold text-slate-700">Academic Year <span class="text-rose-500">*</span></label>
                 <div class="relative">
@@ -607,7 +652,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                     @input="formErrors.academic_year = ''"
                     placeholder="e.g. 2026/2027"
                     :class="[
-                      'w-full px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors font-medium',
+                      'w-full px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors font-medium',
                       formErrors.academic_year ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                     ]"
                   />
@@ -622,7 +667,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                     v-model="addForm.semester"
                     @change="formErrors.semester = ''"
                     :class="[
-                      'w-full appearance-none px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
+                      'w-full appearance-none px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
                       formErrors.semester ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                     ]"
                   >
@@ -642,7 +687,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                     v-model="addForm.exam_type"
                     @change="formErrors.exam_type = ''"
                     :class="[
-                      'w-full appearance-none px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
+                      'w-full appearance-none px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
                       formErrors.exam_type ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                     ]"
                   >
@@ -663,7 +708,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                     v-model="addForm.year_level"
                     @change="formErrors.year_level = ''"
                     :class="[
-                      'w-full appearance-none px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
+                      'w-full appearance-none px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
                       formErrors.year_level ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                     ]"
                   >
@@ -680,14 +725,14 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
             </div>
 
             <!-- Row 2: Department / Faculty -->
-            <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div class="space-y-1.5">
                 <label class="text-[12px] font-bold text-slate-700">Department</label>
-                <input type="text" v-model="addForm.department" disabled class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-600 focus:outline-none cursor-not-allowed font-medium capitalize" />
+                <input type="text" v-model="addForm.department" disabled class="w-full px-3 py-2.5 min-h-[44px] bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-600 focus:outline-none cursor-not-allowed font-medium capitalize" />
               </div>
               <div class="space-y-1.5">
                 <label class="text-[12px] font-bold text-slate-700">Faculty</label>
-                <input type="text" v-model="addForm.faculty" disabled class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-600 focus:outline-none cursor-not-allowed font-medium" />
+                <input type="text" v-model="addForm.faculty" disabled class="w-full px-3 py-2.5 min-h-[44px] bg-slate-50 border border-slate-200 rounded-lg text-[13px] text-slate-600 focus:outline-none cursor-not-allowed font-medium" />
               </div>
             </div>
 
@@ -700,7 +745,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                 @input="formErrors.title = ''"
                 placeholder="e.g. Semester I Mid Examination Schedule"
                 :class="[
-                  'w-full px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors font-medium',
+                  'w-full px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors font-medium',
                   formErrors.title ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                 ]"
               />
@@ -708,7 +753,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
             </div>
 
             <!-- Row 4: Start Date / End Date -->
-            <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div class="space-y-1.5">
                 <label class="text-[12px] font-bold text-slate-700">Start Date <span class="text-rose-500">*</span></label>
                 <div class="relative">
@@ -717,7 +762,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                     v-model="addForm.start_date"
                     @change="formErrors.start_date = ''"
                     :class="[
-                      'w-full pl-3 pr-10 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors',
+                      'w-full pl-3 pr-10 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors',
                       formErrors.start_date ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                     ]"
                   />
@@ -733,7 +778,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                     v-model="addForm.end_date"
                     @change="formErrors.end_date = ''"
                     :class="[
-                      'w-full pl-3 pr-10 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors',
+                      'w-full pl-3 pr-10 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors',
                       formErrors.end_date ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                     ]"
                   />
@@ -755,10 +800,10 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Scheduled Courses card -->
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
             <!-- Card header -->
-            <div class="flex items-center justify-between mb-5">
-              <div class="flex gap-4 items-center">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+              <div class="flex gap-3 sm:gap-4 items-center">
                 <div class="w-10 h-10 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                 </div>
@@ -767,14 +812,14 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                   <p class="text-[12px] text-slate-500 mt-0.5">Add all courses included in this examination session.</p>
                 </div>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                 <span class="px-3 py-1 bg-[#5138ed] text-white text-[11px] font-bold rounded-full uppercase tracking-wider">
                   ● {{ addForm.exam_type }}
                 </span>
                 <button
                   type="button"
                   @click="showAddCourseModal = true"
-                  class="flex items-center gap-1.5 bg-[#5138ed] text-white px-4 py-2 rounded-lg text-[12px] font-bold hover:bg-indigo-600 transition-colors shadow-sm cursor-pointer"
+                  class="min-h-[44px] flex items-center gap-1.5 bg-[#5138ed] text-white px-4 py-2 rounded-xl text-[12px] font-bold hover:bg-indigo-600 transition-colors shadow-sm cursor-pointer"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                   Add Course
@@ -789,57 +834,59 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
             </div>
 
             <!-- Courses table -->
-            <table class="w-full">
-              <thead>
-                <tr class="border-b border-slate-100">
-                  <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course Title</th>
-                  <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course Code</th>
-                  <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Exam Date</th>
-                  <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Time</th>
-                  <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Invigilator</th>
-                  <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Room</th>
-                  <th class="text-center pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-50">
-                <tr v-if="addForm.courses.length === 0">
-                  <td colspan="7" class="py-8 text-center text-[13px] text-slate-400">
-                    No courses added yet. Click "+ Add Course" to add courses to this schedule.
-                  </td>
-                </tr>
-                <tr v-for="(course, index) in addForm.courses" :key="index" class="hover:bg-slate-50/60 transition-colors">
-                  <td class="py-3 text-[13px] font-semibold text-slate-700">{{ course.name }}</td>
-                  <td class="py-3 text-[13px] text-slate-600 font-medium">{{ course.code }}</td>
-                  <td class="py-3">
-                    <div class="flex items-center gap-1.5 text-[12px] text-slate-600">
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="calIcon"></path></svg>
-                      {{ course.date }}
-                    </div>
-                  </td>
-                  <td class="py-3">
-                    <div class="flex items-center gap-1.5 text-[12px] text-slate-600">
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      {{ course.time }}
-                    </div>
-                  </td>
-                  <td class="py-3 text-[12px] text-slate-600 font-medium">{{ course.inv ?? 'TBD' }}</td>
-                  <td class="py-3 text-[12px] text-slate-600 font-medium">{{ course.room }}</td>
-                  <td class="py-3 text-center">
-                    <button
-                      type="button"
-                      @click="removeCourse(index)"
-                      class="w-7 h-7 inline-flex items-center justify-center rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                      title="Remove course"
-                    >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="overflow-x-auto min-w-0 w-full">
+              <table class="w-full min-w-[700px]">
+                <thead>
+                  <tr class="border-b border-slate-100">
+                    <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course Title</th>
+                    <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course Code</th>
+                    <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Exam Date</th>
+                    <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Time</th>
+                    <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Invigilator</th>
+                    <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Room</th>
+                    <th class="text-center pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  <tr v-if="addForm.courses.length === 0">
+                    <td colspan="7" class="py-8 text-center text-[13px] text-slate-400">
+                      No courses added yet. Click "+ Add Course" to add courses to this schedule.
+                    </td>
+                  </tr>
+                  <tr v-for="(course, index) in addForm.courses" :key="index" class="hover:bg-slate-50/60 transition-colors">
+                    <td class="py-3 text-[13px] font-semibold text-slate-700">{{ course.name }}</td>
+                    <td class="py-3 text-[13px] text-slate-600 font-medium">{{ course.code }}</td>
+                    <td class="py-3">
+                      <div class="flex items-center gap-1.5 text-[12px] text-slate-600">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="calIcon"></path></svg>
+                        {{ course.date }}
+                      </div>
+                    </td>
+                    <td class="py-3">
+                      <div class="flex items-center gap-1.5 text-[12px] text-slate-600">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        {{ course.time }}
+                      </div>
+                    </td>
+                    <td class="py-3 text-[12px] text-slate-600 font-medium">{{ course.inv ?? 'TBD' }}</td>
+                    <td class="py-3 text-[12px] text-slate-600 font-medium">{{ course.room }}</td>
+                    <td class="py-3 text-center">
+                      <button
+                        type="button"
+                        @click="removeCourse(index)"
+                        class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        title="Remove course"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
             <!-- Add more link -->
-            <button type="button" @click="showAddCourseModal = true" class="mt-3 flex items-center gap-1.5 text-[#5138ed] text-[12px] font-bold hover:underline cursor-pointer">
+            <button type="button" @click="showAddCourseModal = true" class="mt-3 flex items-center gap-1.5 text-[#5138ed] text-[12px] font-bold hover:underline cursor-pointer py-1">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
               Add Course to schedule more
             </button>
@@ -852,12 +899,12 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Bottom action bar -->
-          <div class="flex items-center justify-between pb-6">
-            <button type="button" @click="currentView = 'list'" class="px-6 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-colors">
+          <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-6">
+            <button type="button" @click="currentView = 'list'" class="w-full sm:w-auto min-h-[44px] px-6 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-colors flex items-center justify-center">
               Cancel
             </button>
             <div class="flex items-center gap-3">
-              <button type="button" @click="goToReview" class="flex items-center gap-2 px-6 py-2.5 bg-[#5138ed] text-white rounded-xl text-[13px] font-bold hover:bg-indigo-600 transition-colors shadow-sm cursor-pointer">
+              <button type="button" @click="goToReview" class="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 bg-[#5138ed] text-white rounded-xl text-[13px] font-bold hover:bg-indigo-600 transition-colors shadow-sm cursor-pointer">
                 Next
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
               </button>
@@ -867,14 +914,14 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
         </div><!-- end Left form column -->
 
         <!-- ── Right: Schedule Summary sidebar ── -->
-        <div class="w-64 shrink-0 space-y-4">
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div class="w-full xl:w-64 shrink-0 space-y-4">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
             <h3 class="text-[14px] font-bold text-slate-800 mb-4">Schedule Summary</h3>
             <div class="space-y-4">
               <!-- Exam Type -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
                     <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                   </div>
                   <span class="text-[12px] text-slate-500 font-medium">Exam Type</span>
@@ -886,7 +933,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
               <!-- Semester -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                   </div>
                   <span class="text-[12px] text-slate-500 font-medium">Semester</span>
@@ -896,7 +943,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
               <!-- Academic Year -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                   </div>
                   <span class="text-[12px] text-slate-500 font-medium">Academic Year</span>
@@ -906,7 +953,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
               <!-- Courses Added -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                   </div>
                   <span class="text-[12px] text-slate-500 font-medium">Courses Added</span>
@@ -918,7 +965,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
               <!-- Schedule Status -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                   </div>
                   <span class="text-[12px] text-slate-500 font-medium">Schedule Status</span>
@@ -928,7 +975,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
               <!-- Conflicts -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                  <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                   </div>
                   <span class="text-[12px] text-slate-500 font-medium">Conflicts</span>
@@ -952,55 +999,55 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
     <div v-else-if="currentView === 'review'" class="space-y-6">
       
       <!-- Header -->
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 class="text-[22px] font-bold text-slate-800">Review &amp; Confirm Schedule</h1>
-          <p class="text-[13px] text-slate-500 mt-1">Review every examination before publishing the schedule to students.</p>
+          <h1 class="text-xl sm:text-[22px] font-bold text-slate-800">Review &amp; Confirm Schedule</h1>
+          <p class="text-[13px] text-slate-500 mt-0.5 sm:mt-1">Review every examination before publishing the schedule to students.</p>
         </div>
-        <button @click="currentView = 'schedule'" class="flex items-center gap-2 px-4 py-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+        <button @click="currentView = 'schedule'" class="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Schedule
         </button>
       </div>
 
       <!-- 2-Step Stepper -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-8 py-5 flex items-center">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 sm:px-8 py-4 sm:py-5 flex items-center">
         <!-- Step 1 completed -->
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-full bg-indigo-50 text-[#5138ed] flex items-center justify-center font-bold text-[13px] shadow-sm">
+        <div class="flex items-center gap-2 sm:gap-3">
+          <div class="w-8 h-8 rounded-full bg-indigo-50 text-[#5138ed] flex items-center justify-center font-bold text-[13px] shadow-sm shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
           </div>
           <div class="flex flex-col">
-            <span class="text-slate-800 font-bold text-[14px] leading-none">Exam Information</span>
+            <span class="text-slate-800 font-bold text-[13px] sm:text-[14px] leading-none">Exam Information</span>
             <span class="text-slate-500 text-[11px] mt-1.5 leading-none">Completed</span>
           </div>
         </div>
         <!-- Connector line -->
-        <div class="flex-1 mx-8 h-[2px] bg-[#5138ed]"></div>
+        <div class="flex-1 mx-3 sm:mx-8 h-[2px] bg-[#5138ed]"></div>
         <!-- Step 2 active -->
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-full bg-[#5138ed] text-white flex items-center justify-center font-bold text-[13px] shadow-sm">2</div>
+        <div class="flex items-center gap-2 sm:gap-3">
+          <div class="w-8 h-8 rounded-full bg-[#5138ed] text-white flex items-center justify-center font-bold text-[13px] shadow-sm shrink-0">2</div>
           <div class="flex flex-col">
-            <span class="text-[#5138ed] font-bold text-[14px] leading-none">Review &amp; Confirm</span>
+            <span class="text-[#5138ed] font-bold text-[13px] sm:text-[14px] leading-none">Review &amp; Confirm</span>
             <span class="text-slate-500 text-[11px] mt-1.5 leading-none">Current Step</span>
           </div>
         </div>
       </div>
 
       <!-- Two-column body -->
-      <div class="flex gap-6 items-start">
+      <div class="flex flex-col xl:flex-row gap-6 items-start">
         
         <!-- ── Left: Review Forms ── -->
-        <div class="flex-1 min-w-0 space-y-6">
+        <div class="flex-1 w-full min-w-0 space-y-6">
           
           <!-- Schedule Summary -->
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
             <div class="flex gap-3 items-center mb-6">
               <svg class="w-5 h-5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
               <h3 class="text-[15px] font-bold text-slate-800">Schedule Summary</h3>
             </div>
             
-            <div class="grid grid-cols-4 gap-6 gap-y-7">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 gap-y-5 sm:gap-y-7">
               <div class="space-y-1">
                 <p class="text-[12px] font-bold text-slate-500">Academic Year</p>
                 <p class="text-[13px] font-bold text-slate-800">{{ addForm.academic_year }}</p>
@@ -1026,7 +1073,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                 <p class="text-[12px] font-bold text-slate-500">Faculty</p>
                 <p class="text-[13px] font-bold text-slate-800">{{ addForm.faculty }}</p>
               </div>
-              <div class="space-y-1 col-span-2">
+              <div class="space-y-1 col-span-1 sm:col-span-2">
                 <p class="text-[12px] font-bold text-slate-500">Schedule Title</p>
                 <p class="text-[13px] font-bold text-slate-800">{{ addForm.title }}</p>
               </div>
@@ -1035,7 +1082,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                 <p class="text-[13px] font-bold text-slate-800">{{ addForm.courses.length }}</p>
               </div>
               
-              <div class="space-y-1 col-span-2">
+              <div class="space-y-1 col-span-1 sm:col-span-2">
                 <p class="text-[12px] font-bold text-slate-500">Schedule Period</p>
                 <div class="flex items-center gap-1.5 mt-0.5 text-slate-800">
                   <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="calIcon"></path></svg>
@@ -1053,14 +1100,14 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Course Schedule Review -->
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 overflow-hidden">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 overflow-hidden">
             <div class="flex gap-3 items-center mb-5">
               <svg class="w-5 h-5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
               <h3 class="text-[15px] font-bold text-slate-800">Course Schedule Review</h3>
             </div>
             
-            <div class="overflow-x-auto">
-              <table class="w-full">
+            <div class="overflow-x-auto min-w-0 w-full">
+              <table class="w-full min-w-[750px]">
                 <thead>
                   <tr class="border-b border-slate-100">
                     <th class="text-left pb-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">#</th>
@@ -1092,38 +1139,38 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Conflict Validation -->
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
             <div class="flex gap-3 items-center mb-6">
               <svg class="w-5 h-5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
               <h3 class="text-[15px] font-bold text-slate-800">Conflict Validation</h3>
             </div>
             
-            <div class="grid grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
               <div class="flex flex-col items-center justify-center text-center gap-2 p-2">
                 <div class="w-6 h-6 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center border border-emerald-100">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </div>
                 <p class="text-[11px] font-medium text-slate-600 leading-tight">No classroom<br/>conflicts</p>
               </div>
-              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 border-l border-slate-100">
+              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 sm:border-l sm:border-slate-100">
                 <div class="w-6 h-6 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center border border-emerald-100">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </div>
                 <p class="text-[11px] font-medium text-slate-600 leading-tight">No instructor<br/>conflicts</p>
               </div>
-              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 border-l border-slate-100">
+              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 lg:border-l lg:border-slate-100">
                 <div class="w-6 h-6 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center border border-emerald-100">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </div>
                 <p class="text-[11px] font-medium text-slate-600 leading-tight">No overlapping<br/>exams</p>
               </div>
-              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 border-l border-slate-100">
+              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 sm:border-l sm:border-slate-100">
                 <div class="w-6 h-6 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center border border-emerald-100">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </div>
                 <p class="text-[11px] font-medium text-slate-600 leading-tight">All rooms<br/>available</p>
               </div>
-              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 border-l border-slate-100">
+              <div class="flex flex-col items-center justify-center text-center gap-2 p-2 sm:border-l sm:border-slate-100">
                 <div class="w-6 h-6 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center border border-emerald-100">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </div>
@@ -1138,16 +1185,16 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Bottom Row: Notification Preview & Final Confirmation -->
-          <div class="flex gap-6">
+          <div class="flex flex-col lg:flex-row gap-6">
             
             <!-- Notification Preview -->
-            <div class="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <div class="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
               <div class="flex gap-3 items-center mb-5">
                 <svg class="w-5 h-5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                 <h3 class="text-[15px] font-bold text-slate-800">Notification Preview</h3>
               </div>
 
-              <div class="flex items-start gap-10">
+              <div class="flex flex-col sm:flex-row items-start gap-4 sm:gap-10">
                 <div class="flex-1 space-y-4">
                   <div class="space-y-1">
                     <p class="text-[11px] font-bold text-slate-800">Title</p>
@@ -1155,11 +1202,11 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                   </div>
                   <div class="space-y-1">
                     <p class="text-[11px] font-bold text-slate-800">Message</p>
-                    <p class="text-[12px] text-slate-600 leading-relaxed pr-4">Your examination schedule has been published.<br/>Please review your exam dates, rooms and times carefully.</p>
+                    <p class="text-[12px] text-slate-600 leading-relaxed sm:pr-4">Your examination schedule has been published.<br/>Please review your exam dates, rooms and times carefully.</p>
                   </div>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-4 mt-2 sm:mt-0">
                   <div class="space-y-1.5">
                     <p class="text-[11px] font-bold text-slate-800">Recipients</p>
                     <div class="flex items-center gap-1.5 text-[12px] font-bold text-slate-600">
@@ -1176,7 +1223,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
             </div>
 
             <!-- Final Confirmation -->
-            <div class="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <div class="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6">
               <div class="flex gap-3 items-center mb-5">
                 <svg class="w-5 h-5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <h3 class="text-[15px] font-bold text-slate-800">Final Confirmation</h3>
@@ -1208,7 +1255,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                 @click="submitSchedule"
                 :disabled="!allConfirmed || isSubmitting"
                 :class="[
-                  'w-full py-3 rounded-xl font-bold text-[13px] transition-all',
+                  'w-full py-3 min-h-[44px] rounded-xl font-bold text-[13px] transition-all flex items-center justify-center',
                   allConfirmed && !isSubmitting
                     ? 'bg-[#5138ed] text-white hover:bg-indigo-600 shadow-sm cursor-pointer'
                     : 'bg-indigo-50 text-indigo-300 cursor-not-allowed'
@@ -1225,8 +1272,8 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Bottom Action Bar -->
-          <div class="flex items-center justify-between pb-6 mt-6 border-t border-slate-100 pt-6">
-            <button @click="currentView = 'schedule'" class="flex items-center gap-2 px-6 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-colors">
+          <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-6 mt-6 border-t border-slate-100 pt-6">
+            <button @click="currentView = 'schedule'" class="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
               Back to Form
             </button>
@@ -1234,7 +1281,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
               @click="submitSchedule"
               :disabled="!allConfirmed || isSubmitting"
               :class="[
-                'flex items-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all',
+                'w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all',
                 allConfirmed && !isSubmitting
                   ? 'bg-[#5138ed] text-white hover:bg-indigo-600 shadow-sm cursor-pointer'
                   : 'bg-indigo-100 text-indigo-300 cursor-not-allowed'
@@ -1248,8 +1295,8 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
         </div><!-- end Left: Review Forms -->
         
         <!-- ── Right: Schedule Overview sidebar ── -->
-        <div class="w-64 shrink-0 space-y-4">
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div class="w-full xl:w-64 shrink-0 space-y-4">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5">
             <h3 class="text-[14px] font-bold text-slate-800 mb-6">Schedule Overview</h3>
             <div class="space-y-5">
               <!-- Exam Type -->
@@ -1318,30 +1365,30 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
       <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showAddCourseModal = false"></div>
       
       <!-- Modal Content -->
-      <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-[560px] overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-[95vw] sm:max-w-[560px] overflow-hidden flex flex-col max-h-[92vh]">
         
         <!-- Header -->
-        <div class="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
+        <div class="px-5 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex items-start justify-between">
           <div>
-            <h3 class="text-[18px] font-bold text-slate-800">Add Course to Schedule</h3>
-            <p class="text-[13px] text-slate-500 mt-0.5">Search and add course details to the examination schedule.</p>
+            <h3 class="text-base sm:text-[18px] font-bold text-slate-800">Add Course to Schedule</h3>
+            <p class="text-[12px] sm:text-[13px] text-slate-500 mt-0.5">Search and add course details to the examination schedule.</p>
           </div>
-          <button @click="showAddCourseModal = false" class="text-slate-400 hover:text-slate-600 transition-colors">
+          <button @click="showAddCourseModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
 
         <!-- Body -->
-        <div class="p-6 overflow-y-auto space-y-4">
+        <div class="p-4 sm:p-6 overflow-y-auto space-y-4">
           <!-- Course Name & Code -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label class="text-[12px] font-bold text-slate-700">Course Name <span class="text-rose-500">*</span></label>
               <div class="relative">
                 <select
                   v-model="selectedCourseId"
                   :class="[
-                    'w-full appearance-none px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
+                    'w-full appearance-none px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors cursor-pointer',
                     courseModalErrors.name ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                   ]"
                 >
@@ -1363,7 +1410,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                 @input="courseModalErrors.code = ''"
                 placeholder="e.g. CS-301"
                 :class="[
-                  'w-full px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400 font-medium',
+                  'w-full px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400 font-medium',
                   courseModalErrors.code ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                 ]"
               />
@@ -1372,7 +1419,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Exam Date & Time -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label class="text-[12px] font-bold text-slate-700">Exam Date <span class="text-rose-500">*</span></label>
               <div class="relative">
@@ -1381,7 +1428,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                   v-model="newCourse.date"
                   @change="courseModalErrors.date = ''"
                   :class="[
-                    'w-full px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors',
+                    'w-full px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors',
                     courseModalErrors.date ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                   ]"
                 />
@@ -1398,7 +1445,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                   @input="courseModalErrors.time = ''"
                   placeholder="e.g. 09:00 AM - 11:00 AM"
                   :class="[
-                    'w-full px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400',
+                    'w-full px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400',
                     courseModalErrors.time ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                   ]"
                 />
@@ -1408,7 +1455,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
           </div>
 
           <!-- Invigilator & Room -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label class="text-[12px] font-bold text-slate-700">Invigilator <span class="text-rose-500">*</span></label>
               <div class="relative">
@@ -1419,7 +1466,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                   list="instructors-list"
                   placeholder="e.g. Dr. Abebe Kebede"
                   :class="[
-                    'w-full px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400',
+                    'w-full px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400',
                     courseModalErrors.inv ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                   ]"
                 />
@@ -1439,7 +1486,7 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
                   @input="courseModalErrors.room = ''"
                   placeholder="e.g. Room 101 / LH-02"
                   :class="[
-                    'w-full px-3 py-2.5 bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400',
+                    'w-full px-3 py-2.5 min-h-[44px] bg-white border rounded-lg text-[13px] text-slate-700 focus:outline-none transition-colors placeholder:text-slate-400',
                     courseModalErrors.room ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-indigo-500'
                   ]"
                 />
@@ -1459,11 +1506,11 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <button @click="showAddCourseModal = false" class="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-[13px] rounded-xl hover:bg-slate-100 transition-colors">
+        <div class="px-5 sm:px-6 py-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50/50">
+          <button @click="showAddCourseModal = false" class="w-full sm:w-auto min-h-[44px] px-6 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-[13px] rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-center">
             Cancel
           </button>
-          <button @click="addCourse" class="px-6 py-2.5 bg-[#5138ed] text-white font-bold text-[13px] rounded-xl hover:bg-indigo-600 transition-colors shadow-sm">
+          <button @click="addCourse" class="w-full sm:w-auto min-h-[44px] px-6 py-2.5 bg-[#5138ed] text-white font-bold text-[13px] rounded-xl hover:bg-indigo-600 transition-colors shadow-sm flex items-center justify-center">
             Add Course
           </button>
         </div>
@@ -1475,14 +1522,14 @@ const calIcon  = 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 
          SUCCESS POPUP MODAL
     ══════════════════════════════════════════════════ -->
     <div v-if="showSuccessModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 text-center space-y-4">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-[95vw] sm:max-w-md p-5 sm:p-6 text-center space-y-4">
         <div class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto border-4 border-emerald-100">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
         </div>
-        <h3 class="text-[18px] font-bold text-slate-800">Examination Schedule Published!</h3>
+        <h3 class="text-base sm:text-[18px] font-bold text-slate-800">Examination Schedule Published!</h3>
         <p class="text-[13px] text-slate-500 leading-relaxed">{{ successMessage }}</p>
         <div class="pt-2">
-          <button @click="closeSuccessModal" class="w-full py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl transition-all shadow-sm">
+          <button @click="closeSuccessModal" class="w-full py-2.5 min-h-[44px] bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl transition-all shadow-sm">
             View Schedules
           </button>
         </div>

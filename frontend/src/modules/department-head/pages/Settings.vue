@@ -200,12 +200,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-[1500px] mx-auto space-y-6 pb-12">
+  <div class="max-w-[1500px] mx-auto space-y-6 pb-12 min-w-0 max-w-full">
 
     <!-- Toast Notification -->
     <div
       v-if="toast.show"
-      class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border text-[13px] font-bold transition-all transform animate-bounce-short"
+      class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border text-[13px] font-bold transition-all transform animate-bounce-short max-w-[90vw]"
       :class="toast.type === 'success' ? 'bg-slate-900 text-white border-slate-700' : 'bg-rose-600 text-white border-rose-500'"
     >
       <svg v-if="toast.type === 'success'" class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,21 +214,21 @@ onMounted(() => {
       <svg v-else class="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
-      <span>{{ toast.message }}</span>
+      <span class="break-words">{{ toast.message }}</span>
     </div>
 
     <!-- Header Section -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-[22px] font-bold text-slate-800">Account Settings</h1>
-        <p class="text-[13px] text-slate-500 mt-1">Manage your personal profile and notification preferences.</p>
+        <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800">Account Settings</h1>
+        <p class="text-[12px] sm:text-[13px] text-slate-500 mt-1">Manage your personal profile and notification preferences.</p>
       </div>
 
       <!-- Save Changes Button -->
       <button
         @click="saveSettings"
         :disabled="isSaving"
-        class="flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-60 cursor-pointer"
+        class="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] text-[13px] font-bold rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-60 cursor-pointer w-full sm:w-auto"
         :class="saved
           ? 'bg-emerald-500 text-white shadow-emerald-200'
           : 'bg-[#5138ed] hover:bg-indigo-700 text-white shadow-indigo-200'"
@@ -264,7 +264,7 @@ onMounted(() => {
     <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
       <!-- 1. Profile Information Card -->
-      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
         <div class="flex items-center gap-3 mb-6">
           <div class="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
             <svg class="w-4.5 h-4.5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
@@ -285,7 +285,7 @@ onMounted(() => {
               v-model="profile.fullName"
               type="text"
               placeholder="e.g. Dr. Department Head"
-              class="w-full border rounded-xl px-4 py-2.5 text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+              class="w-full border rounded-xl px-4 py-2.5 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
               :class="errors.fullName ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white'"
             />
             <p v-if="errors.fullName" class="text-rose-500 text-[11px] mt-1">{{ errors.fullName }}</p>
@@ -301,7 +301,7 @@ onMounted(() => {
               v-model="profile.email"
               disabled
               type="email"
-              class="w-full border border-slate-200 bg-slate-50 text-slate-500 rounded-xl px-4 py-2.5 text-[13px] font-medium cursor-not-allowed focus:outline-none"
+              class="w-full border border-slate-200 bg-slate-50 text-slate-500 rounded-xl px-4 py-2.5 min-h-[44px] text-[13px] font-medium cursor-not-allowed focus:outline-none"
             />
           </div>
 
@@ -313,7 +313,7 @@ onMounted(() => {
                 v-model="profile.phone"
                 type="text"
                 placeholder="+251 91 123 4567"
-                class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+                class="w-full border border-slate-200 rounded-xl px-4 py-2.5 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
               />
             </div>
             <div>
@@ -322,7 +322,7 @@ onMounted(() => {
                 v-model="profile.office"
                 type="text"
                 placeholder="Block A, Room 204"
-                class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+                class="w-full border border-slate-200 rounded-xl px-4 py-2.5 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
               />
             </div>
           </div>
@@ -330,7 +330,7 @@ onMounted(() => {
       </div>
 
       <!-- 2. Security Card -->
-      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
         <div class="flex items-center gap-3 mb-6">
           <div class="w-9 h-9 bg-rose-50 rounded-xl flex items-center justify-center shrink-0">
             <svg class="w-4.5 h-4.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
@@ -352,13 +352,13 @@ onMounted(() => {
                 v-model="security.currentPassword"
                 :type="showPasswords.current ? 'text' : 'password'"
                 placeholder="••••••••"
-                class="w-full border rounded-xl px-4 py-2.5 pr-10 text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+                class="w-full border rounded-xl px-4 py-2.5 pr-11 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
                 :class="errors.currentPassword ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white'"
               />
               <button
                 type="button"
                 @click="showPasswords.current = !showPasswords.current"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
               >
                 <svg v-if="showPasswords.current" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
                 <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -375,13 +375,13 @@ onMounted(() => {
                 v-model="security.newPassword"
                 :type="showPasswords.new ? 'text' : 'password'"
                 placeholder="At least 6 characters"
-                class="w-full border rounded-xl px-4 py-2.5 pr-10 text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+                class="w-full border rounded-xl px-4 py-2.5 pr-11 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
                 :class="errors.newPassword ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white'"
               />
               <button
                 type="button"
                 @click="showPasswords.new = !showPasswords.new"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
               >
                 <svg v-if="showPasswords.new" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
                 <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -398,13 +398,13 @@ onMounted(() => {
                 v-model="security.confirmPassword"
                 :type="showPasswords.confirm ? 'text' : 'password'"
                 placeholder="Repeat new password"
-                class="w-full border rounded-xl px-4 py-2.5 pr-10 text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+                class="w-full border rounded-xl px-4 py-2.5 pr-11 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
                 :class="errors.confirmPassword ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white'"
               />
               <button
                 type="button"
                 @click="showPasswords.confirm = !showPasswords.confirm"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
               >
                 <svg v-if="showPasswords.confirm" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
                 <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -416,7 +416,7 @@ onMounted(() => {
       </div>
 
       <!-- 3. Notification Preferences Card (Col-Span 2) -->
-      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 col-span-1 lg:col-span-2">
+      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6 col-span-1 lg:col-span-2">
         <div class="flex items-center gap-3 mb-6">
           <div class="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center shrink-0">
             <svg class="w-4.5 h-4.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
@@ -429,67 +429,67 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-3 sm:gap-y-4">
           <!-- Toggle 1: New Instructor Joins -->
-          <div class="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-            <span class="text-[13px] font-semibold text-slate-600">Email me when a new instructor joins</span>
+          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Email me when a new instructor joins</span>
             <button
               type="button"
               @click="notifications.emailOnInstructorJoin = !notifications.emailOnInstructorJoin"
               :class="notifications.emailOnInstructorJoin ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none"
+              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
             >
               <span
                 :class="notifications.emailOnInstructorJoin ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
               ></span>
             </button>
           </div>
 
           <!-- Toggle 2: New Course Created -->
-          <div class="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-            <span class="text-[13px] font-semibold text-slate-600">Email me when a new course is created</span>
+          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Email me when a new course is created</span>
             <button
               type="button"
               @click="notifications.emailOnCourseCreate = !notifications.emailOnCourseCreate"
               :class="notifications.emailOnCourseCreate ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none"
+              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
             >
               <span
                 :class="notifications.emailOnCourseCreate ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
               ></span>
             </button>
           </div>
 
           <!-- Toggle 3: Exam Published -->
-          <div class="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-            <span class="text-[13px] font-semibold text-slate-600">Email me when an exam is published</span>
+          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Email me when an exam is published</span>
             <button
               type="button"
               @click="notifications.emailOnExamPublish = !notifications.emailOnExamPublish"
               :class="notifications.emailOnExamPublish ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none"
+              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
             >
               <span
                 :class="notifications.emailOnExamPublish ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
               ></span>
             </button>
           </div>
 
           <!-- Toggle 4: Weekly Department Report -->
-          <div class="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-            <span class="text-[13px] font-semibold text-slate-600">Send me a weekly department report</span>
+          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Send me a weekly department report</span>
             <button
               type="button"
               @click="notifications.weeklyReport = !notifications.weeklyReport"
               :class="notifications.weeklyReport ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none"
+              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
             >
               <span
                 :class="notifications.weeklyReport ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
               ></span>
             </button>
           </div>

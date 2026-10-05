@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
+import { inject } from 'vue'
 
 const route = useRoute()
+const sidebarOpen = inject<{ value: boolean }>('sidebarOpen', { value: true })
+const closeSidebar = inject<() => void>('closeSidebar', () => { sidebarOpen.value = false })
+
+const handleLinkClick = () => {
+  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+    closeSidebar()
+  }
+}
 
 const navItems = [
   { name: 'Dashboard',   path: '/dept-head/dashboard',    icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' },
@@ -19,35 +28,58 @@ const navItems = [
 </script>
 
 <template>
-  <aside class="w-56 bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 overflow-hidden">
+  <aside 
+    class="bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 overflow-hidden transition-all duration-300 z-50 lg:z-30"
+    :class="[
+      sidebarOpen 
+        ? 'translate-x-0 w-64 lg:w-56 shadow-2xl lg:shadow-none' 
+        : '-translate-x-full lg:translate-x-0 lg:w-20'
+    ]"
+  >
     
     <!-- Logo Area -->
-    <div class="flex items-center px-5 pt-10 pb-4 border-b border-slate-50">
-      <div class="flex items-center gap-2">
-        <img src="../../assets/images/logo.png" alt="Wollo University" class="w-9 h-9 object-contain rounded-full shadow-sm" />
-        <div class="flex flex-col">
+    <div class="flex items-center justify-between px-4 sm:px-5 pt-5 pb-4 border-b border-slate-50 shrink-0" :class="!sidebarOpen && 'lg:justify-center'">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <img src="../../assets/images/logo.png" alt="Wollo University" class="w-9 h-9 object-contain rounded-full shadow-sm shrink-0" />
+        <div v-if="sidebarOpen" class="flex flex-col whitespace-nowrap">
           <span class="text-[14px] font-bold text-slate-900 leading-tight">Wollo University</span>
           <span class="text-[10px] text-slate-500 font-medium">Department Head</span>
         </div>
       </div>
+
+      <!-- Close Drawer Button for mobile/tablet screens -->
+      <button
+        v-if="sidebarOpen"
+        @click="closeSidebar"
+        type="button"
+        class="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+        title="Close menu"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
 
     <!-- Navigation Links -->
-    <nav class="flex-1 px-4 pt-4 pb-6 space-y-1">
+    <nav class="flex-1 px-3 sm:px-4 py-3 space-y-1.5 overflow-y-auto overflow-x-hidden min-h-0 scrollbar-none">
       <router-link 
         v-for="item in navItems" 
         :key="item.name"
         :to="item.path"
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative justify-between"
+        @click="handleLinkClick"
+        class="flex items-center rounded-xl transition-all duration-200 group relative min-h-[44px]"
         :class="[
+          sidebarOpen ? 'px-3.5 py-2.5 justify-between' : 'lg:justify-center p-2.5',
           route.path.startsWith(item.path) 
-            ? 'bg-indigo-50 text-[#5138ed] font-semibold' 
-            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+            ? 'bg-indigo-50 text-[#5138ed] font-semibold shadow-xs' 
+            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
         ]"
+        :title="!sidebarOpen ? item.name : undefined"
       >
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 min-w-0">
           <svg 
-            class="w-5 h-5 flex-shrink-0 transition-colors duration-200" 
+            class="w-5 h-5 shrink-0 transition-colors duration-200" 
             :class="route.path.startsWith(item.path) ? 'text-[#5138ed]' : 'text-slate-400 group-hover:text-slate-600'"
             fill="none" 
             stroke="currentColor" 
@@ -55,25 +87,39 @@ const navItems = [
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon" />
           </svg>
-          <span class="text-[13px] tracking-wide font-medium">{{ item.name }}</span>
+          <span v-if="sidebarOpen" class="text-[13px] tracking-wide font-medium truncate">{{ item.name }}</span>
         </div>
         
         <!-- Notification Badge -->
-        <span v-if="item.badge" class="flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-rose-500 rounded-full shadow-sm">
-          {{ item.badge }}
+        <span 
+          v-if="item.badge" 
+          class="flex items-center justify-center text-[10px] font-bold text-white bg-rose-500 rounded-full shadow-sm shrink-0"
+          :class="sidebarOpen ? 'w-5 h-5 ml-1' : 'w-2 h-2 absolute top-1.5 right-1.5 ring-2 ring-white'"
+        >
+          <span v-if="sidebarOpen">{{ item.badge }}</span>
         </span>
       </router-link>
     </nav>
 
-    <!-- Bottom Graphic -->
-    <div class="p-6 mt-auto">
+    <!-- Bottom Graphic: only when sidebar is open -->
+    <div v-if="sidebarOpen" class="p-4 sm:p-5 mt-auto border-t border-slate-50 shrink-0">
       <div class="w-full flex flex-col items-center justify-center opacity-60">
-        <div class="w-16 h-16 border-2 border-slate-200 rounded-t-full mb-2 flex items-center justify-center">
-          <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+        <div class="w-12 h-12 border-2 border-slate-200 rounded-t-full mb-1 flex items-center justify-center">
+          <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
         </div>
-        <span class="text-xs font-bold text-slate-500 tracking-wide uppercase">Department</span>
+        <span class="text-[11px] font-bold text-slate-500 tracking-wide uppercase">Department</span>
         <span class="text-[9px] text-slate-400 font-medium">Head Portal</span>
       </div>
     </div>
   </aside>
 </template>
+
+<style scoped>
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

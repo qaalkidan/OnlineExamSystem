@@ -521,168 +521,168 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     </transition>
 
     <!-- Page Header -->
-    <div class="flex items-start justify-between">
-      <div class="flex items-center gap-3">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
         <button
           @click="router.push({ name: 'DeptHeadSemesterSubmissionsOverview' })"
-          class="w-9 h-9 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#5138ed] hover:border-[#5138ed] hover:bg-indigo-50 transition-all shadow-sm"
+          class="w-9 h-9 sm:w-10 sm:h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#5138ed] hover:border-[#5138ed] hover:bg-indigo-50 transition-all shadow-xs shrink-0 cursor-pointer min-h-[40px] min-w-[40px]"
           title="Back to Semester Submissions Overview"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
         </button>
-        <div class="w-10 h-10 bg-indigo-50 text-[#5138ed] rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 bg-indigo-50 text-[#5138ed] rounded-xl flex items-center justify-center shrink-0 shadow-xs">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
         </div>
-        <div>
-          <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Semester Submissions</h2>
-          <p class="text-[13px] text-slate-500 font-medium">Review and approve instructor semester records for the current academic year and semester.</p>
+        <div class="min-w-0">
+          <h2 class="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight truncate">Semester Submissions</h2>
+          <p class="text-xs sm:text-[13px] text-slate-500 font-medium truncate">Review and approve instructor semester records.</p>
         </div>
       </div>
 
       <button
         @click="syncRealData"
         :disabled="isLoading"
-        class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[12px] font-bold hover:bg-slate-50 hover:text-[#5138ed] hover:border-[#5138ed]/40 transition-all shadow-sm disabled:opacity-50"
+        class="inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs sm:text-[12px] font-bold hover:bg-slate-50 hover:text-[#5138ed] hover:border-[#5138ed]/40 transition-all shadow-xs disabled:opacity-50 min-h-[44px] cursor-pointer shrink-0"
       >
         <svg class="w-4 h-4 text-[#5138ed]" :class="{ 'animate-spin': isLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-        Sync Real Data
+        <span>Sync Real Data</span>
       </button>
     </div>
 
     <!-- Info Banner -->
-    <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl px-4 py-3 flex items-center gap-3">
-      <div class="w-5 h-5 bg-[#5138ed] text-white rounded-full flex items-center justify-center flex-shrink-0">
+    <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center gap-3">
+      <div class="w-5 h-5 bg-[#5138ed] text-white rounded-full flex items-center justify-center shrink-0">
         <span class="text-[10px] font-black">i</span>
       </div>
-      <p class="text-[12px] font-medium text-indigo-700">
+      <p class="text-xs sm:text-[12px] font-medium text-indigo-700 leading-snug">
         Once approved, the semester records will be locked and cannot be modified by the instructor.
       </p>
     </div>
 
     <!-- Top Row: Summary Cards + Quick Actions -->
-    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-stretch">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 items-stretch">
 
       <!-- Pending Review Card -->
       <div 
         @click="selectedStatus = selectedStatus === 'Pending' ? 'All Statuses' : 'Pending'"
-        class="rounded-xl border p-4 flex items-start justify-between shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        class="rounded-xl border p-3.5 sm:p-4 flex items-start justify-between shadow-xs hover:shadow-md transition-all cursor-pointer group"
         :class="selectedStatus === 'Pending' 
           ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-400' 
           : 'bg-white border-slate-200 hover:border-amber-200'"
       >
-        <div>
+        <div class="min-w-0">
           <div class="flex items-center gap-2 mb-2">
-            <div class="w-8 h-8 bg-amber-50 text-amber-500 rounded-lg flex items-center justify-center border border-amber-100">
+            <div class="w-8 h-8 bg-amber-50 text-amber-500 rounded-lg flex items-center justify-center border border-amber-100 shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
-            <span class="text-[12px] font-bold text-slate-500 uppercase tracking-wide">Pending Review</span>
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wide truncate">Pending Review</span>
           </div>
-          <div class="text-3xl font-black text-slate-800">
+          <div class="text-2xl sm:text-3xl font-black text-slate-800">
             <span v-if="isLoading" class="inline-block w-8 h-8 bg-slate-100 rounded animate-pulse"></span>
             <span v-else>{{ semesterInfo.pendingReview }}</span>
           </div>
-          <span class="text-[11px] font-medium text-slate-500 mt-1">Awaiting your review</span>
+          <span class="text-[11px] font-medium text-slate-500 mt-1 block truncate">Awaiting your review</span>
         </div>
-        <svg class="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        <svg class="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition-colors mt-1 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
       </div>
 
       <!-- Approved Card -->
       <div 
         @click="selectedStatus = selectedStatus === 'Approved' ? 'All Statuses' : 'Approved'"
-        class="rounded-xl border p-4 flex items-start justify-between shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        class="rounded-xl border p-3.5 sm:p-4 flex items-start justify-between shadow-xs hover:shadow-md transition-all cursor-pointer group"
         :class="selectedStatus === 'Approved' 
           ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-400' 
           : 'bg-white border-slate-200 hover:border-emerald-200'"
       >
-        <div>
+        <div class="min-w-0">
           <div class="flex items-center gap-2 mb-2">
-            <div class="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center border border-emerald-100">
+            <div class="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center border border-emerald-100 shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
-            <span class="text-[12px] font-bold text-slate-500 uppercase tracking-wide">Approved</span>
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wide truncate">Approved</span>
           </div>
-          <div class="text-3xl font-black text-slate-800">
+          <div class="text-2xl sm:text-3xl font-black text-slate-800">
             <span v-if="isLoading" class="inline-block w-8 h-8 bg-slate-100 rounded animate-pulse"></span>
             <span v-else>{{ semesterInfo.approved }}</span>
           </div>
-          <span class="text-[11px] font-medium text-slate-500 mt-1">This semester</span>
+          <span class="text-[11px] font-medium text-slate-500 mt-1 block truncate">This semester</span>
         </div>
-        <svg class="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        <svg class="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors mt-1 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
       </div>
 
       <!-- Correction Required Card -->
       <div 
         @click="selectedStatus = selectedStatus === 'Correction Required' ? 'All Statuses' : 'Correction Required'"
-        class="rounded-xl border p-4 flex items-start justify-between shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        class="rounded-xl border p-3.5 sm:p-4 flex items-start justify-between shadow-xs hover:shadow-md transition-all cursor-pointer group"
         :class="selectedStatus === 'Correction Required' 
           ? 'bg-orange-50/60 border-orange-300 ring-2 ring-orange-400' 
           : 'bg-white border-slate-200 hover:border-orange-200'"
       >
-        <div>
+        <div class="min-w-0">
           <div class="flex items-center gap-2 mb-2">
-            <div class="w-8 h-8 bg-orange-50 text-orange-500 rounded-lg flex items-center justify-center border border-orange-100">
+            <div class="w-8 h-8 bg-orange-50 text-orange-500 rounded-lg flex items-center justify-center border border-orange-100 shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             </div>
-            <span class="text-[12px] font-bold text-slate-500 uppercase tracking-wide">Correction Required</span>
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wide truncate">Correction Required</span>
           </div>
-          <div class="text-3xl font-black text-slate-800">
+          <div class="text-2xl sm:text-3xl font-black text-slate-800">
             <span v-if="isLoading" class="inline-block w-8 h-8 bg-slate-100 rounded animate-pulse"></span>
             <span v-else>{{ semesterInfo.correctionRequired }}</span>
           </div>
-          <span class="text-[11px] font-medium text-slate-500 mt-1">Needs attention</span>
+          <span class="text-[11px] font-medium text-slate-500 mt-1 block truncate">Needs attention</span>
         </div>
-        <svg class="w-4 h-4 text-slate-300 group-hover:text-orange-500 transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        <svg class="w-4 h-4 text-slate-300 group-hover:text-orange-500 transition-colors mt-1 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
       </div>
 
       <!-- Total Submissions Card -->
       <div 
         @click="selectedStatus = 'All Statuses'"
-        class="rounded-xl border p-4 flex items-start justify-between shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        class="rounded-xl border p-3.5 sm:p-4 flex items-start justify-between shadow-xs hover:shadow-md transition-all cursor-pointer group"
         :class="selectedStatus === 'All Statuses' 
           ? 'bg-indigo-50/40 border-indigo-200 ring-2 ring-[#5138ed]' 
           : 'bg-white border-slate-200 hover:border-indigo-200'"
       >
-        <div>
+        <div class="min-w-0">
           <div class="flex items-center gap-2 mb-2">
-            <div class="w-8 h-8 bg-indigo-50 text-[#5138ed] rounded-lg flex items-center justify-center border border-indigo-100">
+            <div class="w-8 h-8 bg-indigo-50 text-[#5138ed] rounded-lg flex items-center justify-center border border-indigo-100 shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path></svg>
             </div>
-            <span class="text-[12px] font-bold text-slate-500 uppercase tracking-wide">Total Submissions</span>
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wide truncate">Total Submissions</span>
           </div>
-          <div class="text-3xl font-black text-slate-800">
+          <div class="text-2xl sm:text-3xl font-black text-slate-800">
             <span v-if="isLoading" class="inline-block w-8 h-8 bg-slate-100 rounded animate-pulse"></span>
             <span v-else>{{ semesterInfo.total }}</span>
           </div>
-          <span class="text-[11px] font-medium text-slate-500 mt-1">For this semester</span>
+          <span class="text-[11px] font-medium text-slate-500 mt-1 block truncate">For this semester</span>
         </div>
-        <svg class="w-4 h-4 text-slate-300 group-hover:text-[#5138ed] transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        <svg class="w-4 h-4 text-slate-300 group-hover:text-[#5138ed] transition-colors mt-1 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
       </div>
 
       <!-- Quick Actions Card -->
-      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+      <div class="col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-1 bg-white rounded-xl border border-slate-200 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
         <div>
-          <div class="flex items-center gap-2 mb-3">
-            <div class="w-7 h-7 bg-indigo-50 text-[#5138ed] rounded-lg flex items-center justify-center">
+          <div class="flex items-center gap-2 mb-2.5">
+            <div class="w-7 h-7 bg-indigo-50 text-[#5138ed] rounded-lg flex items-center justify-center shrink-0">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
             </div>
-            <span class="text-[12px] font-bold text-slate-700">Quick Actions</span>
+            <span class="text-xs font-bold text-slate-700">Quick Actions</span>
           </div>
-          <div class="space-y-2">
+          <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 gap-2">
             <button 
               @click="isExportModalOpen = true"
-              class="w-full py-2 bg-[#5138ed] text-white text-[11px] font-bold rounded-xl hover:bg-[#4530d1] transition-colors flex items-center justify-center gap-2 shadow-sm"
+              class="w-full py-2 px-2 bg-[#5138ed] text-white text-[11px] font-bold rounded-xl hover:bg-[#4530d1] transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[38px] cursor-pointer"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-              Export Report
+              <span>Export Report</span>
             </button>
             <button 
               @click="isGuidelinesModalOpen = true"
-              class="w-full py-2 bg-white border border-slate-200 text-slate-600 text-[11px] font-semibold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+              class="w-full py-2 px-2 bg-white border border-slate-200 text-slate-600 text-[11px] font-semibold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 min-h-[38px] cursor-pointer truncate"
             >
-              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              View Submission Guidelines
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span class="truncate">Guidelines</span>
             </button>
           </div>
         </div>
@@ -690,37 +690,37 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     </div>
 
     <!-- Main List Container -->
-    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col min-w-0">
 
       <!-- Filter Bar -->
-      <div class="p-4 border-b border-slate-100 flex flex-wrap items-center gap-3 bg-slate-50/50">
+      <div class="p-3.5 sm:p-4 border-b border-slate-100 flex flex-wrap items-center gap-2.5 sm:gap-3 bg-slate-50/50">
         <!-- Search Input -->
-        <div class="relative flex-1 min-w-[260px] max-w-md">
+        <div class="relative w-full md:w-auto flex-1 min-w-[220px] max-w-md">
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search by instructor, course, code, or department..."
-            class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] transition-colors shadow-sm"
+            placeholder="Search instructor, course, code..."
+            class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] transition-colors shadow-xs"
           />
           <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         </div>
 
         <!-- Department Dropdown -->
-        <div class="relative">
+        <div class="relative flex-1 sm:flex-none min-w-[140px]">
           <select 
             v-model="selectedDepartment" 
-            class="appearance-none pl-4 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-[13px] text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer min-w-[160px] shadow-sm"
+            class="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-[13px] text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer shadow-xs"
           >
             <option v-for="dept in departmentsList" :key="dept" :value="dept">{{ dept }}</option>
           </select>
-          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </div>
 
         <!-- Status Dropdown -->
-        <div class="relative">
+        <div class="relative flex-1 sm:flex-none min-w-[150px]">
           <select 
             v-model="selectedStatus" 
-            class="appearance-none pl-4 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-[13px] text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer min-w-[175px] shadow-sm"
+            class="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-[13px] text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer shadow-xs"
           >
             <option value="All Statuses">All Submissions ({{ semesterInfo.total }})</option>
             <option value="Pending">Pending Review ({{ semesterInfo.pendingReview }})</option>
@@ -731,24 +731,24 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <option value="Not Submitted">Not Submitted ({{ semesterInfo.notSubmitted || 0 }})</option>
             <option value="All Instructors">All Instructors ({{ (semesterInfo.total || 0) + (semesterInfo.notSubmitted || 0) }})</option>
           </select>
-          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </div>
 
         <!-- Academic Term Dropdown -->
-        <div class="relative ml-auto">
+        <div class="relative w-full sm:w-auto sm:ml-auto min-w-[190px]">
           <select 
             v-model="selectedSemester" 
-            class="appearance-none pl-4 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-[13px] text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer min-w-[220px] shadow-sm"
+            class="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-[13px] text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer shadow-xs"
           >
             <option v-for="sem in semestersList" :key="sem" :value="sem">{{ sem }}</option>
           </select>
-          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </div>
       </div>
 
-      <!-- Table Container -->
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
+      <!-- Desktop Table Container (Visible on lg and larger) -->
+      <div class="hidden lg:block overflow-x-auto min-w-0 w-full">
+        <table class="w-full text-left border-collapse whitespace-nowrap min-w-max">
           <thead>
             <tr class="text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50/60">
               <th class="py-3.5 px-4 font-semibold w-10">#</th>
@@ -785,7 +785,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                   <div v-if="selectedStatus === 'All Statuses' && (semesterInfo.notSubmitted || 0) > 0" class="mt-2">
                     <button
                       @click="selectedStatus = 'Not Submitted'"
-                      class="px-4 py-2 bg-indigo-50 text-[#5138ed] border border-indigo-100 rounded-xl text-[12px] font-bold hover:bg-indigo-100 transition-colors shadow-xs"
+                      class="px-4 py-2 bg-indigo-50 text-[#5138ed] border border-indigo-100 rounded-xl text-[12px] font-bold hover:bg-indigo-100 transition-colors shadow-xs cursor-pointer"
                     >
                       View Department Instructors ({{ semesterInfo.notSubmitted }} Unsubmitted)
                     </button>
@@ -810,7 +810,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
               <!-- 2: Instructor (Avatar, Name, Email) -->
               <td class="py-3.5 px-4">
                 <div class="flex items-center gap-3">
-                  <div :class="['w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-extrabold flex-shrink-0 shadow-sm', inst.color]">
+                  <div :class="['w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0 shadow-xs', inst.color]">
                     {{ inst.initials }}
                   </div>
                   <div class="flex flex-col min-w-0">
@@ -874,7 +874,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 <div v-if="inst.is_submitted" class="relative inline-block text-left">
                   <button
                     @click.stop="toggleMenu(inst.id)"
-                    class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                   >
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                       <circle cx="12" cy="5" r="1.5"/>
@@ -939,9 +939,134 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
         </table>
       </div>
 
+      <!-- Mobile & Tablet Card List (Visible on < lg screens) -->
+      <div class="lg:hidden divide-y divide-slate-100 bg-white">
+        <!-- Loading State -->
+        <div v-if="isLoading" class="py-12 text-center text-slate-400">
+          <div class="flex flex-col items-center gap-3">
+            <div class="animate-spin w-8 h-8 border-2 border-[#5138ed] border-t-transparent rounded-full"></div>
+            <span class="text-xs font-semibold text-slate-500">Loading semester submissions...</span>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="filteredInstructors.length === 0" class="py-12 text-center text-slate-400 px-4">
+          <div class="flex flex-col items-center gap-2">
+            <svg class="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <span class="text-sm font-bold text-slate-700">No Semester Submissions Found</span>
+            <span class="text-xs text-slate-500">No instructors have submitted semester records yet.</span>
+          </div>
+        </div>
+
+        <!-- Real Cards -->
+        <div 
+          v-else 
+          v-for="inst in paginatedInstructors" 
+          :key="inst.id"
+          class="p-4 space-y-3 hover:bg-slate-50/50 transition-colors"
+        >
+          <!-- Instructor Info & Status -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div :class="['w-10 h-10 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0 shadow-xs', inst.color]">
+                {{ inst.initials }}
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-sm font-bold text-slate-800 truncate">{{ inst.name }}</h4>
+                <p class="text-xs text-slate-400 truncate">{{ inst.email }}</p>
+              </div>
+            </div>
+            <!-- Status Badge -->
+            <span :class="['inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0', getStatusBadge(inst.status)]">
+              {{ inst.status }}
+            </span>
+          </div>
+
+          <!-- Course & Department Details (Stacked per spec 8 & 12) -->
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-500 font-medium">Course:</span>
+              <span class="font-bold text-slate-800 text-right truncate max-w-[200px]">{{ inst.course || inst.department }}</span>
+            </div>
+            <div v-if="inst.course_code" class="flex items-center justify-between">
+              <span class="text-slate-500 font-medium">Code:</span>
+              <span class="font-mono font-semibold text-slate-700">{{ inst.course_code }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-500 font-medium">Department:</span>
+              <span class="font-medium text-slate-700">{{ inst.department }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-500 font-medium">Section:</span>
+              <span class="font-bold text-[#5138ed]">{{ inst.section || 'Section A' }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-500 font-medium">Credit Hours:</span>
+              <span class="font-semibold text-slate-700">{{ inst.credit || inst.courses || 4 }} Credits</span>
+            </div>
+            <div class="flex items-center justify-between pt-1 border-t border-slate-200/60">
+              <span class="text-slate-500 font-medium">Submitted:</span>
+              <span class="font-semibold text-slate-700">
+                {{ inst.submitted_date || (inst.submitted?.includes('\n') ? inst.submitted.split('\n')[0] : inst.submitted) }}
+                {{ inst.submitted_time ? `• ${inst.submitted_time}` : '' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Action Buttons (Touch Friendly min-h-[44px]) -->
+          <div class="pt-1 flex flex-wrap items-center gap-2">
+            <button
+              @click="openReviewModal(inst)"
+              class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 text-[#5138ed] border border-indigo-100 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors min-h-[44px] cursor-pointer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              <span>Review Details</span>
+            </button>
+
+            <template v-if="inst.is_submitted">
+              <button
+                v-if="inst.status !== 'Approved'"
+                @click="approveSubmission(inst)"
+                class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors min-h-[44px] cursor-pointer shadow-xs"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                <span>Approve</span>
+              </button>
+
+              <button
+                v-if="inst.status !== 'Correction Required'"
+                @click="openCorrectionModal(inst)"
+                class="inline-flex items-center justify-center px-3 py-2 bg-orange-50 text-orange-600 border border-orange-200 rounded-xl text-xs font-bold hover:bg-orange-100 transition-colors min-h-[44px] cursor-pointer"
+                title="Request Correction"
+              >
+                Correction
+              </button>
+
+              <button
+                v-if="inst.status === 'Approved' || inst.status === 'Pending'"
+                @click="openReopenModal(inst)"
+                class="inline-flex items-center justify-center px-3 py-2 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-xl text-xs font-bold hover:bg-cyan-100 transition-colors min-h-[44px] cursor-pointer"
+                title="Reopen Semester (Unlock)"
+              >
+                Reopen
+              </button>
+
+              <button
+                v-if="inst.status !== 'Rejected'"
+                @click="openRejectModal(inst)"
+                class="inline-flex items-center justify-center px-3 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors min-h-[44px] cursor-pointer"
+                title="Reject Submission"
+              >
+                Reject
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+
       <!-- Table Footer / Pagination -->
-      <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white">
-        <span class="text-[12px] font-medium text-slate-500">
+      <div class="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+        <span class="text-xs font-medium text-slate-500 text-center sm:text-left">
           Showing {{ filteredInstructors.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0 }} to 
           {{ Math.min(currentPage * itemsPerPage, filteredInstructors.length) }} of 
           {{ filteredInstructors.length }} submissions
@@ -951,7 +1076,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           <button
             @click="goToPage(currentPage - 1)"
             :disabled="currentPage === 1"
-            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 bg-white hover:bg-slate-50 hover:text-slate-600 disabled:opacity-40 transition-colors"
+            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 bg-white hover:bg-slate-50 hover:text-slate-600 disabled:opacity-40 transition-colors cursor-pointer min-h-[36px] min-w-[36px]"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
           </button>
@@ -961,9 +1086,9 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             :key="p"
             @click="goToPage(p)"
             :class="[
-              'w-8 h-8 flex items-center justify-center rounded-lg text-[12px] font-bold transition-colors',
+              'w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-colors cursor-pointer min-h-[36px] min-w-[36px]',
               p === currentPage 
-                ? 'bg-[#5138ed] text-white shadow-sm' 
+                ? 'bg-[#5138ed] text-white shadow-xs' 
                 : 'border border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
             ]"
           >
@@ -973,7 +1098,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           <button
             @click="goToPage(currentPage + 1)"
             :disabled="currentPage === totalPages"
-            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 bg-white hover:bg-slate-50 hover:text-slate-600 disabled:opacity-40 transition-colors"
+            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 bg-white hover:bg-slate-50 hover:text-slate-600 disabled:opacity-40 transition-colors cursor-pointer min-h-[36px] min-w-[36px]"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
           </button>
@@ -984,154 +1109,156 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     <!-- Review Submission Detail Modal -->
     <div
       v-if="reviewModal.open && reviewModal.instructor"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
     >
-      <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 my-8">
+      <div class="bg-white rounded-2xl max-w-[95vw] sm:max-w-xl md:max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-100 my-auto max-h-[92vh] flex flex-col">
         
         <!-- Header -->
-        <div class="flex items-start justify-between border-b border-slate-100 pb-4 mb-5">
-          <div class="flex items-center gap-3">
-            <div :class="['w-12 h-12 rounded-full flex items-center justify-center text-sm font-extrabold flex-shrink-0 shadow-sm', reviewModal.instructor.color]">
+        <div class="flex items-start justify-between border-b border-slate-100 pb-3 sm:pb-4 mb-4 sm:mb-5 shrink-0">
+          <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div :class="['w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold shrink-0 shadow-xs', reviewModal.instructor.color]">
               {{ reviewModal.instructor.initials }}
             </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h3 class="text-lg font-bold text-slate-800">{{ reviewModal.instructor.name }}</h3>
-                <span :class="['px-2.5 py-0.5 rounded-full text-[10px] font-bold border', getStatusBadge(reviewModal.instructor.status)]">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-base sm:text-lg font-bold text-slate-800 truncate">{{ reviewModal.instructor.name }}</h3>
+                <span :class="['px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0', getStatusBadge(reviewModal.instructor.status)]">
                   {{ reviewModal.instructor.status }}
                 </span>
               </div>
-              <p class="text-[12px] text-slate-500 font-medium">{{ reviewModal.instructor.email }} • {{ reviewModal.instructor.department }}</p>
+              <p class="text-xs text-slate-500 font-medium truncate">{{ reviewModal.instructor.email }} • {{ reviewModal.instructor.department }}</p>
             </div>
           </div>
           <button 
             @click="reviewModal.open = false" 
-            class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 ml-2"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
 
-        <!-- Academic Submission Overview Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Course</span>
-            <span class="text-[13px] font-bold text-slate-800 truncate block">{{ reviewModal.instructor.course }}</span>
-            <span class="text-[10px] font-mono text-slate-500 font-semibold">{{ reviewModal.instructor.course_code || 'N/A' }}</span>
+        <div class="overflow-y-auto max-h-[calc(92vh-140px)] pr-1">
+          <!-- Academic Submission Overview Cards -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-4 sm:mb-5">
+            <div class="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Course</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 truncate block">{{ reviewModal.instructor.course }}</span>
+              <span class="text-[10px] font-mono text-slate-500 font-semibold">{{ reviewModal.instructor.course_code || 'N/A' }}</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Section & Credit</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ reviewModal.instructor.section }}</span>
+              <span class="text-[10px] text-slate-500 font-medium">{{ reviewModal.instructor.credit }} Credit Hours</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Submitted Date</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ reviewModal.instructor.submitted_date }}</span>
+              <span class="text-[10px] text-slate-500 font-medium">{{ reviewModal.instructor.submitted_time }}</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Academic Term</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ semesterInfo.academicYear }}</span>
+              <span class="text-[10px] text-slate-500 font-medium">{{ semesterInfo.semester }}</span>
+            </div>
           </div>
-          <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Section & Credit</span>
-            <span class="text-[13px] font-bold text-slate-800 block">{{ reviewModal.instructor.section }}</span>
-            <span class="text-[10px] text-slate-500 font-medium">{{ reviewModal.instructor.credit }} Credit Hours</span>
-          </div>
-          <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Submitted Date</span>
-            <span class="text-[13px] font-bold text-slate-800 block">{{ reviewModal.instructor.submitted_date }}</span>
-            <span class="text-[10px] text-slate-500 font-medium">{{ reviewModal.instructor.submitted_time }}</span>
-          </div>
-          <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Academic Term</span>
-            <span class="text-[13px] font-bold text-slate-800 block">{{ semesterInfo.academicYear }}</span>
-            <span class="text-[10px] text-slate-500 font-medium">{{ semesterInfo.semester }}</span>
-          </div>
-        </div>
 
-        <!-- Performance Metrics Grid -->
-        <div class="border border-slate-100 rounded-xl p-4 mb-5 bg-gradient-to-r from-indigo-50/30 to-purple-50/20">
-          <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Academic Performance & Records</h4>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            <div class="bg-white p-2.5 rounded-lg border border-slate-100 shadow-xs">
-              <span class="text-[18px] font-black text-slate-800 block">{{ reviewModal.instructor.exams_count ?? 1 }}</span>
-              <span class="text-[11px] font-medium text-slate-500">Exams Conducted</span>
-            </div>
-            <div class="bg-white p-2.5 rounded-lg border border-slate-100 shadow-xs">
-              <span class="text-[18px] font-black text-slate-800 block">{{ reviewModal.instructor.results_submitted ?? 0 }}</span>
-              <span class="text-[11px] font-medium text-slate-500">Graded Attempts</span>
-            </div>
-            <div class="bg-white p-2.5 rounded-lg border border-slate-100 shadow-xs">
-              <span class="text-[18px] font-black text-emerald-600 block">{{ reviewModal.instructor.avg_score ?? 0 }}%</span>
-              <span class="text-[11px] font-medium text-slate-500">Class Average</span>
-            </div>
-            <div class="bg-white p-2.5 rounded-lg border border-slate-100 shadow-xs">
-              <span class="text-[18px] font-black text-[#5138ed] block">{{ reviewModal.instructor.pass_rate ?? 0 }}%</span>
-              <span class="text-[11px] font-medium text-slate-500">Pass Rate</span>
+          <!-- Performance Metrics Grid -->
+          <div class="border border-slate-100 rounded-xl p-3 sm:p-4 mb-4 sm:mb-5 bg-gradient-to-r from-indigo-50/30 to-purple-50/20">
+            <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 sm:mb-3">Academic Performance & Records</h4>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 text-center">
+              <div class="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-100 shadow-xs">
+                <span class="text-base sm:text-[18px] font-black text-slate-800 block">{{ reviewModal.instructor.exams_count ?? 1 }}</span>
+                <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Exams</span>
+              </div>
+              <div class="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-100 shadow-xs">
+                <span class="text-base sm:text-[18px] font-black text-slate-800 block">{{ reviewModal.instructor.results_submitted ?? 0 }}</span>
+                <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Graded Attempts</span>
+              </div>
+              <div class="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-100 shadow-xs">
+                <span class="text-base sm:text-[18px] font-black text-emerald-600 block">{{ reviewModal.instructor.avg_score ?? 0 }}%</span>
+                <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Class Average</span>
+              </div>
+              <div class="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-100 shadow-xs">
+                <span class="text-base sm:text-[18px] font-black text-[#5138ed] block">{{ reviewModal.instructor.pass_rate ?? 0 }}%</span>
+                <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Pass Rate</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Checklist -->
-        <div class="mb-5">
-          <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Verification Checklist</h4>
-          <div class="space-y-2 text-[12px]">
-            <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
-              <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+          <!-- Checklist -->
+          <div class="mb-4 sm:mb-5">
+            <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Verification Checklist</h4>
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
+                <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <span class="font-medium">Academic Schedule: Registered for {{ semesterInfo.academicYear }} ({{ semesterInfo.semester }})</span>
               </div>
-              <span class="font-medium">Academic Schedule Verified: Registered for {{ semesterInfo.academicYear }} ({{ semesterInfo.semester }})</span>
-            </div>
-            <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
-              <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+              <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
+                <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <span class="font-medium">Assessments: {{ reviewModal.instructor.exams_count ?? 1 }} Exams Configured & Evaluated</span>
               </div>
-              <span class="font-medium">Examinations & Assessments: {{ reviewModal.instructor.exams_count ?? 1 }} Exams Configured & Evaluated</span>
-            </div>
-            <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
-              <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+              <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
+                <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <span class="font-medium">Grading: Complete for Section {{ reviewModal.instructor.section }}</span>
               </div>
-              <span class="font-medium">Continuous Assessment & Grading: Complete for Section {{ reviewModal.instructor.section }}</span>
             </div>
           </div>
-        </div>
 
-        <!-- Remarks Section if present -->
-        <div v-if="reviewModal.instructor.remarks" class="mb-5 p-3 rounded-xl bg-amber-50/70 border border-amber-200">
-          <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wide block mb-1">Previous Remarks / Notes:</span>
-          <p class="text-[12px] text-amber-900 font-medium">{{ reviewModal.instructor.remarks }}</p>
+          <!-- Remarks Section if present -->
+          <div v-if="reviewModal.instructor.remarks" class="mb-4 sm:mb-5 p-3 rounded-xl bg-amber-50/70 border border-amber-200">
+            <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wide block mb-1">Previous Remarks / Notes:</span>
+            <p class="text-xs text-amber-900 font-medium">{{ reviewModal.instructor.remarks }}</p>
+          </div>
         </div>
 
         <!-- Modal Footer Actions -->
-        <div class="flex items-center justify-between border-t border-slate-100 pt-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-3 sm:pt-4 gap-2.5 shrink-0">
           <button
             @click="reviewModal.open = false"
-            class="px-4 py-2 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            class="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors min-h-[40px] cursor-pointer"
           >
             Close
           </button>
 
-          <div v-if="reviewModal.instructor.is_submitted" class="flex items-center gap-2">
+          <div v-if="reviewModal.instructor.is_submitted" class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
             <button
               v-if="reviewModal.instructor.status !== 'Rejected'"
               @click="openRejectModal(reviewModal.instructor)"
-              class="px-4 py-2 rounded-xl text-[12px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors min-h-[40px] cursor-pointer"
             >
               Reject
             </button>
             <button
               v-if="reviewModal.instructor.status !== 'Correction Required'"
               @click="openCorrectionModal(reviewModal.instructor)"
-              class="px-4 py-2 rounded-xl text-[12px] font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors min-h-[40px] cursor-pointer"
             >
-              Request Correction
+              Correction
             </button>
             <button
               v-if="reviewModal.instructor.status === 'Approved' || reviewModal.instructor.status === 'Pending'"
               @click="openReopenModal(reviewModal.instructor)"
-              class="px-4 py-2 rounded-xl text-[12px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 transition-colors flex items-center gap-1.5"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 transition-colors flex items-center gap-1.5 min-h-[40px] cursor-pointer"
             >
               <svg class="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
-              Reopen (Unlock)
+              <span>Unlock</span>
             </button>
             <button
               v-if="reviewModal.instructor.status !== 'Approved'"
               @click="approveSubmission(reviewModal.instructor)"
               :disabled="isSubmittingAction"
-              class="px-5 py-2 rounded-xl text-[12px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+              class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer"
             >
               Approve Submission
             </button>
           </div>
-          <div v-else class="text-[12px] text-slate-400 font-medium italic flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+          <div v-else class="text-xs text-slate-400 font-medium italic flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
             <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
             Instructor has not submitted semester records yet.
           </div>
@@ -1143,93 +1270,93 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     <!-- Export Report Options Modal -->
     <div
       v-if="isExportModalOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
     >
-      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div class="bg-white rounded-2xl max-w-[95vw] sm:max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
           <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center">
+            <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
             </div>
             <div>
               <h3 class="text-base font-bold text-slate-800">Export Semester Report</h3>
-              <p class="text-[11px] text-slate-400">Download formatted semester submissions report</p>
+              <p class="text-[11px] text-slate-400">Download formatted semester report</p>
             </div>
           </div>
-          <button @click="isExportModalOpen = false" class="text-slate-400 hover:text-slate-600">
+          <button @click="isExportModalOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer p-1">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
 
-        <p class="text-[12px] text-slate-500 mb-4 font-medium">
-          Choose your preferred export format. Both options include instructor names, courses, section assignments, submission timestamps, and current review status.
+        <p class="text-xs text-slate-500 mb-4 font-medium">
+          Choose your preferred export format. Includes instructor names, courses, section assignments, submission timestamps, and current review status.
         </p>
 
-        <div class="space-y-3 mb-5">
+        <div class="space-y-2.5 sm:space-y-3 mb-5">
           <!-- PDF Option -->
           <button
             @click="triggerExport('pdf')"
             :disabled="isExporting"
-            class="w-full p-3.5 rounded-xl border border-slate-200 hover:border-[#5138ed] hover:bg-indigo-50/40 transition-all flex items-center justify-between group text-left disabled:opacity-50"
+            class="w-full p-3 rounded-xl border border-slate-200 hover:border-[#5138ed] hover:bg-indigo-50/40 transition-all flex items-center justify-between group text-left disabled:opacity-50 min-h-[44px] cursor-pointer"
           >
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs flex-shrink-0 border border-rose-100">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0 border border-rose-100">
                 PDF
               </div>
-              <div>
-                <span class="text-[13px] font-bold text-slate-800 group-hover:text-[#5138ed] transition-colors block">Official Wollo University PDF Report</span>
-                <span class="text-[11px] text-slate-400">Printable landscape document with university header & KPI summary</span>
+              <div class="min-w-0">
+                <span class="text-xs sm:text-[13px] font-bold text-slate-800 group-hover:text-[#5138ed] transition-colors block truncate">Official Wollo University PDF Report</span>
+                <span class="text-[11px] text-slate-400 truncate block">Printable landscape document</span>
               </div>
             </div>
-            <svg class="w-4 h-4 text-slate-400 group-hover:text-[#5138ed] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <svg class="w-4 h-4 text-slate-400 group-hover:text-[#5138ed] transition-colors shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
           </button>
 
           <!-- Excel Option -->
           <button
             @click="triggerExport('excel')"
             :disabled="isExporting"
-            class="w-full p-3.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 transition-all flex items-center justify-between group text-left disabled:opacity-50"
+            class="w-full p-3 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 transition-all flex items-center justify-between group text-left disabled:opacity-50 min-h-[44px] cursor-pointer"
           >
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs flex-shrink-0 border border-emerald-100">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100">
                 XLS
               </div>
-              <div>
-                <span class="text-[13px] font-bold text-slate-800 group-hover:text-emerald-700 transition-colors block">Excel Spreadsheet (.xlsx)</span>
-                <span class="text-[11px] text-slate-400">Structured data spreadsheet for departmental records and archiving</span>
+              <div class="min-w-0">
+                <span class="text-xs sm:text-[13px] font-bold text-slate-800 group-hover:text-emerald-700 transition-colors block truncate">Excel Spreadsheet (.xlsx)</span>
+                <span class="text-[11px] text-slate-400 truncate block">Structured data spreadsheet</span>
               </div>
             </div>
-            <svg class="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <svg class="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
           </button>
 
           <!-- CSV Option -->
           <button
             @click="triggerExport('csv')"
             :disabled="isExporting"
-            class="w-full p-3.5 rounded-xl border border-slate-200 hover:border-sky-500 hover:bg-sky-50/40 transition-all flex items-center justify-between group text-left disabled:opacity-50"
+            class="w-full p-3 rounded-xl border border-slate-200 hover:border-sky-500 hover:bg-sky-50/40 transition-all flex items-center justify-between group text-left disabled:opacity-50 min-h-[44px] cursor-pointer"
           >
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-xs flex-shrink-0 border border-sky-100">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-xs shrink-0 border border-sky-100">
                 CSV
               </div>
-              <div>
-                <span class="text-[13px] font-bold text-slate-800 group-hover:text-sky-700 transition-colors block">Comma Separated Values (.csv)</span>
-                <span class="text-[11px] text-slate-400">Universal tabular format compatible with all spreadsheet tools</span>
+              <div class="min-w-0">
+                <span class="text-xs sm:text-[13px] font-bold text-slate-800 group-hover:text-sky-700 transition-colors block truncate">Comma Separated Values (.csv)</span>
+                <span class="text-[11px] text-slate-400 truncate block">Universal tabular format</span>
               </div>
             </div>
-            <svg class="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <svg class="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
           </button>
         </div>
 
-        <div v-if="isExporting" class="flex items-center justify-center gap-2 py-2 text-[12px] font-semibold text-[#5138ed]">
+        <div v-if="isExporting" class="flex items-center justify-center gap-2 py-2 text-xs font-semibold text-[#5138ed]">
           <div class="w-4 h-4 border-2 border-[#5138ed] border-t-transparent rounded-full animate-spin"></div>
-          Generating export document from live database...
+          Generating export document...
         </div>
 
         <div class="flex justify-end pt-2 border-t border-slate-100">
           <button
             @click="isExportModalOpen = false"
-            class="px-4 py-2 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            class="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors min-h-[40px] cursor-pointer"
           >
             Cancel
           </button>
@@ -1240,40 +1367,40 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     <!-- Request Correction Modal -->
     <div
       v-if="correctionModal.open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
     >
-      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div class="bg-white rounded-2xl max-w-[95vw] sm:max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center flex-shrink-0 border border-orange-100">
+          <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0 border border-orange-100">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
           </div>
-          <div>
-            <h3 class="text-base font-bold text-slate-800">Request Correction</h3>
-            <p class="text-[12px] text-slate-500">Instructor: {{ correctionModal.instructor?.name }}</p>
+          <div class="min-w-0">
+            <h3 class="text-base font-bold text-slate-800 truncate">Request Correction</h3>
+            <p class="text-xs text-slate-500 truncate">Instructor: {{ correctionModal.instructor?.name }}</p>
           </div>
         </div>
 
         <div class="mb-4">
-          <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Feedback / Correction Remarks</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Feedback / Correction Remarks</label>
           <textarea
             v-model="correctionModal.remarks"
             rows="3"
-            placeholder="Specify what needs correction (e.g. missing continuous assessment scores, grade recalculation)..."
-            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:bg-white transition-colors"
+            placeholder="Specify what needs correction..."
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:bg-white transition-colors"
           ></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-2.5">
           <button
             @click="correctionModal.open = false"
-            class="px-4 py-2 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors min-h-[40px] cursor-pointer"
           >
             Cancel
           </button>
           <button
             @click="submitCorrection"
             :disabled="isSubmittingAction"
-            class="px-5 py-2 rounded-xl text-[12px] font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm disabled:opacity-50"
+            class="px-5 py-2 rounded-xl text-xs font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer"
           >
             Submit Request
           </button>
@@ -1284,40 +1411,40 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     <!-- Reject Submission Modal -->
     <div
       v-if="rejectModal.open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
     >
-      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div class="bg-white rounded-2xl max-w-[95vw] sm:max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0 border border-rose-100">
+          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
           </div>
-          <div>
-            <h3 class="text-base font-bold text-slate-800">Reject Submission</h3>
-            <p class="text-[12px] text-slate-500">Instructor: {{ rejectModal.instructor?.name }}</p>
+          <div class="min-w-0">
+            <h3 class="text-base font-bold text-slate-800 truncate">Reject Submission</h3>
+            <p class="text-xs text-slate-500 truncate">Instructor: {{ rejectModal.instructor?.name }}</p>
           </div>
         </div>
 
         <div class="mb-4">
-          <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Reason for Rejection</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Reason for Rejection</label>
           <textarea
             v-model="rejectModal.remarks"
             rows="3"
             placeholder="Explain why this submission is rejected..."
-            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:border-rose-500 focus:bg-white transition-colors"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-[13px] text-slate-700 focus:outline-none focus:border-rose-500 focus:bg-white transition-colors"
           ></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-2.5">
           <button
             @click="rejectModal.open = false"
-            class="px-4 py-2 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors min-h-[40px] cursor-pointer"
           >
             Cancel
           </button>
           <button
             @click="submitReject"
             :disabled="isSubmittingAction"
-            class="px-5 py-2 rounded-xl text-[12px] font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-sm disabled:opacity-50"
+            class="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer"
           >
             Confirm Rejection
           </button>
@@ -1328,44 +1455,44 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     <!-- Reopen Semester Modal -->
     <div
       v-if="reopenModal.open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
     >
-      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div class="bg-white rounded-2xl max-w-[95vw] sm:max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center flex-shrink-0 border border-cyan-100">
+          <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0 border border-cyan-100">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
           </div>
-          <div>
-            <h3 class="text-base font-bold text-slate-800">Reopen Semester</h3>
-            <p class="text-[12px] text-slate-500">Instructor: {{ reopenModal.instructor?.name }}</p>
+          <div class="min-w-0">
+            <h3 class="text-base font-bold text-slate-800 truncate">Reopen Semester</h3>
+            <p class="text-xs text-slate-500 truncate">Instructor: {{ reopenModal.instructor?.name }}</p>
           </div>
         </div>
 
-        <p class="text-[12px] text-slate-600 mb-4 leading-relaxed">
-          Reopening will <strong class="text-slate-800">unlock the instructor's academic records</strong>. The instructor will regain full edit access to create and modify questions, exams, and grades.
+        <p class="text-xs text-slate-600 mb-4 leading-relaxed">
+          Reopening will <strong class="text-slate-800">unlock the instructor's academic records</strong>. The instructor will regain full edit access.
         </p>
 
         <div class="mb-4">
-          <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Reason for Reopening</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Reason for Reopening</label>
           <textarea
             v-model="reopenModal.reason"
             rows="3"
-            placeholder="Specify reason for reopening (e.g., Grade adjustment approved, missing assessment to be added)..."
-            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:border-cyan-500 focus:bg-white transition-colors"
+            placeholder="Specify reason for reopening..."
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-[13px] text-slate-700 focus:outline-none focus:border-cyan-500 focus:bg-white transition-colors"
           ></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-2.5">
           <button
             @click="reopenModal.open = false"
-            class="px-4 py-2 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors min-h-[40px] cursor-pointer"
           >
             Cancel
           </button>
           <button
             @click="submitReopen"
             :disabled="isSubmittingAction"
-            class="px-5 py-2 rounded-xl text-[12px] font-bold bg-cyan-600 text-white hover:bg-cyan-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+            class="px-5 py-2 rounded-xl text-xs font-bold bg-cyan-600 text-white hover:bg-cyan-700 transition-colors shadow-xs disabled:opacity-50 flex items-center gap-1.5 min-h-[40px] cursor-pointer"
           >
             <svg v-if="isSubmittingAction" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             Unlock & Reopen
@@ -1377,22 +1504,22 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
     <!-- Submission Guidelines Modal -->
     <div
       v-if="isGuidelinesModalOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
     >
-      <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 max-h-[85vh] overflow-y-auto">
+      <div class="bg-white rounded-2xl max-w-[95vw] sm:max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-100 max-h-[85vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
           <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center">
+            <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             </div>
             <h3 class="text-base font-bold text-slate-800">Semester Submission Guidelines</h3>
           </div>
-          <button @click="isGuidelinesModalOpen = false" class="text-slate-400 hover:text-slate-600">
+          <button @click="isGuidelinesModalOpen = false" class="text-slate-400 hover:text-slate-600 cursor-pointer p-1">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
 
-        <div class="space-y-4 text-[13px] text-slate-600 leading-relaxed">
+        <div class="space-y-3 sm:space-y-4 text-xs sm:text-[13px] text-slate-600 leading-relaxed">
           <div class="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
             <span class="font-bold text-indigo-900 block mb-1">1. Completeness of Continuous Assessment</span>
             <p>Instructors must ensure all quizzes, assignments, midterm exams, and practical labs have been properly scored and published before finalizing semester submissions.</p>
@@ -1405,7 +1532,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
 
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
             <span class="font-bold text-slate-800 block mb-1">3. Approval & Locking Mechanism</span>
-            <p>Once a submission is marked as <strong>Approved</strong>, all course grades for that section will be locked from further edits by the instructor. To reopen editing, the department head must issue a <strong>Correction Request</strong>.</p>
+            <p>Once a submission is marked as <strong>Approved</strong>, all course grades for that section will be locked from further edits by the instructor. To reopen editing, the department head must issue an <strong>Unlock & Reopen</strong>.</p>
           </div>
 
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -1414,10 +1541,10 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           </div>
         </div>
 
-        <div class="mt-6 flex justify-end">
+        <div class="mt-5 sm:mt-6 flex justify-end">
           <button
             @click="isGuidelinesModalOpen = false"
-            class="px-5 py-2.5 bg-[#5138ed] text-white rounded-xl text-[12px] font-bold hover:bg-[#4530d1] transition-colors shadow-sm"
+            class="w-full sm:w-auto px-5 py-2.5 bg-[#5138ed] text-white rounded-xl text-xs sm:text-[12px] font-bold hover:bg-[#4530d1] transition-colors shadow-xs min-h-[40px] cursor-pointer"
           >
             I Understand
           </button>
