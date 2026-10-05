@@ -164,29 +164,29 @@ onMounted(async () => {
     <div v-if="!showDetailsPage && !showAllQuestions" class="space-y-6 min-w-0 w-full">
 
     <!-- Page Actions -->
-    <div class="flex flex-col md:flex-row md:items-center justify-end gap-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <button class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-[#4338ca] font-bold rounded-xl text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
+      <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+        <button class="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-[#4338ca] font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Export Exams
         </button>
       </div>
     </div>
 
     <!-- Stats Cards (5 cards) -->
-    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-5">
       <div v-for="(card, i) in [
         { label:'Total Exams',      val: statsData.total,     trend:'↑ 10.1%', tc:'text-emerald-500', sub:'All exams created',  bg:'bg-indigo-50',  ic:'text-[#4338ca]',    icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
         { label:'Published Exams',  val: statsData.published, trend:'↑ 12.7%', tc:'text-emerald-500', sub:'Published exams',   bg:'bg-emerald-50', ic:'text-emerald-500',  icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
         { label:'Draft Exams',      val: statsData.draft,     trend:'↓ 6.7%',  tc:'text-rose-500',    sub:'Draft exams',       bg:'bg-rose-50',    ic:'text-rose-500',     icon:'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
         { label:'Scheduled Exams',  val: statsData.scheduled, trend:'↑ 15.2%', tc:'text-emerald-500', sub:'Upcoming exams',   bg:'bg-amber-50',   ic:'text-amber-500',    icon:'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
         { label:'Completed Exams',  val: statsData.completed, trend:'↑ 9.5%',  tc:'text-emerald-500', sub:'Finished exams',   bg:'bg-sky-50',     ic:'text-sky-500',      icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-      ]" :key="i" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+      ]" :key="i" class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
         <div :class="[card.bg, 'w-12 h-12 rounded-xl flex items-center justify-center shrink-0']">
           <svg class="w-6 h-6" :class="card.ic" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="card.icon"></path></svg>
         </div>
         <div>
           <p class="text-[11px] font-bold text-slate-500 tracking-wide">{{ card.label }}</p>
-          <h3 class="text-[22px] font-black text-slate-800 leading-none mt-0.5">{{ card.val }}</h3>
+          <h3 class="text-[20px] sm:text-[22px] font-black text-slate-800 leading-none mt-0.5">{{ card.val }}</h3>
           <div class="flex items-center gap-1 mt-1 text-[11px]">
             <span :class="card.tc" class="font-bold">{{ card.trend }}</span>
             <span class="text-slate-400">{{ card.sub }}</span>
@@ -199,32 +199,32 @@ onMounted(async () => {
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col min-w-0 overflow-hidden">
 
         <!-- Toolbar -->
-        <div class="flex flex-wrap items-center gap-2 px-5 py-3.5 border-b border-slate-100">
-          <div class="relative flex-1 min-w-[160px]">
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-100">
+          <div class="relative flex-1 min-w-[180px] w-full sm:w-auto">
             <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <input v-model="search" placeholder="Search Exams..." class="w-full pl-9 pr-4 py-2 text-[12px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#4338ca] bg-white">
           </div>
-          <select v-model="courseFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="courseFilter" class="flex-1 sm:flex-initial min-w-[120px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Courses</option>
             <option v-for="c in allCourses" :key="c" :value="c">{{ c }}</option>
           </select>
-          <select v-model="departmentFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="departmentFilter" class="flex-1 sm:flex-initial min-w-[130px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Departments</option>
             <option v-for="d in allDepartments" :key="d" :value="d">{{ d }}</option>
           </select>
-          <select v-model="yearFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="yearFilter" class="flex-1 sm:flex-initial min-w-[100px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Years</option>
             <option v-for="y in allYears" :key="y" :value="y">{{ y }}</option>
           </select>
-          <select v-model="semesterFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="semesterFilter" class="flex-1 sm:flex-initial min-w-[120px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Semesters</option>
             <option v-for="s in allSemesters" :key="s" :value="s">{{ s }}</option>
           </select>
-          <select v-model="typeFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="typeFilter" class="flex-1 sm:flex-initial min-w-[120px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Exam Types</option>
             <option v-for="t in examTypes" :key="t" :value="t">{{ t }}</option>
           </select>
-          <select v-model="statusFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="statusFilter" class="flex-1 sm:flex-initial min-w-[110px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Status</option>
             <option value="published">Published</option>
             <option value="draft">Draft</option>
@@ -292,8 +292,8 @@ onMounted(async () => {
                   <p v-if="exam.examTime" class="text-[10px] text-slate-400 mt-0.5">{{ exam.examTime }}</p>
                 </td>
                 <td class="px-4 py-4">
-                  <div class="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button @click="openDetailsPage(exam)" class="w-7 h-7 rounded bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></button>
+                  <div class="flex items-center justify-center gap-1">
+                    <button @click="openDetailsPage(exam)" title="View Details" class="w-7 h-7 rounded bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></button>
                   </div>
                 </td>
               </tr>
@@ -305,7 +305,7 @@ onMounted(async () => {
         </div>
 
         <!-- Pagination -->
-        <div class="flex items-center justify-between px-5 py-4 border-t border-slate-100 bg-slate-50/30">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 sm:py-4 border-t border-slate-100 bg-slate-50/30">
           <p class="text-[12px] text-slate-500">Showing <span class="font-bold text-slate-700">{{ (currentPage-1)*perPage+1 }}</span> to <span class="font-bold text-slate-700">{{ Math.min(currentPage*perPage, filtered.length) }}</span> of <span class="font-bold text-slate-700">{{ filtered.length }}</span> exams</p>
           <div class="flex gap-1">
             <button @click="currentPage = Math.max(1, currentPage-1)" :disabled="currentPage===1" class="w-8 h-8 rounded border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 bg-white disabled:opacity-40">
@@ -322,10 +322,10 @@ onMounted(async () => {
     </div>
 
     <!-- Bottom Cards: Exam Overview, Top Exam Types, Upcoming Exams, Quick Actions -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
 
       <!-- Exam Overview Chart -->
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 sm:p-6">
         <h3 class="text-[15px] font-bold text-slate-800 mb-5">Exam Overview</h3>
         <div class="relative h-44 w-full">
           <Doughnut :data="chartData" :options="chartOptions" />
@@ -411,11 +411,11 @@ onMounted(async () => {
     <!-- Exam Details View -->
     <div v-if="showDetailsPage && !showAllQuestions" class="space-y-6 pb-12 min-w-0 w-full">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div>
-            <div class="flex items-center gap-3">
-              <h1 class="text-[24px] font-bold text-slate-800 leading-tight">{{ selectedExam?.title || 'Exam Details' }}</h1>
+            <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+              <h1 class="text-[20px] sm:text-[24px] font-bold text-slate-800 leading-tight">{{ selectedExam?.title || 'Exam Details' }}</h1>
               <span :class="[statusConfig[selectedExam?.status]?.badge || 'bg-slate-100 text-slate-500', 'text-[10px] font-bold px-2.5 py-1 rounded-lg capitalize']">{{ statusConfig[selectedExam?.status]?.label || selectedExam?.status }}</span>
               <span class="text-[12px] font-mono font-bold text-[#4338ca] bg-indigo-50 px-2 py-0.5 rounded">{{ selectedExam?.examCode }}</span>
             </div>
@@ -428,7 +428,7 @@ onMounted(async () => {
             </div>
           </div>
         </div>
-        <button @click="showDetailsPage = false" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-[13px] hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap">
+        <button @click="showDetailsPage = false" class="flex items-center self-start sm:self-auto gap-2 px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg> Back to Exam List
         </button>
       </div>
@@ -437,8 +437,8 @@ onMounted(async () => {
       <div class="space-y-6">
         
         <!-- Questions Section at the TOP -->
-        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <div class="flex items-center justify-between mb-6">
+        <div class="bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
               <h2 class="text-[18px] font-bold text-slate-800">Exam Questions</h2>
               <p class="text-[13px] text-slate-500 mt-0.5">Total Questions: {{ selectedExam?.questions?.length || 0 }} | Total Marks: {{ selectedExam?.totalMarks || selectedExam?.questions?.reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0) || 0 }}</p>
@@ -514,7 +514,7 @@ onMounted(async () => {
         </div>
 
         <!-- Bottom Layout: 3 Horizontal Cards -->
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 items-stretch">
           
           <!-- Exam Info Card -->
           <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
@@ -622,22 +622,22 @@ onMounted(async () => {
     <!-- All Questions View -->
     <div v-if="showAllQuestions" class="space-y-6 pb-12 min-w-0 w-full">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 bg-indigo-50 rounded-2xl shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
             <svg class="w-6 h-6 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
           </div>
           <div>
             <div class="flex items-center gap-3">
-              <h1 class="text-[24px] font-bold text-slate-800 leading-tight">All Questions</h1>
+              <h1 class="text-[20px] sm:text-[24px] font-bold text-slate-800 leading-tight">All Questions</h1>
             </div>
-            <div class="text-[13px] text-slate-500 mt-0.5">View all questions in this exam with their details.</div>
+            <div class="text-[12px] sm:text-[13px] text-slate-500 mt-0.5">View all questions in this exam with their details.</div>
           </div>
         </div>
       </div>
 
       <!-- Breadcrumbs -->
-      <div class="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-5 py-3 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-3 sm:px-5 sm:py-3 shadow-sm">
         <div class="flex flex-wrap items-center gap-2 text-[12px] font-bold text-slate-400">
           <span class="hover:text-slate-600 cursor-pointer transition-colors" @click="showDetailsPage = false; showAllQuestions = false">Exams</span>
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
@@ -647,7 +647,7 @@ onMounted(async () => {
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
           <span class="text-slate-800">All Questions</span>
         </div>
-        <button @click="showAllQuestions = false" class="flex items-center gap-2 text-slate-600 font-bold text-[12px] hover:text-[#4338ca] transition-colors whitespace-nowrap">
+        <button @click="showAllQuestions = false" class="flex items-center self-start sm:self-auto gap-2 text-slate-600 font-bold text-[12px] hover:text-[#4338ca] transition-colors whitespace-nowrap">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg> Back to Exam Details
         </button>
       </div>

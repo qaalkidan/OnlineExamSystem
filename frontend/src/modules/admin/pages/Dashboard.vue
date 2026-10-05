@@ -153,17 +153,17 @@ const donutSegments = computed(() => {
     </div>
 
     <!-- Stat Cards -->
-    <div class="grid grid-cols-5 gap-4">
-      <div v-for="stat in stats" :key="stat.label" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4 hover:shadow-md transition-shadow">
-        <div :class="[colorMap[stat.color].bg, 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0']">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+      <div v-for="stat in stats" :key="stat.label" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 flex items-start gap-3 sm:gap-4 hover:shadow-md transition-shadow">
+        <div :class="[colorMap[stat.color].bg, 'w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0']">
           <svg class="w-5 h-5" :class="colorMap[stat.color].icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="stat.icon"></path>
           </svg>
         </div>
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">{{ stat.label }}</p>
-          <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span class="text-[20px] font-bold text-slate-800">{{ stat.value }}</span>
+          <div class="flex items-center gap-1.5 sm:gap-2 mt-0.5 flex-wrap">
+            <span class="text-[18px] sm:text-[20px] font-bold text-slate-800">{{ stat.value }}</span>
             <span :class="[colorMap[stat.color].badge, 'text-[10px] font-bold px-1.5 py-0.5 rounded-md']">{{ stat.change }}</span>
           </div>
           <p class="text-[11px] text-slate-400 font-medium mt-1 truncate">{{ stat.sub }}</p>
@@ -172,11 +172,11 @@ const donutSegments = computed(() => {
     </div>
 
     <!-- Row 2: System Overview + System Status -->
-    <div class="grid grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
       
       <!-- System Overview Chart -->
-      <div class="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <div class="flex items-center justify-between mb-5">
+      <div class="col-span-1 lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 min-w-0">
+        <div class="flex items-center justify-between mb-5 flex-wrap gap-2">
           <h3 class="text-[15px] font-bold text-slate-800">System Overview</h3>
           <div class="flex items-center gap-2 text-[12px] font-semibold text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 cursor-pointer hover:border-indigo-300 transition-colors">
             {{ selectedPeriod }}
@@ -184,18 +184,18 @@ const donutSegments = computed(() => {
           </div>
         </div>
         <!-- Metrics Row -->
-        <div class="grid grid-cols-4 gap-4 mb-5">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-5">
           <div v-for="m in systemMetrics" :key="m.label" class="flex items-center gap-2">
             <span :class="[m.color, 'w-2 h-2 rounded-full flex-shrink-0']" style="display:inline-block"></span>
-            <div>
-              <p class="text-[11px] font-medium text-slate-500 leading-none">{{ m.label }}</p>
-              <p class="text-[13px] font-bold text-slate-800">{{ m.value }} <span class="text-[10px] font-semibold text-green-500">{{ m.change }}</span></p>
+            <div class="min-w-0">
+              <p class="text-[11px] font-medium text-slate-500 leading-none truncate">{{ m.label }}</p>
+              <p class="text-[13px] font-bold text-slate-800 truncate">{{ m.value }} <span class="text-[10px] font-semibold text-green-500">{{ m.change }}</span></p>
             </div>
           </div>
         </div>
         <!-- SVG Chart -->
-        <div class="relative">
-          <svg viewBox="0 0 600 200" class="w-full h-44" preserveAspectRatio="none">
+        <div class="relative overflow-x-auto min-w-0">
+          <svg viewBox="0 0 600 200" class="w-full h-44 min-w-[320px]" preserveAspectRatio="none">
             <!-- Fill -->
             <defs>
               <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
@@ -207,36 +207,36 @@ const donutSegments = computed(() => {
             <path :d="svgPath" fill="none" stroke="#5138ed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
           <!-- X axis labels -->
-          <div class="flex justify-between mt-1 px-1">
+          <div class="flex justify-between mt-1 px-1 min-w-[320px]">
             <span v-for="label in chartLabels" :key="label" class="text-[10px] text-slate-400 font-medium">{{ label }}</span>
           </div>
         </div>
       </div>
 
       <!-- System Status -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 min-w-0">
         <h3 class="text-[15px] font-bold text-slate-800 mb-5">System Status</h3>
         <div class="space-y-4">
-          <div v-for="item in systemStatus" :key="item.name" class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div :class="[item.bg, 'w-9 h-9 rounded-xl flex items-center justify-center']">
+          <div v-for="item in systemStatus" :key="item.name" class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-3 min-w-0">
+              <div :class="[item.bg, 'w-9 h-9 rounded-xl flex items-center justify-center shrink-0']">
                 <svg class="w-4.5 h-4.5" :class="item.color" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon"></path>
                 </svg>
               </div>
-              <span class="text-[13px] font-semibold text-slate-700">{{ item.name }}</span>
+              <span class="text-[13px] font-semibold text-slate-700 truncate">{{ item.name }}</span>
             </div>
-            <span class="text-[12px] font-bold text-green-500">Operational</span>
+            <span class="text-[12px] font-bold text-green-500 shrink-0">Operational</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Row 3: User Distribution + Recent Exams + Quick Actions -->
-    <div class="grid grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
 
       <!-- User Distribution Donut -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 min-w-0">
         <h3 class="text-[15px] font-bold text-slate-800 mb-5">User Distribution</h3>
         <div class="flex flex-col items-center">
           <!-- Donut SVG -->
@@ -269,7 +269,7 @@ const donutSegments = computed(() => {
       </div>
 
       <!-- Recent Exams -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 min-w-0">
         <div class="flex items-center justify-between mb-5">
           <h3 class="text-[15px] font-bold text-slate-800">Recent Exams</h3>
           <router-link to="/admin/exams" class="text-[12px] font-bold text-[#5138ed] hover:underline">View All</router-link>
@@ -282,7 +282,7 @@ const donutSegments = computed(() => {
         </div>
         <div class="space-y-3">
           <div v-for="exam in recentExams" :key="exam.title" class="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
-            <div>
+            <div class="min-w-0">
               <p class="text-[12px] font-bold text-slate-800 leading-snug truncate">{{ exam.title }}</p>
               <p class="text-[10px] text-slate-400 font-medium truncate">{{ exam.course }}</p>
             </div>
@@ -293,7 +293,7 @@ const donutSegments = computed(() => {
       </div>
 
       <!-- Quick Actions -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 min-w-0">
         <h3 class="text-[15px] font-bold text-slate-800 mb-5">Quick Actions</h3>
         <div class="space-y-3">
           <router-link

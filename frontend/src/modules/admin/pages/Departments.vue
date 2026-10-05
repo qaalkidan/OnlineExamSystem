@@ -423,28 +423,28 @@ const deleteDept = async () => {
       </div>
 
       <!-- Header -->
-      <div class="flex items-start justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 class="text-[22px] font-bold text-slate-800">Department Details</h1>
-          <p class="text-[13px] text-slate-500 mt-1">View and manage department information and settings</p>
+          <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800">Department Details</h1>
+          <p class="text-[12px] sm:text-[13px] text-slate-500 mt-1">View and manage department information and settings</p>
         </div>
-        <button @click="backToDepartments" class="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-lg text-[13px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <button @click="backToDepartments" class="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-lg text-[13px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors w-full sm:w-auto justify-center">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Departments
         </button>
       </div>
 
       <!-- Top Profile Card -->
-      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
-        <div class="flex items-start gap-8">
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
+        <div class="flex flex-col lg:flex-row items-start gap-6 lg:gap-8">
           <!-- Avatar & Info -->
-          <div class="flex items-start gap-6 flex-1">
-            <div class="w-[100px] h-[100px] rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0 border-2 border-indigo-100">
-              <svg class="w-12 h-12 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+          <div class="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 flex-1 w-full">
+            <div class="w-16 h-16 sm:w-[100px] sm:h-[100px] rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0 border-2 border-indigo-100">
+              <svg class="w-8 h-8 sm:w-12 sm:h-12 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
             </div>
-            <div class="space-y-2">
-              <div class="flex items-center gap-3">
-                <h2 class="text-[20px] font-bold text-slate-800">{{ viewingDept.name }}</h2>
+            <div class="space-y-2 flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                <h2 class="text-[18px] sm:text-[20px] font-bold text-slate-800 break-words">{{ viewingDept.name }}</h2>
                 <span :class="[viewingDept.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200', 'text-[11px] font-bold px-2.5 py-0.5 rounded-full border capitalize']">{{ viewingDept.status }}</span>
               </div>
               <div class="space-y-1.5">
@@ -456,19 +456,19 @@ const deleteDept = async () => {
           </div>
 
           <!-- Stats -->
-          <div class="flex items-center gap-4 shrink-0">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 w-full lg:w-auto shrink-0">
             <div v-for="(stat, si) in [
               { label: 'Students', val: detailData?.students?.length || 0, sub: 'Active Students', bg: 'bg-indigo-50', ic: 'text-[#4338ca]', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
               { label: 'Instructors', val: detailData?.instructors?.length || 0, sub: 'Total Instructors', bg: 'bg-blue-50', ic: 'text-blue-500', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
               { label: 'Courses', val: detailData?.courses?.length || 0, sub: 'Total Courses', bg: 'bg-amber-50', ic: 'text-amber-500', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
               { label: 'Exams', val: 0, sub: 'Total Exams', bg: 'bg-purple-50', ic: 'text-purple-500', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-            ]" :key="si" class="border border-slate-100 rounded-xl p-4 min-w-[110px] text-center">
+            ]" :key="si" class="border border-slate-100 rounded-xl p-3 sm:p-4 text-center">
               <div :class="[stat.bg, 'w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2']">
                 <svg class="w-4 h-4" :class="stat.ic" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="stat.icon"></path></svg>
               </div>
               <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{{ stat.label }}</p>
               <p v-if="isDetailLoading" class="h-6 w-8 bg-slate-100 rounded animate-pulse mx-auto mt-1"></p>
-              <p v-else class="text-[22px] font-bold text-slate-800">{{ stat.val }}</p>
+              <p v-else class="text-[20px] sm:text-[22px] font-bold text-slate-800">{{ stat.val }}</p>
               <p class="text-[10px] text-slate-400">{{ stat.sub }}</p>
             </div>
           </div>
@@ -476,13 +476,13 @@ const deleteDept = async () => {
       </div>
 
       <!-- Content Area with Sidebar Tabs -->
-      <div class="grid grid-cols-[220px_1fr] gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
         
         <!-- Sidebar Navigation -->
-        <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-3 self-start">
-          <nav class="space-y-1">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-2 sm:p-3 self-start overflow-hidden">
+          <nav class="flex lg:flex-col overflow-x-auto gap-1 pb-1 lg:pb-0">
             <button v-for="tab in detailTabs" :key="tab.key" @click="detailActiveTab = tab.key"
-              :class="[detailActiveTab === tab.key ? 'bg-indigo-50 text-[#4338ca] font-bold' : 'text-slate-600 hover:bg-slate-50', 'flex items-center gap-3 w-full px-4 py-3 rounded-lg text-[13px] transition-colors text-left']">
+              :class="[detailActiveTab === tab.key ? 'bg-indigo-50 text-[#4338ca] font-bold' : 'text-slate-600 hover:bg-slate-50', 'flex items-center gap-2 sm:gap-3 shrink-0 lg:w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-[13px] transition-colors text-left whitespace-nowrap']">
               <svg class="w-4.5 h-4.5 shrink-0" :class="detailActiveTab === tab.key ? 'text-[#4338ca]' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon"></path></svg>
               {{ tab.label }}
             </button>
@@ -494,37 +494,37 @@ const deleteDept = async () => {
 
           <!-- Department Information Tab -->
           <template v-if="detailActiveTab === 'info'">
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
               <h3 class="text-[16px] font-bold text-slate-800 mb-6">Department Information</h3>
               <div v-if="isDetailLoading" class="flex justify-center py-12">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4338ca]"></div>
               </div>
-              <div v-else class="grid grid-cols-2 gap-x-16 gap-y-5">
-                <div class="grid grid-cols-[140px_1fr] gap-2 items-start">
+              <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-x-8 lg:gap-x-16 gap-y-4 sm:gap-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-2 items-start">
                   <span class="text-[13px] text-slate-500">Department Code</span>
                   <span class="text-[13px] font-semibold text-slate-800">{{ viewingDept.code }}</span>
                 </div>
-                <div class="grid grid-cols-[140px_1fr] gap-2 items-start">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-2 items-start">
                   <span class="text-[13px] text-slate-500">Head of Department</span>
                   <span class="text-[13px] font-semibold text-slate-800">{{ detailData?.department?.head?.name || 'Not assigned' }}</span>
                 </div>
-                <div class="grid grid-cols-[140px_1fr] gap-2 items-start">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-2 items-start">
                   <span class="text-[13px] text-slate-500">Faculty/College</span>
                   <span class="text-[13px] font-semibold text-slate-800">{{ viewingDept.college || viewingDept.faculty || 'N/A' }}</span>
                 </div>
-                <div class="grid grid-cols-[140px_1fr] gap-2 items-start">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-2 items-start">
                   <span class="text-[13px] text-slate-500">Head Email</span>
                   <span class="text-[13px] font-semibold text-slate-800">{{ detailData?.department?.head?.email || 'N/A' }}</span>
                 </div>
-                <div class="grid grid-cols-[140px_1fr] gap-2 items-start">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-2 items-start">
                   <span class="text-[13px] text-slate-500">Established Date</span>
                   <span class="text-[13px] font-semibold text-slate-800">{{ viewingDept.established !== 'N/A' ? viewingDept.established : 'N/A' }}</span>
                 </div>
-                <div class="grid grid-cols-[140px_1fr] gap-2 items-start">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-2 items-start">
                   <span class="text-[13px] text-slate-500">Head Phone</span>
                   <span class="text-[13px] font-semibold text-slate-800">{{ detailData?.department?.head?.phone || 'N/A' }}</span>
                 </div>
-                <div class="grid grid-cols-[140px_1fr] gap-2 items-start">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-2 items-start">
                   <span class="text-[13px] text-slate-500">Status</span>
                   <span><span :class="[viewingDept.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500', 'text-[11px] font-bold px-2.5 py-1 rounded-full capitalize']">{{ viewingDept.status }}</span></span>
                 </div>
@@ -532,16 +532,16 @@ const deleteDept = async () => {
             </div>
 
             <!-- Description, Vision, Mission -->
-            <div class="grid grid-cols-3 gap-6">
-              <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
                 <h4 class="text-[14px] font-bold text-slate-800 mb-3">Description</h4>
                 <p class="text-[13px] text-slate-500 leading-relaxed">The {{ viewingDept.name }} department focuses on developing skilled professionals through quality education and practical training.</p>
               </div>
-              <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+              <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
                 <h4 class="text-[14px] font-bold text-slate-800 mb-3">Vision</h4>
                 <p class="text-[13px] text-slate-500 leading-relaxed">To become a leading center of excellence in {{ viewingDept.name.toLowerCase() }} education and research in East Africa.</p>
               </div>
-              <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+              <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
                 <h4 class="text-[14px] font-bold text-slate-800 mb-3">Mission</h4>
                 <p class="text-[13px] text-slate-500 leading-relaxed">To produce competent and ethical professionals who can contribute to the nation's technological advancement.</p>
               </div>
@@ -550,13 +550,13 @@ const deleteDept = async () => {
 
           <!-- Department Head Tab -->
           <template v-if="detailActiveTab === 'head'">
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
-              <div class="flex items-start justify-between mb-6">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
+              <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
                 <div>
                   <h3 class="text-[16px] font-bold text-slate-800">Department Head</h3>
                   <p class="text-[13px] text-slate-500 mt-1">Assign an instructor as the department head will additional privileges to manage the department.</p>
                 </div>
-                <button @click="openAssignHeadFromList(viewingDept)" class="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all">
+                <button @click="openAssignHeadFromList(viewingDept)" class="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all w-full sm:w-auto justify-center">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                   Change Department Head
                 </button>
@@ -566,22 +566,22 @@ const deleteDept = async () => {
               <div v-if="isDetailLoading" class="flex justify-center py-8">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4338ca]"></div>
               </div>
-              <div v-else-if="detailData?.department?.head" class="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
+              <div v-else-if="detailData?.department?.head" class="border border-slate-200 rounded-xl p-4 sm:p-6 bg-slate-50/50">
                 <h4 class="text-[14px] font-bold text-slate-800 mb-4">Current Department Head</h4>
-                <div class="flex items-center gap-4">
-                  <img :src="getAvatarUrl(detailData.department.head.name)" :alt="detailData.department.head.name" class="w-16 h-16 rounded-full border-3 border-white shadow-sm" />
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2 mb-1">
+                <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+                  <img :src="getAvatarUrl(detailData.department.head.name)" :alt="detailData.department.head.name" class="w-16 h-16 rounded-full border-3 border-white shadow-sm shrink-0" />
+                  <div class="flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
                       <h5 class="text-[15px] font-bold text-slate-800">{{ detailData.department.head.name }}</h5>
                       <span class="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Current Head</span>
                     </div>
-                    <p class="text-[12px] text-slate-500">{{ detailData.department.head.email }}</p>
+                    <p class="text-[12px] text-slate-500 break-words">{{ detailData.department.head.email }}</p>
                     <p class="text-[12px] text-slate-500">{{ detailData.department.head.phone || 'No phone number' }}</p>
                     <p class="text-[12px] text-slate-400 mt-1">Joined: {{ new Date(detailData.department.head.created_at).toLocaleDateString() }}</p>
                   </div>
                 </div>
               </div>
-              <div v-else class="border border-slate-200 border-dashed rounded-xl p-10 text-center">
+              <div v-else class="border border-slate-200 border-dashed rounded-xl p-8 sm:p-10 text-center">
                 <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
                   <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                 </div>
@@ -594,7 +594,7 @@ const deleteDept = async () => {
 
           <!-- Instructors Tab -->
           <template v-if="detailActiveTab === 'instructors'">
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
               <div class="flex items-center justify-between mb-6">
                 <h3 class="text-[16px] font-bold text-slate-800">Instructors <span class="text-slate-400 font-normal">({{ viewingDept.instructors }})</span></h3>
               </div>
@@ -608,35 +608,37 @@ const deleteDept = async () => {
                 <h4 class="text-[14px] font-bold text-slate-700">No Instructors</h4>
                 <p class="text-[13px] text-slate-500 mt-1">There are no instructors assigned to this department yet.</p>
               </div>
-              <table v-else class="w-full">
-                <thead>
-                  <tr class="border-b border-slate-100">
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instructor</th>
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</th>
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Role</th>
-                    <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="inst in detailData?.instructors || []" :key="inst.id" class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                    <td class="py-3.5 px-4">
-                      <div class="flex items-center gap-3">
-                        <img :src="getAvatarUrl(inst.name)" :alt="inst.name" class="w-8 h-8 rounded-full border border-slate-100" />
-                        <span class="text-[13px] font-semibold text-slate-700">{{ inst.name }}</span>
-                      </div>
-                    </td>
-                    <td class="py-3.5 px-4 text-[12px] text-slate-500">{{ inst.email }}</td>
-                    <td class="py-3.5 px-4 text-[12px] text-slate-500 capitalize">{{ inst.role === 'dept_head' ? 'Department Head' : 'Instructor' }}</td>
-                    <td class="py-3.5 px-4 text-center"><span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600">Active</span></td>
-                  </tr>
-                </tbody>
-              </table>
+              <div v-else class="overflow-x-auto min-w-0 w-full">
+                <table class="w-full whitespace-nowrap">
+                  <thead>
+                    <tr class="border-b border-slate-100">
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instructor</th>
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</th>
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Role</th>
+                      <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="inst in detailData?.instructors || []" :key="inst.id" class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                      <td class="py-3.5 px-4">
+                        <div class="flex items-center gap-3">
+                          <img :src="getAvatarUrl(inst.name)" :alt="inst.name" class="w-8 h-8 rounded-full border border-slate-100" />
+                          <span class="text-[13px] font-semibold text-slate-700">{{ inst.name }}</span>
+                        </div>
+                      </td>
+                      <td class="py-3.5 px-4 text-[12px] text-slate-500">{{ inst.email }}</td>
+                      <td class="py-3.5 px-4 text-[12px] text-slate-500 capitalize">{{ inst.role === 'dept_head' ? 'Department Head' : 'Instructor' }}</td>
+                      <td class="py-3.5 px-4 text-center"><span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600">Active</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </template>
 
           <!-- Courses Tab -->
           <template v-if="detailActiveTab === 'courses'">
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
               <div class="flex items-center justify-between mb-6">
                 <h3 class="text-[16px] font-bold text-slate-800">Courses <span class="text-slate-400 font-normal">({{ viewingDept.courses }})</span></h3>
               </div>
@@ -650,32 +652,34 @@ const deleteDept = async () => {
                 <h4 class="text-[14px] font-bold text-slate-700">No Courses</h4>
                 <p class="text-[13px] text-slate-500 mt-1">There are no courses assigned to this department yet.</p>
               </div>
-              <table v-else class="w-full">
-                <thead>
-                  <tr class="border-b border-slate-100">
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Course Code</th>
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Course Title</th>
-                    <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Credits</th>
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instructor</th>
-                    <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Semester</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="course in detailData?.courses || []" :key="course.id" class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                    <td class="py-3.5 px-4 text-[13px] font-semibold font-mono text-slate-700">{{ course.code }}</td>
-                    <td class="py-3.5 px-4 text-[13px] text-slate-600">{{ course.title }}</td>
-                    <td class="py-3.5 px-4 text-center text-[13px] font-bold text-slate-700">{{ course.credits }}</td>
-                    <td class="py-3.5 px-4 text-[12px] text-slate-500">{{ course.instructor?.name || 'Not assigned' }}</td>
-                    <td class="py-3.5 px-4 text-center text-[13px] text-slate-600">{{ course.semester }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="overflow-x-auto min-w-0 w-full" v-else>
+                <table class="w-full whitespace-nowrap">
+                  <thead>
+                    <tr class="border-b border-slate-100">
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Course Code</th>
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Course Title</th>
+                      <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Credits</th>
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instructor</th>
+                      <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Semester</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="course in detailData?.courses || []" :key="course.id" class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                      <td class="py-3.5 px-4 text-[13px] font-semibold font-mono text-slate-700">{{ course.code }}</td>
+                      <td class="py-3.5 px-4 text-[13px] text-slate-600">{{ course.title }}</td>
+                      <td class="py-3.5 px-4 text-center text-[13px] font-bold text-slate-700">{{ course.credits }}</td>
+                      <td class="py-3.5 px-4 text-[12px] text-slate-500">{{ course.instructor?.name || 'Not assigned' }}</td>
+                      <td class="py-3.5 px-4 text-center text-[13px] text-slate-600">{{ course.semester }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </template>
 
           <!-- Students Tab -->
           <template v-if="detailActiveTab === 'students'">
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
               <div class="flex items-center justify-between mb-6">
                 <h3 class="text-[16px] font-bold text-slate-800">Students <span class="text-slate-400 font-normal">({{ viewingDept.students }})</span></h3>
               </div>
@@ -689,57 +693,59 @@ const deleteDept = async () => {
                 <h4 class="text-[14px] font-bold text-slate-700">No Students</h4>
                 <p class="text-[13px] text-slate-500 mt-1">There are no students enrolled in this department yet.</p>
               </div>
-              <table v-else class="w-full">
-                <thead>
-                  <tr class="border-b border-slate-100">
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Student</th>
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</th>
-                    <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Joined Date</th>
-                    <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="student in detailData?.students || []" :key="student.id" class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                    <td class="py-3.5 px-4">
-                      <div class="flex items-center gap-3">
-                        <img :src="getAvatarUrl(student.name)" :alt="student.name" class="w-8 h-8 rounded-full border border-slate-100" />
-                        <span class="text-[13px] font-semibold text-slate-700">{{ student.name }}</span>
-                      </div>
-                    </td>
-                    <td class="py-3.5 px-4 text-[12px] text-slate-500">{{ student.email }}</td>
-                    <td class="py-3.5 px-4 text-[12px] text-slate-600">{{ new Date(student.created_at).toLocaleDateString() }}</td>
-                    <td class="py-3.5 px-4 text-center"><span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600">Active</span></td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="overflow-x-auto min-w-0 w-full" v-else>
+                <table class="w-full whitespace-nowrap">
+                  <thead>
+                    <tr class="border-b border-slate-100">
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Student</th>
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</th>
+                      <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Joined Date</th>
+                      <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="student in detailData?.students || []" :key="student.id" class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                      <td class="py-3.5 px-4">
+                        <div class="flex items-center gap-3">
+                          <img :src="getAvatarUrl(student.name)" :alt="student.name" class="w-8 h-8 rounded-full border border-slate-100" />
+                          <span class="text-[13px] font-semibold text-slate-700">{{ student.name }}</span>
+                        </div>
+                      </td>
+                      <td class="py-3.5 px-4 text-[12px] text-slate-500">{{ student.email }}</td>
+                      <td class="py-3.5 px-4 text-[12px] text-slate-600">{{ new Date(student.created_at).toLocaleDateString() }}</td>
+                      <td class="py-3.5 px-4 text-center"><span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600">Active</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </template>
 
           <!-- Settings Tab -->
           <template v-if="detailActiveTab === 'settings'">
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
               <h3 class="text-[16px] font-bold text-slate-800 mb-6">Department Settings</h3>
-              <div class="space-y-6">
-                <div class="flex items-center justify-between p-4 border border-slate-100 rounded-lg">
+              <div class="space-y-4 sm:space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-slate-100 rounded-lg">
                   <div>
                     <p class="text-[13px] font-bold text-slate-700">Department Status</p>
                     <p class="text-[12px] text-slate-500 mt-0.5">Enable or disable this department</p>
                   </div>
-                  <span :class="[viewingDept.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500', 'text-[11px] font-bold px-3 py-1.5 rounded-full capitalize']">{{ viewingDept.status }}</span>
+                  <span :class="[viewingDept.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500', 'text-[11px] font-bold px-3 py-1.5 rounded-full capitalize self-start sm:self-auto']">{{ viewingDept.status }}</span>
                 </div>
-                <div class="flex items-center justify-between p-4 border border-slate-100 rounded-lg">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-slate-100 rounded-lg">
                   <div>
                     <p class="text-[13px] font-bold text-slate-700">Accept New Students</p>
                     <p class="text-[12px] text-slate-500 mt-0.5">Allow new student enrollments</p>
                   </div>
-                  <span class="text-[11px] font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600">Enabled</span>
+                  <span class="text-[11px] font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 self-start sm:self-auto">Enabled</span>
                 </div>
-                <div class="flex items-center justify-between p-4 border border-rose-100 rounded-lg bg-rose-50/30">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-rose-100 rounded-lg bg-rose-50/30">
                   <div>
                     <p class="text-[13px] font-bold text-rose-700">Danger Zone</p>
                     <p class="text-[12px] text-rose-500 mt-0.5">Permanently delete this department and all associated data</p>
                   </div>
-                  <button class="px-4 py-2 text-[12px] font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors">Delete Department</button>
+                  <button class="px-4 py-2 text-[12px] font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors self-start sm:self-auto">Delete Department</button>
                 </div>
               </div>
             </div>
@@ -747,7 +753,7 @@ const deleteDept = async () => {
 
           <!-- Activity Log Tab -->
           <template v-if="detailActiveTab === 'activity'">
-            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
               <h3 class="text-[16px] font-bold text-slate-800 mb-6">Activity Log</h3>
               
               <div v-if="isDetailLoading" class="flex justify-center py-12">
@@ -801,14 +807,14 @@ const deleteDept = async () => {
       </div>
 
       <!-- Header -->
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 class="text-[22px] font-bold text-slate-800">Add Department</h1>
-          <p class="text-[13px] text-slate-500 mt-1">Create a new academic department in the university.</p>
+          <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800">Add Department</h1>
+          <p class="text-[12px] sm:text-[13px] text-slate-500 mt-1">Create a new academic department in the university.</p>
         </div>
         <button
           @click="showAddForm = false; resetAddForm()"
-          class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-[13px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-[#4338ca] transition-colors shadow-xs"
+          class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-[13px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-[#4338ca] transition-colors shadow-xs w-full sm:w-auto justify-center"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Departments
@@ -816,8 +822,8 @@ const deleteDept = async () => {
       </div>
 
       <!-- Department Information Section -->
-      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
-        <div class="flex items-center gap-3 mb-8">
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 lg:p-8">
+        <div class="flex items-center gap-3 mb-6 sm:mb-8">
           <div class="w-9 h-9 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
           </div>
@@ -826,7 +832,7 @@ const deleteDept = async () => {
 
         <div class="space-y-6">
           <!-- Row 1: Name, Code, College -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             <div>
               <label class="block text-[12px] font-semibold text-slate-700 mb-2">Department Name <span class="text-rose-500">*</span></label>
               <input
@@ -936,20 +942,20 @@ const deleteDept = async () => {
       </div>
 
       <!-- Stats Cards -->
-      <div class="grid grid-cols-5 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         <div v-for="(item, i) in [
           { label:'TOTAL DEPARTMENTS', val: stats.total,       bg:'bg-indigo-50', ic:'text-[#4338ca]',  icon:'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', borderColor:'border-indigo-100' },
           { label:'ACTIVE DEPARTMENTS', val: stats.active,      bg:'bg-emerald-50',ic:'text-emerald-500', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', borderColor:'border-emerald-100' },
           { label:'TOTAL STUDENTS',     val: stats.students.toLocaleString(),    bg:'bg-green-50',  ic:'text-green-500',   icon:'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', borderColor:'border-green-100' },
           { label:'TOTAL INSTRUCTORS',  val: stats.instructors, bg:'bg-blue-50',   ic:'text-blue-500',    icon:'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', borderColor:'border-blue-100' },
           { label:'TOTAL COURSES',      val: stats.courses,     bg:'bg-purple-50', ic:'text-purple-500',  icon:'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', borderColor:'border-purple-100' },
-        ]" :key="i" :class="[item.borderColor, 'bg-white border rounded-xl shadow-sm p-5 flex items-center gap-4']">
-          <div :class="[item.bg, 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0']">
+        ]" :key="i" :class="[item.borderColor, 'bg-white border rounded-xl shadow-sm p-4 sm:p-5 flex items-center gap-3.5 sm:gap-4']">
+          <div :class="[item.bg, 'w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0']">
             <svg class="w-5 h-5" :class="item.ic" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon"></path></svg>
           </div>
           <div>
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{{ item.label }}</p>
-            <p class="text-[22px] font-bold text-slate-800 mt-0.5">{{ item.val }}</p>
+            <p class="text-[20px] sm:text-[22px] font-bold text-slate-800 mt-0.5">{{ item.val }}</p>
           </div>
         </div>
       </div>
@@ -958,22 +964,22 @@ const deleteDept = async () => {
       <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         
         <!-- Search & Filters -->
-        <div class="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-          <div class="relative flex-1 max-w-[420px]">
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 p-3.5 sm:px-6 sm:py-4 border-b border-slate-100">
+          <div class="relative flex-1 min-w-[200px] w-full sm:w-auto max-w-full sm:max-w-[420px]">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <input v-model="search" placeholder="Search departments by name or code..." class="w-full pl-9 pr-4 py-2.5 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] placeholder:text-slate-400">
           </div>
           
-          <div class="relative">
-            <select v-model="headFilter" class="pl-4 pr-8 py-2.5 text-[13px] border border-slate-200 rounded-lg text-slate-600 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] w-[180px]">
+          <div class="relative flex-1 sm:flex-initial min-w-[150px]">
+            <select v-model="headFilter" class="w-full pl-4 pr-8 py-2.5 text-[13px] border border-slate-200 rounded-lg text-slate-600 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] sm:w-[180px]">
               <option value="all">All Department Heads</option>
               <option v-for="h in allHeads" :key="h" :value="h">{{ h }}</option>
             </select>
             <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
           
-          <div class="relative">
-            <select v-model="statusFilter" class="pl-4 pr-8 py-2.5 text-[13px] border border-slate-200 rounded-lg text-slate-600 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] w-[140px]">
+          <div class="relative flex-1 sm:flex-initial min-w-[120px]">
+            <select v-model="statusFilter" class="w-full pl-4 pr-8 py-2.5 text-[13px] border border-slate-200 rounded-lg text-slate-600 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] sm:w-[140px]">
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -981,8 +987,8 @@ const deleteDept = async () => {
             <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
           
-          <div class="relative">
-            <select v-model="sortBy" class="pl-4 pr-8 py-2.5 text-[13px] border border-slate-200 rounded-lg text-slate-600 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] w-[150px]">
+          <div class="relative flex-1 sm:flex-initial min-w-[130px]">
+            <select v-model="sortBy" class="w-full pl-4 pr-8 py-2.5 text-[13px] border border-slate-200 rounded-lg text-slate-600 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] sm:w-[150px]">
               <option value="name">Sort by Name</option>
               <option value="students">Sort by Students</option>
               <option value="code">Sort by Code</option>
@@ -990,26 +996,27 @@ const deleteDept = async () => {
             <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
           
-          <button class="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-lg text-[13px] text-slate-600 hover:bg-slate-50 transition-colors">
+          <button class="flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 rounded-lg text-[13px] text-slate-600 hover:bg-slate-50 transition-colors w-full sm:w-auto">
             <svg class="w-4 h-4 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
             Filter
           </button>
         </div>
 
         <!-- Table -->
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-slate-100">
-              <th class="text-left px-6 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Department</th>
-              <th class="text-left px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Department Code</th>
-                            <th class="text-left px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Head of Department</th>
-              <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Students</th>
-              <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instructors</th>
-              <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Courses</th>
-              <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-              <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
+        <div class="overflow-x-auto min-w-0 w-full">
+          <table class="w-full whitespace-nowrap">
+            <thead>
+              <tr class="border-b border-slate-100">
+                <th class="text-left px-6 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Department</th>
+                <th class="text-left px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Department Code</th>
+                <th class="text-left px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Head of Department</th>
+                <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Students</th>
+                <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instructors</th>
+                <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Courses</th>
+                <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                <th class="text-center px-4 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
           <tbody>
             <tr v-for="dept in paginated" :key="dept.id" class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors group">
               <!-- Department Name -->
@@ -1089,10 +1096,11 @@ const deleteDept = async () => {
             </tr>
           </tbody>
         </table>
+        </div>
 
         <!-- Pagination -->
-        <div class="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-          <p class="text-[13px] text-slate-500">Showing {{ Math.min((currentPage-1)*perPage+1, filtered.length) }} to {{ Math.min(currentPage*perPage, filtered.length) }} of {{ filtered.length }} departments</p>
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-slate-100">
+          <p class="text-[13px] text-slate-500 text-center sm:text-left">Showing {{ Math.min((currentPage-1)*perPage+1, filtered.length) }} to {{ Math.min(currentPage*perPage, filtered.length) }} of {{ filtered.length }} departments</p>
           <div class="flex items-center gap-1">
             <button @click="currentPage = Math.max(1, currentPage-1)" :disabled="currentPage===1" class="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
@@ -1110,7 +1118,7 @@ const deleteDept = async () => {
     <!-- Delete Modal -->
     <Teleport to="body">
       <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-sm overflow-hidden">
           <div class="p-6 text-center">
             <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4"><svg class="w-7 h-7 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg></div>
             <h3 class="text-[16px] font-bold text-slate-800 mb-2">Delete Department?</h3>
@@ -1129,8 +1137,8 @@ const deleteDept = async () => {
     <!-- Assign Head from List Modal -->
     <Teleport to="body">
       <div v-if="showListAssignHeadModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-          <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
             <div>
               <h3 class="text-[16px] font-bold text-slate-800">Assign Department Head</h3>
               <p class="text-[12px] text-slate-500 mt-0.5">{{ assignHeadTarget?.name }} <span class="font-mono text-slate-400">({{ assignHeadTarget?.code }})</span></p>
@@ -1242,15 +1250,15 @@ const deleteDept = async () => {
     <!-- Edit Modal -->
     <Teleport to="body">
       <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-          <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
             <div><h3 class="text-[16px] font-bold text-slate-800">Edit Department</h3><p class="text-[12px] text-slate-500 mt-0.5">Update department details.</p></div>
             <button @click="showEditModal = false" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
           </div>
           <div class="px-6 py-5 space-y-4 overflow-y-auto max-h-[60vh]">
             <div><label class="block text-[12px] font-bold text-slate-700 mb-1.5">Department Name <span class="text-rose-500">*</span></label><input v-model="editData.name" type="text" placeholder="e.g. Computer Science" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca]"></div>
             
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><label class="block text-[12px] font-bold text-slate-700 mb-1.5">Dept Code <span class="text-rose-500">*</span></label><input v-model="editData.code" type="text" placeholder="e.g. CS" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] font-mono focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca]"></div>
               <div><label class="block text-[12px] font-bold text-slate-700 mb-1.5">College/School</label>
                 <select v-model="editData.college" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 bg-white appearance-none focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca]">

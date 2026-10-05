@@ -266,25 +266,25 @@ const getAvatarInitials = (name: string) => {
   <div class="max-w-[1500px] mx-auto">
 
     <!-- Page Actions -->
-    <div class="flex items-center justify-end mb-6">
-      <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center justify-end gap-3 mb-6">
+      <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
         <!-- Unread Count Badge -->
         <div v-if="unreadCount > 0" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200">
           <div class="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></div>
           <span class="text-[12px] font-bold text-rose-600">{{ unreadCount }} unread</span>
           <button @click="markAllRead" class="text-[11px] font-bold text-rose-500 hover:text-rose-700 underline underline-offset-2 ml-1">Mark all read</button>
         </div>
-        <div class="relative">
-          <select v-model="filterType" class="appearance-none border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-[13px] text-slate-700 font-bold bg-white focus:outline-none focus:border-[#5138ed] shadow-sm">
+        <div class="relative flex-1 sm:flex-initial min-w-[140px]">
+          <select v-model="filterType" class="w-full appearance-none border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-[13px] text-slate-700 font-bold bg-white focus:outline-none focus:border-[#5138ed] shadow-sm">
             <option v-for="f in filterTypes" :key="f.label" :value="f.label">⚙️ {{ f.label }}</option>
           </select>
           <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </div>
-        <div class="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 font-bold bg-white shadow-sm">
+        <div class="hidden md:flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 font-bold bg-white shadow-sm">
           <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
           <span>May 18, 2025 - May 23, 2025</span>
         </div>
-        <button class="flex items-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200">
+        <button class="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200 w-full sm:w-auto">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
           Filter
         </button>
@@ -296,8 +296,9 @@ const getAvatarInitials = (name: string) => {
 
       <!-- Top: Log Table -->
       <div class="w-full bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[fit-content]">
-        <div class="flex-1">
-          <table class="w-full text-left border-collapse">
+        <!-- Desktop / Tablet Table View -->
+        <div class="flex-1 overflow-x-auto min-w-0 w-full hidden md:block">
+          <table class="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr class="bg-slate-50/60 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 <th class="px-5 py-3.5">Time</th>
@@ -386,6 +387,56 @@ const getAvatarInitials = (name: string) => {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Mobile Card List View (Small Screens) -->
+        <div class="block md:hidden divide-y divide-slate-100">
+          <div v-if="filteredLogs.length === 0" class="p-6 text-center text-slate-400 text-[13px] font-medium">
+            No activity logs found for the selected filter.
+          </div>
+          <div v-else v-for="log in paginatedLogs" :key="'mob-' + log.id" class="p-4 transition-colors hover:bg-slate-50/80" :class="!log.is_read ? 'bg-rose-50/20' : ''">
+            <div class="flex items-start justify-between gap-3 mb-2.5">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div :class="getAvatarColor(log.role)" class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0">
+                  {{ getAvatarInitials(log.user) }}
+                </div>
+                <div class="min-w-0">
+                  <p class="text-[13px] font-bold text-slate-800 truncate">{{ log.user }}</p>
+                  <p class="text-[11px] text-slate-400 truncate">{{ log.email }}</p>
+                </div>
+              </div>
+              <span v-if="log.status === 'Success'" class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-500 capitalize shrink-0">
+                {{ log.status }}
+              </span>
+              <span v-else class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 text-rose-500 capitalize shrink-0">
+                {{ log.status }}
+              </span>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-2 mb-2 text-[11px]">
+              <span :class="getByWhoBadge(log.by_who || log.role)" class="px-2 py-0.5 rounded text-[10px] font-bold">
+                {{ log.by_who || log.role }}
+              </span>
+              <div class="flex items-center gap-1 font-bold text-slate-700">
+                <svg :class="getActionIcon(log.actionType).color" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getActionIcon(log.actionType).icon"/>
+                </svg>
+                <span>{{ log.action }}</span>
+              </div>
+              <span class="text-slate-400">·</span>
+              <span class="font-semibold text-slate-600">{{ log.module }}</span>
+            </div>
+
+            <p class="text-[12px] text-slate-500 line-clamp-2 mb-3 leading-relaxed">{{ log.description }}</p>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-50 text-[11px]">
+              <span class="text-slate-400 font-medium">{{ log.time.replace('\n', ' • ') }}</span>
+              <button @click="openViewModal(log)" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-[#5138ed] font-bold hover:bg-[#5138ed] hover:text-white transition-colors text-[11px]">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                Details
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Pagination -->
@@ -553,107 +604,109 @@ const getAvatarInitials = (name: string) => {
   </div>
 
   <!-- View Modal -->
-  <div v-if="isViewModalOpen && selectedLog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="closeViewModal"></div>
-    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-      
-      <!-- Modal Header -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5138ed]">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div>
-            <h3 class="text-[16px] font-bold text-slate-800">Log Details</h3>
-            <p class="text-[12px] font-medium text-slate-500">View complete activity information</p>
-          </div>
-        </div>
-        <button @click="closeViewModal" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="p-6 space-y-5">
+  <Teleport to="body">
+    <div v-if="isViewModalOpen && selectedLog" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+      <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="closeViewModal"></div>
+      <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-[95vw] sm:max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
-        <!-- User Info -->
-        <div class="flex items-start justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-          <div class="flex items-center gap-4">
-            <div :class="getAvatarColor(selectedLog.by_who || selectedLog.role)" class="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0 shadow-sm border-2 border-white">
-              {{ getAvatarInitials(selectedLog.user) }}
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5138ed] shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
             <div>
-              <p class="text-[15px] font-bold text-slate-800">{{ selectedLog.user }}</p>
-              <p class="text-[13px] text-slate-500">{{ selectedLog.email }}</p>
+              <h3 class="text-[15px] sm:text-[16px] font-bold text-slate-800">Log Details</h3>
+              <p class="text-[11px] sm:text-[12px] font-medium text-slate-500">View complete activity information</p>
             </div>
           </div>
-          <span :class="getByWhoBadge(selectedLog.by_who || selectedLog.role)" class="px-3 py-1 rounded-md text-[11px] font-bold shadow-sm">
-            {{ selectedLog.by_who || selectedLog.role }}
-          </span>
+          <button @click="closeViewModal" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <!-- Time -->
-          <div class="p-4 border border-slate-100 rounded-xl space-y-1">
-            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date & Time</p>
-            <p class="text-[13px] font-bold text-slate-800">{{ selectedLog.time.replace('\n', ' ') }}</p>
+        <!-- Modal Body -->
+        <div class="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
+          
+          <!-- User Info -->
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+              <div :class="getAvatarColor(selectedLog.by_who || selectedLog.role)" class="w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-[15px] sm:text-[16px] font-bold shrink-0 shadow-sm border-2 border-white">
+                {{ getAvatarInitials(selectedLog.user) }}
+              </div>
+              <div class="min-w-0">
+                <p class="text-[14px] sm:text-[15px] font-bold text-slate-800 truncate">{{ selectedLog.user }}</p>
+                <p class="text-[12px] sm:text-[13px] text-slate-500 truncate">{{ selectedLog.email }}</p>
+              </div>
+            </div>
+            <span :class="getByWhoBadge(selectedLog.by_who || selectedLog.role)" class="px-3 py-1 rounded-md text-[11px] font-bold shadow-sm self-start sm:self-auto shrink-0">
+              {{ selectedLog.by_who || selectedLog.role }}
+            </span>
           </div>
 
-          <!-- IP Address -->
-          <div class="p-4 border border-slate-100 rounded-xl space-y-1">
-            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">IP Address</p>
-            <p class="text-[13px] font-bold text-slate-800">{{ selectedLog.ipAddress }}</p>
-          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <!-- Time -->
+            <div class="p-3.5 sm:p-4 border border-slate-100 rounded-xl space-y-1">
+              <p class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date & Time</p>
+              <p class="text-[12px] sm:text-[13px] font-bold text-slate-800">{{ selectedLog.time.replace('\n', ' ') }}</p>
+            </div>
 
-          <!-- Action -->
-          <div class="p-4 border border-slate-100 rounded-xl space-y-1">
-            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Action Type</p>
-            <div class="flex items-center gap-2">
-              <svg :class="getActionIcon(selectedLog.actionType).color" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getActionIcon(selectedLog.actionType).icon"/>
-              </svg>
-              <p class="text-[13px] font-bold text-slate-800">{{ selectedLog.action }}</p>
+            <!-- IP Address -->
+            <div class="p-3.5 sm:p-4 border border-slate-100 rounded-xl space-y-1">
+              <p class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">IP Address</p>
+              <p class="text-[12px] sm:text-[13px] font-bold text-slate-800">{{ selectedLog.ipAddress }}</p>
+            </div>
+
+            <!-- Action -->
+            <div class="p-3.5 sm:p-4 border border-slate-100 rounded-xl space-y-1">
+              <p class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Action Type</p>
+              <div class="flex items-center gap-2">
+                <svg :class="getActionIcon(selectedLog.actionType).color" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getActionIcon(selectedLog.actionType).icon"/>
+                </svg>
+                <p class="text-[12px] sm:text-[13px] font-bold text-slate-800">{{ selectedLog.action }}</p>
+              </div>
+            </div>
+
+            <!-- Module -->
+            <div class="p-3.5 sm:p-4 border border-slate-100 rounded-xl space-y-1">
+              <p class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Module</p>
+              <p class="text-[12px] sm:text-[13px] font-bold text-slate-800">{{ selectedLog.module }}</p>
             </div>
           </div>
 
-          <!-- Module -->
-          <div class="p-4 border border-slate-100 rounded-xl space-y-1">
-            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Module</p>
-            <p class="text-[13px] font-bold text-slate-800">{{ selectedLog.module }}</p>
+          <!-- Description -->
+          <div class="p-3.5 sm:p-4 border border-slate-100 rounded-xl space-y-1.5 sm:space-y-2">
+            <p class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Description</p>
+            <p class="text-[13px] sm:text-[14px] font-medium text-slate-700 leading-relaxed">{{ selectedLog.description }}</p>
           </div>
+
+          <!-- Status -->
+          <div class="flex items-center justify-between p-3.5 sm:p-4 border border-slate-100 rounded-xl">
+            <p class="text-[12px] font-bold text-slate-500">Operation Status</p>
+            <span v-if="selectedLog.status === 'Success'" class="px-3 py-1.5 text-[11px] font-bold rounded-md bg-emerald-50 text-emerald-500 capitalize flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              {{ selectedLog.status }}
+            </span>
+            <span v-else class="px-3 py-1.5 text-[11px] font-bold rounded-md bg-rose-50 text-rose-500 capitalize flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              {{ selectedLog.status }}
+            </span>
+          </div>
+
         </div>
 
-        <!-- Description -->
-        <div class="p-4 border border-slate-100 rounded-xl space-y-2">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Description</p>
-          <p class="text-[14px] font-medium text-slate-700 leading-relaxed">{{ selectedLog.description }}</p>
-        </div>
-
-        <!-- Status -->
-        <div class="flex items-center justify-between p-4 border border-slate-100 rounded-xl">
-          <p class="text-[12px] font-bold text-slate-500">Operation Status</p>
-          <span v-if="selectedLog.status === 'Success'" class="px-3 py-1.5 text-[11px] font-bold rounded-md bg-emerald-50 text-emerald-500 capitalize flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            {{ selectedLog.status }}
-          </span>
-          <span v-else class="px-3 py-1.5 text-[11px] font-bold rounded-md bg-rose-50 text-rose-500 capitalize flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            {{ selectedLog.status }}
-          </span>
+        <!-- Modal Footer -->
+        <div class="flex items-center justify-end px-4 sm:px-6 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
+          <button @click="closeViewModal" class="w-full sm:w-auto px-6 py-2.5 rounded-xl text-[13px] font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm">
+            Close
+          </button>
         </div>
 
       </div>
-
-      <!-- Modal Footer -->
-      <div class="flex items-center justify-end px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-        <button @click="closeViewModal" class="px-6 py-2.5 rounded-xl text-[13px] font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm">
-          Close
-        </button>
-      </div>
-
     </div>
-  </div>
+  </Teleport>
 
 </template>

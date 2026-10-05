@@ -87,14 +87,14 @@ const pageInfo = computed(() => {
 </script>
 
 <template>
-  <header class="h-24 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-8 sticky top-0 z-30">
+  <header class="h-16 sm:h-20 lg:h-24 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 sm:px-6 lg:px-8 sticky top-0 z-30 min-w-0">
     
     <!-- Left Side: Title & Menu Toggle -->
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2.5 sm:gap-4 min-w-0">
       <!-- Hamburger button — always visible, toggles sidebar -->
       <button
         @click="toggleSidebar"
-        class="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors border border-slate-100"
+        class="p-2 sm:p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors border border-slate-100 shrink-0"
         :title="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,32 +102,32 @@ const pageInfo = computed(() => {
         </svg>
       </button>
       
-      <div class="flex flex-col">
-        <h1 class="text-xl font-bold text-slate-800">{{ pageInfo.title }}</h1>
-        <div class="mt-0.5 text-[12px] font-medium text-slate-500">
+      <div class="flex flex-col min-w-0">
+        <h1 class="text-base sm:text-lg lg:text-xl font-bold text-slate-800 truncate">{{ pageInfo.title }}</h1>
+        <div class="hidden sm:block text-[11px] lg:text-[12px] font-medium text-slate-500 truncate max-w-xs md:max-w-md">
           {{ pageInfo.desc }}
         </div>
       </div>
     </div>
 
-    <!-- Center: Semester/Year Badge -->
-    <div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center">
+    <!-- Center: Semester/Year Badge (Visible on wider desktop to avoid center collision) -->
+    <div class="absolute left-1/2 -translate-x-1/2 hidden xl:flex items-center pointer-events-none">
       <span class="text-[13px] font-bold text-[#5138ed] bg-indigo-50 px-5 py-1.5 rounded-full border border-indigo-100 shadow-sm whitespace-nowrap">
         {{ settingsStore.formattedAcademicTerm }}
       </span>
     </div>
 
     <!-- Right Side: User Profile & Dropdown (Notification icon removed as requested) -->
-    <div class="flex items-center">
+    <div class="flex items-center shrink-0">
       <div class="relative" ref="profileDropdownRef">
         <!-- Trigger Button -->
         <button
           type="button"
           @click="toggleProfileDropdown"
-          class="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-slate-100/80 transition-all border border-transparent hover:border-slate-200 cursor-pointer group focus:outline-none"
+          class="flex items-center gap-2 sm:gap-3 p-1.5 sm:px-3 sm:py-2 rounded-2xl hover:bg-slate-100/80 transition-all border border-transparent hover:border-slate-200 cursor-pointer group focus:outline-none"
           :class="{ 'bg-slate-100/90 border-slate-200 shadow-sm': isProfileDropdownOpen }"
         >
-          <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border-2 border-transparent group-hover:border-rose-500 transition-all flex items-center justify-center shadow-sm">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-200 overflow-hidden border-2 border-transparent group-hover:border-rose-500 transition-all flex items-center justify-center shadow-sm shrink-0">
             <img :src="profilePhotoUrl" alt="Profile" class="w-full h-full object-cover" />
           </div>
           <div class="hidden md:flex flex-col text-left">
@@ -137,7 +137,7 @@ const pageInfo = computed(() => {
             <span class="text-[11px] font-semibold text-rose-500 leading-tight mt-0.5">Administrator</span>
           </div>
           <svg
-            class="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ml-1"
+            class="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ml-0.5 sm:ml-1"
             :class="{ 'rotate-180 text-rose-500': isProfileDropdownOpen }"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
@@ -156,7 +156,7 @@ const pageInfo = computed(() => {
         >
           <div
             v-if="isProfileDropdownOpen"
-            class="absolute right-0 top-full mt-2 w-72 bg-white/95 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-[0_15px_50px_-10px_rgba(0,0,0,0.15)] py-2 z-50 select-none overflow-hidden"
+            class="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-xs sm:w-72 bg-white/95 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-[0_15px_50px_-10px_rgba(0,0,0,0.15)] py-2 z-50 select-none overflow-hidden"
           >
             <!-- User Info Header -->
             <div class="px-4 py-3 bg-gradient-to-br from-rose-50/60 via-slate-50/50 to-white border-b border-slate-100 flex items-center gap-3">

@@ -1,39 +1,55 @@
 <script setup lang="ts">
 import AdminSidebar from './components/AdminSidebar.vue'
 import AdminHeader from './components/AdminHeader.vue'
-import { ref, provide } from 'vue'
+import { ref, provide, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
-const sidebarOpen = ref(true)
+const route = useRoute()
+
+// On mobile (< 1024px), sidebar defaults to closed (false).
+// On desktop (>= 1024px), sidebar defaults to open (true).
+const isLargeScreen = () => typeof window !== 'undefined' && window.innerWidth >= 1024
+const sidebarOpen = ref(isLargeScreen())
+
 const toggleSidebar = () => { sidebarOpen.value = !sidebarOpen.value }
+const closeSidebar = () => { sidebarOpen.value = false }
+
+// Auto-close mobile drawer when route changes
+watch(() => route.path, () => {
+  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+    sidebarOpen.value = false
+  }
+})
 
 provide('sidebarOpen', sidebarOpen)
 provide('toggleSidebar', toggleSidebar)
+provide('closeSidebar', closeSidebar)
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f8fafc] font-sans flex overflow-hidden">
+  <div class="min-h-screen bg-[#f8fafc] font-sans flex overflow-x-hidden relative">
     
-    <!-- Sidebar: always rendered, handles its own expanded/collapsed state internally -->
+    <!-- Sidebar: handles mobile slide-in and desktop collapse -->
     <AdminSidebar />
 
-    <!-- Overlay for mobile when sidebar is open -->
+    <!-- Overlay backdrop for mobile/tablet when sidebar is open (< 1024px) -->
     <div
       v-if="sidebarOpen"
-      class="fixed inset-0 bg-black/20 z-20 lg:hidden"
-      @click="toggleSidebar"
+      class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+      @click="sidebarOpen = false"
     />
 
-    <!-- Main Content Area: adjusts left padding when sidebar is open/closed -->
+    <!-- Main Content Area: adjusts left padding ONLY on desktop (lg:) -->
     <div
-      class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto scrollbar-hide transition-all duration-300"
-      :class="sidebarOpen ? 'pl-56' : 'pl-20'"
+      class="flex-1 flex flex-col min-w-0 w-full min-h-screen overflow-y-auto overflow-x-hidden scrollbar-hide transition-all duration-300 pl-0"
+      :class="sidebarOpen ? 'lg:pl-56' : 'lg:pl-20'"
     >
       
       <!-- Header -->
       <AdminHeader />
 
       <!-- Page Content -->
-      <main class="flex-1 p-8">
+      <main class="flex-1 p-3.5 sm:p-5 md:p-6 lg:p-8 min-w-0 max-w-full overflow-x-hidden">
         <router-view :key="$route.fullPath" />
       </main>
 

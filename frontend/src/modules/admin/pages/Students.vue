@@ -743,15 +743,15 @@ const handleExport = async (format: string) => {
     <template v-if="!showAddModal && !viewingStudent">
       
       <!-- Top Title & Action Bar -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
-        <div class="flex items-center gap-3">
-          <button @click="triggerImport" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <button @click="triggerImport" class="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 rounded-xl text-[12px] sm:text-[13px] font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
             <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
             Import Students
           </button>
           
           <div class="relative">
-            <button @click="showExportDropdown = !showExportDropdown" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
+            <button @click="showExportDropdown = !showExportDropdown" class="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 rounded-xl text-[12px] sm:text-[13px] font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
               <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
               Export Students
             </button>
@@ -761,7 +761,7 @@ const handleExport = async (format: string) => {
             </div>
           </div>
 
-          <button @click="showAddModal = true; resetAddForm()" class="flex items-center gap-2 px-5 py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white rounded-xl text-[13px] font-bold transition-colors shadow-sm shadow-indigo-200">
+          <button @click="showAddModal = true; resetAddForm()" class="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white rounded-xl text-[12px] sm:text-[13px] font-bold transition-colors shadow-sm shadow-indigo-200">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Add New Student
           </button>
@@ -769,8 +769,8 @@ const handleExport = async (format: string) => {
       </div>
 
       <!-- Stats Cards Row -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
+        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
           <div class="w-12 h-12 bg-indigo-50 text-[#4338ca] rounded-xl flex items-center justify-center shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
           </div>
@@ -830,31 +830,31 @@ const handleExport = async (format: string) => {
       <!-- Table Section (Full Width) -->
       <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0 mb-6">
         <!-- Filters Row -->
-        <div class="flex items-center gap-2 p-4 border-b border-slate-100 flex-wrap lg:flex-nowrap">
-          <div class="relative flex-1 min-w-[200px]">
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 p-3.5 sm:p-4 border-b border-slate-100">
+          <div class="relative flex-1 min-w-[200px] w-full sm:w-auto">
             <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <input v-model="search" type="text" placeholder="Search Students by name, email, ID..." class="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
           </div>
           
-          <select v-model="deptFilter" class="pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
+          <select v-model="deptFilter" class="flex-1 sm:flex-initial min-w-[130px] pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
             <option value="all">All Departments</option>
             <option v-for="d in allDepartments" :key="d.id" :value="d.name">{{ d.name }}</option>
           </select>
 
-          <select v-model="statusFilter" class="pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
+          <select v-model="statusFilter" class="flex-1 sm:flex-initial min-w-[110px] pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
             <option value="all">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
 
-          <input type="text" disabled :value="settingsStore.semester" class="px-4 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-500 bg-slate-50 font-bold cursor-not-allowed" />
+          <input type="text" disabled :value="settingsStore.semester" class="flex-1 sm:flex-initial min-w-[120px] px-4 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-500 bg-slate-50 font-bold cursor-not-allowed" />
 
-          <select v-model="yearFilter" class="pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
+          <select v-model="yearFilter" class="flex-1 sm:flex-initial min-w-[150px] pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
             <option value="all">All Academic Year Levels</option>
             <option v-for="lvl in academicYearLevels" :key="lvl" :value="lvl">{{ lvl }}</option>
           </select>
 
-          <select v-model="sectionFilter" class="pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
+          <select v-model="sectionFilter" class="flex-1 sm:flex-initial min-w-[120px] pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-[12px] text-slate-600 focus:outline-none focus:border-[#4338ca] bg-white">
             <option value="all">All Sections</option>
             <option v-for="s in sections" :key="s" :value="s">{{ s }}</option>
           </select>
@@ -865,15 +865,15 @@ const handleExport = async (format: string) => {
           <table class="w-full text-left">
             <thead>
               <tr class="border-b border-slate-100 bg-slate-50/50">
-                <th class="py-4 px-5 text-[10px] font-black text-slate-400 uppercase tracking-wider">Student</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Student ID</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Email</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Department</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Section</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Phone</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Status</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Academic Year Level</th>
-                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                <th class="py-4 px-5 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Student</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Student ID</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Email</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Department</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Section</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Phone</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap text-center">Status</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Academic Year Level</th>
+                <th class="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -958,7 +958,7 @@ const handleExport = async (format: string) => {
       </div>
 
       <!-- Bottom Widgets Grid (4 Columns) -->
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
 
         <!-- Student Overview (Chart.js Donut) -->
         <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
@@ -1043,18 +1043,18 @@ const handleExport = async (format: string) => {
       <div class="space-y-6">
         
         <!-- Header with Back Button on the Right -->
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div class="flex items-center gap-2 text-[12px] text-slate-400 mb-1">
               <span class="hover:text-[#4338ca] cursor-pointer transition-colors" @click="showAddModal = false">Students</span>
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
               <span class="font-semibold text-slate-600">Add New Student</span>
             </div>
-            <h1 class="text-[22px] font-bold text-slate-800">Add New Student</h1>
-            <p class="text-[13px] text-slate-500 mt-0.5">Create a new student account and set their information.</p>
+            <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800">Add New Student</h1>
+            <p class="text-[12px] sm:text-[13px] text-slate-500 mt-0.5">Create a new student account and set their information.</p>
           </div>
           
-          <button @click="showAddModal = false" class="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-[13px] hover:bg-slate-50 transition-colors shadow-sm bg-white">
+          <button @click="showAddModal = false" class="flex items-center self-start sm:self-auto gap-2 px-4 py-2 sm:py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-slate-50 transition-colors shadow-sm bg-white">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             Back to Students
           </button>
@@ -1063,9 +1063,9 @@ const handleExport = async (format: string) => {
         <div class="space-y-6 max-w-5xl">
           
           <!-- ── Personal Information ── -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm space-y-6">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm space-y-6">
             <h3 class="text-[15px] font-bold text-slate-800">Personal Information</h3>
-            <div class="grid grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
               <!-- Full Name -->
               <div>
@@ -1173,9 +1173,9 @@ const handleExport = async (format: string) => {
           </div>
 
           <!-- ── Academic Information ── -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm space-y-6">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm space-y-6">
             <h3 class="text-[15px] font-bold text-slate-800">Academic Information</h3>
-            <div class="grid grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
               <!-- Student ID -->
               <div>
@@ -1296,9 +1296,9 @@ const handleExport = async (format: string) => {
           </div>
 
           <!-- ── Account Information ── -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm space-y-6">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm space-y-6">
             <h3 class="text-[15px] font-bold text-slate-800">Account Information</h3>
-            <div class="grid grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
               <!-- Username -->
               <div>
@@ -1411,24 +1411,24 @@ const handleExport = async (format: string) => {
     <!-- ==================== VIEW STUDENT DETAIL ==================== -->
     <template v-if="viewingStudent">
       <div class="space-y-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-3">
             <button @click="viewingStudent = null" class="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </button>
             <div>
-              <h1 class="text-[20px] font-bold text-slate-800">{{ viewingStudent.name }}</h1>
+              <h1 class="text-[18px] sm:text-[20px] font-bold text-slate-800">{{ viewingStudent.name }}</h1>
               <p class="text-[12px] text-slate-500">{{ viewingStudent.email }} · {{ viewingStudent.id_no }}</p>
             </div>
           </div>
-          <button @click="openEditStudent(viewingStudent); viewingStudent = null" class="px-4 py-2 bg-[#4338ca] text-white text-[13px] font-bold rounded-xl hover:bg-indigo-700 transition-colors">
+          <button @click="openEditStudent(viewingStudent); viewingStudent = null" class="self-start sm:self-auto px-4 py-2 bg-[#4338ca] text-white text-[13px] font-bold rounded-xl hover:bg-indigo-700 transition-colors">
             Edit Student
           </button>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
           <h3 class="text-[15px] font-bold text-slate-800">Student Overview</h3>
-          <div class="grid grid-cols-3 gap-6 text-[13px]">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 text-[13px]">
             <div><span class="text-slate-400 block text-[11px] font-bold uppercase">Full Name</span><span class="font-semibold text-slate-800">{{ viewingStudent.name }}</span></div>
             <div><span class="text-slate-400 block text-[11px] font-bold uppercase">Student ID</span><span class="font-semibold text-slate-800">{{ viewingStudent.id_no }}</span></div>
             <div><span class="text-slate-400 block text-[11px] font-bold uppercase">Email</span><span class="font-semibold text-slate-800">{{ viewingStudent.email }}</span></div>
@@ -1450,14 +1450,14 @@ const handleExport = async (format: string) => {
     <!-- Success Modal -->
     <Teleport to="body">
       <div v-if="showSuccessModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col items-center transform transition-all animate-in fade-in zoom-in-95 duration-200">
-          <div class="w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-6">
-            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-[95vw] sm:max-w-sm w-full text-center shadow-2xl flex flex-col items-center transform transition-all animate-in fade-in zoom-in-95 duration-200">
+          <div class="w-16 sm:w-20 h-16 sm:h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-6">
+            <svg class="w-8 sm:w-10 h-8 sm:h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
             </svg>
           </div>
-          <h2 class="text-[22px] font-black text-slate-800 mb-2">Student Created!</h2>
-          <p class="text-[14px] text-slate-500 font-medium leading-relaxed">
+          <h2 class="text-[20px] sm:text-[22px] font-black text-slate-800 mb-2">Student Created!</h2>
+          <p class="text-[13px] sm:text-[14px] text-slate-500 font-medium leading-relaxed">
             The new student has been successfully added to the system database.
           </p>
         </div>
@@ -1467,7 +1467,7 @@ const handleExport = async (format: string) => {
     <!-- Edit Student Modal -->
     <Teleport to="body">
       <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
           <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <h3 class="text-[16px] font-bold text-slate-800">Edit Student</h3>
             <button @click="showEditModal = false" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
@@ -1475,8 +1475,8 @@ const handleExport = async (format: string) => {
             </button>
           </div>
 
-          <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-            <div class="grid grid-cols-2 gap-4">
+          <div class="p-4 sm:p-6 space-y-4 overflow-y-auto">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Full Name</label>
                 <input v-model="editStudentForm.fullName" type="text" class="w-full border border-slate-200 rounded-xl px-4 py-2 text-[13px] focus:outline-none focus:border-[#4338ca]">
@@ -1551,7 +1551,7 @@ const handleExport = async (format: string) => {
     <!-- Delete Modal -->
     <Teleport to="body">
       <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-sm overflow-hidden">
           <div class="p-6 text-center">
             <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4"><svg class="w-7 h-7 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg></div>
             <h3 class="text-[16px] font-bold text-slate-800 mb-2">Remove Student?</h3>
@@ -1568,7 +1568,7 @@ const handleExport = async (format: string) => {
     <!-- Get Student Modal -->
     <Teleport to="body">
       <div v-if="showGetStudentModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-sm overflow-hidden">
           <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <div><h3 class="text-[16px] font-bold text-slate-800">Find Student</h3><p class="text-[12px] text-slate-500 mt-0.5">Find a specific student.</p></div>
             <button @click="showGetStudentModal = false" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
@@ -1597,7 +1597,7 @@ const handleExport = async (format: string) => {
     <!-- ════════════════ IMPORT MODAL ════════════════ -->
     <Teleport to="body">
       <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-8 border border-slate-100">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-lg overflow-hidden flex flex-col my-8 border border-slate-100 max-h-[90vh]">
           <!-- Modal Header -->
           <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -1609,7 +1609,7 @@ const handleExport = async (format: string) => {
             </button>
           </div>
 
-          <div class="p-6 space-y-5">
+          <div class="p-6 space-y-5 overflow-y-auto">
             <!-- Format Requirements Banner -->
             <div class="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
               <div class="flex items-center justify-between">
@@ -1625,7 +1625,7 @@ const handleExport = async (format: string) => {
               <p class="text-[12px] text-slate-600 leading-relaxed">
                 The file (CSV or PDF) must fulfill the Add Student form format.
               </p>
-              <div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
                 <div class="bg-white p-2 rounded-lg border border-indigo-100">
                   <span class="font-bold text-slate-700 block mb-0.5">Required Fields:</span>
                   <span class="text-rose-600 font-medium">Full Name, Email Address, Department</span>

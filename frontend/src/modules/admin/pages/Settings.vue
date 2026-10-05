@@ -288,20 +288,20 @@ const saveSettings = async () => {
   <div class="space-y-6">
 
     <!-- Top Admin Profile & Photo Card -->
-    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-6">
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
+      <div class="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 sm:gap-6">
 
-        <div class="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
           <!-- Profile Avatar with Camera Overlay -->
-          <div class="relative group">
-            <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-slate-50 shadow-md bg-slate-100 flex items-center justify-center ring-2 ring-slate-100">
+          <div class="relative group shrink-0">
+            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-slate-50 shadow-md bg-slate-100 flex items-center justify-center ring-2 ring-slate-100">
               <img
                 v-if="profilePhotoUrl"
                 :src="profilePhotoUrl"
                 alt="Admin Profile"
                 class="w-full h-full object-cover"
               />
-              <span v-else class="text-2xl font-black text-slate-500">
+              <span v-else class="text-xl sm:text-2xl font-black text-slate-500">
                 {{ initials }}
               </span>
             </div>
@@ -310,10 +310,10 @@ const saveSettings = async () => {
             <button
               type="button"
               @click="triggerFileInput"
-              class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#5138ed] hover:bg-indigo-700 text-white shadow-md flex items-center justify-center transition-all hover:scale-110"
+              class="absolute bottom-0 right-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#5138ed] hover:bg-indigo-700 text-white shadow-md flex items-center justify-center transition-all hover:scale-110"
               title="Change Profile Photo"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
               </svg>
@@ -321,23 +321,23 @@ const saveSettings = async () => {
           </div>
 
           <!-- User Info & Guidelines -->
-          <div>
-            <div class="flex items-center justify-center sm:justify-start gap-2.5">
-              <h2 class="text-lg font-bold text-slate-800">{{ authStore.user?.name || 'Super Admin' }}</h2>
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h2 class="text-base sm:text-lg font-bold text-slate-800">{{ authStore.user?.name || 'Super Admin' }}</h2>
               <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-600 border border-rose-100">
                 Administrator
               </span>
             </div>
-            <p class="text-[13px] text-slate-500 font-medium mt-0.5">{{ authStore.user?.email || 'admin@wollo.edu.et' }}</p>
+            <p class="text-[12px] sm:text-[13px] text-slate-500 font-medium mt-0.5 break-all">{{ authStore.user?.email || 'admin@wollo.edu.et' }}</p>
             <div class="flex items-center justify-center sm:justify-start gap-1.5 mt-2 text-[11px] text-slate-400">
-              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              <span>Allowed formats: JPG, PNG, GIF, WEBP. Maximum file size: 2MB.</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>Allowed formats: JPG, PNG, GIF, WEBP. Max: 2MB.</span>
             </div>
           </div>
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center justify-center sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
           <input
             type="file"
             ref="fileInputRef"
@@ -350,7 +350,7 @@ const saveSettings = async () => {
             type="button"
             @click="triggerFileInput"
             :disabled="isUploadingPhoto"
-            class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[13px] font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+            class="flex-1 sm:flex-none justify-center px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[13px] font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
           >
             <svg v-if="isUploadingPhoto" class="animate-spin w-4 h-4 text-[#5138ed]" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
             <svg v-else class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
@@ -381,7 +381,7 @@ const saveSettings = async () => {
 
     <!-- Page Actions -->
     <div class="flex items-center justify-end">
-      <button @click="saveSettings" :disabled="settingsStore.isLoading" class="flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold rounded-xl transition-all shadow-sm disabled:opacity-50"
+      <button @click="saveSettings" :disabled="settingsStore.isLoading" class="w-full sm:w-auto justify-center flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold rounded-xl transition-all shadow-sm disabled:opacity-50"
         :class="saved ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-[#5138ed] hover:bg-indigo-700 text-white shadow-indigo-200'">
         <svg v-if="settingsStore.isLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
         <svg v-else-if="saved" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
@@ -391,10 +391,10 @@ const saveSettings = async () => {
     </div>
 
     <!-- 2 Columns Grid: General Settings & Change Password -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
 
       <!-- General Settings -->
-      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
         <div class="flex items-center gap-3 mb-6">
           <div class="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center">
             <svg class="w-4.5 h-4.5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
@@ -404,7 +404,7 @@ const saveSettings = async () => {
         <div class="space-y-4">
           <div><label class="block text-[12px] font-bold text-slate-600 mb-1.5">University Name</label><input v-model="general.universityName" readonly class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 text-slate-500 cursor-not-allowed focus:outline-none"></div>
           <div><label class="block text-[12px] font-bold text-slate-600 mb-1.5">System Title</label><input v-model="general.systemTitle" readonly class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 text-slate-500 cursor-not-allowed focus:outline-none"></div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><label class="block text-[12px] font-bold text-slate-600 mb-1.5">Timezone</label>
               <input v-model="general.timezone" readonly class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 text-slate-500 cursor-not-allowed focus:outline-none">
             </div>
@@ -414,7 +414,7 @@ const saveSettings = async () => {
               <input v-model="general.language" readonly class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] bg-slate-50 text-slate-500 cursor-not-allowed focus:outline-none font-medium">
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><label class="block text-[12px] font-bold text-slate-600 mb-1.5">Academic Year</label><input v-model="general.academicYear" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"></div>
             <div><label class="block text-[12px] font-bold text-slate-600 mb-1.5">Semester</label>
               <select v-model="general.semester" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#5138ed] bg-white">
@@ -426,7 +426,7 @@ const saveSettings = async () => {
       </div>
 
       <!-- Security / Change Password Settings -->
-      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+      <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6">
         <div class="flex items-center gap-3 mb-6">
           <div class="w-9 h-9 bg-rose-50 rounded-xl flex items-center justify-center">
             <svg class="w-4.5 h-4.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>

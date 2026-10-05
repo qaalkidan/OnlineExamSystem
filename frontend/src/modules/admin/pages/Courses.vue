@@ -837,14 +837,14 @@ const handleExport = async (format: string) => {
     <!-- List View -->
     <div v-if="!showAddPage && !showDetailsPage" class="space-y-6 min-w-0 w-full">
       <!-- Page Actions -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <button @click="triggerImport" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-[#4338ca] font-bold rounded-xl text-[13px] hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <button @click="triggerImport" class="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-[#4338ca] font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> Import Courses
           </button>
           
           <div class="relative">
-            <button @click="showExportDropdown = !showExportDropdown" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-[#4338ca] font-bold rounded-xl text-[13px] hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap">
+            <button @click="showExportDropdown = !showExportDropdown" class="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-[#4338ca] font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Export Courses
             </button>
             <div v-if="showExportDropdown" class="absolute right-0 mt-2 w-36 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-50">
@@ -852,25 +852,25 @@ const handleExport = async (format: string) => {
               <button @click="handleExport('pdf')" class="w-full text-left px-4 py-2 text-[13px] text-slate-600 hover:bg-slate-50 hover:text-[#4338ca] transition-colors">Export as PDF</button>
             </div>
           </div>
-          <button @click="openAddPage" class="flex items-center gap-2 px-4 py-2.5 bg-[#4338ca] text-white font-bold rounded-xl text-[13px] hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200 whitespace-nowrap">
+          <button @click="openAddPage" class="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-[#4338ca] text-white font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200 whitespace-nowrap">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add New Course
           </button>
         </div>
       </div>
 
     <!-- 5 Stat Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
       <div v-for="(item, i) in [
         { label:'Total Courses', val: stats.total,      icon:'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', bg:'bg-indigo-50', ic:'text-[#4338ca]', trend:'↑ 5.2%', tc:'text-emerald-500', sub:'All courses' },
         { label:'Active Courses',val: stats.active,     icon:'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', bg:'bg-emerald-50',ic:'text-emerald-500', trend:'↑ 6.7%', tc:'text-emerald-500', sub:'Active courses'},
         { label:'Inactive Courses',val: stats.inactive, icon:'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', bg:'bg-rose-50', ic:'text-rose-500', trend:'↓ 7.7%', tc:'text-rose-500', sub:'Inactive courses'},
         { label:'New Courses',   val: stats.newCourses, icon:'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z', bg:'bg-sky-50', ic:'text-sky-500', trend:'↑ 14.3%', tc:'text-emerald-500', sub:'This month'},
         { label:'Published Courses',val: stats.published, icon:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', bg:'bg-amber-50', ic:'text-amber-500', trend:'↑ 4.3%', tc:'text-emerald-500', sub:'Published courses'},
-      ]" :key="i" class="bg-white border border-slate-100 rounded-2xl shadow-sm p-5 flex flex-col justify-between">
+      ]" :key="i" class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col justify-between">
         <div class="flex items-start justify-between">
           <div>
             <p class="text-[11px] font-semibold text-slate-500 tracking-wide">{{ item.label }}</p>
-            <p class="text-[24px] font-bold text-slate-800 mt-1">{{ item.val }}</p>
+            <p class="text-[22px] sm:text-[24px] font-bold text-slate-800 mt-1">{{ item.val }}</p>
           </div>
           <div :class="[item.bg, 'w-10 h-10 rounded-xl flex items-center justify-center shrink-0']">
             <svg class="w-5 h-5" :class="item.ic" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon"></path></svg>
@@ -889,21 +889,21 @@ const handleExport = async (format: string) => {
       <!-- Top: Table Area -->
       <div class="bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col min-w-0 overflow-hidden w-full">
         <!-- Table Toolbar -->
-        <div class="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div class="relative flex-1 max-w-[200px]">
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 bg-slate-50/50">
+          <div class="relative flex-1 min-w-[200px] w-full sm:w-auto">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <input v-model="search" placeholder="Search Courses..." class="w-full pl-9 pr-4 py-2 text-[12px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#4338ca] bg-white">
           </div>
-          <select v-model="deptFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="deptFilter" class="flex-1 sm:flex-initial min-w-[130px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Departments</option>
             <option v-for="d in allDepartments" :key="d.id" :value="d.name">{{ d.name }}</option>
           </select>
-          <select v-model="statusFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="statusFilter" class="flex-1 sm:flex-initial min-w-[110px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-          <select v-model="levelFilter" class="text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
+          <select v-model="levelFilter" class="flex-1 sm:flex-initial min-w-[120px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#4338ca] text-slate-600 bg-white">
             <option value="all">All Levels</option>
             <option value="1st Year">1st Year</option>
             <option value="2nd Year">2nd Year</option>
@@ -911,7 +911,7 @@ const handleExport = async (format: string) => {
             <option value="4th Year">4th Year</option>
             <option value="5th Year">5th Year</option>
           </select>
-          <input type="text" disabled :value="settingsStore.semester" class="w-32 text-[12px] border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed text-center font-bold">
+          <input type="text" disabled :value="settingsStore.semester" class="flex-1 sm:flex-initial min-w-[120px] text-[12px] border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed text-center font-bold">
           <button class="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold text-[#4338ca] border border-indigo-100 bg-white rounded-lg hover:bg-indigo-50 ml-auto">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
             Filter
@@ -1035,7 +1035,7 @@ const handleExport = async (format: string) => {
       </div>
 
       <!-- Bottom: Dashboard Cards (was Sidebar) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 w-full">
         <!-- Course Overview -->
         <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
           <h3 class="text-[14px] font-bold text-slate-800 mb-6">Course Overview</h3>
@@ -1127,14 +1127,14 @@ const handleExport = async (format: string) => {
 
     <!-- Add Course Form (Full Page) -->
     <div v-if="showAddPage" class="space-y-6 pb-12 w-full min-w-0">
-      <div class="flex items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
             <svg class="w-6 h-6 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
           </div>
           <div>
-            <h1 class="text-[24px] font-bold text-slate-800 leading-tight">{{ isEditing ? 'Edit Course' : 'Add New Course' }}</h1>
-            <p class="text-[13px] text-slate-500 mt-0.5">{{ isEditing ? 'Update the course information.' : 'Create a new course and set all the necessary information.' }}</p>
+            <h1 class="text-[20px] sm:text-[24px] font-bold text-slate-800 leading-tight">{{ isEditing ? 'Edit Course' : 'Add New Course' }}</h1>
+            <p class="text-[12px] sm:text-[13px] text-slate-500 mt-0.5">{{ isEditing ? 'Update the course information.' : 'Create a new course and set all the necessary information.' }}</p>
             <div class="flex items-center gap-2 text-[11px] font-bold text-slate-400 mt-1">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
               <span>Courses</span>
@@ -1143,7 +1143,7 @@ const handleExport = async (format: string) => {
             </div>
           </div>
         </div>
-        <button @click="showAddPage = false" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
+        <button @click="showAddPage = false" class="flex items-center self-start sm:self-auto gap-2 px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg> Back to Courses
         </button>
       </div>
@@ -1153,9 +1153,9 @@ const handleExport = async (format: string) => {
         <div class="space-y-6">
           
           <!-- Course Information -->
-          <div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="bg-white p-5 sm:p-8 rounded-2xl border border-slate-100 shadow-sm">
             <h2 class="text-[15px] font-bold text-slate-800 mb-6">Course Information</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
               <!-- Course Code -->
               <div>
                 <label class="block text-[12px] font-bold text-slate-700 mb-2">Course Code <span class="text-rose-500">*</span></label>
@@ -1421,14 +1421,14 @@ const handleExport = async (format: string) => {
 
     <!-- Course Details (Full Page) -->
     <div v-if="showDetailsPage" class="space-y-6 pb-12 w-full min-w-0">
-      <div class="flex items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
             <svg class="w-6 h-6 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
           </div>
           <div>
-            <h1 class="text-[24px] font-bold text-slate-800 leading-tight">Course Details</h1>
-            <p class="text-[13px] text-slate-500 mt-0.5">View complete information about this course.</p>
+            <h1 class="text-[20px] sm:text-[24px] font-bold text-slate-800 leading-tight">Course Details</h1>
+            <p class="text-[12px] sm:text-[13px] text-slate-500 mt-0.5">View complete information about this course.</p>
             <div class="flex items-center gap-2 text-[11px] font-bold text-slate-400 mt-1">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
               <span>Courses</span>
@@ -1439,7 +1439,7 @@ const handleExport = async (format: string) => {
             </div>
           </div>
         </div>
-        <button @click="showDetailsPage = false" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
+        <button @click="showDetailsPage = false" class="flex items-center self-start sm:self-auto gap-2 px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-[12px] sm:text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg> Back to Course List
         </button>
       </div>
@@ -1449,9 +1449,9 @@ const handleExport = async (format: string) => {
         <div class="space-y-6">
           
           <!-- Course Information -->
-          <div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="bg-white p-5 sm:p-8 rounded-2xl border border-slate-100 shadow-sm">
             <h2 class="text-[15px] font-bold text-slate-800 mb-6">Course Information</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-6 sm:gap-y-8 gap-x-4 sm:gap-x-6">
               <div>
                 <p class="text-[12px] font-bold text-slate-500 mb-1">Course Code</p>
                 <p class="text-[14px] font-bold text-[#4338ca]">{{ selectedCourse?.code || '—' }}</p>
@@ -1480,13 +1480,13 @@ const handleExport = async (format: string) => {
           </div>
 
           <!-- Course Settings & Assigned Instructors -->
-          <div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
-            <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+          <div class="bg-white p-5 sm:p-8 rounded-2xl border border-slate-100 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
               <div>
                 <h2 class="text-[15px] font-bold text-slate-800">Course Settings & Assigned Instructors</h2>
                 <p class="text-[12px] text-slate-500 mt-0.5">Assigned instructors per section and enrollment configuration.</p>
               </div>
-              <button @click="openAssign(selectedCourse)" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-[#4338ca] text-[12px] font-bold rounded-xl transition-colors">
+              <button @click="openAssign(selectedCourse)" class="inline-flex items-center self-start sm:self-auto gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-[#4338ca] text-[12px] font-bold rounded-xl transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 Manage Instructors
               </button>
@@ -1660,7 +1660,7 @@ const handleExport = async (format: string) => {
     <!-- Delete Modal -->
     <Teleport to="body">
       <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-sm overflow-hidden">
           <div class="p-6 text-center">
             <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4"><svg class="w-7 h-7 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg></div>
             <h3 class="text-[16px] font-bold text-slate-800 mb-2">Delete Course?</h3>
@@ -1677,7 +1677,7 @@ const handleExport = async (format: string) => {
     <!-- Assign Modal -->
     <Teleport to="body">
       <div v-if="showAssignModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-sm overflow-hidden">
           <div class="p-6">
             <h3 class="text-[16px] font-bold text-slate-800 mb-2">Assign Instructors</h3>
             <p class="text-[13px] text-slate-500 mb-4">Select instructors for <span class="font-bold text-slate-700">{{ courseToAssign?.name }}</span>.</p>
@@ -1727,7 +1727,7 @@ const handleExport = async (format: string) => {
     <!-- Edit Course Modal -->
     <Teleport to="body">
       <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden my-8">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
           <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <div>
               <h3 class="text-[18px] font-bold text-slate-800">Edit Course: {{ selectedCourse?.name }}</h3>
@@ -1737,8 +1737,8 @@ const handleExport = async (format: string) => {
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
           </div>
-          <div class="p-6 overflow-y-auto max-h-[65vh] space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="p-4 sm:p-6 overflow-y-auto space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <!-- Course Code -->
               <div>
                 <label class="block text-[12px] font-bold text-slate-700 mb-2">Course Code <span class="text-rose-500">*</span></label>
@@ -1965,7 +1965,7 @@ const handleExport = async (format: string) => {
     <!-- ════════════════ IMPORT COURSES MODAL ════════════════ -->
     <Teleport to="body">
       <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-8 border border-slate-100">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-lg overflow-hidden flex flex-col my-8 border border-slate-100 max-h-[90vh]">
           <!-- Modal Header -->
           <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -1977,7 +1977,7 @@ const handleExport = async (format: string) => {
             </button>
           </div>
 
-          <div class="p-6 space-y-5">
+          <div class="p-4 sm:p-6 space-y-5 overflow-y-auto">
             <!-- Format Requirements Banner -->
             <div class="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
               <div class="flex items-center justify-between">
@@ -1993,7 +1993,7 @@ const handleExport = async (format: string) => {
               <p class="text-[12px] text-slate-600 leading-relaxed">
                 The file (CSV or PDF) must fulfill the Add Course form format.
               </p>
-              <div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
                 <div class="bg-white p-2 rounded-lg border border-indigo-100">
                   <span class="font-bold text-slate-700 block mb-0.5">Required Fields:</span>
                   <span class="text-rose-600 font-medium">Course Code, Course Title, Department</span>

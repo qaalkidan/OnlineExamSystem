@@ -52,23 +52,47 @@ window.addEventListener('activity-logged', async () => {
     console.error('Failed to update activity log count', err)
   }
 })
+const closeSidebar = inject<() => void>('closeSidebar', () => { sidebarOpen.value = false })
+
+const handleLinkClick = () => {
+  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+    closeSidebar()
+  }
+}
 </script>
 
 <template>
   <aside 
-    class="bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 overflow-hidden z-30 transition-all duration-300"
-    :class="sidebarOpen ? 'w-56' : 'w-20'"
+    class="bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 overflow-hidden transition-all duration-300 z-50 lg:z-30"
+    :class="[
+      sidebarOpen 
+        ? 'translate-x-0 w-64 lg:w-56 shadow-2xl lg:shadow-none' 
+        : '-translate-x-full lg:translate-x-0 lg:w-20'
+    ]"
   >
     
     <!-- Logo Area -->
-    <div class="flex items-center px-5 pt-6 pb-4 border-b border-slate-50 shrink-0" :class="!sidebarOpen && 'justify-center'">
-      <div class="flex items-center gap-2.5">
-        <img src="../../assets/images/logo.png" alt="Wollo University" class="w-9 h-9 object-contain rounded-full shadow-sm" />
+    <div class="flex items-center justify-between px-4 sm:px-5 pt-5 pb-4 border-b border-slate-50 shrink-0" :class="!sidebarOpen && 'lg:justify-center'">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <img src="../../assets/images/logo.png" alt="Wollo University" class="w-9 h-9 object-contain rounded-full shadow-sm shrink-0" />
         <div v-if="sidebarOpen" class="flex flex-col whitespace-nowrap">
           <span class="text-[14px] font-bold text-slate-900 leading-tight">Wollo University</span>
           <span class="text-[10px] text-slate-500 font-medium">System Administration</span>
         </div>
       </div>
+
+      <!-- Close Drawer Button for mobile/tablet screens -->
+      <button
+        v-if="sidebarOpen"
+        @click="closeSidebar"
+        type="button"
+        class="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+        title="Close menu"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
 
     <!-- Navigation Links -->
@@ -77,6 +101,7 @@ window.addEventListener('activity-logged', async () => {
         v-for="item in navItems" 
         :key="item.name"
         :to="item.path"
+        @click="handleLinkClick"
         class="flex items-center gap-3 py-2.5 rounded-xl transition-all duration-200 group relative"
         :class="[
           route.path.startsWith(item.path) 

@@ -789,16 +789,16 @@ const downloadSampleCsv = () => {
       </div>
 
       <!-- ── Stats Cards ── -->
-      <div class="grid grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <!-- Total -->
-        <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+        <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div class="flex items-start justify-between">
-            <div class="w-11 h-11 rounded-xl bg-indigo-50 flex items-center justify-center">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
               <svg class="w-5 h-5 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
             </div>
             <div class="text-right">
               <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Instructors</p>
-              <p class="text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.total }}</p>
+              <p class="text-[20px] sm:text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.total }}</p>
             </div>
           </div>
           <div class="mt-3 flex items-center gap-2">
@@ -809,14 +809,14 @@ const downloadSampleCsv = () => {
           </div>
         </div>
         <!-- Active -->
-        <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+        <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div class="flex items-start justify-between">
-            <div class="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
               <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
             </div>
             <div class="text-right">
               <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Instructors</p>
-              <p class="text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.active }}</p>
+              <p class="text-[20px] sm:text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.active }}</p>
             </div>
           </div>
           <div class="mt-3 flex items-center gap-2">
@@ -827,14 +827,14 @@ const downloadSampleCsv = () => {
           </div>
         </div>
         <!-- Inactive -->
-        <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+        <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div class="flex items-start justify-between">
-            <div class="w-11 h-11 rounded-xl bg-rose-50 flex items-center justify-center">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
               <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"></path></svg>
             </div>
             <div class="text-right">
               <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Inactive Instructors</p>
-              <p class="text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.inactive }}</p>
+              <p class="text-[20px] sm:text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.inactive }}</p>
             </div>
           </div>
           <div class="mt-3 flex items-center gap-2">
@@ -845,14 +845,14 @@ const downloadSampleCsv = () => {
           </div>
         </div>
         <!-- New -->
-        <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+        <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div class="flex items-start justify-between">
-            <div class="w-11 h-11 rounded-xl bg-sky-50 flex items-center justify-center">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-sky-50 flex items-center justify-center shrink-0">
               <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg>
             </div>
             <div class="text-right">
               <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">New Instructors</p>
-              <p class="text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.newInst }}</p>
+              <p class="text-[20px] sm:text-[24px] font-extrabold text-slate-800 leading-none">{{ stats.newInst }}</p>
             </div>
           </div>
           <div class="mt-3 flex items-center gap-2">
@@ -868,13 +868,13 @@ const downloadSampleCsv = () => {
       <div class="flex flex-col gap-6 w-full">
 
         <!-- Top Column: Table -->
-        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col min-w-0 w-full">
+        <div class="bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col min-w-0 w-full overflow-hidden">
 
           <!-- Table Filters -->
-          <div class="p-4 border-b border-slate-100 flex items-center gap-3 overflow-x-auto">
-            <div class="relative shrink-0">
+          <div class="p-3.5 sm:p-4 border-b border-slate-100 flex flex-wrap items-center gap-2.5 sm:gap-3">
+            <div class="relative flex-1 min-w-[200px] max-w-full sm:max-w-xs">
               <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-              <input v-model="search" type="text" placeholder="Search Instructors..." class="w-52 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-[12px] focus:outline-none focus:border-[#4338ca] bg-white">
+              <input v-model="search" type="text" placeholder="Search Instructors..." class="w-full border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-[12px] focus:outline-none focus:border-[#4338ca] bg-white">
             </div>
             <select v-model="deptFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-[12px] font-medium text-slate-600 focus:outline-none focus:border-[#4338ca] min-w-[130px] shrink-0 bg-white">
               <option value="all">All Departments</option>
@@ -906,19 +906,19 @@ const downloadSampleCsv = () => {
           </div>
 
           <!-- Table -->
-          <div class="overflow-x-auto flex-1">
+          <div class="overflow-x-auto min-w-0 flex-1">
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="bg-slate-50/60 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th class="px-5 py-3.5">Instructor</th>
-                  <th class="px-4 py-3.5">Email</th>
-                  <th class="px-4 py-3.5">Department</th>
-                  <th class="px-4 py-3.5">Section</th>
-                  <th class="px-4 py-3.5">Academic Year Level</th>
-                  <th class="px-4 py-3.5">Status</th>
-                  <th class="px-4 py-3.5">Join Date</th>
-                  <th class="px-4 py-3.5">Last Login</th>
-                  <th class="px-4 py-3.5 text-center">Actions</th>
+                  <th class="px-5 py-3.5 whitespace-nowrap">Instructor</th>
+                  <th class="px-4 py-3.5 whitespace-nowrap">Email</th>
+                  <th class="px-4 py-3.5 whitespace-nowrap">Department</th>
+                  <th class="px-4 py-3.5 whitespace-nowrap">Section</th>
+                  <th class="px-4 py-3.5 whitespace-nowrap">Academic Year Level</th>
+                  <th class="px-4 py-3.5 whitespace-nowrap">Status</th>
+                  <th class="px-4 py-3.5 whitespace-nowrap">Join Date</th>
+                  <th class="px-4 py-3.5 whitespace-nowrap">Last Login</th>
+                  <th class="px-4 py-3.5 text-center whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-50">
@@ -932,22 +932,22 @@ const downloadSampleCsv = () => {
                       <span class="text-[12px] font-bold text-slate-800 whitespace-nowrap">{{ inst.name }}</span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-[12px] text-slate-500">{{ inst.email }}</td>
-                  <td class="px-4 py-3 text-[12px] font-medium text-slate-600">{{ inst.departmentName }}</td>
+                  <td class="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{{ inst.email }}</td>
+                  <td class="px-4 py-3 text-[12px] font-medium text-slate-600 whitespace-nowrap">{{ inst.departmentName }}</td>
                   <td class="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{{ inst.section }}</td>
                   <td class="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{{ inst.year }}</td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-3 whitespace-nowrap">
                     <span :class="inst.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'" class="px-2.5 py-1 text-[10px] font-bold rounded-md capitalize">
                       {{ inst.status }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{{ inst.joined }}</td>
                   <td class="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{{ inst.lastLogin }}</td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-3 whitespace-nowrap">
                     <div class="flex items-center justify-center gap-2 text-slate-400">
-                      <button @click="viewInstructor(inst)" class="hover:text-[#4338ca] transition-colors" title="View"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></button>
-                      <button @click="openEdit(inst)" class="hover:text-[#4338ca] transition-colors" title="Edit"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
-                      <button @click="confirmDelete(inst)" class="hover:text-rose-500 transition-colors" title="Delete"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                      <button @click="viewInstructor(inst)" class="p-1 hover:text-[#4338ca] transition-colors" title="View"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></button>
+                      <button @click="openEdit(inst)" class="p-1 hover:text-[#4338ca] transition-colors" title="Edit"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
+                      <button @click="confirmDelete(inst)" class="p-1 hover:text-rose-500 transition-colors" title="Delete"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
                     </div>
                   </td>
                 </tr>
@@ -996,7 +996,7 @@ const downloadSampleCsv = () => {
         </div>
 
         <!-- ── Bottom Grid (was Right Sidebar) ── -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
 
           <!-- Instructor Overview Chart -->
           <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
@@ -1114,31 +1114,31 @@ const downloadSampleCsv = () => {
       </div>
 
       <!-- Detail Grid -->
-      <div class="grid grid-cols-[1fr_320px] gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <!-- Left -->
-        <div class="space-y-6">
+        <div class="space-y-6 min-w-0">
           <!-- Personal Info -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm">
             <h3 class="text-[15px] font-bold text-slate-800 mb-6">Personal Information</h3>
-            <div class="flex gap-8">
-              <div class="flex flex-col items-center gap-3">
+            <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
+              <div class="flex flex-col items-center gap-3 shrink-0">
                 <img
                   v-if="viewingInstructor.profilePicture"
                   :src="viewingInstructor.profilePicture"
-                  class="w-28 h-28 rounded-2xl object-cover border-2 border-slate-100 shadow-sm"
+                  class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-slate-100 shadow-sm"
                   :alt="viewingInstructor.name"
                 />
-                <div v-else :class="avatarBg(viewingInstructor.id)" class="w-28 h-28 rounded-2xl flex items-center justify-center text-[28px] font-bold">
+                <div v-else :class="avatarBg(viewingInstructor.id)" class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center text-[28px] font-bold">
                   {{ viewingInstructor.avatar }}
                 </div>
                 <span :class="viewingInstructor.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'" class="px-3 py-1 text-[11px] font-bold rounded-full capitalize flex items-center gap-1.5">
                   <div :class="viewingInstructor.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'" class="w-1.5 h-1.5 rounded-full"></div> {{ viewingInstructor.status }}
                 </span>
               </div>
-              <div class="flex-1 grid grid-cols-2 gap-x-8 gap-y-5">
+              <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 sm:gap-y-5">
                 <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.name }}</p></div>
                 <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gender</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.gender }}</p></div>
-                <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.email }}</p></div>
+                <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email</p><p class="text-[14px] font-bold text-slate-800 break-all">{{ viewingInstructor.email }}</p></div>
                 <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.phone }}</p></div>
                 <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Department</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.departmentName }}</p></div>
                 <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Section</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.section }}</p></div>
@@ -1148,10 +1148,10 @@ const downloadSampleCsv = () => {
             </div>
           </div>
           <!-- Account Info -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm">
             <h3 class="text-[15px] font-bold text-slate-800 mb-6">Account Information</h3>
-            <div class="grid grid-cols-3 gap-6">
-              <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Username</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.email }}</p></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Username</p><p class="text-[14px] font-bold text-slate-800 break-all">{{ viewingInstructor.email }}</p></div>
               <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Account Status</p><p :class="viewingInstructor.status === 'active' ? 'text-emerald-500' : 'text-rose-500'" class="text-[14px] font-bold capitalize">{{ viewingInstructor.status }}</p></div>
               <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role</p><p class="text-[14px] font-bold text-slate-800">Instructor</p></div>
               <div><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Account Created</p><p class="text-[14px] font-bold text-slate-800">{{ viewingInstructor.joined }}</p></div>
@@ -1160,9 +1160,9 @@ const downloadSampleCsv = () => {
             </div>
           </div>
           <!-- Permissions -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm">
             <h3 class="text-[15px] font-bold text-slate-800 mb-6">Permissions & Access</h3>
-            <div class="grid grid-cols-3 gap-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
               <div v-for="perm in ['Create Exams','View Results','Manage Courses','Manage Questions','Grade Exams','Generate Reports']" :key="perm" class="flex items-start gap-2.5">
                 <div class="w-5 h-5 rounded bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0 mt-0.5"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>
                 <span class="text-[12px] font-bold text-slate-700">{{ perm }}</span>
@@ -1224,14 +1224,14 @@ const downloadSampleCsv = () => {
         </button>
       </div>
 
-      <div class="grid grid-cols-[1fr_320px] gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <!-- Main Form -->
-        <div class="space-y-6">
+        <div class="space-y-6 min-w-0">
           
           <!-- Personal Information -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm space-y-6">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm space-y-6">
             <h3 class="text-[15px] font-bold text-slate-800">Personal Information</h3>
-            <div class="grid grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <div>
                 <label class="block text-[12px] font-bold text-slate-700 mb-2">Full Name <span class="text-rose-500">*</span></label>
                 <input
@@ -1284,7 +1284,7 @@ const downloadSampleCsv = () => {
                 </p>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label class="block text-[12px] font-bold text-slate-700 mb-2">Gender <span class="text-rose-500">*</span></label>
                 <select
@@ -1330,9 +1330,9 @@ const downloadSampleCsv = () => {
           </div>
 
           <!-- Professional Information -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm space-y-6">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm space-y-6">
             <h3 class="text-[15px] font-bold text-slate-800">Professional Information</h3>
-            <div class="grid grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label class="block text-[12px] font-bold text-slate-700 mb-2">Department <span class="text-rose-500">*</span></label>
                 <select
@@ -1390,9 +1390,9 @@ const downloadSampleCsv = () => {
           </div>
 
           <!-- Account Information -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm space-y-6">
+          <div class="bg-white border border-slate-100 rounded-2xl p-5 sm:p-8 shadow-sm space-y-6">
             <h3 class="text-[15px] font-bold text-slate-800">Account Information</h3>
-            <div class="grid grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <div>
                 <label class="block text-[12px] font-bold text-slate-700 mb-2">Username <span class="text-rose-500">*</span></label>
                 <input
@@ -1459,9 +1459,9 @@ const downloadSampleCsv = () => {
             </div>
           </div>
 
-          <div class="flex items-center justify-between pt-4">
-            <button @click="closeAdd" class="px-6 py-2.5 text-[13px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
-            <button @click="addInstructor" :disabled="isLoading" class="flex items-center gap-2 px-6 py-2.5 text-[13px] font-bold text-white bg-[#4338ca] rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">
+          <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4">
+            <button @click="closeAdd" class="px-6 py-2.5 text-[13px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-center">Cancel</button>
+            <button @click="addInstructor" :disabled="isLoading" class="flex items-center justify-center gap-2 px-6 py-2.5 text-[13px] font-bold text-white bg-[#4338ca] rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
               Create Instructor
             </button>
@@ -1571,7 +1571,7 @@ const downloadSampleCsv = () => {
     <Teleport to="body">
       <!-- Delete -->
       <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-sm overflow-hidden">
           <div class="p-6 text-center">
             <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <svg class="w-7 h-7 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>
@@ -1587,14 +1587,14 @@ const downloadSampleCsv = () => {
       </div>
 
       <!-- Edit -->
-      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-          <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3 sm:p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div class="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 border-b border-slate-100 shrink-0">
             <h3 class="text-[16px] font-bold text-slate-800">Edit Instructor</h3>
             <button @click="showEditModal = false" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
           </div>
-          <div class="p-6 overflow-y-auto space-y-6">
-            <div class="grid grid-cols-2 gap-5">
+          <div class="p-4 sm:p-6 overflow-y-auto space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <div><label class="block text-[12px] font-bold text-slate-700 mb-1.5">Full Name <span class="text-rose-500">*</span></label><input v-model="editInstructorForm.name" type="text" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#4338ca]"></div>
               <div><label class="block text-[12px] font-bold text-slate-700 mb-1.5">Email Address <span class="text-rose-500">*</span></label><input v-model="editInstructorForm.email" type="email" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#4338ca]"></div>
               <div><label class="block text-[12px] font-bold text-slate-700 mb-1.5">Phone Number <span class="text-rose-500">*</span></label><input v-model="editInstructorForm.phone" type="text" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#4338ca]"></div>
@@ -1603,7 +1603,7 @@ const downloadSampleCsv = () => {
                   <option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option>
                 </select>
               </div>
-              <div class="col-span-2">
+              <div class="col-span-1 sm:col-span-2">
                 <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Profile Picture</label>
                 <div class="relative border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center hover:border-[#4338ca] hover:bg-slate-50 transition-colors cursor-pointer overflow-hidden" @click="triggerEditFileInput">
                   <input type="file" ref="editFileInput" class="hidden" accept="image/png, image/jpeg" @change="handleEditProfilePicture">
@@ -1628,7 +1628,7 @@ const downloadSampleCsv = () => {
               <div><label class="block text-[12px] font-bold text-slate-700 mb-1.5">Password <span class="text-rose-500">*</span></label><input v-model="editInstructorForm.password" type="password" placeholder="Leave blank to keep current" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-[#4338ca]"></div>
             </div>
           </div>
-          <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50 shrink-0">
+          <div class="px-5 sm:px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50 shrink-0">
             <button @click="showEditModal = false" class="px-5 py-2.5 text-[13px] font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
             <button @click="saveEdit" :disabled="isLoading" class="px-5 py-2.5 text-[13px] font-bold text-white bg-[#4338ca] rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">Save Changes</button>
           </div>
@@ -1636,8 +1636,8 @@ const downloadSampleCsv = () => {
       </div>
 
       <!-- ════════════════ IMPORT INSTRUCTORS MODAL ════════════════ -->
-      <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col my-8">
+      <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-xl overflow-hidden flex flex-col my-8">
           <!-- Header -->
           <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <div class="flex items-center gap-3">
