@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCreateExamStore } from '../store/createExamStore'
 import { useInstructorExamStore } from '../store/instructorExamStore'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 
 import ExamStepper from '../components/create-exam/ExamStepper.vue'
 import ExamInformationForm from '../components/create-exam/ExamInformationForm.vue'
@@ -29,12 +30,19 @@ import WhatHappensNextSidebar from '../components/create-exam/WhatHappensNextSid
 const router = useRouter()
 const formStore = useCreateExamStore()
 const examStore = useInstructorExamStore()
+const lockStore = useSemesterLockStore()
 
 // State-driven step navigation (does not alter URL to prevent component remounting)
 const currentStep = ref(1)
 const errorMessage = ref('')
 
-onMounted(() => {
+onMounted(async () => {
+  await lockStore.fetchLockStatus()
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('create exam')
+    router.replace('/instructor/exams')
+    return
+  }
   // Only reset if entering clean without an ongoing draft in progress
   if (!formStore.editingExamId && !formStore.title && formStore.questions.length === 0) {
     formStore.reset()

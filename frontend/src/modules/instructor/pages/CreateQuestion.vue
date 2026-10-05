@@ -2,12 +2,14 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInstructorQbStore } from '../store/instructorQbStore'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 import RichTextEditor from '../../../components/RichTextEditor.vue'
 import { GripVertical } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
 const qbStore = useInstructorQbStore()
+const lockStore = useSemesterLockStore()
 
 const bankId = route.params.id as string
 const bank = ref<any>(null)
@@ -250,6 +252,12 @@ const buildQuestionPayload = () => {
 }
 
 onMounted(async () => {
+  await lockStore.fetchLockStatus()
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('create or edit questions')
+    router.replace(`/instructor/question-banks/${bankId}`)
+    return
+  }
   try {
     const data = await qbStore.fetchQuestionBank(bankId)
     bank.value = data.bank

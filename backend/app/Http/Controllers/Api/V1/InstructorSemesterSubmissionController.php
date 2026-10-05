@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\SemesterSubmission;
+use App\Helpers\LogActivity;
 
 class InstructorSemesterSubmissionController extends Controller
 {
@@ -217,9 +218,14 @@ class InstructorSemesterSubmissionController extends Controller
                     'results_submitted' => $resultsSubmitted,
                 ],
                 'submission' => [
-                    'status' => $submission->status, // pending, submitted, approved, rejected
+                    'id' => $submission->id,
+                    'status' => $submission->status, // pending, submitted, approved, rejected, reopened
+                    'is_locked' => in_array($submission->status, ['submitted', 'approved']),
+                    'access_mode' => in_array($submission->status, ['submitted', 'approved']) ? 'read_only' : 'editable',
                     'submitted_at' => $submission->submitted_at?->format('M d, Y • h:i A'),
                     'approved_at' => $submission->approved_at?->format('M d, Y • h:i A'),
+                    'reopened_at' => $submission->reopened_at?->format('M d, Y • h:i A'),
+                    'reopen_reason' => $submission->reopen_reason,
                     'remarks' => $submission->remarks,
                 ]
             ]
@@ -227,14 +233,52 @@ class InstructorSemesterSubmissionController extends Controller
     }
 
     /**
-     * Submit the semester records.
+     * Return real-time lock status for the instructor's current semester.
+     */
+    public function lockStatus(Request $request): JsonResponse
+    {
+        $instructor = $request->user();
+        $academicYear = $instructor->academic_year ?? '2025/2026';
+        $semester = $instructor->semester ?? 'First Semester';
+
+        $submission = SemesterSubmission::where('instructor_id', $instructor->id)
+            ->where(function ($q) use ($academicYear, $semester) {
+                $q->where(function ($sub) use ($academicYear, $semester) {
+                    $sub->where('academic_year', $academicYear)
+                        ->where('semester', $semester);
+                })->orWhereIn('status', ['submitted', 'approved']);
+            })
+            ->latest('updated_at')
+            ->first();
+
+        $isLocked = $submission ? in_array($submission->status, ['submitted', 'approved']) : false;
+        $status = $submission ? $submission->status : 'pending';
+
+        return response()->json([
+            'data' => [
+                'is_locked'     => $isLocked,
+                'status'        => $status,
+                'access_mode'   => $isLocked ? 'read_only' : 'editable',
+                'academic_year' => $submission?->academic_year ?? $academicYear,
+                'semester'      => $submission?->semester ?? $semester,
+                'submitted_at'  => $submission?->submitted_at?->format('M d, Y • h:i A'),
+                'approved_at'   => $submission?->approved_at?->format('M d, Y • h:i A'),
+                'reopened_at'   => $submission?->reopened_at?->format('M d, Y • h:i A'),
+                'reopen_reason' => $submission?->reopen_reason,
+                'remarks'       => $submission?->remarks,
+            ]
+        ]);
+    }
+
+    /**
+     * Submit the semester records and trigger semester lock.
      */
     public function submit(Request $request): JsonResponse
     {
         $instructor = $request->user();
         
         $academicYear = $instructor->academic_year ?? '2025/2026';
-        $semester = $instructor->semester ?? 'Second Semester';
+        $semester = $instructor->semester ?? 'First Semester';
 
         $submission = SemesterSubmission::where([
             'instructor_id' => $instructor->id,
@@ -243,21 +287,46 @@ class InstructorSemesterSubmissionController extends Controller
         ])->first();
 
         if (!$submission) {
-            return response()->json(['message' => 'Submission record not found.'], 404);
+            $submission = SemesterSubmission::firstOrCreate([
+                'instructor_id' => $instructor->id,
+                'academic_year' => $academicYear,
+                'semester'      => $semester,
+            ], [
+                'department' => $instructor->department?->name ?? 'N/A',
+                'section'    => $instructor->section ?? 'N/A',
+                'status'     => 'pending',
+            ]);
         }
 
         if (in_array($submission->status, ['submitted', 'approved'])) {
-            return response()->json(['message' => 'Records already submitted.'], 400);
+            return response()->json([
+                'message' => 'Your semester records are already submitted and locked.',
+                'data' => [
+                    'status' => $submission->status,
+                    'is_locked' => true,
+                    'access_mode' => 'read_only'
+                ]
+            ], 400);
         }
 
         $submission->status = 'submitted';
         $submission->submitted_at = now();
+        $submission->locked_at = now();
         $submission->save();
 
+        // Audit Log
+        LogActivity::record(
+            'Submitted',
+            'Semester Submissions',
+            "Instructor {$instructor->name} submitted semester ({$academicYear} - {$semester}). Academic activities locked."
+        );
+
         return response()->json([
-            'message' => 'Semester records submitted successfully.',
+            'message' => 'Semester records submitted successfully. Academic activities are now locked for this semester.',
             'data' => [
-                'status' => 'submitted',
+                'status'       => 'submitted',
+                'is_locked'    => true,
+                'access_mode'  => 'read_only',
                 'submitted_at' => $submission->submitted_at->format('M d, Y • h:i A')
             ]
         ]);

@@ -63,6 +63,16 @@ const rejectModal = ref<{
   remarks: ''
 })
 
+const reopenModal = ref<{
+  open: boolean
+  instructor: any | null
+  reason: string
+}>({
+  open: false,
+  instructor: null,
+  reason: '',
+})
+
 // Summary Stats
 const semesterInfo = ref({
   academicYear: '2025/2026',
@@ -217,6 +227,7 @@ const getStatusBadge = (status: string) => {
   if (status === 'Under Review') return 'bg-blue-50 text-blue-600 border-blue-200'
   if (status === 'Correction Required') return 'bg-orange-50 text-orange-600 border-orange-200'
   if (status === 'Rejected') return 'bg-rose-50 text-rose-600 border-rose-200'
+  if (status === 'Reopened') return 'bg-cyan-50 text-cyan-700 border-cyan-200'
   if (status === 'Not Submitted') return 'bg-slate-100 text-slate-500 border-slate-200'
   return 'bg-slate-50 text-slate-500 border-slate-200'
 }
@@ -379,6 +390,48 @@ const submitReject = async () => {
   } catch (error) {
     console.error('Failed to reject submission:', error)
     showToast('Failed to reject submission.', 'error')
+  } finally {
+    isSubmittingAction.value = false
+  }
+}
+
+const openReopenModal = (inst: any) => {
+  openMenuId.value = null
+  reopenModal.value = {
+    open: true,
+    instructor: inst,
+    reason: ''
+  }
+}
+
+const submitReopen = async () => {
+  if (!reopenModal.value.instructor) return
+  const inst = reopenModal.value.instructor
+  isSubmittingAction.value = true
+  try {
+    const targetId = inst.submission_id || inst.id
+    const res = await apiClient.put(`/dept-head/semester-submissions/${targetId}/reopen`, {
+      reopen_reason: reopenModal.value.reason || 'Semester reopened by department head for corrections.'
+    })
+
+    const prevStatus = inst.status
+    inst.status = 'Reopened'
+    inst.raw_status = 'reopened'
+    inst.is_locked = false
+    inst.reopened_at = res.data?.submission?.reopened_at || new Date().toISOString()
+    inst.reopen_reason = reopenModal.value.reason
+
+    if (reviewModal.value.open && reviewModal.value.instructor?.id === inst.id) {
+      reviewModal.value.instructor.status = 'Reopened'
+      reviewModal.value.instructor.raw_status = 'reopened'
+      reviewModal.value.instructor.is_locked = false
+    }
+
+    reopenModal.value.open = false
+    showToast(`Semester reopened for ${inst.name}. Instructor can now make modifications.`, 'success')
+  } catch (error: any) {
+    console.error('Failed to reopen semester:', error)
+    showToast(error?.response?.data?.message || 'Failed to reopen semester submission.', 'error')
   } finally {
     isSubmittingAction.value = false
   }
@@ -674,6 +727,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <option value="Approved">Approved ({{ semesterInfo.approved }})</option>
             <option value="Correction Required">Correction Required ({{ semesterInfo.correctionRequired }})</option>
             <option value="Rejected">Rejected ({{ semesterInfo.rejected }})</option>
+            <option value="Reopened">Reopened</option>
             <option value="Not Submitted">Not Submitted ({{ semesterInfo.notSubmitted || 0 }})</option>
             <option value="All Instructors">All Instructors ({{ (semesterInfo.total || 0) + (semesterInfo.notSubmitted || 0) }})</option>
           </select>
@@ -856,6 +910,14 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                       Request Correction
+                    </button>
+                    <button
+                      v-if="inst.status === 'Approved' || inst.status === 'Pending'"
+                      @click="openReopenModal(inst)"
+                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors flex items-center gap-2.5"
+                    >
+                      <svg class="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                      Reopen Semester (Unlock)
                     </button>
                     <div class="border-t border-slate-100 my-1"></div>
                     <button
@@ -1051,6 +1113,14 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
               class="px-4 py-2 rounded-xl text-[12px] font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors"
             >
               Request Correction
+            </button>
+            <button
+              v-if="reviewModal.instructor.status === 'Approved' || reviewModal.instructor.status === 'Pending'"
+              @click="openReopenModal(reviewModal.instructor)"
+              class="px-4 py-2 rounded-xl text-[12px] font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 transition-colors flex items-center gap-1.5"
+            >
+              <svg class="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+              Reopen (Unlock)
             </button>
             <button
               v-if="reviewModal.instructor.status !== 'Approved'"
@@ -1250,6 +1320,55 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             class="px-5 py-2 rounded-xl text-[12px] font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-sm disabled:opacity-50"
           >
             Confirm Rejection
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reopen Semester Modal -->
+    <div
+      v-if="reopenModal.open"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+    >
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center flex-shrink-0 border border-cyan-100">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-800">Reopen Semester</h3>
+            <p class="text-[12px] text-slate-500">Instructor: {{ reopenModal.instructor?.name }}</p>
+          </div>
+        </div>
+
+        <p class="text-[12px] text-slate-600 mb-4 leading-relaxed">
+          Reopening will <strong class="text-slate-800">unlock the instructor's academic records</strong>. The instructor will regain full edit access to create and modify questions, exams, and grades.
+        </p>
+
+        <div class="mb-4">
+          <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Reason for Reopening</label>
+          <textarea
+            v-model="reopenModal.reason"
+            rows="3"
+            placeholder="Specify reason for reopening (e.g., Grade adjustment approved, missing assessment to be added)..."
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:border-cyan-500 focus:bg-white transition-colors"
+          ></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5">
+          <button
+            @click="reopenModal.open = false"
+            class="px-4 py-2 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            @click="submitReopen"
+            :disabled="isSubmittingAction"
+            class="px-5 py-2 rounded-xl text-[12px] font-bold bg-cyan-600 text-white hover:bg-cyan-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <svg v-if="isSubmittingAction" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Unlock & Reopen
           </button>
         </div>
       </div>

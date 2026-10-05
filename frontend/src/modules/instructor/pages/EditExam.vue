@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCreateExamStore } from '../store/createExamStore'
 import { useInstructorExamStore } from '../store/instructorExamStore'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 import apiClient from '../../../core/api/apiClient'
 
 import ExamStepper from '../components/create-exam/ExamStepper.vue'
@@ -18,6 +19,7 @@ const router = useRouter()
 const route = useRoute()
 const formStore = useCreateExamStore()
 const examStore = useInstructorExamStore()
+const lockStore = useSemesterLockStore()
 
 const isLoading = ref(true)
 const loadError = ref<string | null>(null)
@@ -29,6 +31,13 @@ const currentStep = computed({
 })
 
 onMounted(async () => {
+  await lockStore.fetchLockStatus()
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('edit exam')
+    router.replace('/instructor/exams')
+    return
+  }
+
   const examId = Number(route.params.id)
   if (!examId) {
     router.replace('/instructor/exams')

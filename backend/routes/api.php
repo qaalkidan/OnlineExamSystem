@@ -147,6 +147,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::get('semester-submissions/export', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'export']);
         Route::get('semester-submissions/{id}', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'show']);
         Route::put('semester-submissions/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'updateStatus']);
+        Route::put('semester-submissions/{id}/reopen', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'reopen']);
         Route::get('activity-logs/export', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'export']);
         Route::post('activity-logs/clear', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'clearOldLogs']);
         Route::get('activity-logs', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'index']);
@@ -158,7 +159,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     // ------------------------------------------------------------------
     // Instructor Routes
     // ------------------------------------------------------------------
-    Route::prefix('instructor')->group(function () {
+    Route::prefix('instructor')->middleware('instructor.semester.lock')->group(function () {
 
         // Dashboard stats & lists
         Route::get('/dashboard-stats', [InstructorDashboardController::class, 'stats']);
@@ -186,7 +187,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::post('/students/import', [InstructorStudentController::class, 'import']);
         Route::post('/students/announcement', [InstructorStudentController::class, 'announcement']);
         
-        // Semester Submission
+        // Semester Submission & Lock Status
+        Route::get('/semester-lock-status', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'lockStatus']);
         Route::get('/semester-submission/status', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'status']);
         Route::post('/semester-submission/submit', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'submit']);
 

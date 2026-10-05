@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useInstructorExamStore } from '../store/instructorExamStore'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 
 import ExamStatCards from '../components/exam/ExamStatCards.vue'
 
@@ -10,9 +11,11 @@ import ExamOverviewChart from '../components/exam/ExamOverviewChart.vue'
 import ExamQuickActions from '../components/exam/ExamQuickActions.vue'
 
 const examStore = useInstructorExamStore()
+const lockStore = useSemesterLockStore()
 
 onMounted(() => {
   examStore.fetchExams()
+  lockStore.fetchLockStatus()
 })
 </script>
 
@@ -31,10 +34,22 @@ onMounted(() => {
         <!-- Top Action Buttons -->
         <div class="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
 
-          <router-link to="/instructor/exams/create" class="flex items-center justify-center gap-2 bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold text-[13px] shadow-sm transition-colors whitespace-nowrap">
+          <router-link
+            v-if="!lockStore.isLocked"
+            to="/instructor/exams/create"
+            class="flex items-center justify-center gap-2 bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold text-[13px] shadow-sm transition-colors whitespace-nowrap"
+          >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Create New Exam
           </router-link>
+          <div
+            v-else
+            @click="lockStore.promptLockedNotice('create exam')"
+            class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-emerald-100 transition-colors whitespace-nowrap"
+          >
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <span>Semester Locked (Read-Only)</span>
+          </div>
           <button class="flex items-center justify-center bg-white border border-slate-200 text-slate-700 hover:text-[#5138ed] hover:border-indigo-200 px-4 py-2 rounded-xl font-bold text-[13px] shadow-sm transition-colors gap-2">
             <svg class="w-4 h-4 text-slate-400 group-hover:text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
             Export

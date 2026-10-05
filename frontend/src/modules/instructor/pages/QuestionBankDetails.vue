@@ -3,11 +3,13 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import apiClient from '../../../core/api/apiClient'
 import { useInstructorQbStore } from '../store/instructorQbStore'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 import RichTextEditor from '../../../components/RichTextEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
 const qbStore = useInstructorQbStore()
+const lockStore = useSemesterLockStore()
 
 const isLoading = ref(true)
 const error = ref('')
@@ -309,12 +311,20 @@ const editBankDescription = ref('')
 const editBankSaving = ref(false)
 
 const openEditBankModal = () => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('edit question bank')
+    return
+  }
   editBankTitle.value = bank.value.title
   editBankDescription.value = bank.value.description || ''
   showEditBankModal.value = true
 }
 
 const saveEditBank = async () => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('edit question bank')
+    return
+  }
   editBankSaving.value = true
   try {
     await qbStore.updateQuestionBank(bank.value.id, {
@@ -336,6 +346,10 @@ const showDeleteBankModal = ref(false)
 const deleteBankProcessing = ref(false)
 
 const confirmDeleteBank = async () => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('delete question bank')
+    return
+  }
   deleteBankProcessing.value = true
   try {
     await qbStore.deleteQuestionBank(bank.value.id)
@@ -399,6 +413,10 @@ const editSaving = ref(false)
 const editSuccessMessage = ref('')
 
 const editQuestion = (q: any) => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('edit question')
+    return
+  }
   editingQuestion.value = q
   let parsedQData = q.question_data || {}
   if (typeof parsedQData === 'string') {
@@ -526,6 +544,10 @@ const questionToDelete = ref<any>(null)
 const deleteQuestionProcessing = ref(false)
 
 const openDeleteQuestion = (q: any) => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('delete question')
+    return
+  }
   questionToDelete.value = q
   showDeleteQuestionModal.value = true
 }
@@ -718,11 +740,19 @@ const exportAsPDF = () => {
 const fileInput = ref<HTMLInputElement | null>(null)
 const isImporting = ref(false)
 const triggerImport = () => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('import questions')
+    return
+  }
   if (fileInput.value) {
     fileInput.value.click()
   }
 }
 const handleImport = async (event: Event) => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('import questions')
+    return
+  }
   const target = event.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
     const file = target.files[0]
@@ -752,6 +782,7 @@ const openPreviewBank = () => {
 
 onMounted(() => {
   fetchBankDetails()
+  lockStore.fetchLockStatus()
 })
 </script>
 
@@ -785,10 +816,22 @@ onMounted(() => {
       </div>
       
       <div class="flex items-center gap-3">
-        <button @click="router.push(`/instructor/question-banks/${route.params.id}/create-question`)" class="bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-[13px] shadow-sm transition-colors flex items-center gap-2">
+        <button
+          v-if="!lockStore.isLocked"
+          @click="router.push(`/instructor/question-banks/${route.params.id}/create-question`)"
+          class="bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-[13px] shadow-sm transition-colors flex items-center gap-2"
+        >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
           Create Question
         </button>
+        <div
+          v-else
+          @click="lockStore.promptLockedNotice('create question')"
+          class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-emerald-100 transition-colors"
+        >
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <span>Semester Locked (Read-Only)</span>
+        </div>
       </div>
     </div>
 
@@ -1039,12 +1082,14 @@ onMounted(() => {
                   <button @click="openViewQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="View Question">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                   </button>
-                  <button @click="editQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#5138ed] hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100 shadow-sm" title="Edit Question">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                  </button>
-                  <button @click="openDeleteQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100 shadow-sm" title="Delete Question">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                  </button>
+                  <template v-if="!lockStore.isLocked">
+                    <button @click="editQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#5138ed] hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100 shadow-sm" title="Edit Question">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                    <button @click="openDeleteQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100 shadow-sm" title="Delete Question">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                  </template>
                 </div>
               </td>
             </tr>

@@ -2,9 +2,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import apiClient from '../../../core/api/apiClient'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 
 const route = useRoute()
 const router = useRouter()
+const lockStore = useSemesterLockStore()
 
 const isLoading    = ref(true)
 const isSaving     = ref(false)
@@ -66,7 +68,10 @@ const fetchStudentResult = async () => {
   }
 }
 
-onMounted(() => fetchStudentResult())
+onMounted(async () => {
+  await lockStore.fetchLockStatus()
+  fetchStudentResult()
+})
 
 watch(
   () => route.params.studentId,
@@ -167,6 +172,11 @@ const liveGrade = computed(() => {
 
 /* ─── Save (grade only, no publish) ────────────────────────────── */
 const saveGrades = async (publish = false) => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice(publish ? 'publish results' : 'save grades')
+    return
+  }
+
   const examId    = route.params.examId as string
   const studentId = route.params.studentId as string
 
@@ -285,6 +295,20 @@ const groupedFilteredQuestions = computed(() => {
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </button>
         </div>
+      </div>
+
+      <!-- Semester Locked Read-Only Notice Banner -->
+      <div v-if="lockStore.isLocked" class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold text-amber-900">Read-Only Mode: Semester Submitted</h4>
+            <p class="text-[11px] text-amber-700 font-medium mt-0.5">Your semester submission has been finalized. Entering or editing grades and publishing results are disabled.</p>
+          </div>
+        </div>
+        <span class="px-2.5 py-1 bg-amber-200/70 text-amber-900 text-[10px] font-black uppercase tracking-wider rounded-lg shrink-0">Locked</span>
       </div>
 
       <!-- Student Info Card -->
@@ -461,8 +485,14 @@ const groupedFilteredQuestions = computed(() => {
                       type="number"
                       :min="0"
                       :max="q.marks"
+                      :disabled="lockStore.isLocked"
                       v-model.number="manualScores[q.id]"
-                      class="w-16 h-8 text-center border-2 border-[#5138ed] rounded-lg text-[13px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
+                      :class="[
+                        'w-16 h-8 text-center rounded-lg text-[13px] font-bold transition-all focus:outline-none',
+                        lockStore.isLocked
+                          ? 'bg-slate-100 border border-slate-300 text-slate-500 cursor-not-allowed'
+                          : 'border-2 border-[#5138ed] text-slate-800 focus:ring-2 focus:ring-[#5138ed]/20'
+                      ]"
                       :placeholder="`0`"
                     />
                     <span class="text-[12px] font-bold text-slate-400">/ {{ q.marks }}</span>
@@ -758,21 +788,32 @@ const groupedFilteredQuestions = computed(() => {
           <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-3">
             <h3 class="text-[13px] font-bold text-slate-800 mb-2">Actions</h3>
             <div class="space-y-2.5 flex-1 flex flex-col justify-center">
-              <!-- Publish -->
-              <button @click="saveGrades(true)" :disabled="isPublishing || !attempt?.id"
-                class="w-full py-2.5 text-white text-[12px] font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                :class="examInfo?.is_published ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#5138ed] hover:bg-[#4530d1]'">
-                <svg v-if="isPublishing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
-                {{ examInfo?.is_published ? 'Re-Publish Results' : 'Publish Results' }}
-              </button>
-              <!-- Save grade only -->
-              <button @click="saveGrades(false)" :disabled="isSaving || !attempt?.id"
-                class="w-full py-2.5 bg-white border border-slate-200 text-[#5138ed] text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                <svg v-if="isSaving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Save Grades (No Publish)
-              </button>
+              <template v-if="!lockStore.isLocked">
+                <!-- Publish -->
+                <button @click="saveGrades(true)" :disabled="isPublishing || !attempt?.id"
+                  class="w-full py-2.5 text-white text-[12px] font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  :class="examInfo?.is_published ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#5138ed] hover:bg-[#4530d1]'">
+                  <svg v-if="isPublishing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                  {{ examInfo?.is_published ? 'Re-Publish Results' : 'Publish Results' }}
+                </button>
+                <!-- Save grade only -->
+                <button @click="saveGrades(false)" :disabled="isSaving || !attempt?.id"
+                  class="w-full py-2.5 bg-white border border-slate-200 text-[#5138ed] text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                  <svg v-if="isSaving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                  Save Grades (No Publish)
+                </button>
+              </template>
+              <template v-else>
+                <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] leading-relaxed font-medium space-y-1">
+                  <div class="flex items-center gap-1.5 font-bold text-amber-900">
+                    <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    <span>Grading Locked</span>
+                  </div>
+                  <p>Semester submission completed. Grades cannot be entered, edited, or published.</p>
+                </div>
+              </template>
               <!-- Back -->
               <button @click="router.push(`/instructor/results/${route.params.examId}`)"
                 class="w-full py-2.5 bg-white border border-slate-200 text-slate-600 text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">

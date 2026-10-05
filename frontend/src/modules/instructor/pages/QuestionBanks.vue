@@ -1,25 +1,36 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useInstructorQbStore } from '../store/instructorQbStore'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 
 import QBStatCards from '../components/question-bank/QBStatCards.vue'
 import QBTable from '../components/question-bank/QBTable.vue'
 import CreateBankModal from '../components/question-bank/CreateBankModal.vue'
 
 const qbStore = useInstructorQbStore()
+const lockStore = useSemesterLockStore()
 const showCreateModal = ref(false)
 const bankToEdit = ref<{ id: number, title: string, description: string } | null>(null)
 
 onMounted(() => {
   qbStore.fetchQuestionBanks()
+  lockStore.fetchLockStatus()
 })
 
 const openCreateModal = () => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('create question bank')
+    return
+  }
   bankToEdit.value = null
   showCreateModal.value = true
 }
 
 const openEditModal = (bank: any) => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice('edit question bank')
+    return
+  }
   bankToEdit.value = {
     id: bank.id,
     title: bank.title,
@@ -29,6 +40,10 @@ const openEditModal = (bank: any) => {
 }
 
 const handleSubmitBank = async (payload: { id?: number, title: string, description: string }) => {
+  if (lockStore.isLocked) {
+    lockStore.promptLockedNotice(payload.id ? 'update question bank' : 'create question bank')
+    return
+  }
   if (payload.id) {
     await qbStore.updateQuestionBank(payload.id, payload)
   } else {
@@ -50,10 +65,22 @@ const handleSubmitBank = async (payload: { id?: number, title: string, descripti
             <h1 class="text-2xl font-bold text-slate-800">Question Banks</h1>
             <p class="text-[14px] text-slate-500 mt-1">Create and manage question banks for your courses.</p>
           </div>
-          <button @click="openCreateModal" class="flex items-center gap-2 bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors w-fit">
+          <button
+            v-if="!lockStore.isLocked"
+            @click="openCreateModal"
+            class="flex items-center gap-2 bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors w-fit"
+          >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Create Question Bank
           </button>
+          <div
+            v-else
+            @click="lockStore.promptLockedNotice('create question bank')"
+            class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-emerald-100 transition-colors w-fit"
+          >
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <span>Semester Locked (Read-Only)</span>
+          </div>
         </div>
 
         <!-- Dev Banner: Mock Data Active -->

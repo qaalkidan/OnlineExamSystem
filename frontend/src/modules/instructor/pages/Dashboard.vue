@@ -2,6 +2,7 @@
 import { onMounted, computed } from 'vue'
 import { useAuthStore } from '../../auth/store/authStore'
 import { useInstructorStore } from '../store/instructorStore'
+import { useSemesterLockStore } from '../store/semesterLockStore'
 import StatCard from '../components/StatCard.vue'
 import PerformanceChart from '../components/PerformanceChart.vue'
 import RecentExamsTable from '../components/RecentExamsTable.vue'
@@ -10,10 +11,12 @@ import QuickActions from '../components/QuickActions.vue'
 
 const authStore = useAuthStore()
 const instructorStore = useInstructorStore()
+const lockStore = useSemesterLockStore()
 
 // Fetch data on mount
 onMounted(() => {
   instructorStore.fetchDashboardData()
+  lockStore.fetchLockStatus()
 })
 
 // Derive stat card definitions reactively from store data
@@ -58,6 +61,49 @@ const stats = computed(() => [
 
     <!-- Main Left Column -->
     <div class="flex-1 space-y-6">
+
+      <!-- Semester Submitted / Locked Banner -->
+      <div
+        v-if="lockStore.isLocked"
+        class="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-emerald-50 border-2 border-emerald-300/80 rounded-2xl p-5 shadow-sm relative overflow-hidden"
+      >
+        <div class="flex items-start gap-4">
+          <div class="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-200">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <h3 class="text-lg font-black text-slate-900 tracking-tight">
+                Semester Submitted
+              </h3>
+              <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-100/90 text-emerald-800 border border-emerald-300 shadow-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                🟢 {{ lockStore.status === 'approved' ? 'Semester Approved' : 'Semester Submitted' }}
+              </div>
+            </div>
+            <p class="text-[13px] font-bold text-emerald-950 mt-1">
+              Your semester academic submission has been successfully submitted.
+            </p>
+            <p class="text-[12px] text-slate-600 mt-1 leading-relaxed">
+              Your academic activities are now locked for this semester. You can view your academic records and results, but you cannot make changes.
+            </p>
+            <div class="mt-3 pt-3 border-t border-emerald-200/60 flex items-center gap-5 text-[11px] text-slate-500 font-medium flex-wrap">
+              <span class="flex items-center gap-1.5 text-slate-700">
+                <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                Period: <strong>{{ lockStore.academicYear }} ({{ lockStore.semester }})</strong>
+              </span>
+              <span v-if="lockStore.submittedAt" class="flex items-center gap-1.5 text-slate-700">
+                <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Submitted: <strong>{{ lockStore.submittedAt }}</strong>
+              </span>
+              <span class="flex items-center gap-1.5 text-slate-700">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                Mode: <strong class="text-emerald-700 font-extrabold uppercase">Read-Only Access</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Greeting -->
       <div class="mb-2">

@@ -213,13 +213,14 @@ class SemesterSubmissionController extends Controller
             'approved'            => 0,
             'correction_required' => 0,
             'rejected'            => 0,
+            'reopened'            => 0,
             'not_submitted'       => 0,
             'total'               => 0,
         ];
 
         foreach ($instructors as $inst) {
             $sub = $existingSubmissions->get($inst->id);
-            $isSubmitted = ($sub && $sub->submitted_at && in_array(strtolower($sub->status ?? ''), ['submitted', 'pending', 'under_review', 'approved', 'correction_required', 'rejected']));
+            $isSubmitted = ($sub && $sub->submitted_at && in_array(strtolower($sub->status ?? ''), ['submitted', 'pending', 'under_review', 'approved', 'correction_required', 'rejected', 'reopened']));
 
             if ($isSubmitted) {
                 $rawStatus = strtolower($sub->status ?? 'submitted');
@@ -227,6 +228,7 @@ class SemesterSubmissionController extends Controller
                     'approved' => 'Approved',
                     'correction_required' => 'Correction Required',
                     'rejected' => 'Rejected',
+                    'reopened' => 'Reopened',
                     'submitted', 'under_review', 'pending' => 'Pending',
                     default => 'Pending',
                 };
@@ -237,6 +239,8 @@ class SemesterSubmissionController extends Controller
                     $counts['correction_required']++;
                 } elseif ($rawStatus === 'rejected') {
                     $counts['rejected']++;
+                } elseif ($rawStatus === 'reopened') {
+                    $counts['reopened']++;
                 } else {
                     $counts['pending']++;
                 }
@@ -318,6 +322,10 @@ class SemesterSubmissionController extends Controller
                 'status'        => $displayStatus,
                 'raw_status'    => $rawStatus,
                 'is_submitted'  => $isSubmitted,
+                'is_locked'     => in_array($rawStatus, ['submitted', 'approved']),
+                'reopened_at'   => $sub?->reopened_at?->format('M d, Y h:i A'),
+                'reopen_reason' => $sub?->reopen_reason,
+                'locked_at'     => $sub?->locked_at?->format('M d, Y h:i A'),
                 'remarks'       => $sub?->remarks ?? '',
                 'year_level'    => $inst->year_level ?? '1st Year',
                 'academic_year' => $academicYear,
@@ -428,7 +436,7 @@ class SemesterSubmissionController extends Controller
         $normalizedStatus = strtolower(str_replace(' ', '_', trim($request->status)));
 
         // Valid statuses
-        $allowed = ['pending', 'submitted', 'under_review', 'approved', 'rejected', 'correction_required'];
+        $allowed = ['pending', 'submitted', 'under_review', 'approved', 'rejected', 'correction_required', 'reopened'];
         if (!in_array($normalizedStatus, $allowed)) {
             $normalizedStatus = 'pending';
         }
@@ -465,8 +473,21 @@ class SemesterSubmissionController extends Controller
 
         if ($normalizedStatus === 'approved') {
             $submission->approved_at = now();
+            if (!$submission->locked_at) {
+                $submission->locked_at = now();
+            }
+        } elseif ($normalizedStatus === 'submitted') {
+            if (!$submission->locked_at) {
+                $submission->locked_at = now();
+            }
+        } elseif ($normalizedStatus === 'reopened') {
+            $submission->locked_at = null;
+            $submission->reopened_at = now();
+            $submission->reopened_by = $request->user()->id;
+            $submission->reopen_reason = $request->reason ?? $request->remarks ?? 'Reopened by Department Head';
         } elseif ($normalizedStatus === 'pending' || $normalizedStatus === 'correction_required') {
             $submission->approved_at = null;
+            $submission->locked_at = null;
         }
 
         if ($request->has('remarks')) {
@@ -479,6 +500,7 @@ class SemesterSubmissionController extends Controller
             'approved' => 'Approved',
             'correction_required' => 'Correction Required',
             'rejected' => 'Rejected',
+            'reopened' => 'Reopened',
             default => 'Pending',
         };
 
@@ -496,8 +518,58 @@ class SemesterSubmissionController extends Controller
                 'id'            => $submission->id,
                 'status'        => $displayStatus,
                 'raw_status'    => $submission->status,
+                'is_locked'     => in_array($submission->status, ['submitted', 'approved']),
                 'remarks'       => $submission->remarks,
                 'approved_at'   => $submission->approved_at?->format('M d, Y h:i A'),
+                'reopened_at'   => $submission->reopened_at?->format('M d, Y h:i A'),
+                'reopen_reason' => $submission->reopen_reason,
+            ]
+        ]);
+    }
+
+    /**
+     * Explicitly reopen a locked semester submission for an instructor.
+     */
+    public function reopen(Request $request, $id): JsonResponse
+    {
+        $request->validate([
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        $submission = SemesterSubmission::with('instructor')->find($id);
+        if (!$submission) {
+            $submission = SemesterSubmission::where('instructor_id', $id)->first();
+        }
+
+        if (!$submission) {
+            return response()->json(['message' => 'Semester submission record not found.'], 404);
+        }
+
+        $reason = $request->input('reason', 'Reopened by Department Head for modifications');
+
+        $submission->status = 'reopened';
+        $submission->reopened_at = now();
+        $submission->reopened_by = $request->user()->id;
+        $submission->reopen_reason = $reason;
+        $submission->locked_at = null; // Unlocked!
+        $submission->save();
+
+        $instName = $submission->instructor?->name ?? 'Instructor';
+        LogActivity::record(
+            'Reopened',
+            'Semester Submissions',
+            "Reopened semester submission for {$instName}. Reason: {$reason}"
+        );
+
+        return response()->json([
+            'message' => "Semester submission for {$instName} has been reopened successfully. Academic edit access is restored.",
+            'submission' => [
+                'id'            => $submission->id,
+                'status'        => 'Reopened',
+                'raw_status'    => 'reopened',
+                'is_locked'     => false,
+                'reopened_at'   => $submission->reopened_at->format('M d, Y h:i A'),
+                'reopen_reason' => $submission->reopen_reason,
             ]
         ]);
     }
