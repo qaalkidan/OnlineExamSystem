@@ -1,15 +1,56 @@
 <script setup lang="ts">
 import { useAuthStore } from '../../modules/auth/store/authStore'
 import { useSettingsStore } from '../../store/settingsStore'
-import { computed, inject, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const route = useRoute()
+const router = useRouter()
+
+const isProfileDropdownOpen = ref(false)
+const profileDropdownRef = ref<HTMLElement | null>(null)
+
+const toggleProfileDropdown = () => {
+  isProfileDropdownOpen.value = !isProfileDropdownOpen.value
+}
+
+const closeDropdown = () => {
+  isProfileDropdownOpen.value = false
+}
+
+const navigateTo = (path: string) => {
+  closeDropdown()
+  router.push(path)
+}
+
+const handleLogout = async () => {
+  closeDropdown()
+  await authStore.logout()
+}
+
+const handleClickOutside = (e: MouseEvent) => {
+  if (profileDropdownRef.value && !profileDropdownRef.value.contains(e.target as Node)) {
+    isProfileDropdownOpen.value = false
+  }
+}
+
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    isProfileDropdownOpen.value = false
+  }
+}
 
 onMounted(() => {
   authStore.fetchCurrentUser()
+  document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleKeyDown)
 })
 
 const profilePhotoUrl = computed(() => {
@@ -76,25 +117,148 @@ const pageInfo = computed(() => {
       </span>
     </div>
 
-    <!-- Right Side: User & Actions -->
-    <div class="flex items-center gap-6">
-      
-      <!-- Notifications -->
-      <button class="relative p-2 text-slate-400 hover:text-slate-600 transition-colors">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-        </svg>
-      </button>
+    <!-- Right Side: User Profile & Dropdown (Notification icon removed as requested) -->
+    <div class="flex items-center">
+      <div class="relative" ref="profileDropdownRef">
+        <!-- Trigger Button -->
+        <button
+          type="button"
+          @click="toggleProfileDropdown"
+          class="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-slate-100/80 transition-all border border-transparent hover:border-slate-200 cursor-pointer group focus:outline-none"
+          :class="{ 'bg-slate-100/90 border-slate-200 shadow-sm': isProfileDropdownOpen }"
+        >
+          <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border-2 border-transparent group-hover:border-rose-500 transition-all flex items-center justify-center shadow-sm">
+            <img :src="profilePhotoUrl" alt="Profile" class="w-full h-full object-cover" />
+          </div>
+          <div class="hidden md:flex flex-col text-left">
+            <span class="text-sm font-bold text-slate-800 group-hover:text-slate-900 leading-tight">
+              {{ authStore.user?.name || 'Super Admin' }}
+            </span>
+            <span class="text-[11px] font-semibold text-rose-500 leading-tight mt-0.5">Administrator</span>
+          </div>
+          <svg
+            class="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ml-1"
+            :class="{ 'rotate-180 text-rose-500': isProfileDropdownOpen }"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
 
-      <!-- User Profile Dropdown -->
-      <div class="flex items-center gap-3 pl-6 border-l border-slate-200 cursor-pointer group">
-        <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border-2 border-transparent group-hover:border-rose-500 transition-all flex items-center justify-center">
-          <img :src="profilePhotoUrl" alt="Profile" class="w-full h-full object-cover" />
-        </div>
-        <div class="hidden md:flex flex-col">
-          <span class="text-sm font-bold text-slate-800">{{ authStore.user?.name || 'Super Admin' }}</span>
-          <span class="text-xs font-medium text-rose-500">Administrator</span>
-        </div>
+        <!-- Modern Super Admin Dropdown Menu -->
+        <Transition
+          enter-active-class="transition duration-150 ease-out"
+          enter-from-class="transform scale-95 opacity-0 -translate-y-1"
+          enter-to-class="transform scale-100 opacity-100 translate-y-0"
+          leave-active-class="transition duration-100 ease-in"
+          leave-from-class="transform scale-100 opacity-100 translate-y-0"
+          leave-to-class="transform scale-95 opacity-0 -translate-y-1"
+        >
+          <div
+            v-if="isProfileDropdownOpen"
+            class="absolute right-0 top-full mt-2 w-72 bg-white/95 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-[0_15px_50px_-10px_rgba(0,0,0,0.15)] py-2 z-50 select-none overflow-hidden"
+          >
+            <!-- User Info Header -->
+            <div class="px-4 py-3 bg-gradient-to-br from-rose-50/60 via-slate-50/50 to-white border-b border-slate-100 flex items-center gap-3">
+              <div class="relative w-11 h-11 rounded-full overflow-hidden border-2 border-rose-400/60 shadow-sm shrink-0">
+                <img :src="profilePhotoUrl" alt="Profile" class="w-full h-full object-cover" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-[13px] font-bold text-slate-900 truncate">
+                  {{ authStore.user?.name || 'Super Admin' }}
+                </p>
+                <p class="text-[11px] text-slate-500 truncate">
+                  {{ authStore.user?.email || 'admin@wollo.edu.et' }}
+                </p>
+                <div class="mt-1 flex items-center gap-1.5">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100/80 text-rose-700 border border-rose-200/60">
+                    Super Admin
+                  </span>
+                  <span class="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Action Links -->
+            <div class="p-1.5 space-y-0.5">
+              <!-- System Settings -->
+              <button
+                type="button"
+                @click="navigateTo('/admin/settings')"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 transition-colors group"
+              >
+                <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <div class="font-bold text-slate-800 group-hover:text-rose-700">System Settings</div>
+                  <div class="text-[10px] text-slate-400 font-normal">Global system preferences</div>
+                </div>
+              </button>
+
+              <!-- Activity Logs -->
+              <button
+                type="button"
+                @click="navigateTo('/admin/activity-logs')"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 transition-colors group"
+              >
+                <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <div class="font-bold text-slate-800 group-hover:text-rose-700">Activity Logs</div>
+                  <div class="text-[10px] text-slate-400 font-normal">Audit trail & system events</div>
+                </div>
+              </button>
+
+              <!-- User Management -->
+              <button
+                type="button"
+                @click="navigateTo('/admin/instructors')"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 transition-colors group"
+              >
+                <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <div class="font-bold text-slate-800 group-hover:text-rose-700">Faculty & Users</div>
+                  <div class="text-[10px] text-slate-400 font-normal">Manage instructors & staff</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- Divider -->
+            <div class="h-px bg-slate-100 my-1 mx-2"></div>
+
+            <!-- Logout Option -->
+            <div class="p-1.5 pt-0.5">
+              <button
+                type="button"
+                @click="handleLogout"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors group"
+              >
+                <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <div class="font-bold text-rose-600">Sign Out</div>
+                  <div class="text-[10px] text-rose-400 font-normal">End admin session</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
   </header>
