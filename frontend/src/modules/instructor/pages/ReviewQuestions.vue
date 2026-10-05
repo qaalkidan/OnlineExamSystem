@@ -121,11 +121,11 @@ const getLetterLabel = (index: number) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f8fafc] p-6 lg:p-10 font-sans pb-28">
+  <div class="min-h-screen bg-[#f8fafc] p-3.5 sm:p-6 lg:p-10 font-sans pb-28">
 
     <!-- Toast Notification -->
     <transition enter-active-class="transition duration-300 ease-out" enter-from-class="transform translate-y-2 opacity-0" enter-to-class="transform translate-y-0 opacity-100" leave-active-class="transition duration-200 ease-in" leave-from-class="transform translate-y-0 opacity-100" leave-to-class="transform translate-y-2 opacity-0">
-      <div v-if="showToast" class="fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-2xl border border-slate-800">
+      <div v-if="showToast" class="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-2xl border border-slate-800 max-w-[calc(100vw-2rem)]">
         <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
         <span>{{ toastMessage }}</span>
       </div>
@@ -133,18 +133,18 @@ const getLetterLabel = (index: number) => {
 
     <!-- Header & Breadcrumbs -->
     <div class="max-w-5xl mx-auto mb-8">
-      <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-3">
-        <router-link to="/instructor/question-banks" class="hover:text-slate-600 transition-colors">Question Banks</router-link>
+      <div class="flex items-center flex-wrap gap-1.5 text-xs font-semibold text-slate-400 mb-3">
+        <router-link to="/instructor/question-banks" class="hover:text-slate-600 transition-colors whitespace-nowrap">Question Banks</router-link>
         <span>/</span>
-        <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-600 transition-colors">{{ bank?.title || 'Question Bank' }}</router-link>
+        <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-600 transition-colors truncate max-w-[120px] sm:max-w-[200px]">{{ bank?.title || 'Question Bank' }}</router-link>
         <span>/</span>
-        <span class="text-[#5138ed]">Review Questions</span>
+        <span class="text-[#5138ed] whitespace-nowrap">Review Questions</span>
       </div>
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div class="flex items-center gap-3">
-            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Review Draft Questions</h1>
+          <div class="flex flex-wrap items-center gap-3">
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Review Draft Questions</h1>
             <span class="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold rounded-md uppercase tracking-wider">
               {{ totalDrafts }} Drafts Pending
             </span>
@@ -152,19 +152,19 @@ const getLetterLabel = (index: number) => {
           <p class="text-xs text-slate-500 mt-1">Review all grouped questions created in this session before publishing.</p>
         </div>
 
-        <div class="flex items-center gap-3">
-          <router-link :to="`/instructor/question-banks/${bankId}/create-question`" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <router-link :to="`/instructor/question-banks/${bankId}/create-question`" class="min-h-[44px] px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Add More Questions
           </router-link>
           
           <button 
             @click="handlePublishAll" 
             :disabled="isPublishing || totalDrafts === 0" 
-            class="px-5 py-2.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            class="min-h-[44px] px-5 py-2.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <svg v-if="!isPublishing" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            <svg v-else class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <svg v-if="!isPublishing" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            <svg v-else class="animate-spin w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
             <span>{{ isPublishing ? 'Publishing...' : 'Publish Questions' }}</span>
           </button>
         </div>

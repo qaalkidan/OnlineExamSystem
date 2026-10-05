@@ -23,9 +23,9 @@ const exams = ref([
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">Student Exam Results</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Student Exam Results</h1>
         <p class="text-[13px] text-slate-500 mt-1">View detailed examination results and performance history.</p>
-        <div class="flex items-center gap-2 text-[12px] text-slate-400 mt-2">
+        <div class="flex flex-wrap items-center gap-2 text-[12px] text-slate-400 mt-2">
           <router-link to="/instructor/dashboard" class="hover:text-[#5138ed] transition-colors">Dashboard</router-link>
           <span>&gt;</span>
           <router-link to="/instructor/students" class="hover:text-[#5138ed] transition-colors">Students</router-link>
@@ -35,41 +35,41 @@ const exams = ref([
           <span class="text-slate-600 font-medium">Exam Results</span>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <button @click="router.push('/instructor/students/1')" class="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors bg-white">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <button @click="router.push('/instructor/students/1')" class="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors bg-white">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Profile
         </button>
-        <button class="flex items-center gap-2 px-4 py-2 bg-[#5138ed] text-white text-sm font-bold rounded-xl shadow-sm hover:bg-[#4530d1] transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        <button class="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 bg-[#5138ed] text-white text-sm font-bold rounded-xl shadow-sm hover:bg-[#4530d1] transition-colors">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
           Message Student
         </button>
       </div>
     </div>
 
     <!-- Top Card -->
-    <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm mb-6 flex flex-col md:flex-row gap-6 md:gap-12 lg:gap-20">
+    <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm mb-6 flex flex-col md:flex-row gap-4 sm:gap-6 md:gap-12 lg:gap-20">
       
       <!-- Student Info -->
-      <div class="flex items-center gap-6">
-        <div class="relative w-20 h-20 shrink-0">
+      <div class="flex items-center gap-4 sm:gap-6">
+        <div class="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0">
           <img src="https://i.pravatar.cc/150?u=a042581f4e290267041" alt="Avatar" class="w-full h-full object-cover rounded-full shadow-sm" />
         </div>
         <div class="flex flex-col">
-          <div class="flex items-center gap-3 mb-2">
-            <h2 class="text-xl font-bold text-slate-800">Selamawit Getachew</h2>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+            <h2 class="text-lg sm:text-xl font-bold text-slate-800">Selamawit Getachew</h2>
             <span class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-600">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active Student
             </span>
           </div>
-          <div class="flex flex-wrap items-center gap-6 text-[12px] font-medium text-slate-500">
+          <div class="flex flex-wrap items-center gap-4 sm:gap-6 text-[12px] font-medium text-slate-500">
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg></div>
               <div class="flex flex-col"><span class="text-[9px] text-slate-400 font-bold uppercase tracking-wide">ID Number</span><span class="text-[12px] text-slate-700 font-bold">WU/2021/CS/001</span></div>
             </div>
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
-              <div class="flex flex-col"><span class="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Email</span><span class="text-[12px] text-slate-700 font-bold">selamawit.get@wollo.edu.et</span></div>
+              <div class="flex flex-col"><span class="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Email</span><span class="text-[12px] text-slate-700 font-bold truncate max-w-[160px] sm:max-w-none">selamawit.get@wollo.edu.et</span></div>
             </div>
           </div>
         </div>
@@ -78,16 +78,16 @@ const exams = ref([
       <div class="w-px bg-slate-100 hidden md:block"></div>
 
       <!-- Student Metadata Grid -->
-      <div class="grid grid-cols-2 gap-x-8 gap-y-4 pt-1">
+      <div class="grid grid-cols-2 gap-x-6 sm:gap-x-8 gap-y-3 sm:gap-y-4 pt-1">
         <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg></div><span class="text-[11px] text-slate-500 w-16 font-medium">Program</span><span class="text-[12px] text-slate-800 font-bold">BSc in Computer Science</span></div>
         <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg></div><span class="text-[11px] text-slate-500 w-16 font-medium">Section</span><span class="text-[12px] text-slate-800 font-bold">CS-304-A</span></div>
-        <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><span class="text-[11px] text-slate-500 w-24 font-medium">Academic Year</span><span class="text-[12px] text-slate-800 font-bold">2025/2026</span></div>
-        <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div><span class="text-[11px] text-slate-500 w-16 font-medium">Current Year</span><span class="text-[12px] text-slate-800 font-bold">3rd Year</span></div>
+        <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><span class="text-[11px] text-slate-500 w-16 font-medium">Acad. Year</span><span class="text-[12px] text-slate-800 font-bold">2025/2026</span></div>
+        <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div><span class="text-[11px] text-slate-500 w-16 font-medium">Curr. Year</span><span class="text-[12px] text-slate-800 font-bold">3rd Year</span></div>
       </div>
     </div>
 
     <!-- Stats Row -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
       <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex items-center gap-4">
         <div class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5138ed] shrink-0"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></div>
         <div class="flex flex-col">
@@ -140,10 +140,10 @@ const exams = ref([
         <div class="bg-white border border-slate-100 rounded-2xl shadow-sm flex-1 flex flex-col p-6">
           
           <!-- Filters & Tabs -->
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div class="flex items-center gap-6 border-b border-slate-100 overflow-x-auto">
               <button v-for="tab in tabs" :key="tab" @click="activeTab = tab"
-                class="pb-3 text-[13px] font-bold transition-colors relative whitespace-nowrap"
+                class="pb-3 text-[13px] font-bold transition-colors relative whitespace-nowrap min-h-[44px]"
                 :class="activeTab === tab ? 'text-[#5138ed]' : 'text-slate-500 hover:text-slate-800'">
                 {{ tab }}
                 <div v-if="activeTab === tab" class="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5138ed] rounded-t-full"></div>
@@ -152,22 +152,22 @@ const exams = ref([
             
             <div class="flex items-center gap-3">
               <div class="relative">
-                <select class="appearance-none bg-white border border-slate-200 text-slate-700 text-[12px] font-bold rounded-xl pl-4 pr-10 py-2 focus:outline-none focus:border-[#5138ed] cursor-pointer">
+                <select class="appearance-none bg-white border border-slate-200 text-slate-700 text-[12px] font-bold rounded-xl pl-4 pr-10 py-2 min-h-[44px] focus:outline-none focus:border-[#5138ed] cursor-pointer">
                   <option>All Semesters</option>
                   <option>Semester I</option>
                   <option>Semester II</option>
                 </select>
-                <svg class="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                <svg class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              <button class="flex items-center gap-2 px-4 py-2 border border-[#5138ed] text-[#5138ed] text-[12px] font-bold rounded-xl hover:bg-indigo-50 transition-colors">
+              <button class="min-h-[44px] flex items-center gap-2 px-4 py-2 border border-[#5138ed] text-[#5138ed] text-[12px] font-bold rounded-xl hover:bg-indigo-50 transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
                 Filter
               </button>
             </div>
           </div>
 
-          <!-- Exams Table -->
-          <div class="overflow-x-auto flex-1">
+          <!-- Desktop Exams Table -->
+          <div class="hidden md:block overflow-x-auto flex-1">
             <table class="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
@@ -227,13 +227,58 @@ const exams = ref([
             </table>
           </div>
 
+          <!-- Mobile Exam Cards -->
+          <div class="md:hidden divide-y divide-slate-100">
+            <div v-for="exam in exams" :key="exam.id" class="py-4">
+              <div class="flex items-start gap-3 mb-3">
+                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5" :class="exam.icon">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-bold text-slate-800 truncate">{{ exam.title }}</p>
+                  <p class="text-[11px] text-slate-500 mt-0.5">{{ exam.subtitle }} · {{ exam.date }}</p>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider shrink-0" :class="exam.statusColor">
+                  <span v-if="exam.status === 'Graded'" class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                  <span v-else class="w-1 h-1 rounded-full bg-orange-500"></span>
+                  {{ exam.status }}
+                </span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 mb-3 text-center">
+                <div class="bg-slate-50 rounded-xl p-2">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">Total</p>
+                  <p class="text-[12px] font-bold text-slate-700">{{ exam.totalMarks }}</p>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-2">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">Score</p>
+                  <p class="text-[12px] font-bold" :class="exam.gradeColor">{{ exam.score !== null ? `${exam.score} (${exam.scorePercent}%)` : '-' }}</p>
+                </div>
+                <div class="bg-indigo-50 rounded-xl p-2">
+                  <p class="text-[9px] text-[#5138ed] font-bold uppercase mb-0.5">Grade</p>
+                  <p class="text-[12px] font-bold" :class="exam.gradeColor">{{ exam.grade }}</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-slate-50">
+                <span class="px-2.5 py-1 text-[10px] font-bold rounded-md" :class="exam.typeColor">{{ exam.type }}</span>
+                <div class="flex items-center gap-1.5">
+                  <button v-if="exam.status === 'Graded'" class="w-8 h-8 rounded-lg flex items-center justify-center text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 transition-colors" title="View Result">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                  </button>
+                  <button v-else class="w-8 h-8 rounded-lg flex items-center justify-center text-orange-500 bg-orange-50 hover:bg-orange-100 transition-colors" title="Pending">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Pagination -->
-          <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+          <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
             <span class="text-[11px] text-slate-500 font-medium">Showing 1 to 6 of 6 exams</span>
             <div class="flex items-center gap-1">
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold text-[11px] shadow-sm">1</button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold text-[11px] shadow-sm">1</button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
             </div>
           </div>
         </div>

@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSemesterLockStore } from '../../modules/instructor/store/semesterLockStore'
 
 const route = useRoute()
 const lockStore = useSemesterLockStore()
+
+const sidebarOpen = inject<{ value: boolean }>('sidebarOpen', { value: false })
+const closeSidebar = inject<() => void>('closeSidebar', () => {})
+
+const handleNavClick = () => {
+  if (window.innerWidth < 1024) {
+    closeSidebar()
+  }
+}
 
 const navItems = computed(() => [
   { name: 'Dashboard', path: '/instructor/dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' },
@@ -26,26 +35,39 @@ const navItems = computed(() => [
 </script>
 
 <template>
-  <aside class="w-56 bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 overflow-hidden">
+  <aside 
+    class="w-64 lg:w-56 bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out select-none shadow-xl lg:shadow-none overflow-hidden"
+    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+  >
     
-    <!-- Logo Area -->
-    <div class="flex items-center px-5 pt-10 pb-4 border-b border-slate-50">
-      <div class="flex items-center gap-2">
-        <img src="../../assets/images/logo.png" alt="Wollo University" class="w-9 h-9 object-contain rounded-full shadow-sm" />
-        <div class="flex flex-col">
-          <span class="text-[14px] font-bold text-slate-900 leading-tight">Wollo University</span>
-          <span class="text-[10px] text-slate-500 font-medium">Online Examination System</span>
+    <!-- Logo & Drawer Header Area -->
+    <div class="flex items-center justify-between px-5 pt-6 lg:pt-8 pb-4 border-b border-slate-50 shrink-0">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <img src="../../assets/images/logo.png" alt="Wollo University" class="w-9 h-9 object-contain rounded-full shadow-xs shrink-0" />
+        <div class="flex flex-col min-w-0">
+          <span class="text-[14px] font-bold text-slate-900 leading-tight truncate">Wollo University</span>
+          <span class="text-[10px] text-slate-500 font-medium truncate">Instructor Portal</span>
         </div>
       </div>
+      <!-- Mobile Close Button -->
+      <button 
+        @click="closeSidebar"
+        type="button"
+        class="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+        aria-label="Close sidebar"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
 
     <!-- Navigation Links -->
-    <nav class="flex-1 px-4 pt-4 pb-6 space-y-1">
+    <nav class="flex-1 px-3 pt-3 pb-6 space-y-1 overflow-y-auto">
       <router-link 
         v-for="item in navItems" 
         :key="item.name"
         :to="item.path"
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
+        @click="handleNavClick"
+        class="flex items-center gap-3 px-3.5 py-2.5 min-h-[44px] rounded-xl transition-all duration-200 group"
         :class="[
           route.path.startsWith(item.path) 
             ? 'bg-indigo-50 text-[#5138ed] font-semibold' 
@@ -53,7 +75,7 @@ const navItems = computed(() => [
         ]"
       >
         <svg 
-          class="w-5 h-5 flex-shrink-0 transition-colors duration-200" 
+          class="w-5 h-5 shrink-0 transition-colors duration-200" 
           :class="route.path.startsWith(item.path) ? 'text-[#5138ed]' : 'text-slate-400 group-hover:text-slate-600'"
           fill="none" 
           stroke="currentColor" 
@@ -61,9 +83,9 @@ const navItems = computed(() => [
         >
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon" />
         </svg>
-        <div class="flex items-center justify-between flex-1">
-          <span class="text-[13px] tracking-wide font-medium">{{ item.name }}</span>
-          <span v-if="item.badge" class="px-2 py-0.5 text-[10px] font-bold rounded-full border flex items-center gap-1"
+        <div class="flex items-center justify-between flex-1 min-w-0">
+          <span class="text-[13px] tracking-wide font-medium truncate">{{ item.name }}</span>
+          <span v-if="item.badge" class="px-2 py-0.5 text-[10px] font-bold rounded-full border flex items-center gap-1 shrink-0 ml-1.5"
             :class="item.isLocked 
               ? (route.path.startsWith(item.path) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 text-emerald-700 border-emerald-200')
               : (route.path.startsWith(item.path) ? 'bg-[#5138ed] text-white border-[#5138ed]' : 'bg-slate-100 text-[#5138ed] border-[#5138ed]/20')">
@@ -74,14 +96,16 @@ const navItems = computed(() => [
       </router-link>
     </nav>
 
-    <!-- Bottom Graphic -->
-    <div class="p-6 mt-auto">
-      <div class="w-full flex flex-col items-center justify-center opacity-60">
-        <div class="w-16 h-16 border-2 border-slate-200 rounded-t-full mb-2 flex items-center justify-center">
-          <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+    <!-- Bottom Graphic / Status -->
+    <div class="p-4 mt-auto border-t border-slate-50 shrink-0">
+      <div class="w-full flex items-center gap-3 px-2 py-1 text-slate-500">
+        <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
         </div>
-        <span class="text-xs font-bold text-slate-500 tracking-wide uppercase">Instructor</span>
-        <span class="text-[9px] text-slate-400 font-medium">Portal</span>
+        <div class="flex flex-col min-w-0">
+          <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">Instructor</span>
+          <span class="text-[10px] text-slate-400 font-medium truncate">Online Exam Portal</span>
+        </div>
       </div>
     </div>
 

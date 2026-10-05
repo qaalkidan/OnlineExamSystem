@@ -24,9 +24,9 @@ const minData = 0
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">Student Profile</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Student Profile</h1>
         <p class="text-[13px] text-slate-500 mt-1">View detailed information, academic progress, and examination history.</p>
-        <div class="flex items-center gap-2 text-[12px] text-slate-400 mt-2">
+        <div class="flex flex-wrap items-center gap-2 text-[12px] text-slate-400 mt-2">
           <router-link to="/instructor/dashboard" class="hover:text-[#5138ed] transition-colors">Dashboard</router-link>
           <span>&gt;</span>
           <router-link to="/instructor/students" class="hover:text-[#5138ed] transition-colors">Students</router-link>
@@ -34,37 +34,37 @@ const minData = 0
           <span class="text-slate-600 font-medium">Student Profile</span>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <button @click="router.push('/instructor/students')" class="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors bg-white">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <button @click="router.push('/instructor/students')" class="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors bg-white">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Students
         </button>
-        <button class="flex items-center gap-2 px-4 py-2 bg-[#5138ed] text-white text-sm font-bold rounded-xl shadow-sm hover:bg-[#4530d1] transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        <button class="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 bg-[#5138ed] text-white text-sm font-bold rounded-xl shadow-sm hover:bg-[#4530d1] transition-colors">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
           Send Message
         </button>
       </div>
     </div>
 
     <!-- Top Card -->
-    <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm mb-6 flex flex-col md:flex-row gap-6 md:gap-12 lg:gap-20">
+    <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm mb-6 flex flex-col md:flex-row gap-4 sm:gap-6 md:gap-12 lg:gap-20">
       
       <!-- Student Info -->
-      <div class="flex items-center gap-6">
-        <div class="relative w-20 h-20 shrink-0">
+      <div class="flex items-center gap-4 sm:gap-6">
+        <div class="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0">
           <img src="https://i.pravatar.cc/150?u=a042581f4e290267041" alt="Avatar" class="w-full h-full object-cover rounded-full shadow-sm" />
           <div class="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></div>
         </div>
         <div class="flex flex-col">
-          <div class="flex items-center gap-3 mb-2">
-            <h2 class="text-xl font-bold text-slate-800">Selamawit Getachew</h2>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+            <h2 class="text-lg sm:text-xl font-bold text-slate-800">Selamawit Getachew</h2>
             <span class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-600">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active Student
             </span>
           </div>
-          <div class="flex flex-wrap items-center gap-6 text-[12px] font-medium text-slate-500">
+          <div class="flex flex-wrap items-center gap-4 sm:gap-6 text-[12px] font-medium text-slate-500">
             <div class="flex items-center gap-2"><div class="text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg></div><div class="flex flex-col"><span class="text-[9px] text-slate-400 font-bold uppercase">ID Number</span><span class="text-slate-700">WU/2021/CS/001</span></div></div>
-            <div class="flex items-center gap-2"><div class="text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div><div class="flex flex-col"><span class="text-[9px] text-slate-400 font-bold uppercase">Email</span><span class="text-slate-700">selamawit.get@wollo.edu.et</span></div></div>
+            <div class="flex items-center gap-2"><div class="text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div><div class="flex flex-col"><span class="text-[9px] text-slate-400 font-bold uppercase">Email</span><span class="text-slate-700 truncate max-w-[160px] sm:max-w-none">selamawit.get@wollo.edu.et</span></div></div>
             <div class="flex items-center gap-2"><div class="text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg></div><div class="flex flex-col"><span class="text-[9px] text-slate-400 font-bold uppercase">Phone</span><span class="text-slate-700">+251 91 234 5678</span></div></div>
           </div>
         </div>
@@ -73,11 +73,11 @@ const minData = 0
       <div class="w-px bg-slate-100 hidden md:block"></div>
 
       <!-- Student Metadata Grid -->
-      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
+      <div class="grid grid-cols-2 gap-x-6 sm:gap-x-8 gap-y-3 sm:gap-y-4">
         <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg></div><span class="text-slate-500 w-16 font-medium">Program</span><span class="text-slate-800 font-bold">BSc in Computer Science</span></div>
         <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><span class="text-slate-500 w-16 font-medium">Year</span><span class="text-slate-800 font-bold">3rd Year</span></div>
         <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg></div><span class="text-slate-500 w-16 font-medium">Section</span><span class="text-slate-800 font-bold">CS-304-A</span></div>
-        <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></div><span class="text-slate-500 w-24 font-medium">Academic Year</span><span class="text-slate-800 font-bold">2025/2026</span></div>
+        <div class="flex items-center gap-2 text-[12px]"><div class="text-slate-400 w-4"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></div><span class="text-slate-500 w-16 font-medium">Acad. Year</span><span class="text-slate-800 font-bold">2025/2026</span></div>
       </div>
 
     </div>

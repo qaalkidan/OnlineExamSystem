@@ -708,33 +708,40 @@ const getDifficultyClass = (diff: string) => {
     </transition>
 
     <!-- Page Header & Stepper -->
-    <div class="max-w-[1200px] mx-auto mb-8">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
-        <div class="flex items-center gap-2 text-xs font-semibold text-slate-400">
+    <div class="max-w-[1200px] mx-auto mb-6 sm:mb-8">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-3">
+        <div class="flex items-center gap-1.5 sm:gap-2 text-xs font-semibold text-slate-400 flex-wrap">
           <router-link to="/instructor/question-banks" class="hover:text-slate-600 transition-colors">Question Banks</router-link>
           <span>/</span>
-          <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-600 transition-colors">{{ bank?.title || 'Question Bank' }}</router-link>
+          <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-600 transition-colors truncate max-w-[120px] sm:max-w-none">{{ bank?.title || 'Question Bank' }}</router-link>
           <span>/</span>
-          <span class="text-[#5138ed]">Question Creation Wizard</span>
+          <span class="text-[#5138ed]">Wizard</span>
         </div>
-        <router-link :to="`/instructor/question-banks/${bankId}`" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap self-start">
+        <router-link :to="`/instructor/question-banks/${bankId}`" class="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 shadow-xs whitespace-nowrap self-start min-h-[38px]">
            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-           Back to Question Bank
+           Back to Bank
         </router-link>
       </div>
 
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs mb-6">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-xs mb-6">
         <div>
-          <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Create Questions Wizard</h1>
-          <p class="text-xs text-slate-500 mt-1">Complete the steps below to add and publish dynamic questions.</p>
+          <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Create Questions Wizard</h1>
+          <p class="text-xs text-slate-500 mt-0.5 sm:mt-1">Complete the steps below to add and publish dynamic questions.</p>
         </div>
 
-        <div class="flex items-center gap-2 sm:gap-4">
-          <button @click="goToStep(1)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all', currentStep === 1 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">1</span><span>Bank Info</span></button>
+        <!-- Mobile Stepper (sm:hidden) -->
+        <div class="sm:hidden flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-bold">
+          <span class="text-slate-600">Step {{ currentStep }} of 3</span>
+          <span class="text-[#5138ed]">{{ currentStep === 1 ? '1. Bank Info' : currentStep === 2 ? '2. Add Questions' : '3. Review & Publish' }}</span>
+        </div>
+
+        <!-- Tablet/Desktop Stepper (hidden sm:flex) -->
+        <div class="hidden sm:flex items-center gap-2 sm:gap-4">
+          <button @click="goToStep(1)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px]', currentStep === 1 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">1</span><span>Bank Info</span></button>
           <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-          <button @click="goToStep(2)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all', currentStep === 2 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">2</span><span>Add Questions</span></button>
+          <button @click="goToStep(2)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px]', currentStep === 2 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">2</span><span>Add Questions</span></button>
           <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-          <button @click="goToStep(3)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all', currentStep === 3 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">3</span><span>Review & Publish</span></button>
+          <button @click="goToStep(3)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px]', currentStep === 3 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">3</span><span>Review & Publish</span></button>
         </div>
       </div>
     </div>
@@ -1191,23 +1198,23 @@ const getDifficultyClass = (diff: string) => {
     </div>
 
     <!-- STICKY ACTION FOOTER -->
-    <div class="fixed bottom-0 left-0 lg:left-64 right-0 bg-white border-t border-slate-200 px-8 py-4 z-40 flex items-center justify-between">
+    <div class="fixed bottom-0 left-0 lg:left-56 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 sm:px-8 py-3 sm:py-4 z-40 flex items-center justify-between gap-3 shadow-lg">
       <template v-if="currentStep === 1">
-        <button @click="handleCancel" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-        <button @click="goToStep(2)" class="px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 shadow-md shadow-indigo-200"><span>Next → Add Questions</span></button>
+        <button @click="handleCancel" class="px-4 sm:px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors min-h-[44px]">Cancel</button>
+        <button @click="goToStep(2)" class="px-5 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 shadow-md shadow-indigo-200 min-h-[44px]"><span>Next → Add Questions</span></button>
       </template>
 
       <template v-else-if="currentStep === 2">
-        <button @click="goToStep(1)" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"><span>← Previous</span></button>
-        <div class="flex items-center gap-3">
-          <button @click="handleAddAnother" class="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"><svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg><span>Save & Add Another</span></button>
-          <button @click="handleReviewAndPublish" class="px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 flex items-center gap-2"><span>Review & Publish →</span></button>
+        <button @click="goToStep(1)" class="px-3.5 sm:px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><span>← Previous</span></button>
+        <div class="flex items-center gap-2 sm:gap-3">
+          <button @click="handleAddAnother" class="px-3 sm:px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><svg class="w-4 h-4 text-[#5138ed] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg><span class="hidden sm:inline">Save & Add Another</span><span class="sm:hidden">Add Another</span></button>
+          <button @click="handleReviewAndPublish" class="px-4 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><span>Review & Publish →</span></button>
         </div>
       </template>
 
       <template v-else-if="currentStep === 3">
-        <button @click="goToStep(2)" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"><span>← Previous</span></button>
-        <button @click="handlePublishQuestions" :disabled="isPublishing || totalDraftCount === 0" class="px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 flex items-center gap-2"><svg v-if="!isPublishing" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>{{ isPublishing ? 'Publishing...' : 'Publish Questions' }}</span></button>
+        <button @click="goToStep(2)" class="px-3.5 sm:px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><span>← Previous</span></button>
+        <button @click="handlePublishQuestions" :disabled="isPublishing || totalDraftCount === 0" class="px-4 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 flex items-center gap-2 min-h-[44px]"><svg v-if="!isPublishing" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>{{ isPublishing ? 'Publishing...' : 'Publish Questions' }}</span></button>
       </template>
     </div>
 

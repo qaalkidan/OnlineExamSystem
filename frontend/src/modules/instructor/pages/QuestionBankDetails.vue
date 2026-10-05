@@ -806,20 +806,20 @@ onMounted(() => {
     <template v-else>
     
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div class="flex items-center flex-wrap text-[13px] text-slate-500 font-medium">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      <div class="flex items-center flex-wrap text-xs sm:text-[13px] text-slate-500 font-medium">
         <router-link to="/instructor/question-banks" class="hover:text-[#5138ed] transition-colors">Question Banks</router-link>
-        <svg class="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-        <span class="hover:text-[#5138ed] cursor-pointer transition-colors">{{ bank.title }}</span>
-        <svg class="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-        <span class="text-[#5138ed] font-bold">Question Bank Details</span>
+        <svg class="w-4 h-4 mx-1.5 sm:mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        <span class="hover:text-[#5138ed] cursor-pointer transition-colors truncate max-w-[120px] sm:max-w-none">{{ bank.title }}</span>
+        <svg class="w-4 h-4 mx-1.5 sm:mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        <span class="text-[#5138ed] font-bold">Details</span>
       </div>
       
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 w-full sm:w-auto">
         <button
           v-if="!lockStore.isLocked"
           @click="router.push(`/instructor/question-banks/${route.params.id}/create-question`)"
-          class="bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-[13px] shadow-sm transition-colors flex items-center gap-2"
+          class="bg-[#5138ed] hover:bg-indigo-600 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-[13px] shadow-xs transition-colors flex items-center justify-center gap-2 w-full sm:w-auto min-h-[44px]"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
           Create Question
@@ -827,16 +827,16 @@ onMounted(() => {
         <div
           v-else
           @click="lockStore.promptLockedNotice('create question')"
-          class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-emerald-100 transition-colors"
+          class="flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-emerald-100 transition-colors w-full sm:w-auto min-h-[44px]"
         >
-          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
           <span>Semester Locked (Read-Only)</span>
         </div>
       </div>
     </div>
 
     <!-- Header Card (Full Width & Slimmer) -->
-    <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mb-6">
+    <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-xs mb-5 lg:mb-6">
       <div class="flex items-start justify-between mb-4">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-[#5138ed] flex items-center justify-center shrink-0">
@@ -893,80 +893,69 @@ onMounted(() => {
     </div>
     
     <!-- 6 Type Stat Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-5 lg:mb-6">
       <!-- Total -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
-        <div class="w-10 h-10 rounded-xl bg-[#5138ed]/10 text-[#5138ed] flex items-center justify-center mb-3">
+      <div class="bg-white border border-slate-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col items-center justify-center text-center">
+        <div class="w-10 h-10 rounded-xl bg-[#5138ed]/10 text-[#5138ed] flex items-center justify-center mb-2.5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
         </div>
-        <div class="text-[11px] font-bold text-slate-500 mb-0.5">Total Questions</div>
+        <div class="text-[11px] font-bold text-slate-500 mb-0.5 truncate">Total Questions</div>
         <div class="text-[18px] font-extrabold text-slate-800 leading-none">{{ stats.total }}</div>
       </div>
       <!-- MCQ -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
-        <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-500 flex items-center justify-center mb-3">
+      <div class="bg-white border border-slate-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col items-center justify-center text-center">
+        <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-500 flex items-center justify-center mb-2.5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
         </div>
-        <div class="text-[11px] font-bold text-slate-500 mb-0.5">Multiply Question</div>
+        <div class="text-[11px] font-bold text-slate-500 mb-0.5 truncate">MCQ</div>
         <div class="text-[18px] font-extrabold text-slate-800 leading-none">{{ typeCounts.mcq }}</div>
       </div>
       <!-- True/False -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
-        <div class="w-10 h-10 rounded-xl bg-fuchsia-50 text-fuchsia-500 flex items-center justify-center mb-3">
+      <div class="bg-white border border-slate-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col items-center justify-center text-center">
+        <div class="w-10 h-10 rounded-xl bg-fuchsia-50 text-fuchsia-500 flex items-center justify-center mb-2.5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
         </div>
-        <div class="text-[11px] font-bold text-slate-500 mb-0.5">True or False</div>
+        <div class="text-[11px] font-bold text-slate-500 mb-0.5 truncate">True / False</div>
         <div class="text-[18px] font-extrabold text-slate-800 leading-none">{{ typeCounts.tf }}</div>
       </div>
       <!-- Matching -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
-        <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-3">
+      <div class="bg-white border border-slate-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col items-center justify-center text-center">
+        <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-2.5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
         </div>
-        <div class="text-[11px] font-bold text-slate-500 mb-0.5">Matching</div>
+        <div class="text-[11px] font-bold text-slate-500 mb-0.5 truncate">Matching</div>
         <div class="text-[18px] font-extrabold text-slate-800 leading-none">{{ typeCounts.matching }}</div>
       </div>
       <!-- Fill in Blank -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
-        <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center mb-3">
+      <div class="bg-white border border-slate-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col items-center justify-center text-center">
+        <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center mb-2.5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
         </div>
-        <div class="text-[11px] font-bold text-slate-500 mb-0.5">Fill in the Blank</div>
+        <div class="text-[11px] font-bold text-slate-500 mb-0.5 truncate">Fill Blank</div>
         <div class="text-[18px] font-extrabold text-slate-800 leading-none">{{ typeCounts.fib }}</div>
       </div>
       <!-- Short Answer -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
-        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center mb-3">
+      <div class="bg-white border border-slate-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col items-center justify-center text-center">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center mb-2.5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
         </div>
-        <div class="text-[11px] font-bold text-slate-500 mb-0.5">Short Answer</div>
+        <div class="text-[11px] font-bold text-slate-500 mb-0.5 truncate">Short Answer</div>
         <div class="text-[18px] font-extrabold text-slate-800 leading-none">{{ typeCounts.sa }}</div>
       </div>
     </div>
 
-
-    
     <!-- Controls Bar / Filter Bar -->
-    <div class="flex items-center gap-2 mb-6 flex-nowrap">
+    <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-5 lg:mb-6">
       <!-- Search -->
-      <div class="relative w-52 shrink-0">
-        <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-          <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+      <div class="relative w-full sm:w-56 shrink-0">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         </div>
-        <input type="text" v-model="searchQuery" placeholder="Search questions..." class="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-[12px] focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] transition-shadow">
+        <input type="text" v-model="searchQuery" placeholder="Search questions..." class="w-full pl-9 pr-3 py-2 min-h-[44px] bg-white border border-slate-200 rounded-xl text-xs sm:text-[13px] focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] transition-shadow">
       </div>
 
-      <!-- View Filtered Questions Button -->
-      <router-link 
-        :to="{ name: 'ViewFilteredQuestions', params: { id: route.params.id }, query: { type: selectedType, difficulty: selectedDifficulty, status: selectedStatus, chapter: selectedChapter, search: searchQuery } }"
-        class="bg-[#5138ed] text-white px-4 py-2 rounded-lg font-bold text-[11px] hover:bg-indigo-600 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm ml-auto"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-        View Filtered Questions
-      </router-link>
-      
       <!-- Dropdowns -->
-      <select v-model="selectedType" class="bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer shrink-0">
+      <select v-model="selectedType" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer min-h-[44px] flex-1 sm:flex-initial">
         <option value="All Types">All Types</option>
         <option value="MCQ">MCQ</option>
         <option value="Short Answer">Short Answer</option>
@@ -975,34 +964,38 @@ onMounted(() => {
         <option value="Fill in Blank">Fill in Blank</option>
       </select>
       
-      <select v-model="selectedDifficulty" class="bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer shrink-0">
+      <select v-model="selectedDifficulty" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer min-h-[44px] flex-1 sm:flex-initial">
         <option value="All Difficulties">All Difficulties</option>
         <option value="Easy">Easy</option>
         <option value="Medium">Medium</option>
         <option value="Hard">Hard</option>
       </select>
       
-      <select v-model="selectedStatus" class="bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer shrink-0">
+      <select v-model="selectedStatus" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer min-h-[44px] flex-1 sm:flex-initial">
         <option value="All Statuses">All Statuses</option>
         <option value="Active">Active</option>
         <option value="Draft">Draft</option>
       </select>
       
-      <select v-model="selectedChapter" class="bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer shrink-0">
+      <select v-model="selectedChapter" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#5138ed] outline-none cursor-pointer min-h-[44px] flex-1 sm:flex-initial">
         <option v-for="ch in availableChapters" :key="ch" :value="ch">{{ ch }}</option>
       </select>
 
-      <button class="bg-white border border-slate-200 text-[#5138ed] px-3 py-2 rounded-lg font-bold text-[11px] hover:bg-slate-50 transition-colors flex items-center gap-1.5 shrink-0">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-        Filter
-      </button>
+      <!-- View Filtered Questions Button -->
+      <router-link 
+        :to="{ name: 'ViewFilteredQuestions', params: { id: route.params.id }, query: { type: selectedType, difficulty: selectedDifficulty, status: selectedStatus, chapter: selectedChapter, search: searchQuery } }"
+        class="bg-[#5138ed] text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-indigo-600 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap min-h-[44px] w-full sm:w-auto sm:ml-auto shadow-xs"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+        View Filtered Questions
+      </router-link>
     </div>
 
     <!-- Table Card -->
-    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden mb-6">
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden mb-6">
       
-      <!-- Questions Table -->
-      <div class="overflow-x-auto">
+      <!-- Questions Desktop Table -->
+      <div class="hidden md:block overflow-x-auto">
         <table class="w-full text-left border-collapse whitespace-nowrap">
           <thead>
             <tr class="border-b border-slate-100 text-[11px] font-bold text-slate-800 tracking-wide bg-slate-50/50">
@@ -1019,7 +1012,7 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-if="filteredQuestions.length === 0">
-              <td colspan="8" class="py-12 text-center">
+              <td colspan="9" class="py-12 text-center">
                 <div class="flex flex-col items-center gap-2">
                   <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                   <p class="text-[13px] text-slate-400 font-medium">No questions yet. Click "Create Question" to get started!</p>
@@ -1079,14 +1072,14 @@ onMounted(() => {
               <td class="py-4 px-4 text-center text-[12px] text-slate-500 font-medium">{{ formatDate(bank.created_at) }}</td>
               <td class="py-4 px-6 text-center">
                 <div class="flex items-center justify-center gap-1">
-                  <button @click="openViewQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-sm" title="View Question">
+                  <button @click="openViewQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-xs" title="View Question">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                   </button>
                   <template v-if="!lockStore.isLocked">
-                    <button @click="editQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#5138ed] hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100 shadow-sm" title="Edit Question">
+                    <button @click="editQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#5138ed] hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100 shadow-xs" title="Edit Question">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                     </button>
-                    <button @click="openDeleteQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100 shadow-sm" title="Delete Question">
+                    <button @click="openDeleteQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100 shadow-xs" title="Delete Question">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </button>
                   </template>
@@ -1096,18 +1089,102 @@ onMounted(() => {
           </tbody>
         </table>
       </div>
+
+      <!-- Questions Mobile Card View -->
+      <div class="md:hidden space-y-3 p-3.5 sm:p-4">
+        <div v-if="filteredQuestions.length === 0" class="text-center py-8 text-slate-400 text-xs sm:text-sm font-medium">
+          No questions yet. Click "Create Question" to get started!
+        </div>
+        <div
+          v-else
+          v-for="(q, idx) in filteredQuestions"
+          :key="q.id"
+          class="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors space-y-3"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <span class="text-xs font-black text-slate-400">#{{ idx + 1 }}</span>
+            <div class="flex items-center gap-1.5 flex-wrap justify-end">
+              <span 
+                class="px-2 py-0.5 text-[10px] font-bold rounded-md"
+                :class="{
+                  'text-[#5138ed] bg-indigo-50': typeLabel(q.type) === 'MCQ',
+                  'text-emerald-600 bg-emerald-50': typeLabel(q.type) === 'Short Answer',
+                  'text-amber-600 bg-amber-50': typeLabel(q.type) === 'Essay',
+                  'text-sky-600 bg-sky-50': typeLabel(q.type) === 'True/False',
+                  'text-fuchsia-600 bg-fuchsia-50': typeLabel(q.type) === 'Matching',
+                  'text-rose-600 bg-rose-50': typeLabel(q.type) === 'Fill in Blank',
+                  'text-orange-600 bg-orange-50': typeLabel(q.type) === 'Ordering',
+                }"
+              >
+                {{ typeLabel(q.type) }}
+              </span>
+              <span 
+                class="px-2 py-0.5 text-[10px] font-bold rounded-md"
+                :class="{
+                  'text-emerald-600 bg-emerald-50': q.difficulty === 'Easy',
+                  'text-amber-600 bg-amber-50': q.difficulty === 'Medium',
+                  'text-rose-600 bg-rose-50': q.difficulty === 'Hard'
+                }"
+              >
+                {{ q.difficulty }}
+              </span>
+              <span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-white border border-slate-200 text-slate-700">
+                {{ q.marks }} Marks
+              </span>
+            </div>
+          </div>
+
+          <div class="text-xs sm:text-[13px] text-slate-800 font-bold leading-snug">
+            {{ formatQuestionText(q.text) }}
+          </div>
+          <div v-if="q.explanation" class="text-[11px] text-slate-500 line-clamp-2">
+            {{ q.explanation }}
+          </div>
+
+          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-200/60">
+            <span>Chapter: <strong class="text-slate-600">{{ q.chapter || '—' }}</strong></span>
+            <span class="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-50 text-emerald-600">{{ q.status }}</span>
+          </div>
+
+          <div class="flex items-center gap-2 pt-1">
+            <button 
+              @click="openViewQuestion(q)"
+              class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-[#5138ed] bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors min-h-[44px]"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              View
+            </button>
+            <template v-if="!lockStore.isLocked">
+              <button 
+                @click="editQuestion(q)"
+                class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors min-h-[44px]"
+              >
+                <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                Edit
+              </button>
+              <button 
+                @click="openDeleteQuestion(q)"
+                class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg hover:bg-rose-100 transition-colors min-h-[44px]"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Delete
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
       
       <!-- Table Footer -->
-      <div class="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-[13px] font-medium text-slate-500">
-        <span>Showing 1 to {{ filteredQuestions.length }} of {{ stats.total }} questions</span>
-        <div class="flex items-center gap-1">
-          <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-          <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold shadow-sm">1</button>
-          <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 transition-colors">2</button>
-          <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 transition-colors">3</button>
+      <div class="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-[13px] font-medium text-slate-500 border-t border-slate-100">
+        <span class="text-center sm:text-left">Showing 1 to {{ filteredQuestions.length }} of {{ stats.total }} questions</span>
+        <div class="flex items-center justify-center gap-1">
+          <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors min-h-[36px] min-w-[36px]"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+          <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold shadow-xs min-h-[36px] min-w-[36px]">1</button>
+          <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 transition-colors min-h-[36px] min-w-[36px]">2</button>
+          <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 transition-colors min-h-[36px] min-w-[36px]">3</button>
           <span class="px-1 text-slate-400">...</span>
-          <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 transition-colors">12</button>
-          <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+          <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 transition-colors min-h-[36px] min-w-[36px]">12</button>
+          <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors min-h-[36px] min-w-[36px]"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
         </div>
       </div>
     </div>

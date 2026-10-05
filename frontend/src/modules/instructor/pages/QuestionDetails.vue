@@ -85,37 +85,35 @@ const editQuestion = () => {
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <!-- Title & Subtitle -->
-          <div class="flex items-center gap-3 mb-1">
-            <button @click="goBack" class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors xl:hidden">
+          <div class="flex items-center gap-2 sm:gap-3 mb-1">
+            <button @click="goBack" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors xl:hidden min-h-[40px] min-w-[40px] flex items-center justify-center">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </button>
-            <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-3">
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2 sm:gap-3">
               <svg class="w-6 h-6 text-[#5138ed] hidden xl:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
               Question Details
             </h1>
           </div>
-          <p class="text-[13px] text-slate-500 font-medium xl:pl-9">View detailed information about this question</p>
+          <p class="text-xs sm:text-[13px] text-slate-500 font-medium xl:pl-9">View detailed information about this question</p>
         </div>
         
-        <div class="flex flex-col sm:flex-row items-center gap-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full md:w-auto">
           <!-- Breadcrumb -->
-          <div class="flex items-center flex-wrap text-[12px] text-slate-400 font-medium sm:mr-4">
+          <div class="flex items-center flex-wrap text-xs text-slate-400 font-medium sm:mr-4">
             <router-link to="/instructor/question-banks" class="hover:text-[#5138ed] transition-colors">Question Banks</router-link>
-            <svg class="w-3.5 h-3.5 mx-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-[#5138ed] transition-colors">{{ bank.title }}</router-link>
-            <svg class="w-3.5 h-3.5 mx-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-[#5138ed] transition-colors">Question Bank Details</router-link>
-            <svg class="w-3.5 h-3.5 mx-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            <span class="text-slate-600 font-bold">Question Details</span>
+            <svg class="w-3.5 h-3.5 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-[#5138ed] transition-colors truncate max-w-[120px]">{{ bank.title }}</router-link>
+            <svg class="w-3.5 h-3.5 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <span class="text-slate-600 font-bold">Details</span>
           </div>
 
           <!-- Actions -->
-          <div class="flex items-center gap-3 w-full sm:w-auto">
-            <button @click="goBack" class="flex-1 sm:flex-none justify-center bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-[13px] transition-colors flex items-center gap-2">
+          <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <button @click="goBack" class="flex-1 sm:flex-none justify-center bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-[13px] transition-colors flex items-center gap-2 min-h-[44px]">
               <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-              Back to Questions
+              Back
             </button>
-            <button @click="editQuestion" class="flex-1 sm:flex-none justify-center bg-[#5138ed] hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-[13px] shadow-sm transition-colors flex items-center gap-2">
+            <button @click="editQuestion" class="flex-1 sm:flex-none justify-center bg-[#5138ed] hover:bg-indigo-600 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold text-xs sm:text-[13px] shadow-xs transition-colors flex items-center gap-2 min-h-[44px]">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
               Edit Question
             </button>

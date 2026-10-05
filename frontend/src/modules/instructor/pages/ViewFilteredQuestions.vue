@@ -135,42 +135,41 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f8fafc] p-6 lg:p-10 font-sans pb-28">
+  <div class="min-h-screen bg-[#f8fafc] p-3.5 sm:p-6 lg:p-10 font-sans pb-28">
 
     <!-- Header & Breadcrumbs -->
-    <div class="max-w-5xl mx-auto mb-8">
-      <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-3">
+    <div class="max-w-5xl mx-auto mb-6 sm:mb-8">
+      <div class="flex items-center gap-1.5 sm:gap-2 text-xs font-semibold text-slate-400 mb-3 flex-wrap">
         <router-link to="/instructor/question-banks" class="hover:text-slate-600 transition-colors">Question Banks</router-link>
         <span>/</span>
-        <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-600 transition-colors">{{ bank?.title || 'Question Bank' }}</router-link>
+        <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-600 transition-colors truncate max-w-[140px] sm:max-w-none">{{ bank?.title || 'Question Bank' }}</router-link>
         <span>/</span>
         <span class="text-[#5138ed]">Filtered Questions</span>
       </div>
 
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div class="flex items-center gap-3">
-            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Filtered Questions</h1>
-            <span class="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-[#5138ed] text-xs font-bold rounded-md uppercase tracking-wider">
+          <div class="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Filtered Questions</h1>
+            <span class="px-2.5 py-0.5 sm:py-1 bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] sm:text-xs font-bold rounded-md uppercase tracking-wider">
               {{ filteredQuestions.length }} Questions
             </span>
           </div>
           <p class="text-xs text-slate-500 mt-1">Viewing questions based on your selected filters.</p>
         </div>
 
-        <div class="flex items-center gap-3">
-
-          <button @click="goBack" class="px-5 py-2.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-200 flex items-center gap-2">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <button @click="goBack" class="w-full sm:w-auto px-4 sm:px-5 py-2.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 flex items-center justify-center gap-2 min-h-[44px]">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-            Back to Question Bank
+            Back to Bank
           </button>
         </div>
       </div>
 
       <!-- Active Filters Display -->
-      <div v-if="activeFilters.length > 0" class="flex items-center gap-2 mt-4 flex-wrap">
+      <div v-if="activeFilters.length > 0" class="flex items-center gap-1.5 sm:gap-2 mt-4 flex-wrap">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Filters:</span>
-        <span v-for="(f, i) in activeFilters" :key="i" class="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-[#5138ed] text-[10px] font-bold rounded-full uppercase tracking-wider">
+        <span v-for="(f, i) in activeFilters" :key="i" class="px-2.5 py-0.5 bg-indigo-50 border border-indigo-100 text-[#5138ed] text-[10px] font-bold rounded-full uppercase tracking-wider">
           {{ f }}
         </span>
       </div>

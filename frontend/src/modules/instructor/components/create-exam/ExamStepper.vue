@@ -25,7 +25,7 @@ const steps = computed(() => [
       <button
         type="button"
         @click="emit('change-step', step.id)"
-        class="flex items-center gap-3 relative z-10 bg-[#f8fafc] xl:bg-transparent pr-4 xl:pr-0 cursor-pointer focus:outline-none group text-left"
+        class="min-h-[44px] flex items-center gap-3 relative z-10 bg-[#f8fafc] xl:bg-transparent pr-4 xl:pr-0 cursor-pointer focus:outline-none group text-left"
       >
         <div 
           class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition-all shadow-sm group-hover:scale-105"

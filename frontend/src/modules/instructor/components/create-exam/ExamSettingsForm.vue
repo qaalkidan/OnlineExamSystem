@@ -69,24 +69,24 @@ const handleSaveDraft = () => {
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
       
       <!-- General Settings Card -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+      <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm">
         <div class="flex items-center gap-2 mb-6">
           <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
           <h3 class="text-[13px] font-bold text-slate-800">General Settings</h3>
         </div>
 
-        <div class="grid grid-cols-2 gap-6 mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
           <div>
             <label class="block text-[12px] font-bold text-slate-700 mb-2">Exam Duration (minutes) <span class="text-rose-500">*</span></label>
             <div class="flex items-center gap-2">
-              <input v-model="formStore.durationMinutes" type="number" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-center text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
+              <input v-model="formStore.durationMinutes" type="number" class="w-full min-h-[44px] border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-center text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
             </div>
             <p class="text-[10px] text-slate-400 mt-2 font-medium">Set the total duration for the exam</p>
           </div>
           <div>
             <label class="block text-[12px] font-bold text-slate-700 mb-2">Passing Marks <span class="text-rose-500">*</span></label>
             <div class="relative">
-              <input v-model="formStore.passingMarks" type="number" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
+              <input v-model="formStore.passingMarks" type="number" class="w-full min-h-[44px] border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
             </div>
             <p class="text-[10px] text-slate-400 mt-2 font-medium">Out of {{ formStore.totalMarks }} total marks</p>
           </div>
@@ -94,7 +94,7 @@ const handleSaveDraft = () => {
 
         <div>
           <label class="block text-[12px] font-bold text-slate-700 mb-2">Maximum Attempts</label>
-          <select v-model="formStore.maxAttempts" class="w-[200px] border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-600 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:10px_10px] bg-no-repeat bg-[position:right_1rem_center]">
+          <select v-model="formStore.maxAttempts" class="w-full sm:w-[200px] min-h-[44px] border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-600 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:10px_10px] bg-no-repeat bg-[position:right_1rem_center]">
             <option>1</option>
             <option>2</option>
             <option>Unlimited</option>
@@ -104,23 +104,23 @@ const handleSaveDraft = () => {
       </div>
 
       <!-- Availability Card -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+      <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm">
         <div class="flex items-center gap-2 mb-6">
           <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
           <h3 class="text-[13px] font-bold text-slate-800">Availability</h3>
         </div>
 
-        <div class="grid grid-cols-2 gap-6 mb-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-5">
           <div>
             <label class="block text-[12px] font-bold text-slate-700 mb-2">Start Date <span class="text-rose-500">*</span></label>
             <div class="relative">
-              <input v-model="formStore.scheduledDate" type="date" class="w-full border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
+              <input v-model="formStore.scheduledDate" type="date" class="w-full min-h-[44px] border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
             </div>
           </div>
           <div>
             <label class="block text-[12px] font-bold text-slate-700 mb-2">Start Time <span class="text-rose-500">*</span></label>
             <div class="relative">
-              <input v-model="formStore.scheduledTime" type="time" class="w-full border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
+              <input v-model="formStore.scheduledTime" type="time" class="w-full min-h-[44px] border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]">
             </div>
           </div>
         </div>
@@ -308,23 +308,23 @@ const handleSaveDraft = () => {
   </div>
 
   <!-- Action Buttons -->
-  <div class="flex items-center justify-between pt-2 pb-10">
-    <div class="flex items-center gap-3">
-      <button @click="emit('prev')" class="px-5 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-2">
+  <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-2 pb-10">
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <button @click="emit('prev')" class="min-h-[44px] px-5 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
         Previous
       </button>
-      <button @click="emit('cancel')" class="px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors">
+      <button @click="emit('cancel')" class="min-h-[44px] px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center">
         Cancel
       </button>
     </div>
 
-    <div class="flex items-center gap-3">
-      <button @click="handleSaveDraft" :disabled="props.isSaving" class="px-6 py-2.5 border border-slate-200 text-[#5138ed] font-bold text-[13px] rounded-xl hover:border-indigo-200 hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <button @click="handleSaveDraft" :disabled="props.isSaving" class="min-h-[44px] px-6 py-2.5 border border-slate-200 text-[#5138ed] font-bold text-[13px] rounded-xl hover:border-indigo-200 hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
         <svg v-if="props.isSaving" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
         {{ props.isSaving ? 'Saving...' : 'Save as Draft' }}
       </button>
-      <button @click="handleNext" class="px-8 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl shadow-sm transition-colors flex items-center gap-2">
+      <button @click="handleNext" class="min-h-[44px] px-8 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2">
         Next: Review &amp; Publish
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
       </button>

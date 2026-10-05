@@ -21,33 +21,33 @@ onMounted(() => {
     <!-- Header Area -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">Results Dashboard</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Results Dashboard</h1>
         <p class="text-[14px] text-slate-500 mt-1">View and manage results for your course examinations.</p>
       </div>
     </div>
 
     <!-- Course Information Card -->
-    <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm mb-6 flex flex-wrap items-center justify-between gap-6">
+    <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm mb-6 flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-4 sm:gap-6">
       <!-- Left: Icon & Details -->
-      <div class="flex items-center gap-5">
-        <div class="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center text-[#5138ed] shrink-0">
-          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 flex items-center justify-center text-[#5138ed] shrink-0">
+          <svg class="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
         </div>
         <div>
           <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Course Information</div>
-          <div class="flex items-center gap-3 mb-1">
-            <h2 class="text-xl font-extrabold text-slate-800">{{ resultStore.course.name }}</h2>
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <h2 class="text-lg sm:text-xl font-extrabold text-slate-800">{{ resultStore.course.name }}</h2>
             <span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-600 rounded-md">{{ resultStore.course.status }}</span>
           </div>
-          <div class="flex items-center gap-4 text-[13px] text-slate-500 font-medium">
-            <span>Course Code: {{ resultStore.course.code }}</span>
+          <div class="flex flex-wrap items-center gap-3 text-[12px] sm:text-[13px] text-slate-500 font-medium">
+            <span>Code: {{ resultStore.course.code }}</span>
             <span>Instructor: {{ resultStore.course.instructor_name }}</span>
           </div>
         </div>
       </div>
 
       <!-- Right: Attributes -->
-      <div class="flex items-center gap-8 pr-4">
+      <div class="flex flex-wrap items-center gap-4 sm:gap-8">
         <!-- Semester -->
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[#5138ed]">

@@ -728,16 +728,16 @@ const handlePublish = async () => {
     </div>
 
     <!-- Action Buttons -->
-    <div class="flex items-center justify-between pt-2 pb-10">
-      <button @click="emit('cancel')" class="px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors">
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-2 pb-10">
+      <button @click="emit('cancel')" class="min-h-[44px] px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center">
         Cancel
       </button>
       
-      <div class="flex items-center gap-3">
-        <button class="px-6 py-2.5 border border-slate-200 text-[#5138ed] font-bold text-[13px] rounded-xl hover:border-indigo-200 hover:bg-indigo-50 transition-colors">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <button class="min-h-[44px] px-6 py-2.5 border border-slate-200 text-[#5138ed] font-bold text-[13px] rounded-xl hover:border-indigo-200 hover:bg-indigo-50 transition-colors flex items-center justify-center">
           Save as Draft
         </button>
-        <button @click="showPublishConfirm = true" :disabled="isSubmitting" class="px-8 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50">
+        <button @click="showPublishConfirm = true" :disabled="isSubmitting" class="min-h-[44px] px-8 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
           <span v-if="isSubmitting">{{ formStore.editingExamId ? 'Saving...' : 'Publishing...' }}</span>
           <span v-else class="flex items-center gap-2">
             {{ formStore.editingExamId ? 'Save Changes' : 'Publish Exam' }}

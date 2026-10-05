@@ -58,19 +58,19 @@ const stats = computed(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
     <div 
       v-for="(stat, index) in stats" 
       :key="index"
-      class="bg-white rounded-2xl p-4 xl:p-5 border border-slate-100 shadow-sm flex flex-col items-start gap-3 overflow-hidden"
+      class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-xs flex flex-col items-start gap-3 overflow-hidden"
     >
-      <div class="flex flex-row items-center gap-4 w-full h-full">
+      <div class="flex flex-row items-center gap-3 sm:gap-4 w-full h-full">
         <div 
-          class="w-12 h-12 xl:w-14 xl:h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+          class="w-11 h-11 sm:w-12 sm:h-12 xl:w-14 xl:h-14 rounded-2xl flex items-center justify-center shrink-0"
           :class="stat.bgClass"
         >
           <svg 
-            class="w-6 h-6 xl:w-7 xl:h-7" 
+            class="w-5 h-5 sm:w-6 sm:h-6 xl:w-7 xl:h-7" 
             :class="stat.colorClass"
             fill="none" 
             stroke="currentColor" 
@@ -79,14 +79,14 @@ const stats = computed(() => {
           ></svg>
         </div>
 
-      <div class="flex flex-col w-full min-w-0 justify-center">
-        <h3 class="text-[12px] xl:text-[13px] font-bold text-slate-500 mb-1 leading-tight">{{ stat.title }}</h3>
-        
-        <div v-if="qbStore.isLoading" class="h-6 w-16 bg-slate-100 animate-pulse rounded mb-1"></div>
-        <span v-else class="text-[20px] xl:text-[22px] font-extrabold text-slate-800 leading-none mb-1">{{ stat.value }}</span>
-        
-        <span class="text-[11px] xl:text-[12px] text-slate-400 font-medium truncate">{{ stat.subtitle }}</span>
-      </div>
+        <div class="flex flex-col w-full min-w-0 justify-center">
+          <h3 class="text-xs sm:text-[13px] font-bold text-slate-500 mb-0.5 sm:mb-1 leading-tight truncate">{{ stat.title }}</h3>
+          
+          <div v-if="qbStore.isLoading" class="h-6 w-16 bg-slate-100 animate-pulse rounded mb-1"></div>
+          <span v-else class="text-lg sm:text-xl xl:text-[22px] font-extrabold text-slate-800 leading-none mb-1 truncate">{{ stat.value }}</span>
+          
+          <span class="text-[11px] xl:text-xs text-slate-400 font-medium truncate">{{ stat.subtitle }}</span>
+        </div>
       </div>
     </div>
   </div>

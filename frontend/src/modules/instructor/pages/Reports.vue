@@ -41,7 +41,7 @@ onMounted(() => {
     </div>
     
     <!-- Top Navigation Tabs (Full bleed) -->
-    <div class="-mx-8 -mt-8 mb-6">
+    <div class="-mx-4 sm:-mx-6 lg:-mx-8 -mt-4 sm:-mt-6 lg:-mt-8 mb-6">
       <ReportsTabs />
     </div>
     

@@ -27,7 +27,7 @@ const lockStore = useSemesterLockStore()
           </div>
           <button
             @click="lockStore.closeLockedNotice"
-            class="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+            class="text-white/80 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -88,7 +88,7 @@ const lockStore = useSemesterLockStore()
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
           <button
             @click="lockStore.closeLockedNotice"
-            class="px-5 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-sm transition-colors"
+            class="min-h-[44px] w-full sm:w-auto px-5 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-sm transition-colors flex items-center justify-center"
           >
             Understood
           </button>

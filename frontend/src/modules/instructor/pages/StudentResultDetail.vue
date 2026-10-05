@@ -268,7 +268,7 @@ const groupedFilteredQuestions = computed(() => {
       <!-- Header -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 class="text-2xl font-bold text-slate-800">Student Result Details</h1>
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Student Result Details</h1>
           <p class="text-[13px] text-slate-500 mt-1">Review student answers and assign marks.</p>
           <div class="flex items-center gap-2 text-[12px] text-slate-400 mt-2 flex-wrap">
             <router-link to="/instructor/results" class="hover:text-[#5138ed] transition-colors">Results Dashboard</router-link>
@@ -280,25 +280,25 @@ const groupedFilteredQuestions = computed(() => {
         </div>
         <div class="flex items-center gap-3">
           <button v-if="prevStudentId" @click="router.push(`/instructor/results/${route.params.examId}/student/${prevStudentId}`)"
-            class="p-2 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors" title="Previous Student">
+            class="min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors" title="Previous Student">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
           </button>
           
           <button @click="router.push(`/instructor/results/${route.params.examId}`)"
-            class="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+            class="min-h-[44px] flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             Back to List
           </button>
           
           <button v-if="nextStudentId" @click="router.push(`/instructor/results/${route.params.examId}/student/${nextStudentId}`)"
-            class="p-2 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors" title="Next Student">
+            class="min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors" title="Next Student">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </button>
         </div>
       </div>
 
       <!-- Semester Locked Read-Only Notice Banner -->
-      <div v-if="lockStore.isLocked" class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-4">
+      <div v-if="lockStore.isLocked" class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
@@ -312,10 +312,10 @@ const groupedFilteredQuestions = computed(() => {
       </div>
 
       <!-- Student Info Card -->
-      <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm mb-6 flex flex-wrap lg:flex-nowrap items-center gap-6 lg:gap-10">
-        <div class="flex items-center gap-4 flex-1 min-w-[280px]">
+      <div class="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm mb-6 flex flex-wrap lg:flex-nowrap items-center gap-4 sm:gap-6 lg:gap-10">
+        <div class="flex items-center gap-4 flex-1 min-w-[260px]">
           <div class="relative">
-            <div class="w-14 h-14 rounded-full bg-indigo-50 text-[#5138ed] font-black text-xl flex items-center justify-center">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-indigo-50 text-[#5138ed] font-black text-lg sm:text-xl flex items-center justify-center shrink-0">
               {{ studentInfo.initials || '?' }}
             </div>
             <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full"
@@ -323,7 +323,7 @@ const groupedFilteredQuestions = computed(() => {
           </div>
           <div class="flex flex-col">
             <div class="flex items-center gap-2 mb-1">
-              <h2 class="text-lg font-bold text-slate-800">{{ studentInfo.name }}</h2>
+              <h2 class="text-base sm:text-lg font-bold text-slate-800">{{ studentInfo.name }}</h2>
               <span class="px-2 py-0.5 text-[9px] font-bold rounded"
                 :class="statusColor(attempt?.status ?? '')">{{ attempt?.status ?? 'Absent' }}</span>
             </div>
@@ -332,11 +332,11 @@ const groupedFilteredQuestions = computed(() => {
               <span class="w-1 h-1 rounded-full bg-slate-300"></span>
               <span>Section: {{ studentInfo.section || '—' }}</span>
               <span class="w-1 h-1 rounded-full bg-slate-300"></span>
-              <span>{{ studentInfo.email }}</span>
+              <span class="truncate max-w-[180px] sm:max-w-none">{{ studentInfo.email }}</span>
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-8 shrink-0 flex-wrap">
+        <div class="flex items-center gap-4 sm:gap-8 shrink-0 flex-wrap">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -376,9 +376,9 @@ const groupedFilteredQuestions = computed(() => {
         <div class="w-full">
 
           <!-- Tabs -->
-          <div class="flex items-center gap-6 border-b border-slate-100 mb-6">
+          <div class="flex items-center gap-4 sm:gap-6 border-b border-slate-100 mb-6 overflow-x-auto pb-1">
             <button v-for="tab in tabs" :key="tab.key" @click="activeTab = tab.key"
-              class="pb-3 text-[13px] font-bold transition-colors relative"
+              class="pb-3 text-[13px] font-bold transition-colors relative whitespace-nowrap min-h-[44px]"
               :class="activeTab === tab.key ? 'text-[#5138ed]' : 'text-slate-500 hover:text-slate-800'">
               {{ tab.label }} ({{ tab.count }})
               <div v-if="activeTab === tab.key" class="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5138ed] rounded-t-full"></div>
@@ -386,7 +386,7 @@ const groupedFilteredQuestions = computed(() => {
           </div>
 
           <!-- Live Score Cards -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <div class="bg-white border border-slate-100 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center">
               <span class="text-[11px] font-bold text-blue-500 mb-1 flex items-center gap-1">
                 <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Auto Score (MCQ)
@@ -791,7 +791,7 @@ const groupedFilteredQuestions = computed(() => {
               <template v-if="!lockStore.isLocked">
                 <!-- Publish -->
                 <button @click="saveGrades(true)" :disabled="isPublishing || !attempt?.id"
-                  class="w-full py-2.5 text-white text-[12px] font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  class="w-full min-h-[44px] py-2.5 text-white text-[12px] font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                   :class="examInfo?.is_published ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#5138ed] hover:bg-[#4530d1]'">
                   <svg v-if="isPublishing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                   <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
@@ -799,7 +799,7 @@ const groupedFilteredQuestions = computed(() => {
                 </button>
                 <!-- Save grade only -->
                 <button @click="saveGrades(false)" :disabled="isSaving || !attempt?.id"
-                  class="w-full py-2.5 bg-white border border-slate-200 text-[#5138ed] text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                  class="w-full min-h-[44px] py-2.5 bg-white border border-slate-200 text-[#5138ed] text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                   <svg v-if="isSaving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                   <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                   Save Grades (No Publish)
@@ -816,7 +816,7 @@ const groupedFilteredQuestions = computed(() => {
               </template>
               <!-- Back -->
               <button @click="router.push(`/instructor/results/${route.params.examId}`)"
-                class="w-full py-2.5 bg-white border border-slate-200 text-slate-600 text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                class="w-full min-h-[44px] py-2.5 bg-white border border-slate-200 text-slate-600 text-[12px] font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                 Back to List
               </button>

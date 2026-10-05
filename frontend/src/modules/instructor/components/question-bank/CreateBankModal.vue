@@ -67,7 +67,7 @@ const handleSubmit = async () => {
             v-model="title"
             type="text" 
             placeholder="e.g. Database Systems Core Concepts" 
-            class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+            class="w-full min-h-[44px] border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
           >
         </div>
         
@@ -86,14 +86,14 @@ const handleSubmit = async () => {
       <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50">
         <button 
           @click="handleClose" 
-          class="px-5 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+          class="min-h-[44px] flex-1 sm:flex-none px-5 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-200 transition-colors flex items-center justify-center"
         >
           Cancel
         </button>
         <button 
           @click="handleSubmit" 
           :disabled="!title.trim() || isSubmitting"
-          class="px-5 py-2 rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors shadow-sm disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+          class="min-h-[44px] flex-1 sm:flex-none px-5 py-2 rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-colors shadow-sm disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
         >
           <svg v-if="isSubmitting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

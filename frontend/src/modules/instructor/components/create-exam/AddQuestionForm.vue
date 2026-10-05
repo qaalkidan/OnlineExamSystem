@@ -751,9 +751,9 @@ const getQuestionTypeLabel = (type: string) => {
     <AddedQuestionsList />
 
     <!-- Action Bar -->
-    <div class="flex items-center justify-between pt-6 border-t border-slate-200">
-      <div class="flex items-center gap-3">
-        <button @click="emit('prev')" class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors flex items-center gap-2 cursor-pointer">
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-slate-200">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <button @click="emit('prev')" class="min-h-[44px] px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Previous
         </button>
@@ -761,7 +761,7 @@ const getQuestionTypeLabel = (type: string) => {
           v-if="activeSourceTab === 'manual'"
           type="button"
           @click="addQuestionToExam"
-          class="px-6 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-[#5138ed] font-bold text-[13px] rounded-xl transition-colors shadow-sm border border-indigo-100 cursor-pointer"
+          class="min-h-[44px] px-6 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-[#5138ed] font-bold text-[13px] rounded-xl transition-colors shadow-sm border border-indigo-100 cursor-pointer flex items-center justify-center"
         >
           + Add Question to Draft
         </button>
@@ -769,15 +769,15 @@ const getQuestionTypeLabel = (type: string) => {
           v-else
           type="button"
           @click="activeSourceTab = 'manual'"
-          class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[13px] rounded-xl transition-colors cursor-pointer flex items-center gap-2"
+          class="min-h-[44px] px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[13px] rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
         >
           <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
           Write Question Manually
         </button>
       </div>
-      <div class="flex gap-3">
-        <button @click="emit('cancel')" class="px-6 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors cursor-pointer">Cancel</button>
-        <button @click="handleNext" class="px-6 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl transition-colors flex items-center gap-2 shadow-sm cursor-pointer">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <button @click="emit('cancel')" class="min-h-[44px] px-6 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[13px] rounded-xl transition-colors cursor-pointer flex items-center justify-center">Cancel</button>
+        <button @click="handleNext" class="min-h-[44px] px-6 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer">
           Next: Exam Settings
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
         </button>

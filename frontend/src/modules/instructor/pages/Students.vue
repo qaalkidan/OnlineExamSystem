@@ -310,7 +310,7 @@ const submitImportStudents = async () => {
     <!-- Toast Notification -->
     <div
       v-if="toast.show"
-      class="fixed top-6 right-8 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border text-sm font-semibold transition-all transform duration-300"
+      class="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-sm font-semibold transition-all transform duration-300 max-w-[calc(100vw-2rem)]"
       :class="{
         'bg-emerald-600 text-white border-emerald-500 shadow-emerald-200': toast.type === 'success',
         'bg-rose-600 text-white border-rose-500 shadow-rose-200': toast.type === 'error',
@@ -323,24 +323,30 @@ const submitImportStudents = async () => {
       <span>{{ toast.message }}</span>
     </div>
 
-    <!-- Header Actions (Top Right) -->
-    <div class="flex flex-col md:flex-row md:items-center justify-end gap-3 mb-6 -mt-12 absolute right-8 top-6 z-40 hidden lg:flex">
-      <button
-        @click="showImportModal = true"
-        class="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-[#5138ed] text-xs font-bold rounded-xl hover:bg-indigo-50 transition-colors bg-white shadow-xs cursor-pointer"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-        Import Students
-      </button>
-      <button
-        @click="handleExport"
-        :disabled="store.isExporting"
-        class="flex items-center gap-2 px-4 py-2.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl shadow-sm shadow-indigo-200 hover:bg-[#4530d1] transition-colors cursor-pointer disabled:opacity-50"
-      >
-        <svg v-if="!store.isExporting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-        <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-        {{ store.isExporting ? 'Exporting...' : 'Export Students' }}
-      </button>
+    <!-- Page Header + Actions -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Students</h1>
+        <p class="text-[13px] text-slate-500 mt-0.5">Manage enrolled students for your course.</p>
+      </div>
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <button
+          @click="showImportModal = true"
+          class="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 text-[#5138ed] text-xs font-bold rounded-xl hover:bg-indigo-50 transition-colors bg-white shadow-xs cursor-pointer"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+          Import Students
+        </button>
+        <button
+          @click="handleExport"
+          :disabled="store.isExporting"
+          class="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl shadow-sm shadow-indigo-200 hover:bg-[#4530d1] transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <svg v-if="!store.isExporting" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          <svg v-else class="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+          {{ store.isExporting ? 'Exporting...' : 'Export Students' }}
+        </button>
+      </div>
     </div>
 
     <!-- Stat Cards -->
@@ -452,9 +458,9 @@ const submitImportStudents = async () => {
           </button>
         </div>
 
-        <!-- Students Table -->
+        <!-- Students Table (Desktop) -->
         <div class="bg-white border border-slate-100 rounded-2xl shadow-sm flex-1 flex flex-col">
-          <div class="overflow-x-auto">
+          <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
@@ -553,13 +559,59 @@ const submitImportStudents = async () => {
             </table>
           </div>
 
+          <!-- Mobile Card View -->
+          <div class="md:hidden divide-y divide-slate-100">
+            <div v-if="store.isLoading" class="py-10 text-center text-slate-500 text-sm">
+              <svg class="w-5 h-5 animate-spin text-[#5138ed] mx-auto mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+              Loading students...
+            </div>
+            <div v-else-if="filteredStudents.length === 0" class="py-10 text-center text-slate-500 text-sm">No students found.</div>
+            <div v-else v-for="student in filteredStudents" :key="student.id" class="p-4">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-full bg-indigo-50 text-[#5138ed] flex items-center justify-center font-bold text-xs uppercase border border-indigo-100 shrink-0">
+                  {{ student.name ? student.name.substring(0, 2) : 'ST' }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-bold text-slate-800 truncate">{{ student.name }}</p>
+                  <p class="text-[11px] text-slate-400">{{ student.id_number }}</p>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold shrink-0" :class="getStatusStyles(student.status)">
+                  <span class="w-1.5 h-1.5 rounded-full" :class="getDotColor(student.status)"></span>
+                  {{ student.status }}
+                </span>
+              </div>
+              <div class="text-[11px] text-slate-500 mb-3">{{ student.email }}</div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] font-bold text-slate-500">Progress:</span>
+                <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div class="h-full bg-[#5138ed] rounded-full" :style="`width: ${Math.min(100, student.average_score)}%`"></div>
+                </div>
+                <span class="text-[10px] font-bold text-slate-700">{{ student.average_score }}%</span>
+              </div>
+              <div class="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                <button @click="router.push(`/instructor/students/${student.id}`)" class="flex-1 min-h-[36px] flex items-center justify-center gap-1.5 text-[11px] font-bold text-[#5138ed] bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                  Profile
+                </button>
+                <button @click="router.push(`/instructor/students/${student.id}/results`)" class="flex-1 min-h-[36px] flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                  Results
+                </button>
+                <button @click="showAnnouncementModal = true" class="flex-1 min-h-[36px] flex items-center justify-center gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-50 rounded-xl hover:bg-amber-100 transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                  Message
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Pagination -->
-          <div class="mt-auto p-4 border-t border-slate-100 flex items-center justify-between">
+          <div class="mt-auto p-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
             <span class="text-[11px] text-slate-500 font-medium">Showing {{ filteredStudents.length }} of {{ store.students.length }} students</span>
             <div class="flex items-center gap-1">
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold text-[11px] shadow-sm">1</button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold text-[11px] shadow-sm">1</button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
             </div>
           </div>
         </div>

@@ -10,7 +10,7 @@ import ProfilePreferences from '../components/profile/ProfilePreferences.vue'
 <template>
   <div class="max-w-[1500px] mx-auto pb-8">
     
-    <div class="px-6 md:px-8 mt-6">
+    <div class="px-3.5 sm:px-6 lg:px-8 mt-4 sm:mt-6">
       <!-- Main Content Grid -->
       <div class="flex flex-col lg:flex-row gap-6">
         
@@ -20,7 +20,7 @@ import ProfilePreferences from '../components/profile/ProfilePreferences.vue'
           
           <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
             <ProfileTabs />
-            <div class="p-6">
+            <div class="p-4 sm:p-6">
               <ProfileForm />
             </div>
           </div>

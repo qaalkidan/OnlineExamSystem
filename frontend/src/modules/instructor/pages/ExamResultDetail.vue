@@ -188,10 +188,10 @@ const resetFilters = () => {
     <!-- Breadcrumb & Actions -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-slate-800">Exam Results - Students</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Exam Results - Students</h1>
         <p class="text-[13px] text-slate-500 mt-1">View and manage student results for this exam.</p>
         <!-- Breadcrumb -->
-        <div class="flex items-center gap-2 text-[12px] text-slate-400 mt-2">
+        <div class="flex flex-wrap items-center gap-2 text-[12px] text-slate-400 mt-2">
           <router-link to="/instructor/results" class="hover:text-[#5138ed] transition-colors">Results Dashboard</router-link>
           <span>&gt;</span>
           <span class="text-slate-600 font-medium">{{ examDetail.course_code }}</span>
@@ -260,32 +260,32 @@ const resetFilters = () => {
       <div class="w-full">
         <!-- Search & Filters -->
         <div class="bg-white border border-slate-100 rounded-2xl shadow-sm mb-4 p-4">
-          <div class="flex items-center gap-3 flex-nowrap overflow-x-auto">
+          <div class="flex flex-wrap items-center gap-3">
             <div class="relative min-w-[200px] flex-1">
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
               </div>
-              <input type="text" v-model="searchQuery" class="block w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] text-sm transition-colors" placeholder="Search students by name or ID...">
+              <input type="text" v-model="searchQuery" class="block w-full pl-9 pr-3 py-2 min-h-[44px] border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] text-sm transition-colors" placeholder="Search students by name or ID...">
             </div>
             <div class="relative shrink-0">
-              <select v-model="selectedStatus" class="appearance-none border border-slate-200 rounded-xl text-sm pl-3 pr-8 py-2 text-slate-600 focus:outline-none focus:border-[#5138ed] bg-white w-[120px]">
+              <select v-model="selectedStatus" class="appearance-none border border-slate-200 rounded-xl text-sm pl-3 pr-8 py-2 min-h-[44px] text-slate-600 focus:outline-none focus:border-[#5138ed] bg-white w-[120px]">
                 <option>All Status</option><option>Graded</option><option>Pending</option><option>Absent</option>
               </select>
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
             </div>
             <div class="relative shrink-0">
-              <select v-model="selectedGrade" class="appearance-none border border-slate-200 rounded-xl text-sm pl-3 pr-8 py-2 text-slate-600 focus:outline-none focus:border-[#5138ed] bg-white w-[120px]">
+              <select v-model="selectedGrade" class="appearance-none border border-slate-200 rounded-xl text-sm pl-3 pr-8 py-2 min-h-[44px] text-slate-600 focus:outline-none focus:border-[#5138ed] bg-white w-[120px]">
                 <option>All Grades</option><option>A</option><option>B</option><option>C</option><option>D</option><option>F</option>
               </select>
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
             </div>
             <div class="relative shrink-0">
-              <select v-model="selectedSection" class="appearance-none border border-slate-200 rounded-xl text-sm pl-3 pr-8 py-2 text-slate-600 focus:outline-none focus:border-[#5138ed] bg-white w-[130px]">
+              <select v-model="selectedSection" class="appearance-none border border-slate-200 rounded-xl text-sm pl-3 pr-8 py-2 min-h-[44px] text-slate-600 focus:outline-none focus:border-[#5138ed] bg-white w-[130px]">
                 <option>All Sections</option><option>Section A</option><option>Section B</option>
               </select>
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
             </div>
-            <button class="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-[#5138ed] text-sm font-semibold rounded-xl hover:bg-indigo-50 transition-colors shrink-0">
+            <button class="min-h-[44px] flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-[#5138ed] text-sm font-semibold rounded-xl hover:bg-indigo-50 transition-colors shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
               Filter
             </button>
@@ -337,7 +337,8 @@ const resetFilters = () => {
 
         <!-- Students Table -->
         <div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div class="overflow-x-auto">
+          <!-- Desktop Table -->
+          <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
@@ -372,8 +373,8 @@ const resetFilters = () => {
                   <td class="py-3 px-3 text-center"><span class="text-[11px] font-bold" :class="getStatusClass(student.status)">{{ student.status }}</span></td>
                   <td class="py-3 px-3 text-center">
                     <div class="flex items-center justify-center gap-1 text-slate-400">
-                      <button @click="router.push({ name: 'InstructorStudentResultDetail', params: { examId: route.params.examId, studentId: student.id } })" class="p-1 hover:text-[#5138ed] hover:bg-indigo-50 rounded-lg transition-colors" title="View"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></button>
-                      <button v-if="!lockStore.isLocked" class="p-1 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Grade"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
+                      <button @click="router.push({ name: 'InstructorStudentResultDetail', params: { examId: route.params.examId, studentId: student.id } })" class="p-1.5 hover:text-[#5138ed] hover:bg-indigo-50 rounded-lg transition-colors" title="View"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></button>
+                      <button v-if="!lockStore.isLocked" class="p-1.5 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Grade"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
                       <span v-else class="text-[10px] text-slate-400 px-1 py-0.5 bg-slate-100 rounded">Locked</span>
                     </div>
                   </td>
@@ -416,17 +417,66 @@ const resetFilters = () => {
             </table>
           </div>
 
+          <!-- Mobile Card View -->
+          <div class="md:hidden divide-y divide-slate-100">
+            <div v-for="(student, index) in filteredStudents" :key="student.id" class="p-4">
+              <div class="flex items-start gap-3 mb-3">
+                <span class="w-6 h-6 flex items-center justify-center text-[11px] font-bold text-slate-400 shrink-0">{{ index + 1 }}</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-bold text-slate-800 truncate">{{ student.name }}</p>
+                  <p class="text-[11px] text-slate-500 mt-0.5">{{ student.studentId }} · {{ student.section }}</p>
+                </div>
+                <span class="text-[11px] font-bold shrink-0" :class="getStatusClass(student.status)">{{ student.status }}</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 mb-3 text-center">
+                <div class="bg-slate-50 rounded-xl p-2">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">Auto</p>
+                  <p class="text-[12px] font-bold text-slate-700">{{ student.autoScore }}/{{ student.autoTotal }}</p>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-2">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">Manual</p>
+                  <p class="text-[12px] font-bold text-slate-700">{{ student.manualScore }}/{{ student.manualTotal }}</p>
+                </div>
+                <div class="bg-indigo-50 rounded-xl p-2">
+                  <p class="text-[9px] text-[#5138ed] font-bold uppercase mb-0.5">Final</p>
+                  <p class="text-[12px] font-bold text-[#5138ed]">{{ student.finalScore }}/{{ student.totalMarks }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 pt-3 border-t border-slate-100">
+                <button
+                  @click="toggleSelectStudent(student)"
+                  :disabled="lockStore.isLocked || student.status !== 'Graded'"
+                  class="inline-flex items-center justify-center"
+                >
+                  <div v-if="isStudentSelected(student.id)" class="w-5 h-5 rounded-full bg-[#5138ed] border-2 border-[#5138ed] flex items-center justify-center text-white">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                  </div>
+                  <div v-else-if="student.status === 'Graded'" class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white"></div>
+                  <div v-else class="w-5 h-5 rounded-full border-2 border-slate-200 bg-slate-100"></div>
+                </button>
+                <div class="flex items-center gap-1.5 ml-auto">
+                  <button @click="router.push({ name: 'InstructorStudentResultDetail', params: { examId: route.params.examId, studentId: student.id } })" class="w-8 h-8 flex items-center justify-center text-[#5138ed] bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                  </button>
+                  <button v-if="!lockStore.isLocked" class="w-8 h-8 flex items-center justify-center text-blue-500 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Pagination -->
-          <div class="p-4 border-t border-slate-100 flex items-center justify-between">
+          <div class="p-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
             <span class="text-[12px] text-slate-500 font-medium">Showing 1 to {{ filteredStudents.length }} of {{ summary.total_students }} students</span>
             <div class="flex items-center gap-1">
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 disabled:opacity-50" disabled><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold text-[11px] shadow-sm">1</button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-600 font-bold text-[11px]">2</button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-600 font-bold text-[11px]">3</button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 text-[11px]">…</button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-600 font-bold text-[11px]">13</button>
-              <button class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 disabled:opacity-50" disabled><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold text-[11px] shadow-sm">1</button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-600 font-bold text-[11px]">2</button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-600 font-bold text-[11px]">3</button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 text-[11px]">…</button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-50 text-slate-600 font-bold text-[11px]">13</button>
+              <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
             </div>
           </div>
         </div>

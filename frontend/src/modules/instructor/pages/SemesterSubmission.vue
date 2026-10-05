@@ -92,7 +92,7 @@ onMounted(() => {
         </svg>
       </div>
       <div class="pt-1">
-        <h1 class="text-[22px] font-bold text-slate-800 leading-tight">Semester Submission</h1>
+        <h1 class="text-xl sm:text-[22px] font-bold text-slate-800 leading-tight">Semester Submission</h1>
         <p class="text-[13px] font-medium text-slate-500 mt-1">Complete your semester activities and submit your records to the department head.</p>
       </div>
     </div>
@@ -146,7 +146,7 @@ onMounted(() => {
               <div class="w-6 h-6 border-2 border-[#5138ed] border-t-transparent rounded-full animate-spin"></div>
             </div>
             
-            <div v-for="item in checklist" :key="item.id" class="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+            <div v-for="item in checklist" :key="item.id" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
               <div class="flex items-center gap-4">
                 <div :class="[item.completed ? 'text-[#5138ed]' : 'text-slate-400', 'w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-sm shrink-0']">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,7 +158,7 @@ onMounted(() => {
                   <p class="text-[11px] text-slate-500 font-medium mt-0.5">{{ item.desc }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-6">
+              <div class="flex items-center gap-4 sm:gap-6 pl-14 sm:pl-0">
                 <span v-if="item.completed" class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[11px] font-bold">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
                   Completed
@@ -166,7 +166,7 @@ onMounted(() => {
                 <span v-else class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 rounded-md text-[11px] font-bold">
                   Pending
                 </span>
-                <div class="text-right w-24">
+                <div class="text-right">
                   <p class="text-[11px] font-bold text-slate-600">{{ item.date }}</p>
                   <p class="text-[10px] font-medium text-slate-400">{{ item.time }}</p>
                 </div>
@@ -175,7 +175,7 @@ onMounted(() => {
           </div>
 
           <!-- Final Submit Banner -->
-          <div v-if="isAllCompleted && submissionData.status === 'pending'" class="mt-6 bg-emerald-50 rounded-xl p-5 border border-emerald-100 flex items-center justify-between">
+          <div v-if="isAllCompleted && submissionData.status === 'pending'" class="mt-6 bg-emerald-50 rounded-xl p-4 sm:p-5 border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex items-center gap-4">
               <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
@@ -185,7 +185,7 @@ onMounted(() => {
                 <p class="text-[12px] font-medium text-emerald-600 mt-0.5">You can now submit your semester records to the department head.</p>
               </div>
             </div>
-            <button @click="submitRecords" :disabled="submitting" class="flex items-center gap-2 px-5 py-2.5 bg-[#5138ed] text-white rounded-xl text-[13px] font-bold hover:bg-indigo-600 disabled:opacity-50 transition-colors shadow-sm shrink-0">
+            <button @click="submitRecords" :disabled="submitting" class="min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 bg-[#5138ed] text-white rounded-xl text-[13px] font-bold hover:bg-indigo-600 disabled:opacity-50 transition-colors shadow-sm shrink-0 w-full sm:w-auto">
               <svg v-if="!submitting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
               <svg v-else class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
               {{ submitting ? 'Submitting...' : 'Submit Semester Records' }}

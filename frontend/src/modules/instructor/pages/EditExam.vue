@@ -98,8 +98,8 @@ const saveAsDraft = async () => {
 
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
-        <router-link to="/instructor/exams" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        <router-link to="/instructor/exams" class="min-h-[44px] px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           Back to Exams
         </router-link>
         <span class="text-[13px] font-bold text-slate-500">Editing Exam</span>
@@ -129,13 +129,13 @@ const saveAsDraft = async () => {
         <!-- STEP 1: Exam Information -->
         <template v-if="currentStep === 1">
           <ExamInformationForm />
-          <div class="flex items-center justify-between pt-2 pb-10">
-            <button @click="router.push('/instructor/exams')" class="px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 pb-10">
+            <button @click="router.push('/instructor/exams')" class="min-h-[44px] px-6 py-2.5 border border-slate-200 text-slate-600 font-bold text-[13px] rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center">
               Cancel
             </button>
-            <button @click="nextStep" class="px-6 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl shadow-sm transition-colors flex items-center gap-2">
+            <button @click="nextStep" class="min-h-[44px] px-6 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[13px] rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2">
               Next: Add Questions
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
             </button>
           </div>
         </template>
