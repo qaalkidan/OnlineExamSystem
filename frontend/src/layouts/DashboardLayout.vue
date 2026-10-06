@@ -79,12 +79,12 @@ onMounted(() => {
             Your semester academic submission is completed. Modifications are disabled. Contact Department Head if corrections are needed.
           </span>
         </div>
-        <button
-          @click="lockStore.promptLockedNotice('Academic Actions Overview')"
+        <router-link
+          to="/instructor/semester-submission"
           class="underline font-semibold hover:text-emerald-200 transition-colors shrink-0 text-left sm:text-right"
         >
           View Details
-        </button>
+        </router-link>
       </div>
 
       <!-- Page Content with Responsive Padding -->

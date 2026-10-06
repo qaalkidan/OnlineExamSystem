@@ -44,25 +44,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::put('/user/change-password', [\App\Http\Controllers\Api\V1\AuthController::class, 'changePassword']);
     Route::post('/user/profile-photo', [\App\Http\Controllers\Api\V1\AuthController::class, 'updateProfilePhoto']);
     Route::delete('/user/profile-photo', [\App\Http\Controllers\Api\V1\AuthController::class, 'removeProfilePhoto']);
-    Route::get('/user/me', function (Request $request) {
-        $user = $request->user()->load('department');
-        return response()->json([
-            'data' => [
-                'id'                       => $user->id,
-                'name'                     => $user->name,
-                'email'                    => $user->email,
-                'username'                 => $user->username,
-                'phone'                    => $user->phone,
-                'office'                   => $user->office,
-                'notification_preferences' => $user->notification_preferences,
-                'role'                     => $user->role,
-                'department_id'            => $user->department_id,
-                'department'               => $user->department,
-                'profile_picture'          => $user->profile_picture,
-                'profile_picture_url'      => $user->profile_picture_url,
-            ]
-        ]);
-    });
+    Route::get('/user/me', [\App\Http\Controllers\Api\V1\AuthController::class, 'me']);
+    Route::get('/user/activity-logs', [\App\Http\Controllers\Api\V1\AuthController::class, 'activityLogs']);
 
     // Global settings (accessible by all authenticated users)
     Route::get('/settings', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'index']);

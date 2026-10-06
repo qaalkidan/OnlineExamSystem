@@ -37,6 +37,7 @@ class User extends Authenticatable
         'employment_type',
         'office',
         'notification_preferences',
+        'preferences',
     ];
 
     protected $hidden = [
@@ -64,6 +65,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'notification_preferences' => 'array',
+            'preferences' => 'array',
         ];
     }
 
