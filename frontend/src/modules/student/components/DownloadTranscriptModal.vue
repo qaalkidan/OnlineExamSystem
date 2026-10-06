@@ -58,7 +58,7 @@ const handlePrint = () => {
         </div>
 
         <!-- Student details grid -->
-        <div class="grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl bg-slate-50 p-5 border border-slate-100 text-xs text-slate-700">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-x-6 sm:gap-y-3 rounded-xl bg-slate-50 p-4 sm:p-5 border border-slate-100 text-xs text-slate-700">
           <div>
             <p class="font-semibold text-slate-400 uppercase text-[9px]">Student Name</p>
             <p class="font-bold text-slate-900 mt-0.5">{{ profile.name }}</p>
@@ -80,8 +80,8 @@ const handlePrint = () => {
         <!-- Transcript course list -->
         <div>
           <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Certified Grade Record Sheet</h4>
-          <div class="overflow-hidden border border-slate-200 rounded-xl">
-            <table class="w-full text-left border-collapse text-xs">
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
                 <tr class="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold">
                   <th class="py-2.5 px-4">Course Code</th>
@@ -124,7 +124,7 @@ const handlePrint = () => {
         </div>
 
         <!-- Transcript Footer Metrics & Stamps -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 items-end">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-4 items-end">
           
           <!-- CGPA Summary box -->
           <div class="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 space-y-1">
@@ -171,14 +171,14 @@ const handlePrint = () => {
       </div>
 
       <!-- Footer toolbar -->
-      <footer class="border-t border-slate-150 p-4 bg-slate-50 rounded-b-2xl flex justify-between items-center text-xs">
-        <span class="text-slate-500 font-medium flex items-center gap-1">
-          <svg class="h-4 w-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+      <footer class="border-t border-slate-150 p-3.5 sm:p-4 bg-slate-50 rounded-b-2xl flex flex-col sm:flex-row justify-between items-center gap-3 text-xs">
+        <span class="text-slate-500 font-medium flex items-center gap-1 text-[11px] sm:text-xs">
+          <svg class="h-4 w-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
           Cryptographically Encrypted Secure PDF
         </span>
         <button
           @click="handlePrint"
-          class="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 font-bold text-white transition-colors flex items-center gap-2"
+          class="w-full sm:w-auto rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 font-bold text-white transition-colors flex items-center justify-center gap-2 min-h-[44px]"
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
           <span>Download PDF Slip</span>

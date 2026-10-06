@@ -484,12 +484,34 @@ const formatDate = (d: Date) =>
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .card-body { padding: 24px; gap: 20px; }
+  .timer-display { font-size: 38px; }
+}
+
 @media (max-width: 768px) {
-  .card-body { flex-direction: column; align-items: flex-start; padding: 20px; gap: 20px; }
-  .timer-section { align-self: center; }
-  .action-section { align-self: stretch; min-width: 0; }
-  .start-btn { width: 100%; }
+  .card-body { flex-direction: column; align-items: stretch; padding: 18px; gap: 18px; }
+  .exam-identity { width: 100%; }
+  .timer-section { align-self: center; margin: 4px 0; }
+  .action-section { align-self: stretch; min-width: 0; width: 100%; }
+  .start-btn { width: 100%; min-height: 48px; }
+  .preparing-badge { width: 100%; justify-content: center; min-height: 44px; }
+  .ribbon { padding: 8px 16px; }
   .ribbon-right { display: none; }
-  .exam-title { font-size: 18px; }
+  .exam-title { font-size: 18px; white-space: normal; }
+  .exam-icon { width: 52px; height: 52px; }
+  .exam-icon svg { width: 24px; height: 24px; }
+}
+
+@media (max-width: 480px) {
+  .card-body { padding: 14px; gap: 14px; }
+  .exam-identity { gap: 12px; }
+  .exam-icon { width: 44px; height: 44px; border-radius: 14px; }
+  .exam-icon svg { width: 20px; height: 20px; }
+  .exam-title { font-size: 16px; }
+  .exam-meta { gap: 10px; font-size: 11px; }
+  .timer-display { font-size: 32px; }
+  .start-btn { font-size: 14px; padding: 12px 18px; }
+  .ribbon-label { font-size: 9.5px; }
 }
 </style>

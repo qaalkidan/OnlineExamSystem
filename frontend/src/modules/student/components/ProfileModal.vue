@@ -12,12 +12,13 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-    <div class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-      <!-- Close Button -->
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-4 backdrop-blur-sm">
+    <div class="relative w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <!-- Close Button with 44px touch target -->
       <button
         @click="emit('close')"
-        class="absolute top-4 right-4 rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+        class="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 rounded-xl p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+        aria-label="Close modal"
       >
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
       </button>
@@ -117,18 +118,18 @@ const emit = defineEmits<{
       </div>
 
       <!-- Footer Buttons -->
-      <div class="pt-5 flex gap-3">
+      <div class="pt-5 flex flex-col sm:flex-row gap-2.5 sm:gap-3">
         <button
           type="button"
           @click="emit('close')"
-          class="flex-1 rounded-2xl border-2 border-slate-200 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+          class="flex-1 min-h-[44px] rounded-2xl border-2 border-slate-200 py-2.5 px-4 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center"
         >
           Close
         </button>
         <button
           type="button"
           @click="emit('close')"
-          class="flex-1 rounded-2xl bg-indigo-600 py-3 text-sm font-bold text-white hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5"
+          class="flex-1 min-h-[44px] rounded-2xl bg-indigo-600 py-2.5 px-4 text-sm font-bold text-white hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
           Done

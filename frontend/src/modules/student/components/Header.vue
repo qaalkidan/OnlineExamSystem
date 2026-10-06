@@ -68,30 +68,32 @@ onUnmounted(() => {
 <template>
   <header class="sticky top-0 z-40 w-full bg-white/95 text-gray-800 border-b border-slate-100 backdrop-blur-sm"
            style="box-shadow: 0 8px 30px rgba(15,23,42,.06);">
-    <div class="mx-auto flex h-[72px] w-full items-center justify-between px-8">
+    <div class="mx-auto flex h-[68px] sm:h-[72px] w-full items-center justify-between px-3 sm:px-6 lg:px-8">
       
       <!-- Left: Hamburger & Brand -->
-      <div class="flex items-center gap-5">
+      <div class="flex items-center gap-2.5 sm:gap-4 lg:gap-5 min-w-0">
         <!-- Hamburger Menu -->
         <button 
           @click="emit('toggle-sidebar')"
-          class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all duration-200 focus:outline-none focus:ring-0"
+          class="flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shrink-0"
+          aria-label="Toggle navigation menu"
+          title="Toggle Menu"
         >
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
         </button>
 
         <!-- Brand/Logo Section -->
-        <div class="flex items-center gap-3">
-          <img src="../../../assets/images/logo.png" alt="Wollo University Logo" class="w-9 h-9 object-contain rounded-full shadow-sm" />
-          <div class="hidden sm:block">
-            <div class="font-serif text-[13px] font-bold tracking-wide text-gray-800 uppercase leading-tight">Wollo University</div>
-            <div class="text-[10px] font-medium text-slate-400">Online Examination System</div>
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <img src="../../../assets/images/logo.png" alt="Wollo University Logo" class="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-full shadow-xs shrink-0" />
+          <div class="min-w-0">
+            <div class="font-serif text-xs sm:text-[13px] font-bold tracking-wide text-gray-800 uppercase leading-tight truncate">Wollo University</div>
+            <div class="text-[9px] sm:text-[10px] font-medium text-slate-400 hidden xs:block truncate">Online Examination System</div>
           </div>
         </div>
       </div>
 
       <!-- Center: Search Bar (Hidden on small screens) -->
-      <div class="hidden md:flex flex-1 max-w-md mx-8 relative">
+      <div class="hidden md:flex flex-1 max-w-xs lg:max-w-md mx-3 lg:mx-8 relative">
         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         </div>
@@ -99,32 +101,62 @@ onUnmounted(() => {
           type="text" 
           v-model="searchQuery"
           placeholder="Search courses, exams, results..." 
-          class="block w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-all duration-200"
+          class="block w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-400 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-all duration-200"
         />
       </div>
 
-      <!-- Right: Action Items (Notification icon removed as requested) -->
-      <div class="flex items-center">
+      <!-- Right: Academic Badges, Notifications & Profile -->
+      <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
         
+        <!-- Desktop Academic Year & Semester Badge -->
+        <div class="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200/80 shadow-2xs">
+          <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+          <span>{{ profile.academicYear || '2025/2026' }}</span>
+          <span class="text-slate-300">•</span>
+          <span class="text-indigo-600 font-bold">{{ profile.semester || 'First Semester' }}</span>
+        </div>
+
+        <!-- Tablet Compact Academic Badge -->
+        <div class="hidden md:flex xl:hidden items-center px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 text-[11px] font-semibold border border-slate-200">
+          <span>{{ (profile.academicYear || '2025/2026').split(' ')[0] }} • {{ (profile.semester || 'First').split(' ')[0] }}</span>
+        </div>
+
+        <!-- Notification Bell Icon Button -->
+        <button
+          @click="emit('open-notifications')"
+          class="relative flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          aria-label="View notifications"
+          title="Notifications"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          <span v-if="(announcements || []).length > 0" class="absolute top-2 right-2 flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+          </span>
+        </button>
+
         <!-- Student Profile Container with Dropdown -->
         <div class="relative" ref="profileDropdownRef">
           <button
             @click.stop="toggleProfileDropdown"
-            class="flex items-center gap-3 text-left focus:outline-none group rounded-2xl px-3 py-1.5 hover:bg-slate-100/80 transition-all border border-transparent hover:border-slate-200"
-            :class="{ 'bg-slate-100/90 border-slate-200 shadow-sm': isProfileDropdownOpen }"
+            class="flex items-center gap-2 sm:gap-3 text-left focus:outline-none group rounded-2xl p-1 sm:px-3 sm:py-1.5 hover:bg-slate-100/80 transition-all border border-transparent hover:border-slate-200 min-h-[44px]"
+            :class="{ 'bg-slate-100/90 border-slate-200 shadow-xs': isProfileDropdownOpen }"
+            aria-label="Student profile menu"
           >
             <img
               :src="profile.avatar"
               :alt="profile.name"
-              class="h-9 w-9 rounded-full object-cover ring-2 ring-transparent group-hover:ring-indigo-500 transition-all shadow-sm"
+              class="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover ring-2 ring-transparent group-hover:ring-indigo-500 transition-all shadow-xs shrink-0"
               referrerpolicy="no-referrer"
             />
-            <div class="hidden lg:block">
-              <p class="text-[13px] font-bold text-slate-900 leading-tight">{{ profile.name }}</p>
-              <p class="text-[10px] text-slate-400 leading-tight mt-0.5">{{ profile.department }}</p>
+            <div class="hidden lg:block max-w-[140px] truncate">
+              <p class="text-[13px] font-bold text-slate-900 leading-tight truncate">{{ profile.name }}</p>
+              <p class="text-[10px] text-slate-400 leading-tight mt-0.5 truncate">{{ profile.department }}</p>
             </div>
             <svg
-              class="hidden lg:block h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200"
+              class="hidden lg:block h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0"
               :class="{ 'rotate-180 text-indigo-600': isProfileDropdownOpen }"
               fill="none" stroke="currentColor" viewBox="0 0 24 24"
             >
@@ -143,7 +175,7 @@ onUnmounted(() => {
           >
             <div
               v-if="isProfileDropdownOpen"
-              class="absolute right-0 top-full mt-2 w-72 bg-white/95 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-[0_15px_50px_-10px_rgba(0,0,0,0.15)] py-2 z-50 select-none overflow-hidden"
+              class="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-[0_15px_50px_-10px_rgba(0,0,0,0.15)] py-2 z-50 select-none overflow-hidden"
             >
               <!-- User Info Header -->
               <div class="px-4 py-3 bg-gradient-to-br from-indigo-50/60 via-slate-50/50 to-white border-b border-slate-100 flex items-center gap-3">

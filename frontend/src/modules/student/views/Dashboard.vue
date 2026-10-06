@@ -94,13 +94,13 @@ onUnmounted(() => {
 })
 
 // Today's Exam Logic — show ready/ongoing window and exclude already submitted exams
-const todayExam = computed(() => {
-  if (upcomingExams.value.length === 0) return null
+const todayExams = computed(() => {
+  if (upcomingExams.value.length === 0) return []
   const now = currentTime.value
   const TEN_MIN = 10 * 60 * 1000
 
-  // Find the first exam that is in the ready/ongoing window and not completed
-  return upcomingExams.value.find(exam => {
+  // Find all exams that are in the ready/ongoing window and not completed
+  return upcomingExams.value.filter(exam => {
     // 1. Exclude already completed/submitted attempts
     if (exam.attemptStatus === 'submitted' || exam.attemptStatus === 'graded' || exam.attemptStatus === 'published' || (exam as any).submitted_at) {
       return false
@@ -119,15 +119,16 @@ const todayExam = computed(() => {
     const endMs = startMs + (exam.durationMinutes * 60 * 1000)
     // Show card 10 minutes before start until exam ends
     return now >= startMs - TEN_MIN && now < endMs
-  }) || null
+  })
 })
 
 const filteredUpcomingExams = computed(() => {
   const nonSubmitted = upcomingExams.value.filter(exam => 
     !['submitted', 'graded', 'published'].includes(exam.attemptStatus as string)
   )
-  if (!todayExam.value) return nonSubmitted
-  return nonSubmitted.filter(exam => exam.id !== todayExam.value!.id)
+  if (todayExams.value.length === 0) return nonSubmitted
+  const todayIds = new Set(todayExams.value.map(e => e.id))
+  return nonSubmitted.filter(exam => !todayIds.has(exam.id))
 })
 
 // Stats calculation
@@ -221,21 +222,23 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
     />
 
     <!-- Main Content Body (Padded content below full-width hero section) -->
-    <main class="flex-1 w-full mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-in fade-in duration-300">
+    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-in fade-in duration-300">
 
       <!-- Row 2: Quick Action Buttons Grid -->
       <QuickActions @action="handleQuickAction" />
 
-      <!-- Today's Exam Card (Dynamically displayed if an exam is today) -->
-      <div v-if="todayExam" class="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <!-- Today's Exam Card(s) (Dynamically displayed if exams are ready/ongoing) -->
+      <div v-if="todayExams.length > 0" class="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <TodayExamCard 
-          :exam="todayExam" 
+          v-for="readyExam in todayExams"
+          :key="readyExam.id"
+          :exam="readyExam" 
           @start-exam="handleStartUpcomingExam" 
         />
       </div>
 
       <!-- Row 3: 3-Column Grid (Upcoming Exams, Academic Calendar, Academic Progress) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
         <!-- Col 1: Upcoming Exams -->
         <div id="upcoming-exams-section" class="h-full">
           <UpcomingExams
@@ -251,7 +254,7 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
         </div>
 
         <!-- Col 3: Academic Progress -->
-        <div class="h-full">
+        <div class="h-full md:col-span-2 lg:col-span-1">
           <ProgressStats
             :profile="profile"
             :completedCount="completedCount"
@@ -263,7 +266,7 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
       </div>
 
       <!-- Row 4: 4-Column Bottom Grid (Latest Results, Official Notices, Need Help, Gamification) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
 
         <!-- Col 1: Latest Results -->
         <div id="recent-results-section" class="h-full">
@@ -280,14 +283,14 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
         </div>
 
         <!-- Col 3: Need Help? — Light flat card, full height -->
-        <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm h-full flex flex-col">
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6 shadow-sm h-full flex flex-col">
           <h3 class="text-base font-bold text-slate-900">Need Help?</h3>
           <p class="text-xs text-slate-500 mt-0.5">We're here to support you</p>
 
-          <div class="mt-5 space-y-3 flex-1 overflow-y-auto">
+          <div class="mt-4 sm:mt-5 space-y-3 flex-1 overflow-y-auto">
             <!-- Help Center Item -->
-            <div class="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
-              <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
+            <div class="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer min-h-[44px]">
+              <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
                 <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
                 </svg>
@@ -299,8 +302,8 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
             </div>
 
             <!-- Contact Support Item -->
-            <div class="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
-              <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+            <div class="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer min-h-[44px]">
+              <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
                 <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                 </svg>
@@ -314,19 +317,19 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
         </div>
 
         <!-- Col 4: You're Doing Great — Trophy image on right, text on left -->
-        <div class="bg-slate-50 rounded-2xl border border-slate-100 p-12 shadow-sm relative overflow-hidden h-full flex flex-col justify-between">
+        <div class="bg-slate-50 rounded-2xl border border-slate-100 p-5 sm:p-6 lg:p-7 shadow-sm relative overflow-hidden h-full flex flex-col justify-between">
           <!-- Trophy image on the right -->
-          <div class="absolute right-2 top-1/2 -translate-y-1/2">
-            <span class="text-6xl select-none">{{ encouragementData.emoji }}</span>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 opacity-30 sm:opacity-50 lg:opacity-100 pointer-events-none">
+            <span class="text-5xl sm:text-6xl select-none">{{ encouragementData.emoji }}</span>
           </div>
 
           <!-- Text on the left -->
-          <div class="pr-16">
+          <div class="relative z-10 pr-12 sm:pr-14">
             <p class="text-sm font-black text-slate-900 leading-snug" v-html="encouragementData.title"></p>
             <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">
               {{ encouragementData.subtitle }}
             </p>
-            <button class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition-colors shadow-sm">
+            <button class="mt-4 w-full min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-colors shadow-sm flex items-center justify-center">
               View Achievements
             </button>
           </div>

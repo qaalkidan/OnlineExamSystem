@@ -270,33 +270,33 @@ const confirmCancel = () => {
 <template>
   <div class="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-16">
     <!-- Top Console Bar -->
-    <header class="border-b border-slate-800 bg-slate-950 px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
+    <header class="border-b border-slate-800 bg-slate-950 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2.5 sm:gap-4">
+      <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
         <!-- Wollo University Logo -->
-        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-white overflow-hidden shadow-md shrink-0">
+        <div class="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white overflow-hidden shadow-md shrink-0">
           <img
             :src="wolloLogo"
             alt="Wollo University"
-            class="h-9 w-9 object-contain"
+            class="h-8 w-8 sm:h-9 sm:w-9 object-contain"
           />
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] font-black tracking-widest text-slate-400 uppercase leading-none">Wollo University</span>
-            <span class="text-[10px] font-bold tracking-widest text-slate-500 uppercase leading-none">· Exam Portal</span>
-            <span class="h-2 w-2 rounded-full bg-rose-500 animate-ping"></span>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5 sm:gap-2">
+            <span class="text-[9px] sm:text-[10px] font-black tracking-widest text-slate-400 uppercase leading-none">Wollo University</span>
+            <span class="hidden xs:inline text-[9px] sm:text-[10px] font-bold tracking-widest text-slate-500 uppercase leading-none">· Exam Portal</span>
+            <span class="h-2 w-2 rounded-full bg-rose-500 animate-ping shrink-0"></span>
           </div>
-          <h2 class="text-sm font-bold text-white truncate max-w-xs sm:max-w-md mt-0.5">
+          <h2 class="text-xs sm:text-sm font-bold text-white truncate max-w-[200px] xs:max-w-xs sm:max-w-md mt-0.5">
             {{ exam.courseCode }}: {{ exam.courseName }}
           </h2>
         </div>
       </div>
 
       <!-- Live Timer and Submit Block -->
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-2 rounded-lg bg-slate-800 px-3.5 py-1.5 border border-slate-700">
-          <svg class="h-4 w-4 text-rose-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          <span class="font-mono text-sm font-extrabold text-white">
+      <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div class="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-slate-800 px-2.5 sm:px-3.5 py-1.5 border border-slate-700 min-h-[38px] sm:min-h-[40px]">
+          <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <span class="font-mono text-xs sm:text-sm font-extrabold text-white">
             {{ formatTime(secondsRemaining) }}
           </span>
         </div>
@@ -304,18 +304,19 @@ const confirmCancel = () => {
         <button
           @click="showConfirmSubmit = true"
           :disabled="isSubmitting"
-          class="rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/10 active:scale-[0.98]"
+          class="rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 sm:px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/10 active:scale-[0.98] min-h-[38px] sm:min-h-[40px] flex items-center justify-center"
         >
-          {{ isSubmitting ? 'Submitting...' : 'Submit Response Sheet' }}
+          <span class="hidden sm:inline">{{ isSubmitting ? 'Submitting...' : 'Submit Response Sheet' }}</span>
+          <span class="sm:hidden">{{ isSubmitting ? 'Submitting...' : 'Submit' }}</span>
         </button>
       </div>
     </header>
 
     <!-- Main Console Arena -->
-    <div class="flex-1 grid grid-cols-1 xl:grid-cols-12 gap-6 max-w-[1800px] w-full mx-auto p-6 overflow-hidden">
+    <div class="flex-1 grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 max-w-[1800px] w-full mx-auto p-3 sm:p-6 overflow-hidden">
       
-      <!-- Left Side: Question Navigation & Live Feed Mockup (3 Cols) -->
-      <div class="xl:col-span-3 space-y-6 flex flex-col justify-start">
+      <!-- Left Side: Question Navigation & Live Feed Mockup (3 Cols, below question on small screens) -->
+      <div class="order-2 xl:order-1 xl:col-span-3 space-y-4 sm:space-y-6 flex flex-col justify-start">
         
         <!-- Visual Proctoring System -->
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
@@ -436,10 +437,10 @@ const confirmCancel = () => {
 
       </div>
 
-      <!-- Center: Main Active Question Board (9 Cols) -->
-      <div class="xl:col-span-9 space-y-6 flex flex-col justify-between">
+      <!-- Center: Main Active Question Board (9 Cols, top on mobile) -->
+      <div class="order-1 xl:order-2 xl:col-span-9 space-y-4 sm:space-y-6 flex flex-col justify-between">
         
-        <div class="flex flex-col rounded-xl border border-slate-800 bg-slate-950 p-6 md:p-8 min-h-[480px]">
+        <div class="flex flex-col rounded-xl border border-slate-800 bg-slate-950 p-4 sm:p-6 md:p-8 min-h-[480px]">
           <div class="flex-1 space-y-6">
           <template v-if="activeQuestion">
             <!-- Question Header meta -->
@@ -651,35 +652,35 @@ const confirmCancel = () => {
           </div> <!-- End flex-1 space-y-6 -->
 
           <!-- Bottom Question Controls (Moved Inside Card) -->
-          <div class="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
+          <div class="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between gap-2">
             <button
               @click="currentIndex = Math.max(0, currentIndex - 1)"
               :disabled="currentIndex === 0"
-              class="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-xs font-bold text-slate-400 hover:text-white hover:border-slate-700 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white hover:border-slate-700 transition-colors disabled:opacity-30 disabled:pointer-events-none min-h-[44px]"
             >
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-              <span>Back Question</span>
+              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+              <span>Back<span class="hidden sm:inline"> Question</span></span>
             </button>
 
-            <span class="text-xs font-bold font-mono text-slate-500 hidden sm:inline-block">
+            <span class="text-xs font-bold font-mono text-slate-500 hidden md:inline-block">
               SECURE BUFFER: ALL INPUTS SAVED REDUNDANTLY
             </span>
 
             <button
               v-if="currentIndex < questions.length - 1"
               @click="currentIndex = Math.min(questions.length - 1, currentIndex + 1)"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 transition-colors"
+              class="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 transition-colors min-h-[44px]"
             >
-              <span>Next Question</span>
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+              <span>Next<span class="hidden sm:inline"> Question</span></span>
+              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
             </button>
             <button
               v-else
               @click="showConfirmSubmit = true"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors"
+              class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition-colors min-h-[44px]"
             >
               <span>Finish & Submit</span>
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
             </button>
           </div>
         </div>

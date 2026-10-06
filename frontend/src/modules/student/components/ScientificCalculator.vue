@@ -358,8 +358,8 @@ const onDragging = (e: MouseEvent | TouchEvent) => {
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
 
-  const newX = Math.max(10, Math.min(window.innerWidth - 380, clientX - dragStart.value.x))
-  const newY = Math.max(10, Math.min(window.innerHeight - 520, clientY - dragStart.value.y))
+  const newX = Math.max(8, Math.min(window.innerWidth - 320, clientX - dragStart.value.x))
+  const newY = Math.max(8, Math.min(window.innerHeight - 480, clientY - dragStart.value.y))
 
   dragPosition.value = { x: newX, y: newY }
 }
@@ -422,12 +422,12 @@ onUnmounted(() => {
       v-if="!isOpen"
       type="button"
       @click="isOpen = true"
-      class="fixed bottom-6 right-6 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-indigo-500/30 hover:border-indigo-400 backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-indigo-500/30 hover:border-indigo-400 backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px]"
       title="Open Scientific Calculator (Allowed by Instructor)"
     >
       <!-- Glowing Animated Icon Frame -->
-      <div class="relative w-9 h-9 rounded-xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-indigo-400 group-hover:text-white group-hover:bg-indigo-600 transition-colors shadow-sm">
-        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <div class="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-indigo-400 group-hover:text-white group-hover:bg-indigo-600 transition-colors shadow-sm shrink-0">
+        <svg class="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="4" y="2" width="16" height="20" rx="3" />
           <line x1="8" y1="6" x2="16" y2="6" stroke-width="2.5" />
           <line x1="8" y1="10" x2="10" y2="10" />
@@ -453,11 +453,11 @@ onUnmounted(() => {
       v-if="isOpen"
       ref="calculatorRef"
       class="fixed z-50 flex flex-col bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-xl transition-shadow select-none overflow-hidden"
-      :class="isMinimized ? 'w-[320px] bottom-6 right-6' : 'w-[360px] sm:w-[410px]'"
+      :class="isMinimized ? 'w-[300px] sm:w-[320px] max-w-[calc(100vw-24px)] bottom-4 right-4 sm:bottom-6 sm:right-6' : 'w-[340px] sm:w-[410px] max-w-[calc(100vw-24px)]'"
       :style="
         dragPosition && !isMinimized
           ? { left: `${dragPosition.x}px`, top: `${dragPosition.y}px` }
-          : { bottom: '24px', right: '24px' }
+          : { bottom: '16px', right: '16px' }
       "
     >
       

@@ -360,22 +360,22 @@ onMounted(async () => {
     />
 
     <!-- Main Expansive Full-Screen Container -->
-    <main class="flex-1 w-full px-4 sm:px-8 lg:px-12 xl:px-16 py-8 space-y-8">
+    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
       
       <!-- Top Overview & Identity Card (Full-Width Responsive Card) -->
-      <div class="w-full bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 sm:p-8 lg:p-10 relative overflow-hidden">
+      <div class="w-full bg-white rounded-3xl border border-slate-200/80 shadow-sm p-4 sm:p-6 lg:p-8 relative overflow-hidden">
         
         <!-- Subtle Top Ambient Accent Gradient -->
         <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-700"></div>
 
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 sm:gap-8">
           
           <!-- Left: Avatar, Name & Live Badges -->
-          <div class="flex flex-col sm:flex-row items-center sm:items-center gap-6 text-center sm:text-left">
+          <div class="flex flex-col sm:flex-row items-center sm:items-center gap-5 sm:gap-6 text-center sm:text-left">
             
             <!-- Avatar Container with Photo Actions -->
             <div class="relative group flex-shrink-0">
-              <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl overflow-hidden ring-4 ring-slate-100 shadow-md bg-slate-100 relative">
+              <div class="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-3xl overflow-hidden ring-4 ring-slate-100 shadow-md bg-slate-100 relative">
                 <img
                   :src="profile.avatar"
                   :alt="profile.name"
@@ -402,7 +402,7 @@ onMounted(async () => {
                 @click="triggerPhotoPicker"
                 :disabled="isUploadingPhoto"
                 title="Upload profile picture (Max 2MB)"
-                class="absolute -bottom-1.5 -right-1.5 p-2.5 rounded-2xl bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 border-2 border-white focus:outline-none"
+                class="absolute -bottom-1.5 -right-1.5 p-2 sm:p-2.5 rounded-2xl bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 border-2 border-white focus:outline-none min-h-[38px] min-w-[38px] flex items-center justify-center"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -426,32 +426,32 @@ onMounted(async () => {
 
             <!-- Identity Labels -->
             <div class="space-y-2">
-              <div class="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
-                <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{{ profile.name }}</h2>
+              <div class="flex items-center justify-center sm:justify-start gap-2.5 sm:gap-3 flex-wrap">
+                <h2 class="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{{ profile.name }}</h2>
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   {{ profile.status || 'Active Student' }}
                 </span>
               </div>
 
-              <p class="text-sm font-semibold text-slate-600">
+              <p class="text-xs sm:text-sm font-semibold text-slate-600">
                 {{ profile.program }}
               </p>
 
-              <div class="flex items-center justify-center sm:justify-start gap-2.5 pt-1 flex-wrap">
+              <div class="flex items-center justify-center sm:justify-start gap-2 pt-1 flex-wrap">
                 <!-- Official ID Badge -->
-                <span class="inline-flex items-center gap-1.5 text-xs font-mono font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl border border-slate-200">
+                <span class="inline-flex items-center gap-1.5 text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200">
                   <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>
                   {{ profile.id }}
                 </span>
 
                 <!-- Department Badge -->
-                <span class="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl border border-indigo-100">
+                <span class="text-xs font-bold bg-indigo-50 text-indigo-700 px-2.5 sm:px-3 py-1.5 rounded-xl border border-indigo-100">
                   {{ profile.department }}
                 </span>
 
                 <!-- Year & Section Badge -->
-                <span class="text-xs font-bold bg-slate-800 text-white px-3 py-1.5 rounded-xl">
+                <span class="text-xs font-bold bg-slate-800 text-white px-2.5 sm:px-3 py-1.5 rounded-xl">
                   {{ profile.yearLevel }} • {{ profile.section }}
                 </span>
               </div>
@@ -460,57 +460,57 @@ onMounted(async () => {
           </div>
 
           <!-- Right: Real Academic KPI Tiles (Strictly Real Data) -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full lg:w-auto">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 w-full lg:w-auto">
             
             <!-- Real CGPA -->
-            <div class="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex flex-col justify-between min-w-[130px]">
+            <div class="p-3 sm:p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex flex-col justify-between min-w-0 sm:min-w-[130px]">
               <span class="text-[10px] uppercase font-bold text-indigo-600 tracking-wider">Cumulative GPA</span>
               <div class="flex items-baseline gap-1 mt-1">
-                <span class="text-2xl sm:text-3xl font-black text-indigo-900">
+                <span class="text-xl sm:text-2xl md:text-3xl font-black text-indigo-900">
                   {{ realCGPA !== null ? realCGPA.toFixed(2) : 'N/A' }}
                 </span>
                 <span v-if="realCGPA !== null" class="text-[11px] font-bold text-indigo-400">/ 4.00</span>
               </div>
-              <p class="text-[10px] text-indigo-600 font-semibold mt-2">
+              <p class="text-[10px] text-indigo-600 font-semibold mt-1 sm:mt-2 truncate">
                 {{ completedResults.length > 0 ? 'Verified Transcript' : 'Pending First Exam' }}
               </p>
             </div>
 
             <!-- Completed Assessments -->
-            <div class="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 flex flex-col justify-between min-w-[130px]">
+            <div class="p-3 sm:p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 flex flex-col justify-between min-w-0 sm:min-w-[130px]">
               <span class="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Exams Completed</span>
               <div class="flex items-baseline gap-1 mt-1">
-                <span class="text-2xl sm:text-3xl font-black text-emerald-900">{{ completedResults.length }}</span>
+                <span class="text-xl sm:text-2xl md:text-3xl font-black text-emerald-900">{{ completedResults.length }}</span>
                 <span class="text-[11px] font-bold text-emerald-500">Exams</span>
               </div>
-              <p class="text-[10px] text-emerald-700 font-semibold mt-2">
+              <p class="text-[10px] text-emerald-700 font-semibold mt-1 sm:mt-2 truncate">
                 {{ upcomingExams.length }} Scheduled
               </p>
             </div>
 
             <!-- Real Average Score -->
-            <div class="p-4 rounded-2xl bg-sky-50/70 border border-sky-100 flex flex-col justify-between min-w-[130px]">
+            <div class="p-3 sm:p-4 rounded-2xl bg-sky-50/70 border border-sky-100 flex flex-col justify-between min-w-0 sm:min-w-[130px]">
               <span class="text-[10px] uppercase font-bold text-sky-600 tracking-wider">Average Score</span>
               <div class="flex items-baseline gap-1 mt-1">
-                <span class="text-2xl sm:text-3xl font-black text-sky-900">
+                <span class="text-xl sm:text-2xl md:text-3xl font-black text-sky-900">
                   {{ realAverageScore !== null ? `${realAverageScore}%` : 'N/A' }}
                 </span>
               </div>
-              <p class="text-[10px] text-sky-600 font-semibold mt-2">
-                {{ completedResults.length > 0 ? 'Across Completed Tests' : 'No graded attempts' }}
+              <p class="text-[10px] text-sky-600 font-semibold mt-1 sm:mt-2 truncate">
+                {{ completedResults.length > 0 ? 'Across Completed' : 'No attempts' }}
               </p>
             </div>
 
             <!-- Real Pass Rate -->
-            <div class="p-4 rounded-2xl bg-amber-50/70 border border-amber-100 flex flex-col justify-between min-w-[130px]">
+            <div class="p-3 sm:p-4 rounded-2xl bg-amber-50/70 border border-amber-100 flex flex-col justify-between min-w-0 sm:min-w-[130px]">
               <span class="text-[10px] uppercase font-bold text-amber-600 tracking-wider">Pass Rate</span>
               <div class="flex items-baseline gap-1 mt-1">
-                <span class="text-2xl sm:text-3xl font-black text-amber-900">
+                <span class="text-xl sm:text-2xl md:text-3xl font-black text-amber-900">
                   {{ realPassRate !== null ? `${realPassRate}%` : 'N/A' }}
                 </span>
               </div>
-              <p class="text-[10px] text-amber-700 font-semibold mt-2">
-                {{ realPassRate !== null && realPassRate >= 50 ? 'Academic Standing: Good' : 'Standing: Pending' }}
+              <p class="text-[10px] text-amber-700 font-semibold mt-1 sm:mt-2 truncate">
+                {{ realPassRate !== null && realPassRate >= 50 ? 'Standing: Good' : 'Standing: Pending' }}
               </p>
             </div>
 
@@ -521,12 +521,12 @@ onMounted(async () => {
       </div>
 
       <!-- Navigation Tabs Bar (Expansive, Full-Width Bar) -->
-      <div class="border-b border-slate-200 bg-white rounded-2xl shadow-sm px-4 sm:px-8 flex items-center gap-3 sm:gap-6 overflow-x-auto no-scrollbar">
+      <div class="border-b border-slate-200 bg-white rounded-2xl shadow-sm px-3 sm:px-6 flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
         
         <button
           @click="activeTab = 'personal'"
           :class="[
-            'py-4 px-3 text-xs sm:text-sm font-bold flex items-center gap-2.5 border-b-2 whitespace-nowrap transition-colors',
+            'py-3.5 sm:py-4 px-2.5 sm:px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors min-h-[44px]',
             activeTab === 'personal'
               ? 'border-indigo-600 text-indigo-600 font-extrabold'
               : 'border-transparent text-slate-500 hover:text-slate-900',
@@ -977,56 +977,108 @@ onMounted(async () => {
               </p>
             </div>
 
-            <!-- Real Results Table -->
-            <div v-else class="overflow-x-auto">
-              <table class="w-full text-left text-xs">
-                <thead class="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <tr>
-                    <th class="py-4 px-6">Assessment Title</th>
-                    <th class="py-4 px-6">Course</th>
-                    <th class="py-4 px-4">Completion Date</th>
-                    <th class="py-4 px-4 text-center">Score / Total</th>
-                    <th class="py-4 px-4 text-center">Percentage</th>
-                    <th class="py-4 px-4 text-center">Grade</th>
-                    <th class="py-4 px-6 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="res in completedResults" :key="res.id" class="hover:bg-slate-50/70 transition-colors">
-                    <td class="py-4 px-6 font-bold text-slate-900 text-sm">
-                      {{ res.examTitle }}
-                    </td>
-                    <td class="py-4 px-6">
-                      <span class="font-bold text-slate-800">{{ res.courseName || res.courseCode }}</span>
-                      <span v-if="res.courseCode" class="block text-[11px] font-mono text-slate-400">{{ res.courseCode }}</span>
-                    </td>
-                    <td class="py-4 px-4 text-slate-600 font-medium">
-                      {{ res.completedDate || 'Recently' }}
-                    </td>
-                    <td class="py-4 px-4 text-center font-bold text-slate-900 text-sm">
-                      {{ res.score }} <span class="text-slate-400 font-normal">/ {{ res.totalMarks }}</span>
-                    </td>
-                    <td class="py-4 px-4 text-center">
-                      <span class="px-2.5 py-1 rounded-full text-xs font-black" :class="(res.percentage || 0) >= 50 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
+            <!-- Real Results (Mobile Cards + Desktop Table) -->
+            <div v-else>
+              <!-- Mobile Cards View (< md) -->
+              <div class="md:hidden divide-y divide-slate-100">
+                <div
+                  v-for="res in completedResults"
+                  :key="res.id"
+                  class="p-4 space-y-3 hover:bg-slate-50/50 transition-colors"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <span v-if="res.courseCode" class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                        {{ res.courseCode }}
+                      </span>
+                      <h4 class="text-sm font-bold text-slate-900 mt-1 break-words">{{ res.examTitle }}</h4>
+                      <p class="text-xs text-slate-500 mt-0.5">{{ res.courseName }}</p>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-xl text-xs font-black bg-indigo-50 text-indigo-700 shrink-0">
+                      {{ res.grade || 'N/A' }}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-50">
+                    <div>
+                      <span class="text-slate-400 block text-[10px] uppercase font-bold">Score</span>
+                      <span class="font-extrabold text-slate-800 text-sm">
+                        {{ res.score }} <span class="text-slate-400 text-xs font-normal">/ {{ res.totalMarks }}</span>
+                      </span>
+                    </div>
+                    <div class="text-center">
+                      <span class="text-slate-400 block text-[10px] uppercase font-bold">Percentage</span>
+                      <span class="inline-block px-2 py-0.5 rounded-full text-xs font-black mt-0.5" :class="(res.percentage || 0) >= 50 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
                         {{ res.percentage }}%
                       </span>
-                    </td>
-                    <td class="py-4 px-4 text-center">
-                      <span class="px-3 py-1 rounded-xl text-xs font-extrabold bg-indigo-50 text-indigo-700">
-                        {{ res.grade }}
-                      </span>
-                    </td>
-                    <td class="py-4 px-6 text-right">
-                      <button
-                        @click="router.push(`/student/results/${res.id}`)"
-                        class="px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50 transition-colors"
-                      >
-                        Review
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    </div>
+                    <div class="text-right">
+                      <span class="text-slate-400 block text-[10px] uppercase font-bold">Date</span>
+                      <span class="text-slate-500 text-xs font-medium">{{ res.completedDate || 'Recently' }}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    @click="router.push(`/student/results/${res.id}`)"
+                    class="w-full min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-600 font-bold text-xs transition-colors"
+                  >
+                    <span>Review Assessment</span>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Desktop Table View (>= md) -->
+              <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <tr>
+                      <th class="py-4 px-6">Assessment Title</th>
+                      <th class="py-4 px-6">Course</th>
+                      <th class="py-4 px-4">Completion Date</th>
+                      <th class="py-4 px-4 text-center">Score / Total</th>
+                      <th class="py-4 px-4 text-center">Percentage</th>
+                      <th class="py-4 px-4 text-center">Grade</th>
+                      <th class="py-4 px-6 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    <tr v-for="res in completedResults" :key="res.id" class="hover:bg-slate-50/70 transition-colors">
+                      <td class="py-4 px-6 font-bold text-slate-900 text-sm">
+                        {{ res.examTitle }}
+                      </td>
+                      <td class="py-4 px-6">
+                        <span class="font-bold text-slate-800">{{ res.courseName || res.courseCode }}</span>
+                        <span v-if="res.courseCode" class="block text-[11px] font-mono text-slate-400">{{ res.courseCode }}</span>
+                      </td>
+                      <td class="py-4 px-4 text-slate-600 font-medium">
+                        {{ res.completedDate || 'Recently' }}
+                      </td>
+                      <td class="py-4 px-4 text-center font-bold text-slate-900 text-sm">
+                        {{ res.score }} <span class="text-slate-400 font-normal">/ {{ res.totalMarks }}</span>
+                      </td>
+                      <td class="py-4 px-4 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-black" :class="(res.percentage || 0) >= 50 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
+                          {{ res.percentage }}%
+                        </span>
+                      </td>
+                      <td class="py-4 px-4 text-center">
+                        <span class="px-3 py-1 rounded-xl text-xs font-extrabold bg-indigo-50 text-indigo-700">
+                          {{ res.grade }}
+                        </span>
+                      </td>
+                      <td class="py-4 px-6 text-right">
+                        <button
+                          @click="router.push(`/student/results/${res.id}`)"
+                          class="px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50 transition-colors min-h-[36px]"
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           </div>

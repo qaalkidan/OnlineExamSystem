@@ -227,40 +227,40 @@ const quickTips = [
     />
 
     <!-- Main Exam Page Body -->
-    <main class="flex-1 w-full mx-auto max-w-[1340px] px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
       <div class="flex flex-col lg:flex-row gap-6">
 
         <!-- ── Left Main Content Column ── -->
         <div class="flex-1 space-y-6">
 
           <!-- ── Top Filter Bar ── -->
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center bg-slate-100/80 p-1.5 rounded-2xl gap-1.5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center bg-slate-100/80 p-1 sm:p-1.5 rounded-2xl gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar max-w-full">
               <button
                 @click="activeFilter = 'todays'"
-                :class="['px-5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200',
-                  activeFilter === 'todays' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-sm' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
+                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
+                  activeFilter === 'todays' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
               >
                 Today's Exams
               </button>
               <button
                 @click="activeFilter = 'ongoing'"
-                :class="['px-5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200',
-                  activeFilter === 'ongoing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-sm' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
+                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
+                  activeFilter === 'ongoing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
               >
                 Ongoing
               </button>
               <button
                 @click="activeFilter = 'completed'"
-                :class="['px-5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200',
-                  activeFilter === 'completed' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-sm' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
+                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
+                  activeFilter === 'completed' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
               >
                 Completed
               </button>
               <button
                 @click="activeFilter = 'all'"
-                :class="['px-5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200',
-                  activeFilter === 'all' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-sm' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
+                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
+                  activeFilter === 'all' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
               >
                 All Exams
               </button>
@@ -269,7 +269,7 @@ const quickTips = [
             <!-- Course Selector Dropdown -->
             <select
               v-model="selectedCourse"
-              class="text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              class="w-full sm:w-auto text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-2xs focus:outline-none focus:ring-2 focus:ring-indigo-300 min-h-[44px]"
             >
               <option>All Courses</option>
               <option v-for="c in availableCourses" :key="c" :value="c">{{ c }}</option>
@@ -288,9 +288,9 @@ const quickTips = [
           <template v-else>
 
             <!-- ── Section 1: Today's Exam Card (Red Border Container) ── -->
-            <div v-if="activeFilter === 'todays' || activeFilter === 'all'" class="bg-gradient-to-br from-red-50/30 via-white to-white rounded-3xl border-2 border-red-600/80 shadow-md p-6 space-y-5 ring-4 ring-red-50/50">
+            <div v-if="activeFilter === 'todays' || activeFilter === 'all'" class="bg-gradient-to-br from-red-50/30 via-white to-white rounded-3xl border-2 border-red-600/80 shadow-md p-4 sm:p-6 space-y-4 sm:space-y-5 ring-4 ring-red-50/50">
               <!-- Section Header -->
-              <div class="flex items-center justify-between">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
                 <div class="flex items-center gap-2.5">
                   <div class="w-9 h-9 rounded-2xl bg-indigo-100/80 border border-indigo-200 flex items-center justify-center">
                     <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -320,20 +320,20 @@ const quickTips = [
                 <div
                   v-for="exam in todaysExams"
                   :key="exam.id"
-                  class="bg-white/90 rounded-2xl border border-indigo-100 p-5 shadow-2xs"
+                  class="bg-white/90 rounded-2xl border border-indigo-100 p-4 sm:p-5 shadow-2xs"
                 >
-                  <div class="flex flex-wrap md:flex-nowrap items-center justify-between gap-6 pb-5 border-b border-slate-100">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 pb-4 sm:pb-5 border-b border-slate-100">
                     <!-- Course & Exam Info -->
-                    <div class="flex items-center gap-4 min-w-[240px]">
-                      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-base flex items-center justify-center shadow-md shadow-indigo-100 flex-shrink-0">
+                    <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+                      <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
                         {{ getCourseAbbr(exam.courseName, exam.courseCode) }}
                       </div>
-                      <div>
-                        <h3 class="text-base font-bold text-slate-900 leading-tight">{{ exam.courseName }}</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">{{ exam.courseCode }} - {{ exam.examType }}</p>
+                      <div class="min-w-0">
+                        <h3 class="text-sm sm:text-base font-bold text-slate-900 leading-tight truncate">{{ exam.courseName }}</h3>
+                        <p class="text-xs text-slate-500 mt-0.5 truncate">{{ exam.courseCode }} - {{ exam.examType }}</p>
                         <div class="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
-                          Instructor: {{ exam.instructor || 'Wollo University' }}
+                          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                          <span class="truncate">Instructor: {{ exam.instructor || 'Wollo University' }}</span>
                         </div>
                       </div>
                     </div>
@@ -341,35 +341,37 @@ const quickTips = [
                     <!-- Timing Details -->
                     <div class="space-y-1 text-xs text-slate-600">
                       <div class="flex items-center gap-2">
-                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         <span class="font-medium text-slate-700">{{ exam.startTime || 'Scheduled Time' }}</span>
                       </div>
                       <div class="flex items-center gap-2 text-slate-400">
-                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         <span>Duration: {{ exam.durationMinutes }} Mins ({{ exam.totalMarks }} Marks)</span>
                       </div>
                     </div>
 
                     <!-- Status & Countdown -->
-                    <div class="text-right flex-shrink-0">
+                    <div class="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 shrink-0">
                       <span :class="[
-                        'inline-block text-[11px] font-bold px-3 py-1 rounded-full mb-1 border',
+                        'inline-block text-[11px] font-bold px-3 py-1 rounded-full mb-0.5 sm:mb-1 border',
                         exam.attemptStatus === 'in_progress' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                       ]">
                         {{ exam.attemptStatus === 'in_progress' ? 'In Progress' : 'Ready' }}
                       </span>
-                      <p class="text-[11px] text-slate-400">Status</p>
-                      <p class="text-xl font-black text-slate-900 leading-none">
-                        {{ exam.attemptStatus === 'in_progress' ? 'Active' : 'Scheduled' }}
-                      </p>
+                      <div class="text-right">
+                        <p class="text-[10px] text-slate-400">Status</p>
+                        <p class="text-base sm:text-xl font-black text-slate-900 leading-none">
+                          {{ exam.attemptStatus === 'in_progress' ? 'Active' : 'Scheduled' }}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   <!-- Full-Width Action Button with Green Border -->
-                  <div class="pt-4">
+                  <div class="pt-3.5 sm:pt-4">
                     <button
                       @click="handleStartExam(exam.id)"
-                      class="w-full bg-indigo-50 hover:bg-indigo-100 text-emerald-600 border-2 border-emerald-500 font-bold py-3.5 px-6 rounded-2xl shadow-2xs transition-all duration-200 flex items-center justify-center gap-2"
+                      class="w-full min-h-[48px] bg-indigo-50 hover:bg-indigo-100 text-emerald-600 border-2 border-emerald-500 font-bold py-3 px-6 rounded-2xl shadow-2xs transition-all duration-200 flex items-center justify-center gap-2"
                     >
                       <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                       <span>{{ exam.attemptStatus === 'in_progress' ? 'Continue Exam' : 'Start Exam' }}</span>
@@ -386,7 +388,7 @@ const quickTips = [
             </div>
 
             <!-- ── Section 2: Ongoing Exams ── -->
-            <div v-if="(activeFilter === 'ongoing' || activeFilter === 'all') && ongoingExamsList.length > 0" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
+            <div v-if="(activeFilter === 'ongoing' || activeFilter === 'all') && ongoingExamsList.length > 0" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-4">
               <div class="flex items-center gap-2.5">
                 <div class="w-9 h-9 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
                   <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -397,19 +399,19 @@ const quickTips = [
               <div
                 v-for="exam in ongoingExamsList"
                 :key="exam.id"
-                class="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 flex flex-wrap md:flex-nowrap items-center justify-between gap-6"
+                class="bg-slate-50/50 rounded-2xl border border-slate-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6"
               >
                 <!-- Course Info -->
-                <div class="flex items-center gap-4 min-w-[220px]">
-                  <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white font-bold text-base flex items-center justify-center shadow-md shadow-indigo-100 flex-shrink-0">
+                <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
                     {{ getCourseAbbr(exam.courseName, exam.courseCode) }}
                   </div>
-                  <div>
-                    <h3 class="text-base font-bold text-slate-900 leading-tight">{{ exam.courseName }}</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">{{ exam.courseCode }} - {{ exam.examType }}</p>
+                  <div class="min-w-0">
+                    <h3 class="text-sm sm:text-base font-bold text-slate-900 leading-tight truncate">{{ exam.courseName }}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5 truncate">{{ exam.courseCode }} - {{ exam.examType }}</p>
                     <div class="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                      Online Proctored
+                      <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                      <span>Online Proctored</span>
                     </div>
                   </div>
                 </div>
@@ -421,19 +423,19 @@ const quickTips = [
                 </div>
 
                 <!-- Time Remaining -->
-                <div class="text-center flex-shrink-0">
+                <div class="text-left sm:text-center shrink-0">
                   <p class="text-[11px] text-slate-400 font-medium">Time Remaining</p>
-                  <p class="text-3xl font-black text-slate-900 font-mono leading-tight">{{ countdown }}</p>
+                  <p class="text-2xl sm:text-3xl font-black text-slate-900 font-mono leading-tight">{{ countdown }}</p>
                 </div>
 
                 <!-- Action Button -->
-                <div class="flex flex-col items-end gap-2 flex-shrink-0">
+                <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto">
                   <span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
                     In Progress
                   </span>
                   <button
                     @click="handleStartExam(exam.id)"
-                    class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-600 text-xs font-bold py-3 px-6 rounded-2xl shadow-2xs transition-all duration-200 flex items-center gap-2"
+                    class="w-full sm:w-auto min-h-[44px] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-600 text-xs font-bold py-2.5 px-6 rounded-2xl shadow-2xs transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     Continue Exam
@@ -443,7 +445,7 @@ const quickTips = [
             </div>
 
             <!-- ── Section 3: Completed Exams ── -->
-            <div v-if="activeFilter === 'completed' || activeFilter === 'all'" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
+            <div v-if="activeFilter === 'completed' || activeFilter === 'all'" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-4">
               <!-- Header -->
               <div class="flex items-center gap-2.5">
                 <div class="w-9 h-9 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center">
@@ -457,19 +459,19 @@ const quickTips = [
                 <div
                   v-for="res in filteredCompletedExams"
                   :key="res.id"
-                  class="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 flex flex-wrap md:flex-nowrap items-center justify-between gap-6"
+                  class="bg-slate-50/50 rounded-2xl border border-slate-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6"
                 >
                   <!-- Course Info -->
-                  <div class="flex items-center gap-4 min-w-[220px]">
-                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 text-white font-bold text-base flex items-center justify-center shadow-md shadow-rose-100 flex-shrink-0">
+                  <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-md shadow-rose-100 shrink-0">
                       {{ getCourseAbbr(res.courseName, res.courseCode) }}
                     </div>
-                    <div>
-                      <h3 class="text-base font-bold text-slate-900 leading-tight">{{ res.courseName }}</h3>
-                      <p class="text-xs text-slate-500 mt-0.5">{{ res.courseCode }} - {{ res.examTitle }}</p>
+                    <div class="min-w-0">
+                      <h3 class="text-sm sm:text-base font-bold text-slate-900 leading-tight truncate">{{ res.courseName }}</h3>
+                      <p class="text-xs text-slate-500 mt-0.5 truncate">{{ res.courseCode }} - {{ res.examTitle }}</p>
                       <div class="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        Official Result Logged
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>Official Result Logged</span>
                       </div>
                     </div>
                   </div>
@@ -481,21 +483,21 @@ const quickTips = [
                   </div>
 
                   <!-- Score -->
-                  <div class="text-center flex-shrink-0">
+                  <div class="text-left sm:text-center shrink-0">
                     <p class="text-[11px] text-slate-400 font-medium">Score</p>
-                    <p :class="['text-2xl font-black leading-tight', res.status === 'Passed' ? 'text-emerald-500' : 'text-rose-500']">
+                    <p :class="['text-xl sm:text-2xl font-black leading-tight', res.status === 'Passed' ? 'text-emerald-500' : 'text-rose-500']">
                       {{ res.percentage }}%
                     </p>
                   </div>
 
                   <!-- Action Button -->
-                  <div class="flex flex-col items-end gap-2 flex-shrink-0">
+                  <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto">
                     <span :class="['text-[11px] font-bold px-3 py-1 rounded-full border', res.status === 'Passed' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-rose-600 bg-rose-50 border-rose-200']">
                       {{ res.status || 'Completed' }}
                     </span>
                     <button
                       @click="openResultReview(res)"
-                      class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-600 text-xs font-bold py-2.5 px-6 rounded-2xl transition-all duration-200"
+                      class="w-full sm:w-auto min-h-[44px] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-600 text-xs font-bold py-2.5 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center"
                     >
                       View Results
                     </button>
@@ -511,7 +513,7 @@ const quickTips = [
             </div>
 
             <!-- ── Section 4: Quick Actions Row ── -->
-            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
+            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-4">
               <div class="flex items-center gap-2.5">
                 <div class="w-9 h-9 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center">
                   <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
@@ -602,7 +604,7 @@ const quickTips = [
         </div>
 
         <!-- ── Right Sidebar Column ── -->
-        <div class="w-full lg:w-72 flex-shrink-0 space-y-5">
+        <div class="w-full lg:w-72 flex-shrink-0 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-1 gap-5">
 
           <!-- 1. Exam Summary Card -->
           <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">

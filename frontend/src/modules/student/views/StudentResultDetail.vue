@@ -176,13 +176,13 @@ const getTypeBadgeColor = (type: string) => {
     />
 
     <!-- Main Content Container -->
-    <main class="flex-1 w-full mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-in fade-in duration-300">
+    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-in fade-in duration-300">
 
       <!-- Back Link -->
       <div>
         <router-link
           to="/student/results"
-          class="inline-flex items-center gap-1.5 text-xs font-bold text-[#5138ed] hover:underline"
+          class="inline-flex items-center gap-1.5 text-xs font-bold text-[#5138ed] hover:underline min-h-[44px] py-2"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
@@ -192,31 +192,31 @@ const getTypeBadgeColor = (type: string) => {
       </div>
 
       <!-- Title & Academic Term Bar -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 class="text-2xl font-black text-slate-900 tracking-tight">Exam Result Details</h1>
+          <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Exam Result Details</h1>
           <p class="text-xs text-slate-500 font-medium mt-1">Here is the detailed breakdown of your answers and scores.</p>
         </div>
 
-        <div class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs">
+        <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs self-start sm:self-auto min-h-[44px]">
           <span>2025/2026 – Second Semester</span>
-          <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
           </svg>
         </div>
       </div>
 
       <!-- Loading State -->
-      <div v-if="isLoading" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-16 text-center">
+      <div v-if="isLoading" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-12 sm:p-16 text-center">
         <div class="w-10 h-10 border-4 border-indigo-200 border-t-[#5138ed] rounded-full animate-spin mx-auto mb-4"></div>
         <h3 class="text-sm font-bold text-slate-800">Loading Exam Result Details...</h3>
         <p class="text-xs text-slate-400 mt-1">Please wait while we prepare your academic score breakdown.</p>
       </div>
 
-      <div v-else class="space-y-8">
+      <div v-else class="space-y-6 sm:space-y-8">
 
         <!-- 7 Top Stat Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-4">
           
           <!-- Card 1: Auto Score -->
           <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
@@ -434,14 +434,14 @@ const getTypeBadgeColor = (type: string) => {
         </div>
 
         <!-- Horizontal Filter by Type Bar -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-xs px-4 py-3 flex flex-wrap items-center gap-2">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-3 sm:px-4 sm:py-3 flex flex-wrap items-center gap-2">
           <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2 shrink-0">Filter by Type:</span>
           <button
             v-for="(count, typeKey) in filterCounts"
             :key="typeKey"
             @click="selectedFilter = typeKey"
             :class="[
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border min-h-[38px] sm:min-h-[40px]',
               selectedFilter === typeKey
                 ? 'bg-[#5138ed] text-white border-[#5138ed] shadow-sm'
                 : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-[#5138ed] hover:bg-indigo-50'
@@ -486,12 +486,12 @@ const getTypeBadgeColor = (type: string) => {
                 <div class="flex-1 h-px bg-slate-200/80"></div>
                 <div
                   v-if="group.instruction"
-                  class="flex items-center gap-2 px-4 py-1.5 bg-indigo-50 border border-indigo-100/80 rounded-full shrink-0 shadow-xs"
+                  class="flex items-center gap-2 px-4 py-1.5 bg-indigo-50 border border-indigo-100/80 rounded-full shrink-0 shadow-xs max-w-full truncate"
                 >
-                  <svg class="w-3.5 h-3.5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-3.5 h-3.5 text-[#5138ed] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                   </svg>
-                  <span class="text-[11px] font-bold text-[#5138ed] italic">{{ group.instruction }}</span>
+                  <span class="text-[11px] font-bold text-[#5138ed] italic truncate">{{ group.instruction }}</span>
                 </div>
                 <div
                   v-else
@@ -507,26 +507,26 @@ const getTypeBadgeColor = (type: string) => {
                 <div
                   v-for="q in group.questions"
                   :key="q.id"
-                  class="bg-white rounded-3xl border border-slate-100 shadow-xs p-6 transition-all space-y-5"
+                  class="bg-white rounded-3xl border border-slate-100 shadow-xs p-4 sm:p-6 transition-all space-y-4 sm:space-y-5"
                 >
                     <!-- Card Top Row -->
-                    <div class="flex items-start justify-between gap-4">
+                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                       
                       <!-- Left: Question Number, Type Badge & Statement -->
-                      <div class="flex items-start gap-4 flex-1">
+                      <div class="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                         <!-- Number Circle -->
-                        <div class="w-8 h-8 rounded-full border border-indigo-200 text-[#5138ed] bg-indigo-50/40 flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
+                        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-indigo-200 text-[#5138ed] bg-indigo-50/40 flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
                           {{ q.number }}
                         </div>
 
-                        <div class="space-y-2 flex-1">
+                        <div class="space-y-2 flex-1 min-w-0">
                           <!-- Type Badge -->
                           <span :class="['inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border', getTypeBadgeColor(q.type)]">
                             {{ q.typeLabel || q.type }}
                           </span>
 
                           <!-- Question Prompt / Text -->
-                          <p class="text-xs sm:text-sm font-bold text-slate-800 leading-relaxed">
+                          <p class="text-xs sm:text-sm font-bold text-slate-800 leading-relaxed break-words">
                             {{ q.text }}
                           </p>
 
@@ -535,69 +535,71 @@ const getTypeBadgeColor = (type: string) => {
                             <div
                               v-for="opt in q.options"
                               :key="opt.label"
-                              class="text-xs font-semibold text-slate-600 flex items-center gap-2"
+                              class="text-xs font-semibold text-slate-600 flex items-start gap-2 break-words"
                             >
-                              <span class="text-slate-400 font-bold">{{ opt.label }}.</span>
+                              <span class="text-slate-400 font-bold shrink-0">{{ opt.label }}.</span>
                               <span>{{ opt.text }}</span>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <!-- Right: Marks & Outcome Status Icon -->
-                      <div class="flex items-center gap-3 shrink-0">
+                      <!-- Right: Marks & Outcome Status Icon & Chevron -->
+                      <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                         <span class="text-xs sm:text-sm font-black text-slate-800">
                           {{ q.earnedMarks !== null ? q.earnedMarks : 'Pending' }} <template v-if="q.earnedMarks !== null">/</template><template v-else> of</template> {{ q.marks }}
                         </span>
 
-                        <!-- Status Icon Circle -->
-                        <div
-                          v-if="q.status === 'correct'"
-                          class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs"
-                          title="Correct"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-                          </svg>
-                        </div>
+                        <div class="flex items-center gap-1.5 sm:gap-2">
+                          <!-- Status Icon Circle -->
+                          <div
+                            v-if="q.status === 'correct'"
+                            class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs"
+                            title="Correct"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                            </svg>
+                          </div>
 
-                        <div
-                          v-else-if="q.status === 'partial'"
-                          class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs"
-                          title="Partially Correct"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M20 12H4"/>
-                          </svg>
-                        </div>
+                          <div
+                            v-else-if="q.status === 'partial'"
+                            class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs"
+                            title="Partially Correct"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M20 12H4"/>
+                            </svg>
+                          </div>
 
-                        <div
-                          v-else-if="q.status === 'pending'"
-                          class="w-6 h-6 rounded-full bg-indigo-400 text-white flex items-center justify-center shadow-xs"
-                          title="Pending Instructor Review"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
+                          <div
+                            v-else-if="q.status === 'pending'"
+                            class="w-6 h-6 rounded-full bg-indigo-400 text-white flex items-center justify-center shadow-xs"
+                            title="Pending Instructor Review"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
 
-                        <div
-                          v-else
-                          class="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs"
-                          title="Incorrect"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
-                          </svg>
-                        </div>
+                          <div
+                            v-else
+                            class="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs"
+                            title="Incorrect"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                          </div>
 
-                        <!-- Expand/Collapse Chevron -->
-                        <button
-                          @click="toggleQuestion(q.id)"
-                          class="text-slate-400 hover:text-slate-600 p-1 transition-colors"
-                        >
-                          <svg
-                            :class="['w-4 h-4 transition-transform', expandedQuestions[q.id] ? 'rotate-180' : '']"
+                          <!-- Expand/Collapse Chevron -->
+                          <button
+                            @click="toggleQuestion(q.id)"
+                            class="text-slate-400 hover:text-slate-600 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
+                            :aria-label="expandedQuestions[q.id] ? 'Collapse question' : 'Expand question'"
+                          >
+                            <svg
+                              :class="['w-4 h-4 transition-transform', expandedQuestions[q.id] ? 'rotate-180' : '']"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -606,11 +608,11 @@ const getTypeBadgeColor = (type: string) => {
                           </svg>
                         </button>
                       </div>
-
                     </div>
+                  </div><!-- end card top row -->
 
-                    <!-- Collapsible Content -->
-                    <div v-show="expandedQuestions[q.id]" class="pt-2 border-t border-slate-50 space-y-4">
+                  <!-- Collapsible Content -->
+                  <div v-show="expandedQuestions[q.id]" class="pt-2 border-t border-slate-50 space-y-4">
                       
                       <!-- 1. MULTIPLE CHOICE / TRUE-FALSE / FILL IN THE BLANK -->
                       <div
@@ -729,7 +731,7 @@ const getTypeBadgeColor = (type: string) => {
 
         </div><!-- end full-width questions section -->
 
-      </div>
+      </div><!-- end v-else main content -->
 
     </main>
 
