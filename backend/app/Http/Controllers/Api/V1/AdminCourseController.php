@@ -21,8 +21,75 @@ class AdminCourseController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $courses = Course::with(['department', 'instructor', 'coInstructor', 'creator', 'assignedInstructors'])->get();
-        return response()->json(['data' => $courses]);
+        $query = Course::with(['department', 'instructor', 'coInstructor', 'creator', 'assignedInstructors']);
+
+        if ($request->filled('department_id') && $request->department_id !== 'all') {
+            $query->where('department_id', $request->department_id);
+        }
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('level') && $request->level !== 'all') {
+            $query->where('level', $request->level);
+        }
+        if ($request->filled('semester') && $request->semester !== 'all') {
+            $query->where('semester', $request->semester);
+        }
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'LIKE', "%{$search}%")
+                  ->orWhere('code', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $courses = $query->latest()->get();
+
+        // 100% Real Database Metrics
+        $total = Course::count();
+        $active = Course::where('status', 'active')->count();
+        $inactive = Course::where('status', 'inactive')->count();
+        $currentSemCount = Course::where(function($q) {
+            $q->where('semester', 'Second Semester')
+              ->orWhere('semester', 'like', '%Second%')
+              ->orWhere('semester', 'like', '%2%');
+        })->count();
+        $assigned = Course::where(function($q) {
+            $q->whereNotNull('instructor_id')->orWhereNotNull('co_instructor_id');
+        })->count();
+        $unassigned = Course::whereNull('instructor_id')->whereNull('co_instructor_id')->count();
+        $totalCredits = (int) Course::sum('credits');
+
+        $thirtyDaysAgo = now()->subDays(30);
+        $newCourses = Course::where('created_at', '>=', $thirtyDaysAgo)->count();
+
+        $previousPeriodStart = now()->subDays(60);
+        $previousNew = Course::whereBetween('created_at', [$previousPeriodStart, $thirtyDaysAgo])->count();
+        $growth = null;
+        if ($previousNew > 0) {
+            $diff = $newCourses - $previousNew;
+            $rate = round(($diff / $previousNew) * 100, 1);
+            $growth = [
+                'rate' => $rate,
+                'formatted' => ($rate >= 0 ? '+' : '') . $rate . '%',
+                'trend' => $rate >= 0 ? 'up' : 'down',
+            ];
+        }
+
+        return response()->json([
+            'data' => $courses,
+            'stats' => [
+                'total' => $total,
+                'active' => $active,
+                'inactive' => $inactive,
+                'this_semester' => $currentSemCount,
+                'assigned' => $assigned,
+                'unassigned' => $unassigned,
+                'total_credits' => $totalCredits,
+                'new_courses' => $newCourses,
+                'growth' => $growth,
+            ],
+        ]);
     }
 
     /**

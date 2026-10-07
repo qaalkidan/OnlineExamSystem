@@ -21,11 +21,43 @@ class AdminUserController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = User::with(['department:id,name', 'assignedCourses:id,title,instructor_id', 'coInstructorCourses:id,title,co_instructor_id'])->latest();
+        $query = User::with([
+            'department:id,name',
+            'assignedCourses:id,title,instructor_id',
+            'coInstructorCourses:id,title,co_instructor_id'
+        ])->latest();
+
+        $roles = ['instructor', 'dept_head'];
         if ($request->has('role')) {
             $roles = explode(',', $request->role);
             $query->whereIn('role', $roles);
         }
+
+        // Stats calculation based on the requested roles
+        $statsQuery = User::whereIn('role', $roles);
+        $totalCount = (clone $statsQuery)->count();
+        $activeCount = (clone $statsQuery)->where('status', 'active')->count();
+        $inactiveCount = (clone $statsQuery)->where(function($q) {
+            $q->where('status', 'inactive')->orWhere('status', 'suspended');
+        })->count();
+
+        $thirtyDaysAgo = now()->subDays(30);
+        $newCount = (clone $statsQuery)->where('created_at', '>=', $thirtyDaysAgo)->count();
+
+        // Calculate real historical growth if previous 30-day window has data
+        $previousPeriodStart = now()->subDays(60);
+        $previousNew = (clone $statsQuery)->whereBetween('created_at', [$previousPeriodStart, $thirtyDaysAgo])->count();
+        $growth = null;
+        if ($previousNew > 0) {
+            $diff = $newCount - $previousNew;
+            $rate = round(($diff / $previousNew) * 100, 1);
+            $growth = [
+                'rate' => $rate,
+                'formatted' => ($rate >= 0 ? '+' : '') . $rate . '%',
+                'trend' => $rate >= 0 ? 'up' : 'down',
+            ];
+        }
+
         if ($request->has('academic_year') && $request->academic_year !== 'all') {
             $query->where('academic_year', $request->academic_year);
         }
@@ -35,9 +67,34 @@ class AdminUserController extends Controller
         if ($request->has('semester') && $request->semester !== 'all') {
             $query->where('semester', $request->semester);
         }
+        if ($request->has('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+        if ($request->has('department_id') && $request->department_id !== 'all') {
+            $query->where('department_id', $request->department_id);
+        }
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('id_no', 'like', "%{$search}%");
+            });
+        }
+
         $users = $query->get();
 
-        return response()->json(['data' => $users]);
+        return response()->json([
+            'data' => $users,
+            'stats' => [
+                'total' => $totalCount,
+                'active' => $activeCount,
+                'inactive' => $inactiveCount,
+                'new_instructors' => $newCount,
+                'new_students' => $newCount,
+                'growth' => $growth,
+            ],
+        ]);
     }
 
     /**
@@ -214,15 +271,22 @@ class AdminUserController extends Controller
             default     => 'Users',
         };
         
-        $user->delete();
+        try {
+            $user->delete();
 
-        LogActivity::record(
-            'Deleted',
-            $module,
-            "Deleted $roleName \"$userName\""
-        );
+            LogActivity::record(
+                'Deleted',
+                $module,
+                "Deleted $roleName \"$userName\""
+            );
 
-        return response()->json(['message' => 'User deleted successfully.']);
+            return response()->json(['message' => 'User deleted successfully.']);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Cannot delete user because they are associated with existing courses, exams, or submissions. Please reassign or remove related records first.',
+                'error' => $e->getMessage()
+            ], 422);
+        }
     }
 
     /**

@@ -68,7 +68,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::post('courses-import', [\App\Http\Controllers\Api\V1\AdminCourseController::class, 'import']);
         
         Route::get('exams', [\App\Http\Controllers\Api\V1\AdminExamController::class, 'index']);
+        Route::post('exams', [\App\Http\Controllers\Api\V1\AdminExamController::class, 'store']);
+        Route::get('exams-export', [\App\Http\Controllers\Api\V1\AdminExamController::class, 'export']);
         Route::get('exams/{id}', [\App\Http\Controllers\Api\V1\AdminExamController::class, 'show']);
+        Route::put('exams/{id}', [\App\Http\Controllers\Api\V1\AdminExamController::class, 'update']);
         Route::delete('exams/{id}', [\App\Http\Controllers\Api\V1\AdminExamController::class, 'destroy']);
         
         Route::get('activity-logs/unread-count', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'unreadCount']);
