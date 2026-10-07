@@ -134,6 +134,12 @@ export const useStudentExamStore = defineStore('studentExam', () => {
         // Attempt tracking — exam page uses started_at to calculate true time remaining
         attemptId: data.attempt_id,
         startedAt: data.started_at,  // ISO string of when attempt actually started
+        // Recovery / timing fields from backend
+        remainingSeconds: data.remaining_seconds ?? null,   // authoritative server remaining time
+        adjustedDeadline: data.adjusted_deadline ?? null,   // ISO string deadline incl extra time
+        extraTimeSeconds: data.extra_time_seconds ?? 0,
+        savedAnswers: data.saved_answers ?? {},              // pre-filled answers for reconnecting students
+        isCancelled: data.is_cancelled ?? false,
         questions: data.questions.map((q: any) => ({
           id: q.id,
           text: removePTags(q.text),
@@ -244,6 +250,42 @@ export const useStudentExamStore = defineStore('studentExam', () => {
   }
 
   /**
+   * Send heartbeat to backend — syncs current answers and gets authoritative timer.
+   * Returns: { remaining_seconds, extra_time_seconds, adjusted_deadline, is_cancelled, is_paused }
+   */
+  const sendHeartbeat = async (examId: number, answers: Record<number, string>) => {
+    try {
+      const response = await apiClient.post(`/student/exams/${examId}/heartbeat`, { answers })
+      return response.data.data
+    } catch (err: any) {
+      // Silently fail — heartbeat should not crash the exam session
+      console.warn('Heartbeat failed:', err?.response?.status)
+      return null
+    }
+  }
+
+  /**
+   * Notify backend that the student reconnected after a connection loss.
+   * Returns: recovery request info + authoritative timer
+   */
+  const sendReconnect = async (
+    examId: number,
+    pendingAnswers: Record<number, string>,
+    clientDisconnectedAt: string
+  ) => {
+    try {
+      const response = await apiClient.post(`/student/exams/${examId}/reconnect`, {
+        pending_answers: pendingAnswers,
+        client_disconnected_at: clientDisconnectedAt,
+      })
+      return response.data.data
+    } catch (err: any) {
+      console.warn('Reconnect notification failed:', err?.response?.status)
+      return null
+    }
+  }
+
+  /**
    * Fetch past exam results from API.
    */
   const fetchResults = async () => {
@@ -299,6 +341,8 @@ export const useStudentExamStore = defineStore('studentExam', () => {
     fetchExams,
     startExam,
     submitExam,
+    sendHeartbeat,
+    sendReconnect,
     fetchResults,
     fetchResultDetail,
   }

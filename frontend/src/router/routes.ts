@@ -127,6 +127,11 @@ export const routes: Array<RouteRecordRaw> = [
         component: () => import('../modules/instructor/pages/Profile.vue')
       },
       {
+        path: 'connection-issues',
+        name: 'ConnectionIssues',
+        component: () => import('../modules/instructor/pages/ConnectionIssues.vue')
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('../modules/instructor/pages/Settings.vue')
@@ -205,6 +210,11 @@ export const routes: Array<RouteRecordRaw> = [
         path: 'exams',
         name: 'AdminExams',
         component: () => import('../modules/admin/pages/Exams.vue')
+      },
+      {
+        path: 'exam-control',
+        name: 'AdminExamControl',
+        component: () => import('../modules/admin/pages/ExamControl.vue')
       },
       {
         path: 'question-banks',

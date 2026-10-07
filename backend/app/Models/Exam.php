@@ -22,6 +22,11 @@ class Exam extends Model
         'duration_minutes',
         'total_marks',
         'status',
+        'cancelled_at',
+        'cancelled_by',
+        'cancellation_reason',
+        'paused_at',
+        'paused_by',
         'scheduled_at',
         'published_at',
         'settings',
@@ -32,6 +37,8 @@ class Exam extends Model
         return [
             'scheduled_at' => 'datetime',
             'published_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'paused_at'    => 'datetime',
             'settings'     => 'array',
         ];
     }
@@ -74,5 +81,45 @@ class Exam extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class, 'course_code', 'code');
+    }
+
+    /**
+     * Recovery requests for interruptions during this exam.
+     */
+    public function recoveryRequests(): HasMany
+    {
+        return $this->hasMany(ExamRecoveryRequest::class);
+    }
+
+    /**
+     * Admin who cancelled the exam.
+     */
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * Admin who paused the exam.
+     */
+    public function pausedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'paused_by');
+    }
+
+    /**
+     * Check if exam is cancelled.
+     */
+    public function isCancelled(): bool
+    {
+        return $this->status === 'cancelled' || $this->cancelled_at !== null;
+    }
+
+    /**
+     * Check if exam is paused.
+     */
+    public function isPaused(): bool
+    {
+        return $this->status === 'paused' || $this->paused_at !== null;
     }
 }

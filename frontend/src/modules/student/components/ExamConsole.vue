@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { ActiveExam, Question } from '../types'
 import wolloLogo from '@/assets/images/logo.png'
 import ScientificCalculator from './ScientificCalculator.vue'
+import { useStudentExamStore } from '../store/studentExamStore'
 
 const props = defineProps<{
   exam: ActiveExam
@@ -37,8 +38,34 @@ const answers = ref<Record<number, string>>({})
 const matchingAnswers = ref<Record<number, Record<number, string>>>({}) // for matching questions: qId -> {pairIndex -> selectedRight}
 const flagged = ref<Record<number, boolean>>({})
 
-// Calculate initial seconds remaining considering startedAt timestamp
+const examStore = useStudentExamStore()
+
+// Restore saved answers from backend (for reconnecting students)
+const restoreSavedAnswers = () => {
+  const saved = (props.exam as any).savedAnswers
+  if (saved && typeof saved === 'object' && Object.keys(saved).length > 0) {
+    Object.entries(saved).forEach(([qId, ans]) => {
+      answers.value[Number(qId)] = String(ans)
+    })
+  }
+}
+
+// Calculate initial seconds remaining using authoritative server values when available
 const calculateInitialSeconds = () => {
+  // 1st priority: server-provided remaining_seconds (accurate, includes extra time)
+  const remaining = (props.exam as any).remainingSeconds
+  if (remaining !== null && remaining !== undefined && !isNaN(Number(remaining))) {
+    return Math.max(0, Number(remaining))
+  }
+  // 2nd priority: calculate from adjustedDeadline (includes extra time)
+  const adjustedDeadline = (props.exam as any).adjustedDeadline
+  if (adjustedDeadline) {
+    const deadlineMs = new Date(adjustedDeadline).getTime()
+    if (!isNaN(deadlineMs)) {
+      return Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000))
+    }
+  }
+  // 3rd priority: calculate from startedAt + original duration (no extra time)
   const startedAt = (props.exam as any).startedAt
   if (startedAt) {
     const startedMs = new Date(startedAt).getTime()
@@ -56,6 +83,101 @@ const showConfirmSubmit = ref<boolean>(false)
 const isSubmitting = ref<boolean>(false)
 const isAutoSubmitting = ref<boolean>(false)
 const tabSwitches = ref<number>(0)
+
+// ── Connection recovery state ───────────────────────────────────────────────
+const isOffline = ref<boolean>(false)
+const isCancelled = ref<boolean>((props.exam as any).isCancelled ?? false)
+const isPaused = ref<boolean>(false)
+const offlineMessage = ref<string>('Connection lost. Please reconnect. Your unsynchronised answers are preserved.')
+const disconnectedAt = ref<string | null>(null)
+let heartbeatInterval: number | null = null
+let reconnectVerifyTimeout: number | null = null
+
+const startHeartbeat = () => {
+  stopHeartbeat()
+  heartbeatInterval = window.setInterval(runHeartbeat, 30_000)
+}
+
+const stopHeartbeat = () => {
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null }
+}
+
+const runHeartbeat = async () => {
+  if (isSubmitting.value || isAutoSubmitting.value || isOffline.value) return
+  const examId = (props.exam as any).id
+  const result = await examStore.sendHeartbeat(examId, { ...answers.value })
+  if (!result) return
+
+  // Sync authoritative timer if drift > 5s
+  if (result.remaining_seconds !== undefined && result.remaining_seconds !== null) {
+    const serverRemaining = Math.max(0, Number(result.remaining_seconds))
+    if (Math.abs(serverRemaining - secondsRemaining.value) > 5) {
+      secondsRemaining.value = serverRemaining
+    }
+  }
+
+  // Handle exam cancellation
+  if (result.is_cancelled) {
+    isCancelled.value = true
+    stopHeartbeat()
+    if (timer) { clearInterval(timer); timer = null }
+    return
+  }
+
+  // Handle exam paused
+  if (result.is_paused) {
+    if (!isPaused.value) {
+      isPaused.value = true
+      if (timer) { clearInterval(timer); timer = null }
+      stopHeartbeat()
+    }
+    return
+  }
+
+  // Resume if exam was unpaused
+  if (isPaused.value && !result.is_paused) {
+    isPaused.value = false
+    secondsRemaining.value = Math.max(0, Number(result.remaining_seconds ?? secondsRemaining.value))
+    startTimer()
+    startHeartbeat()
+  }
+}
+
+const handleOffline = () => {
+  if (isOffline.value) return
+  isOffline.value = true
+  disconnectedAt.value = new Date().toISOString()
+  offlineMessage.value = 'Connection lost. Please reconnect. Your unsynchronised answers are preserved.'
+  stopHeartbeat()
+  if (timer) { clearInterval(timer); timer = null }
+}
+
+const handleOnline = () => {
+  if (reconnectVerifyTimeout) clearTimeout(reconnectVerifyTimeout)
+  offlineMessage.value = 'Reconnecting… verifying connection with server…'
+  // Small delay to let network settle, then verify with real backend call
+  reconnectVerifyTimeout = window.setTimeout(async () => {
+    const examId = (props.exam as any).id
+    const result = await examStore.sendReconnect(
+      examId,
+      { ...answers.value },
+      disconnectedAt.value ?? new Date().toISOString()
+    )
+    if (result) {
+      isOffline.value = false
+      disconnectedAt.value = null
+      if (result.remaining_seconds !== undefined && result.remaining_seconds !== null) {
+        secondsRemaining.value = Math.max(0, Number(result.remaining_seconds))
+      }
+      if (!isCancelled.value && !isPaused.value) {
+        startTimer()
+        startHeartbeat()
+      }
+    } else {
+      offlineMessage.value = 'Still disconnected. Please check your internet connection.'
+    }
+  }, 2000)
+}
 
 // Exam settings
 const settings = ref<Record<string, any>>((props.exam as any).settings || {})
@@ -112,31 +234,56 @@ const stopWebcam = () => {
   }
 }
 
-// Live timer countdown
-onMounted(() => {
-  startWebcam()
+
+// Live timer countdown — extracted so it can be called after reconnect/resume
+const startTimer = () => {
+  if (timer) return // already running
   if (secondsRemaining.value <= 0) {
-    secondsRemaining.value = 0
     triggerAutoSubmit()
     return
   }
   timer = window.setInterval(() => {
     if (secondsRemaining.value <= 1) {
-      if (timer) {
-        clearInterval(timer)
-        timer = null
-      }
+      if (timer) { clearInterval(timer); timer = null }
       secondsRemaining.value = 0
       triggerAutoSubmit()
     } else {
       secondsRemaining.value--
     }
   }, 1000)
+}
+
+onMounted(() => {
+  // Restore any answers saved on backend (for reconnected students)
+  restoreSavedAnswers()
+
+  startWebcam()
+
+  // Start countdown (skips if cancelled/paused from initial load)
+  if (!isCancelled.value && !isPaused.value) {
+    if (secondsRemaining.value <= 0) {
+      secondsRemaining.value = 0
+      triggerAutoSubmit()
+    } else {
+      startTimer()
+    }
+  }
+
+  // Start heartbeat
+  startHeartbeat()
+
+  // Register connection monitoring events
+  window.addEventListener('offline', handleOffline)
+  window.addEventListener('online', handleOnline)
 })
 
 onUnmounted(() => {
-  if (timer) clearInterval(timer)
+  if (timer) { clearInterval(timer); timer = null }
   stopWebcam()
+  stopHeartbeat()
+  if (reconnectVerifyTimeout) clearTimeout(reconnectVerifyTimeout)
+  window.removeEventListener('offline', handleOffline)
+  window.removeEventListener('online', handleOnline)
 })
 
 // Monitor screen tab focus switches to enforce academic integrity rules
@@ -158,6 +305,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
+
 
 // --- Security Settings Enforcement ---
 const handleRightClick = (e: MouseEvent) => {
@@ -269,6 +417,63 @@ const confirmCancel = () => {
 
 <template>
   <div class="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-16">
+
+    <!-- ── Exam Cancelled Overlay ─────────────────────────────────────────── -->
+    <Transition name="fade">
+      <div v-if="isCancelled" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm">
+        <div class="max-w-md w-full mx-4 bg-slate-900 border border-red-500/40 rounded-2xl p-8 text-center shadow-2xl">
+          <div class="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-5">
+            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728M5.636 5.636a9 9 0 000 12.728M9 10h.01M15 10h.01M9.172 14.828A4 4 0 0114.828 14.828" />
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold text-red-400 mb-3">Exam Cancelled</h2>
+          <p class="text-slate-300 mb-2">This examination has been cancelled by an administrator.</p>
+          <p class="text-slate-400 text-sm">Any answers you submitted before cancellation have been preserved. Please contact your instructor for further instructions.</p>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Exam Paused Overlay ────────────────────────────────────────────── -->
+    <Transition name="fade">
+      <div v-if="isPaused && !isCancelled" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/85 backdrop-blur-sm">
+        <div class="max-w-md w-full mx-4 bg-slate-900 border border-amber-500/40 rounded-2xl p-8 text-center shadow-2xl">
+          <div class="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-5">
+            <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold text-amber-400 mb-3">Exam Paused</h2>
+          <p class="text-slate-300 mb-2">The examination has been temporarily paused by the administrator.</p>
+          <p class="text-slate-400 text-sm">Please wait. The exam will resume automatically and your remaining time will be adjusted accordingly.</p>
+          <div class="mt-5 flex items-center justify-center gap-2 text-amber-400 text-sm">
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            Waiting for administrator to resume…
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Offline / Connection Lost Overlay ─────────────────────────────── -->
+    <Transition name="fade">
+      <div v-if="isOffline && !isCancelled" class="fixed inset-0 z-[190] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+        <div class="max-w-md w-full mx-4 bg-slate-900 border border-orange-500/40 rounded-2xl p-8 text-center shadow-2xl">
+          <div class="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-5">
+            <svg class="w-8 h-8 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M2 2l20 20M8.464 8.464A5 5 0 006.11 12m9.9 4H12m0 0l-3-3m3 3l3-3" />
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold text-orange-400 mb-3">Connection Lost</h2>
+          <p class="text-slate-300 mb-3">{{ offlineMessage }}</p>
+          <p class="text-slate-400 text-sm">The timer is paused locally. Once you reconnect, the system will calculate your interruption time and notify your instructor automatically.</p>
+          <div class="mt-5 flex items-center justify-center gap-2 text-orange-400 text-sm">
+            <span class="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
+            Waiting for connection…
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Top Console Bar -->
     <header class="border-b border-slate-800 bg-slate-950 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2.5 sm:gap-4">
       <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -750,3 +955,12 @@ const confirmCancel = () => {
     <ScientificCalculator :allowed="isCalculatorAllowed" />
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+</style>

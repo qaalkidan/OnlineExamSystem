@@ -254,7 +254,29 @@ class StudentExamController extends Controller
 
         // Verify exam is published or scheduled
         if (!in_array($exam->status, ['published', 'scheduled'])) {
+            if ($exam->isCancelled()) {
+                return response()->json([
+                    'message'             => 'This examination has been cancelled by an administrator.',
+                    'is_cancelled'        => true,
+                    'cancellation_reason' => $exam->cancellation_reason,
+                ], 403);
+            }
             return response()->json(['message' => 'This exam is not available.'], 403);
+        }
+
+        if ($exam->isCancelled()) {
+            return response()->json([
+                'message'             => 'This examination has been cancelled by an administrator.',
+                'is_cancelled'        => true,
+                'cancellation_reason' => $exam->cancellation_reason,
+            ], 403);
+        }
+
+        if ($exam->isPaused()) {
+            return response()->json([
+                'message'   => 'This examination is currently paused by an administrator. Please wait for resumption.',
+                'is_paused' => true,
+            ], 403);
         }
 
         // Enforce time window: student cannot start before scheduled_at or after the exam ends
@@ -295,17 +317,25 @@ class StudentExamController extends Controller
                 'marks'       => $q->marks,
             ]);
 
+            $existingAttempt->last_heartbeat_at = now();
+            $existingAttempt->save();
+
             return response()->json([
                 'data' => [
-                    'attempt_id'      => $existingAttempt->id,
-                    'exam_title'      => $exam->title,
-                    'course_code'     => $exam->course_code,
-                    'course_name'     => $exam->course_name,
-                    'duration_minutes' => $exam->duration_minutes,
-                    'total_marks'     => $exam->total_marks,
-                    'started_at'      => $existingAttempt->started_at->toISOString(),
-                    'settings'        => $exam->settings ?? [],
-                    'questions'       => $questions,
+                    'attempt_id'         => $existingAttempt->id,
+                    'exam_title'         => $exam->title,
+                    'course_code'        => $exam->course_code,
+                    'course_name'        => $exam->course_name,
+                    'duration_minutes'   => $exam->duration_minutes,
+                    'total_marks'        => $exam->total_marks,
+                    'started_at'         => $existingAttempt->started_at->toISOString(),
+                    'saved_answers'      => $existingAttempt->answers ?? [],
+                    'extra_time_seconds' => $existingAttempt->extra_time_seconds ?? 0,
+                    'adjusted_deadline'  => $existingAttempt->getAdjustedDeadline()?->toIso8601String(),
+                    'remaining_seconds'  => $existingAttempt->getRemainingSeconds(),
+                    'is_cancelled'       => false,
+                    'settings'           => $exam->settings ?? [],
+                    'questions'          => $questions,
                 ]
             ]);
         }
@@ -316,12 +346,20 @@ class StudentExamController extends Controller
 
         // Create new attempt
         $attempt = ExamAttempt::create([
-            'exam_id'     => $exam->id,
-            'user_id'     => $student->id,
-            'total_marks' => $exam->total_marks,
-            'status'      => 'in_progress',
-            'started_at'  => now(),
+            'exam_id'            => $exam->id,
+            'user_id'            => $student->id,
+            'total_marks'        => $exam->total_marks,
+            'status'             => 'in_progress',
+            'started_at'         => now(),
+            'last_heartbeat_at'  => now(),
+            'extra_time_seconds' => 0,
         ]);
+
+        \App\Helpers\LogActivity::record(
+            'Exam Attempt Started',
+            'Examinations',
+            "Student {$student->name} started attempt on \"{$exam->title}\"."
+        );
 
         // Return questions WITHOUT correct_answer
         $questions = $exam->questions()->get()->map(fn($q) => [
@@ -338,15 +376,20 @@ class StudentExamController extends Controller
 
         return response()->json([
             'data' => [
-                'attempt_id'       => $attempt->id,
-                'exam_title'       => $exam->title,
-                'course_code'      => $exam->course_code,
-                'course_name'      => $exam->course_name,
-                'duration_minutes' => $exam->duration_minutes,
-                'total_marks'      => $exam->total_marks,
-                'started_at'       => $attempt->started_at->toISOString(),
-                'settings'         => $exam->settings ?? [],
-                'questions'        => $questions,
+                'attempt_id'         => $attempt->id,
+                'exam_title'         => $exam->title,
+                'course_code'        => $exam->course_code,
+                'course_name'        => $exam->course_name,
+                'duration_minutes'   => $exam->duration_minutes,
+                'total_marks'        => $exam->total_marks,
+                'started_at'         => $attempt->started_at->toISOString(),
+                'saved_answers'      => [],
+                'extra_time_seconds' => 0,
+                'adjusted_deadline'  => $attempt->getAdjustedDeadline()?->toIso8601String(),
+                'remaining_seconds'  => $attempt->getRemainingSeconds(),
+                'is_cancelled'       => false,
+                'settings'           => $exam->settings ?? [],
+                'questions'          => $questions,
             ]
         ], 201);
     }
@@ -357,6 +400,14 @@ class StudentExamController extends Controller
     public function submit(Request $request, Exam $exam): JsonResponse
     {
         $student = $request->user();
+
+        if ($exam->isCancelled()) {
+            return response()->json([
+                'message'             => 'This examination has been cancelled by an administrator. Submission cannot be processed.',
+                'is_cancelled'        => true,
+                'cancellation_reason' => $exam->cancellation_reason,
+            ], 403);
+        }
 
         $attempt = ExamAttempt::where('exam_id', $exam->id)
             ->where('user_id', $student->id)

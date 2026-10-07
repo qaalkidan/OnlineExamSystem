@@ -72,9 +72,17 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         
         Route::get('activity-logs/unread-count', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'unreadCount']);
         Route::post('activity-logs/mark-all-read', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'markAllAsRead']);
-        Route::post('activity-logs/{id}/read', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'markAsRead']);
         Route::get('activity-logs', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'index']);
         Route::post('settings', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'store']);
+
+        // Admin Exam Control & Recovery Overrides
+        Route::get('recovery-requests', [\App\Http\Controllers\Api\V1\AdminExamControlController::class, 'indexRecoveryRequests']);
+        Route::get('exams/{exam}/recovery-requests', [\App\Http\Controllers\Api\V1\AdminExamControlController::class, 'indexRecoveryRequests']);
+        Route::post('recovery-requests/{id}/override', [\App\Http\Controllers\Api\V1\AdminExamControlController::class, 'overrideRecovery']);
+        Route::post('exams/{exam}/cancel', [\App\Http\Controllers\Api\V1\AdminExamControlController::class, 'cancelExam']);
+        Route::post('exams/{exam}/reinstate', [\App\Http\Controllers\Api\V1\AdminExamControlController::class, 'reinstateExam']);
+        Route::post('exams/{exam}/pause', [\App\Http\Controllers\Api\V1\AdminExamControlController::class, 'pauseExam']);
+        Route::post('exams/{exam}/resume', [\App\Http\Controllers\Api\V1\AdminExamControlController::class, 'resumeExam']);
 
         // Calendar Event Categories
         Route::apiResource('calendar/categories', \App\Http\Controllers\Api\V1\AdminCalendarController::class)
@@ -183,6 +191,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::post('/results/{examId}/student/{studentId}/save', [\App\Http\Controllers\Api\V1\InstructorResultController::class, 'saveGrades']);
         Route::post('/results/{examId}/student/{studentId}/publish', [\App\Http\Controllers\Api\V1\InstructorResultController::class, 'publishResult']);
 
+        // Exam Attempt Recovery & Interruption Control
+        Route::get('/recovery-requests', [\App\Http\Controllers\Api\V1\ExamRecoveryController::class, 'instructorIndex']);
+        Route::get('/exams/{exam}/recovery-requests', [\App\Http\Controllers\Api\V1\ExamRecoveryController::class, 'instructorIndex']);
+        Route::post('/recovery-requests/{id}/review', [\App\Http\Controllers\Api\V1\ExamRecoveryController::class, 'review']);
+
         // Instructor profile — name, department, year_level, section (for header)
         Route::get('/me', function (Request $request) {
             $user = $request->user()->load('department');
@@ -213,6 +226,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::post('/exams/{exam}/submit', [StudentExamController::class, 'submit']);
         Route::get('/results',              [StudentExamController::class, 'results']);
         Route::get('/results/{attemptId}',  [StudentExamController::class, 'showResult']);
+
+        // Connection Monitoring, Heartbeat, and Recovery
+        Route::post('/exams/{exam}/heartbeat', [\App\Http\Controllers\Api\V1\ExamRecoveryController::class, 'heartbeat']);
+        Route::post('/exams/{exam}/reconnect', [\App\Http\Controllers\Api\V1\ExamRecoveryController::class, 'reconnect']);
 
     });
 
