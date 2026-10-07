@@ -56,9 +56,10 @@ const formatDateTime = (dt: string | null) => {
 }
 
 const adjustedDeadlinePreview = computed(() => {
-  const deadline = props.request?.exam_attempt?.adjusted_deadline
+  const deadline = props.request?.adjusted_deadline || props.request?.exam_attempt?.adjusted_deadline
   if (!deadline || !finalSeconds.value) return null
   const d = new Date(deadline)
+  if (isNaN(d.getTime())) return null
   d.setSeconds(d.getSeconds() + adjustment.value)
   return d.toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -66,20 +67,27 @@ const adjustedDeadlinePreview = computed(() => {
   })
 })
 
-const submit = async (action: 'approved' | 'rejected') => {
-  if (action === 'approved' && isOverLimit.value) return
+const submit = async (action: 'approved' | 'rejected' | 'approve' | 'reject') => {
+  const normalizedAction = (action === 'approved' || action === 'approve') ? 'approve' : 'reject'
+  if (normalizedAction === 'approve' && isOverLimit.value) return
   isSubmitting.value = true
   error.value = null
   try {
     await apiClient.post(`/instructor/recovery-requests/${props.request.id}/review`, {
-      action,
-      approved_seconds: action === 'approved' ? finalSeconds.value : 0,
+      action: normalizedAction,
+      approved_seconds: normalizedAction === 'approve' ? finalSeconds.value : 0,
       review_notes: notes.value || null,
     })
     emit('reviewed')
     emit('close')
   } catch (err: any) {
-    error.value = err.response?.data?.message ?? 'Failed to submit review'
+    const data = err.response?.data
+    if (data?.errors) {
+      const firstError = Object.values(data.errors).flat()[0] as string
+      error.value = firstError || data.message || 'Failed to submit review'
+    } else {
+      error.value = data?.message ?? 'Failed to submit review'
+    }
   } finally {
     isSubmitting.value = false
   }
@@ -117,13 +125,13 @@ const submit = async (action: 'approved' | 'rejected') => {
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div class="bg-slate-50 rounded-xl p-4 space-y-1">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Student</p>
-                <p class="font-semibold text-slate-800">{{ request.student?.name ?? '—' }}</p>
-                <p class="text-slate-500">{{ request.student?.username ?? request.student?.email ?? '' }}</p>
+                <p class="font-semibold text-slate-800">{{ request.student?.name || request.student_name || '—' }}</p>
+                <p class="text-slate-500">{{ request.student?.username || request.student_id || request.student?.email || request.student_email || '' }}</p>
               </div>
               <div class="bg-slate-50 rounded-xl p-4 space-y-1">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Exam</p>
-                <p class="font-semibold text-slate-800">{{ request.exam?.title ?? '—' }}</p>
-                <p class="text-slate-500">{{ request.exam?.course?.name ?? '' }}</p>
+                <p class="font-semibold text-slate-800">{{ request.exam?.title || request.exam_title || '—' }}</p>
+                <p class="text-slate-500">{{ request.exam?.course?.name || request.exam?.course?.code || '' }}</p>
               </div>
             </div>
 
@@ -132,9 +140,9 @@ const submit = async (action: 'approved' | 'rejected') => {
               <p class="font-semibold text-amber-800 mb-1">Connection Event</p>
               <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-700">
                 <span class="text-slate-500">Disconnected At:</span>
-                <span>{{ formatDateTime(request.disconnected_at) }}</span>
+                <span>{{ request.disconnected_at_formatted || formatDateTime(request.disconnected_at) }}</span>
                 <span class="text-slate-500">Reconnected At:</span>
-                <span>{{ formatDateTime(request.reconnected_at) }}</span>
+                <span>{{ request.reconnected_at_formatted || formatDateTime(request.reconnected_at) }}</span>
                 <span class="text-slate-500">Interruption Duration:</span>
                 <span class="font-semibold text-amber-700">{{ formatDuration(request.interruption_seconds) }}</span>
               </div>
@@ -147,7 +155,7 @@ const submit = async (action: 'approved' | 'rejected') => {
                 <span class="text-slate-500">System Suggested Extra Time:</span>
                 <span class="font-semibold">{{ formatDuration(suggestedSeconds) }}</span>
                 <span class="text-slate-500">Current Extra Time on Attempt:</span>
-                <span>{{ formatDuration(request.exam_attempt?.extra_time_seconds ?? 0) }}</span>
+                <span>{{ formatDuration(request.extra_time_seconds ?? request.exam_attempt?.extra_time_seconds ?? 0) }}</span>
               </div>
             </div>
 

@@ -35,19 +35,27 @@ onMounted(fetchRequests)
 const allExams = computed(() => {
   const seen = new Set<number>()
   return requests.value
-    .filter(r => r.exam && !seen.has(r.exam.id) && seen.add(r.exam.id))
-    .map(r => ({ id: r.exam.id, title: r.exam.title }))
+    .filter(r => {
+      const id = r.exam_id || r.exam?.id
+      return id && !seen.has(id) && seen.add(id)
+    })
+    .map(r => ({ id: r.exam_id || r.exam?.id, title: r.exam_title || r.exam?.title || 'Exam' }))
 })
 
 const filtered = computed(() =>
   requests.value.filter(r => {
+    const studentName = r.student?.name || r.student_name || ''
+    const studentIdentifier = r.student?.username || r.student_id || r.student?.email || r.student_email || ''
+    const examTitle = r.exam?.title || r.exam_title || ''
+    const currentExamId = r.exam_id || r.exam?.id
+
     const matchSearch =
       !searchQuery.value ||
-      (r.student?.name ?? '').toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      (r.student?.username ?? '').toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      (r.exam?.title ?? '').toLowerCase().includes(searchQuery.value.toLowerCase())
+      studentName.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      studentIdentifier.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      examTitle.toLowerCase().includes(searchQuery.value.toLowerCase())
     const matchStatus = statusFilter.value === 'all' || r.status === statusFilter.value
-    const matchExam = examFilter.value === 'all' || String(r.exam?.id) === examFilter.value
+    const matchExam = examFilter.value === 'all' || String(currentExamId) === examFilter.value
     return matchSearch && matchStatus && matchExam
   })
 )
@@ -199,13 +207,13 @@ const handleReviewed = () => {
             <tr v-for="req in paginated" :key="req.id" class="hover:bg-slate-50/60 transition-colors">
               <!-- Student -->
               <td class="px-5 py-3.5">
-                <div class="font-semibold text-slate-800">{{ req.student?.name ?? '—' }}</div>
-                <div class="text-xs text-slate-400">{{ req.student?.username ?? req.student?.email ?? '' }}</div>
+                <div class="font-semibold text-slate-800">{{ req.student?.name || req.student_name || '—' }}</div>
+                <div class="text-xs text-slate-400">{{ req.student?.username || req.student_id || req.student?.email || req.student_email || '' }}</div>
               </td>
               <!-- Exam -->
               <td class="px-4 py-3.5">
-                <div class="font-medium text-slate-700 max-w-[180px] truncate">{{ req.exam?.title ?? '—' }}</div>
-                <div class="text-xs text-slate-400">{{ req.exam?.course?.name ?? '' }}</div>
+                <div class="font-medium text-slate-700 max-w-[180px] truncate">{{ req.exam?.title || req.exam_title || '—' }}</div>
+                <div class="text-xs text-slate-400">{{ req.exam?.course?.name || '' }}</div>
               </td>
               <!-- Status -->
               <td class="px-4 py-3.5">
@@ -217,9 +225,9 @@ const handleReviewed = () => {
                 </span>
               </td>
               <!-- Disconnected At -->
-              <td class="px-4 py-3.5 text-slate-600 text-xs">{{ formatDateTime(req.disconnected_at) }}</td>
+              <td class="px-4 py-3.5 text-slate-600 text-xs">{{ req.disconnected_at_formatted || formatDateTime(req.disconnected_at) }}</td>
               <!-- Reconnected At -->
-              <td class="px-4 py-3.5 text-slate-600 text-xs">{{ formatDateTime(req.reconnected_at) }}</td>
+              <td class="px-4 py-3.5 text-slate-600 text-xs">{{ req.reconnected_at_formatted || formatDateTime(req.reconnected_at) }}</td>
               <!-- Interruption -->
               <td class="px-4 py-3.5 font-semibold text-amber-700">{{ formatDuration(req.interruption_seconds) }}</td>
               <!-- Suggested -->

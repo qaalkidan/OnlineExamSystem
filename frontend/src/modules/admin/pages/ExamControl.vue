@@ -313,11 +313,11 @@ const uniqueExams = computed(() => {
             <tbody class="divide-y divide-slate-50">
               <tr v-for="req in paginated" :key="req.id" class="hover:bg-slate-50/60 transition-colors">
                 <td class="px-5 py-3.5">
-                  <div class="font-semibold text-slate-800">{{ req.student?.name ?? '—' }}</div>
-                  <div class="text-xs text-slate-400">{{ req.student?.username ?? '' }}</div>
+                  <div class="font-semibold text-slate-800">{{ req.student?.name || req.student_name || '—' }}</div>
+                  <div class="text-xs text-slate-400">{{ req.student?.username || req.student_id || '' }}</div>
                 </td>
                 <td class="px-4 py-3.5">
-                  <div class="font-medium text-slate-700 max-w-[160px] truncate">{{ req.exam?.title ?? '—' }}</div>
+                  <div class="font-medium text-slate-700 max-w-[160px] truncate">{{ req.exam?.title || req.exam_title || '—' }}</div>
                 </td>
                 <td class="px-4 py-3.5">
                   <span :class="(statusConfig[req.status] ?? statusConfig.pending_approval).badge"

@@ -19,7 +19,7 @@ class AdminExamControlController extends Controller
      */
     public function indexRecoveryRequests(Request $request): JsonResponse
     {
-        $query = ExamRecoveryRequest::with(['student', 'exam.instructor', 'attempt', 'reviewer', 'overrider']);
+        $query = ExamRecoveryRequest::with(['student', 'exam.course', 'exam.instructor', 'attempt', 'reviewer', 'overrider']);
 
         if ($request->filled('exam_id')) {
             $query->where('exam_id', $request->exam_id);
@@ -320,15 +320,18 @@ class AdminExamControlController extends Controller
             'original_duration_minutes' => $exam->duration_minutes ?? 60,
             'original_start_time'       => $attempt?->started_at?->format('M d, Y h:i A') ?? 'N/A',
             'original_deadline'         => $attempt?->getOriginalDeadline()?->format('M d, Y h:i A') ?? 'N/A',
-            'disconnected_at'           => $r->disconnected_at?->format('M d, Y h:i:s A') ?? 'N/A',
-            'reconnected_at'            => $r->reconnected_at?->format('M d, Y h:i:s A') ?? 'Pending',
+            'disconnected_at'           => $r->disconnected_at?->toIso8601String(),
+            'disconnected_at_formatted' => $r->disconnected_at?->format('M d, Y h:i:s A') ?? 'N/A',
+            'reconnected_at'            => $r->reconnected_at?->toIso8601String(),
+            'reconnected_at_formatted'  => $r->reconnected_at?->format('M d, Y h:i:s A') ?? 'Pending',
             'interruption_seconds'      => $r->interruption_seconds,
             'interruption_formatted'    => $formatDuration($r->interruption_seconds),
             'suggested_seconds'         => $r->suggested_seconds,
             'suggested_formatted'       => '+' . $formatDuration($r->suggested_seconds),
             'approved_seconds'          => $r->approved_seconds,
             'approved_formatted'        => $r->approved_seconds !== null ? '+' . $formatDuration($r->approved_seconds) : null,
-            'adjusted_deadline'         => $attempt?->getAdjustedDeadline()?->format('M d, Y h:i A') ?? 'N/A',
+            'adjusted_deadline'         => $attempt?->getAdjustedDeadline()?->toIso8601String(),
+            'adjusted_deadline_formatted' => $attempt?->getAdjustedDeadline()?->format('M d, Y h:i A') ?? 'N/A',
             'extra_time_seconds'        => $attempt->extra_time_seconds ?? 0,
             'status'                    => $r->status,
             'reviewed_by_name'          => $r->reviewer->name ?? null,
@@ -337,6 +340,36 @@ class AdminExamControlController extends Controller
             'override_by_name'          => $r->overrider->name ?? null,
             'override_reason'           => $r->override_reason,
             'created_at'                => $r->created_at?->toIso8601String(),
+            'student'                   => [
+                'id'       => $student?->id,
+                'name'     => $student?->name ?? 'Student',
+                'email'    => $student?->email ?? '',
+                'username' => $student?->username ?? $student?->name ?? '',
+                'id_no'    => $student?->id_no ?: ('STU-' . ($student?->id ?? '0')),
+            ],
+            'exam'                      => [
+                'id'               => $exam?->id,
+                'title'            => $exam?->title ?? 'Exam',
+                'duration_minutes' => $exam?->duration_minutes ?? 60,
+                'course'           => [
+                    'name' => $exam?->course?->name ?? '',
+                    'code' => $exam?->course?->code ?? '',
+                ],
+            ],
+            'exam_attempt'              => [
+                'id'                 => $attempt?->id,
+                'status'             => $attempt?->status,
+                'extra_time_seconds' => $attempt?->extra_time_seconds ?? 0,
+                'adjusted_deadline'  => $attempt?->getAdjustedDeadline()?->toIso8601String(),
+            ],
+            'reviewer'                  => [
+                'id'   => $r->reviewer?->id,
+                'name' => $r->reviewer?->name,
+            ],
+            'overrider'                 => [
+                'id'   => $r->overrider?->id,
+                'name' => $r->overrider?->name,
+            ],
         ];
     }
 }
