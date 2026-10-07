@@ -1,211 +1,126 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useCalendarStore } from '../../../store/calendarStore'
+import { useCalendarStore, type AcademicEvent, type EventCategory } from '../../../store/calendarStore'
 import { useSettingsStore } from '../../../store/settingsStore'
+import apiClient from '../../../core/api/apiClient'
 
 const calendarStore = useCalendarStore()
 const settingsStore = useSettingsStore()
 
-// ── Navigation ───────────────────────────────────────────
-const activeTab = ref('Calendar View')
-const tabs = ['Calendar View', 'Event List']
+// ── Navigation & Tabs ────────────────────────────────────────────────────────
+const activeTab = ref<'Calendar View' | 'Event List'>('Calendar View')
+const tabs: ('Calendar View' | 'Event List')[] = ['Calendar View', 'Event List']
 const showSettings = ref(false)
+const settingsTab = ref<'Event Categories' | 'Term Settings'>('Event Categories')
 
-// ── Category modal state ─────────────────────────────────
-const showAddCategoryModal = ref(false)
-const editingCategory = ref<any>(null)
-const deletingCategory = ref<any>(null)
-const showDeleteConfirm = ref(false)
-const saveError = ref<string | null>(null)
-const deleteError = ref<string | null>(null)
-const settingsTab = ref('Event Categories')
-const settingsTabs = ['Event Categories', 'Other Settings']
+// ── Academic Period Selectors (Real DB Data) ─────────────────────────────────
+const selectedAcademicYear = ref('')
+const selectedSemester = ref('')
+const selectedCategoryFilter = ref<number | 'all'>('all')
 
-const catForm = ref({
-  name: '', description: '', color: '#6366F1',
-  type: 'custom' as 'system' | 'custom',
-  status: 'active' as 'active' | 'inactive',
+// ── Export & Toast State ─────────────────────────────────────────────────────
+const showExportDropdown = ref(false)
+const isExporting = ref(false)
+const toast = ref<{ show: boolean; message: string; type: 'success' | 'error' | 'info' }>({
+  show: false,
+  message: '',
+  type: 'info'
 })
+let toastTimer: any = null
 
-function openAddModal() {
-  editingCategory.value = null
-  catForm.value = { name: '', description: '', color: '#6366F1', type: 'custom', status: 'active' }
-  saveError.value = null
-  showAddCategoryModal.value = true
-}
-function openEditModal(cat: any) {
-  editingCategory.value = cat
-  catForm.value = { name: cat.name, description: cat.description ?? '', color: cat.color, type: cat.type, status: cat.status }
-  saveError.value = null
-  showAddCategoryModal.value = true
-}
-function closeModal() { showAddCategoryModal.value = false; editingCategory.value = null; saveError.value = null }
-
-async function saveCategory() {
-  saveError.value = null
-  const payload = { name: catForm.value.name.trim(), description: catForm.value.description.trim() || undefined, color: catForm.value.color, type: catForm.value.type, status: catForm.value.status }
-  const result = editingCategory.value
-    ? await calendarStore.updateCategory(editingCategory.value.id, payload)
-    : await calendarStore.addCategory(payload)
-  if (result.success) closeModal()
-  else saveError.value = result.message ?? 'An error occurred.'
-}
-function confirmDelete(cat: any) { deletingCategory.value = cat; deleteError.value = null; showDeleteConfirm.value = true }
-async function doDelete() {
-  if (!deletingCategory.value) return
-  const result = await calendarStore.deleteCategory(deletingCategory.value.id)
-  if (result.success) { showDeleteConfirm.value = false; deletingCategory.value = null }
-  else deleteError.value = result.message ?? 'Cannot delete this category.'
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'success') {
+  clearTimeout(toastTimer)
+  toast.value = { show: true, message, type }
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
 }
 
-// Settings stats cards (live from store)
-const settingsStats = computed(() => [
-  { label: 'Total Categories',  value: String(calendarStore.stats.total),  sub: 'All event categories',      icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>', color: 'text-[#4338ca]', bg: 'bg-indigo-50' },
-  { label: 'Active Categories', value: String(calendarStore.stats.active), sub: 'Currently in use',          icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>', color: 'text-emerald-500', bg: 'bg-emerald-50' },
-  { label: 'System Categories', value: String(calendarStore.stats.system), sub: 'Default categories',        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>', color: 'text-orange-500', bg: 'bg-orange-50' },
-  { label: 'Custom Categories', value: String(calendarStore.stats.custom), sub: 'Created by admins',         icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>', color: 'text-rose-500', bg: 'bg-rose-50' },
-])
-watch(showSettings, v => { if (v) calendarStore.fetchCategories() })
-
-// ── Add Event modal state ────────────────────────────────
-const showAddEventModal = ref(false)
-const eventSaveError = ref<string | null>(null)
-const eventForm = ref({
-  title: '',
-  category_id: '' as string | number,
-  academic_year: settingsStore.academicYear || '2025/2026',
-  semester: settingsStore.semester || 'Second Semester',
-  start_date: '',
-  end_date: '',
-  all_day: true,
-  start_time: '',
-  end_time: '',
-  description: '',
-  status: 'upcoming' as 'upcoming' | 'ongoing' | 'completed' | 'cancelled',
-  color: '#6366F1',
-  is_recurring: false,
-})
-
-const isCustomEventTitle = ref(false)
-
-function openAddEventModal() {
-  eventForm.value = {
-    title: '',
-    category_id: calendarStore.categories.length > 0 ? calendarStore.categories[0].id : '',
-    academic_year: settingsStore.academicYear || '2025/2026',
-    semester: settingsStore.semester || 'Second Semester',
-    start_date: todayStr,
-    end_date: todayStr,
-    all_day: true,
-    start_time: '',
-    end_time: '',
-    description: '',
-    status: 'upcoming',
-    color: '#6366F1',
-    is_recurring: false,
-  }
-  isCustomEventTitle.value = false
-  eventSaveError.value = null
-  showAddEventModal.value = true
-}
-function closeEventModal() { showAddEventModal.value = false; eventSaveError.value = null }
-
-async function saveEvent() {
-  eventSaveError.value = null
-  if (!eventForm.value.title.trim()) { eventSaveError.value = 'Event title is required.'; return }
-  if (!eventForm.value.start_date)   { eventSaveError.value = 'Start date is required.'; return }
-  if (!eventForm.value.end_date)     { eventSaveError.value = 'End date is required.'; return }
-
-  const payload: any = {
-    title:         eventForm.value.title.trim(),
-    description:   eventForm.value.description.trim() || null,
-    category_id:   eventForm.value.category_id || null,
-    academic_year: eventForm.value.academic_year,
-    semester:      eventForm.value.semester,
-    start_date:    eventForm.value.start_date,
-    end_date:      eventForm.value.end_date,
-    all_day:       eventForm.value.all_day,
-    start_time:    eventForm.value.all_day ? null : (eventForm.value.start_time || null),
-    end_time:      eventForm.value.all_day ? null : (eventForm.value.end_time || null),
-    status:        eventForm.value.status,
-    color:         eventForm.value.color,
-    is_recurring:  eventForm.value.is_recurring,
-  }
-
-  const result = await calendarStore.addEvent(payload)
-  if (result.success) {
-    closeEventModal()
-  } else {
-    eventSaveError.value = result.message ?? 'Failed to save event.'
-  }
-}
-
-// ── Calendar grid logic ──────────────────────────────────
-const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+// ── Calendar Grid Navigation ────────────────────────────────────────────────
 const today = new Date()
-const calendarYear  = ref(today.getFullYear())
-const calendarMonth = ref(today.getMonth() + 1) // 1-based
+const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+const calendarYear = ref(today.getFullYear())
+const calendarMonth = ref(today.getMonth() + 1) // 1-indexed
+const calendarViewMode = ref<'month' | 'week' | 'list'>('month')
+
+const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const calendarTitle = computed(() => {
   const d = new Date(calendarYear.value, calendarMonth.value - 1, 1)
-  return d.toLocaleString('default', { month: 'long', year: 'numeric' })
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric' })
 })
 
 function prevMonth() {
-  if (calendarMonth.value === 1) { calendarMonth.value = 12; calendarYear.value-- }
-  else calendarMonth.value--
+  if (calendarMonth.value === 1) {
+    calendarMonth.value = 12
+    calendarYear.value--
+  } else {
+    calendarMonth.value--
+  }
 }
+
 function nextMonth() {
-  if (calendarMonth.value === 12) { calendarMonth.value = 1; calendarYear.value++ }
-  else calendarMonth.value++
+  if (calendarMonth.value === 12) {
+    calendarMonth.value = 1
+    calendarYear.value++
+  } else {
+    calendarMonth.value++
+  }
 }
-function goToday() { calendarYear.value = today.getFullYear(); calendarMonth.value = today.getMonth() + 1 }
 
-// Build calendar grid cells
+function goToday() {
+  calendarYear.value = today.getFullYear()
+  calendarMonth.value = today.getMonth() + 1
+}
+
+// ── Calendar Cells (Month View) ─────────────────────────────────────────────
 const calendarCells = computed(() => {
-  const y = calendarYear.value, m = calendarMonth.value
-  const firstDay = new Date(y, m - 1, 1).getDay()  // 0=Sun
+  const y = calendarYear.value
+  const m = calendarMonth.value
+  const firstDay = new Date(y, m - 1, 1).getDay() // 0=Sun
   const daysInMonth = new Date(y, m, 0).getDate()
-  const daysInPrev  = new Date(y, m - 1, 0).getDate()
-  const cells: { day: number; month: 'prev'|'current'|'next'; dateStr: string }[] = []
+  const daysInPrev = new Date(y, m - 1, 0).getDate()
+  const cells: { day: number; month: 'prev' | 'current' | 'next'; dateStr: string }[] = []
 
+  // Previous month trailing days
   for (let i = firstDay - 1; i >= 0; i--) {
     const d = daysInPrev - i
     const pm = m === 1 ? 12 : m - 1
     const py = m === 1 ? y - 1 : y
-    cells.push({ day: d, month: 'prev', dateStr: `${py}-${String(pm).padStart(2,'0')}-${String(d).padStart(2,'0')}` })
+    cells.push({
+      day: d,
+      month: 'prev',
+      dateStr: `${py}-${String(pm).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    })
   }
+
+  // Current month days
   for (let d = 1; d <= daysInMonth; d++) {
-    cells.push({ day: d, month: 'current', dateStr: `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}` })
+    cells.push({
+      day: d,
+      month: 'current',
+      dateStr: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    })
   }
-  const remaining = 42 - cells.length
+
+  // Next month leading days to complete 35 or 42 grid cells
+  const remaining = (cells.length > 35 ? 42 : 35) - cells.length
   for (let d = 1; d <= remaining; d++) {
     const nm = m === 12 ? 1 : m + 1
     const ny = m === 12 ? y + 1 : y
-    cells.push({ day: d, month: 'next', dateStr: `${ny}-${String(nm).padStart(2,'0')}-${String(d).padStart(2,'0')}` })
+    cells.push({
+      day: d,
+      month: 'next',
+      dateStr: `${ny}-${String(nm).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    })
   }
+
   return cells
 })
 
-const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
-
-// ── Live stats cards (Calendar View) from store ──────────
-const statsData = computed(() => [
-  { label: 'Total Events',       value: String(calendarStore.eventStats.total),    sub: 'This Semester',      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',           color: 'bg-indigo-50 text-[#4338ca]',   border: 'border-indigo-100' },
-  { label: 'Academic Weeks',     value: '16',                                       sub: 'Active Period',      icon: 'M12 14l9-5-9-5-9 5 9 5z',                                                                          color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
-  { label: 'Holidays',           value: String(calendarStore.eventStats.holidays),  sub: 'Scheduled Breaks',   icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',           color: 'bg-orange-50 text-orange-500',   border: 'border-orange-100' },
-  { label: 'Exam Periods',       value: String(calendarStore.eventStats.exams),     sub: 'Scheduled Periods',  icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', color: 'bg-blue-50 text-blue-500', border: 'border-blue-100' },
-  { label: 'Important Deadlines',value: String(calendarStore.eventStats.upcoming),  sub: 'Upcoming Events',    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'bg-rose-50 text-rose-500', border: 'border-rose-100' },
-])
-
-// Calendar view mode toggle
-const calendarViewMode = ref<'month' | 'week' | 'list'>('month')
-
-// Current week start (Monday) for week view
+// ── Week View Logic ─────────────────────────────────────────────────────────
 const weekStart = ref((() => {
   const d = new Date()
-  const day = d.getDay() // 0=Sun
-  const diff = day === 0 ? -6 : 1 - day
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day // Start Monday
   const mon = new Date(d)
   mon.setDate(d.getDate() + diff)
   mon.setHours(0, 0, 0, 0)
@@ -218,20 +133,20 @@ const weekDays = computed(() => {
     d.setDate(weekStart.value.getDate() + i)
     return {
       date: d,
-      dateStr: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
-      label: d.toLocaleString('default', { weekday: 'short' }),
-      dayNum: d.getDate(),
+      dateStr: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      label: d.toLocaleString('en-US', { weekday: 'short' }),
+      dayNum: d.getDate()
     }
   })
 })
 
 const weekTitle = computed(() => {
-  const end = weekDays.value[6].date
   const start = weekDays.value[0].date
+  const end = weekDays.value[6].date
   if (start.getMonth() === end.getMonth()) {
-    return `${start.toLocaleString('default', { month: 'long' })} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
+    return `${start.toLocaleString('en-US', { month: 'long' })} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
   }
-  return `${start.toLocaleString('default', { month: 'short' })} ${start.getDate()} – ${end.toLocaleString('default', { month: 'short' })} ${end.getDate()}, ${start.getFullYear()}`
+  return `${start.toLocaleString('en-US', { month: 'short' })} ${start.getDate()} – ${end.toLocaleString('en-US', { month: 'short' })} ${end.getDate()}, ${start.getFullYear()}`
 })
 
 function prevWeek() {
@@ -239,11 +154,13 @@ function prevWeek() {
   d.setDate(d.getDate() - 7)
   weekStart.value = d
 }
+
 function nextWeek() {
   const d = new Date(weekStart.value)
   d.setDate(d.getDate() + 7)
   weekStart.value = d
 }
+
 function goTodayWeek() {
   const d = new Date()
   const day = d.getDay()
@@ -254,1056 +171,1695 @@ function goTodayWeek() {
   weekStart.value = mon
 }
 
-// List view — events for the current month sorted by date
+// ── Filtered Events for Calendar & List Views ───────────────────────────────
+const displayedEvents = computed(() => {
+  let list = calendarStore.events
+  if (selectedAcademicYear.value && selectedAcademicYear.value !== 'all') {
+    list = list.filter(e => e.academic_year === selectedAcademicYear.value)
+  }
+  if (selectedSemester.value && selectedSemester.value !== 'all') {
+    list = list.filter(e => e.semester === selectedSemester.value)
+  }
+  if (selectedCategoryFilter.value !== 'all') {
+    list = list.filter(e => e.category_id === selectedCategoryFilter.value)
+  }
+  return list
+})
+
+function eventsOnDay(dateStr: string) {
+  return displayedEvents.value.filter(e => e.start_date <= dateStr && e.end_date >= dateStr)
+}
+
 const listViewEvents = computed(() => {
-  const y = calendarYear.value, m = calendarMonth.value
+  const y = calendarYear.value
+  const m = calendarMonth.value
   const pad = (n: number) => String(n).padStart(2, '0')
   const monthStr = `${y}-${pad(m)}`
-  return calendarStore.events
+  return displayedEvents.value
     .filter(e => e.start_date.startsWith(monthStr) || e.end_date.startsWith(monthStr))
     .slice()
     .sort((a, b) => a.start_date.localeCompare(b.start_date))
 })
 
-// Event List tab — live events search/filter
-const eventSearch = ref('')
-const eventFilterCat = ref('')
-const eventFilterStatus = ref('')
-const eventFilterSemester = ref('')
+// ── Event Details Modal State ───────────────────────────────────────────────
+const viewingEvent = ref<AcademicEvent | null>(null)
+const showDetailsModal = ref(false)
 
-const filteredEvents = computed(() => {
+function openDetailsModal(ev: AcademicEvent) {
+  viewingEvent.value = ev
+  showDetailsModal.value = true
+}
+
+function closeDetailsModal() {
+  showDetailsModal.value = false
+  viewingEvent.value = null
+}
+
+// ── Add / Edit Event Modal State ────────────────────────────────────────────
+const showEventFormModal = ref(false)
+const isEditingEvent = ref(false)
+const editingEventId = ref<number | null>(null)
+const eventSaveError = ref<string | null>(null)
+const isCustomTitle = ref(false)
+
+const eventForm = ref({
+  title: '',
+  category_id: '' as string | number,
+  academic_year: '',
+  semester: '',
+  start_date: todayStr,
+  end_date: todayStr,
+  all_day: true,
+  start_time: '',
+  end_time: '',
+  description: '',
+  status: 'upcoming' as 'upcoming' | 'ongoing' | 'completed' | 'cancelled',
+  color: '#4338ca',
+  is_recurring: false
+})
+
+function openAddEventModal(prefilledDate?: string) {
+  isEditingEvent.value = false
+  editingEventId.value = null
+  isCustomTitle.value = false
+  eventSaveError.value = null
+
+  const targetDate = prefilledDate || todayStr
+  eventForm.value = {
+    title: '',
+    category_id: calendarStore.categories.length > 0 ? calendarStore.categories[0].id : '',
+    academic_year: selectedAcademicYear.value && selectedAcademicYear.value !== 'all'
+      ? selectedAcademicYear.value
+      : (settingsStore.academicYear || '2026/2027'),
+    semester: selectedSemester.value && selectedSemester.value !== 'all'
+      ? selectedSemester.value
+      : (settingsStore.semester || 'First Semester'),
+    start_date: targetDate,
+    end_date: targetDate,
+    all_day: true,
+    start_time: '',
+    end_time: '',
+    description: '',
+    status: 'upcoming',
+    color: '#4338ca',
+    is_recurring: false
+  }
+
+  showEventFormModal.value = true
+}
+
+function openEditEventModal(ev: AcademicEvent) {
+  closeDetailsModal()
+  isEditingEvent.value = true
+  editingEventId.value = ev.id
+  isCustomTitle.value = true
+  eventSaveError.value = null
+
+  eventForm.value = {
+    title: ev.title,
+    category_id: ev.category_id || (calendarStore.categories.length > 0 ? calendarStore.categories[0].id : ''),
+    academic_year: ev.academic_year || settingsStore.academicYear,
+    semester: ev.semester || settingsStore.semester,
+    start_date: ev.start_date,
+    end_date: ev.end_date,
+    all_day: ev.all_day,
+    start_time: ev.start_time || '',
+    end_time: ev.end_time || '',
+    description: ev.description || '',
+    status: ev.status,
+    color: ev.color || '#4338ca',
+    is_recurring: ev.is_recurring
+  }
+
+  showEventFormModal.value = true
+}
+
+function closeEventFormModal() {
+  showEventFormModal.value = false
+  editingEventId.value = null
+  eventSaveError.value = null
+}
+
+async function handleSaveEvent() {
+  eventSaveError.value = null
+  if (!eventForm.value.title.trim()) {
+    eventSaveError.value = 'Please provide an event title.'
+    return
+  }
+  if (!eventForm.value.start_date) {
+    eventSaveError.value = 'Start date is required.'
+    return
+  }
+  if (!eventForm.value.end_date) {
+    eventSaveError.value = 'End date is required.'
+    return
+  }
+  if (eventForm.value.start_date > eventForm.value.end_date) {
+    eventSaveError.value = 'Start date cannot be after end date.'
+    return
+  }
+
+  const payload: any = {
+    title: eventForm.value.title.trim(),
+    description: eventForm.value.description.trim() || null,
+    category_id: eventForm.value.category_id || null,
+    academic_year: eventForm.value.academic_year,
+    semester: eventForm.value.semester,
+    start_date: eventForm.value.start_date,
+    end_date: eventForm.value.end_date,
+    all_day: eventForm.value.all_day,
+    start_time: eventForm.value.all_day ? null : (eventForm.value.start_time || null),
+    end_time: eventForm.value.all_day ? null : (eventForm.value.end_time || null),
+    status: eventForm.value.status,
+    color: eventForm.value.color,
+    is_recurring: eventForm.value.is_recurring
+  }
+
+  if (isEditingEvent.value && editingEventId.value) {
+    const res = await calendarStore.updateEvent(editingEventId.value, payload)
+    if (res.success) {
+      closeEventFormModal()
+      showToast('Academic event updated successfully.')
+    } else {
+      eventSaveError.value = res.message || 'Failed to update event.'
+    }
+  } else {
+    const res = await calendarStore.addEvent(payload)
+    if (res.success) {
+      closeEventFormModal()
+      showToast('Academic event scheduled successfully.')
+    } else {
+      eventSaveError.value = res.message || 'Failed to schedule event.'
+    }
+  }
+}
+
+// ── Delete Confirmation Modal State ─────────────────────────────────────────
+const eventToDelete = ref<AcademicEvent | null>(null)
+const showDeleteEventModal = ref(false)
+const isDeleting = ref(false)
+
+function confirmDeleteEvent(ev: AcademicEvent) {
+  closeDetailsModal()
+  eventToDelete.value = ev
+  showDeleteEventModal.value = true
+}
+
+async function handleDeleteEvent() {
+  if (!eventToDelete.value) return
+  isDeleting.value = true
+  const res = await calendarStore.deleteEvent(eventToDelete.value.id)
+  isDeleting.value = false
+  if (res.success) {
+    showDeleteEventModal.value = false
+    eventToDelete.value = null
+    showToast('Academic event removed successfully.')
+  } else {
+    showToast(res.message || 'Failed to remove event.', 'error')
+  }
+}
+
+// ── Event List Tab Filtering & Search ───────────────────────────────────────
+const eventListSearch = ref('')
+const eventListCategory = ref('')
+const eventListStatus = ref('')
+const eventListSemester = ref('')
+
+const tableFilteredEvents = computed(() => {
   let list = calendarStore.events
-  if (eventSearch.value.trim()) {
-    const q = eventSearch.value.toLowerCase()
-    list = list.filter(e => e.title.toLowerCase().includes(q) || (e.category_name ?? '').toLowerCase().includes(q))
+
+  if (eventListSearch.value.trim()) {
+    const q = eventListSearch.value.toLowerCase()
+    list = list.filter(e =>
+      e.title.toLowerCase().includes(q) ||
+      (e.description && e.description.toLowerCase().includes(q)) ||
+      (e.category_name && e.category_name.toLowerCase().includes(q))
+    )
   }
-  if (eventFilterCat.value) {
-    list = list.filter(e => String(e.category_id) === eventFilterCat.value)
+  if (eventListCategory.value) {
+    list = list.filter(e => String(e.category_id) === eventListCategory.value)
   }
-  if (eventFilterStatus.value) {
-    list = list.filter(e => e.status === eventFilterStatus.value)
+  if (eventListStatus.value) {
+    list = list.filter(e => e.status === eventListStatus.value)
   }
-  if (eventFilterSemester.value) {
-    list = list.filter(e => e.semester === eventFilterSemester.value)
+  if (eventListSemester.value) {
+    list = list.filter(e => e.semester === eventListSemester.value)
   }
   return list
 })
 
-function resetFilters() {
-  eventSearch.value = ''
-  eventFilterCat.value = ''
-  eventFilterStatus.value = ''
-  eventFilterSemester.value = ''
+function resetTableFilters() {
+  eventListSearch.value = ''
+  eventListCategory.value = ''
+  eventListStatus.value = ''
+  eventListSemester.value = ''
 }
 
-// Status badge helpers
-function statusBadge(status: string) {
-  const map: Record<string, string> = {
-    upcoming: 'bg-indigo-50 text-[#4338ca]',
-    ongoing:  'bg-emerald-50 text-emerald-600',
-    completed:'bg-slate-100 text-slate-500',
-    cancelled:'bg-rose-50 text-rose-500',
+// ── Category Settings Management State ──────────────────────────────────────
+const showAddCategoryModal = ref(false)
+const editingCategory = ref<EventCategory | null>(null)
+const deletingCategory = ref<EventCategory | null>(null)
+const showDeleteCategoryModal = ref(false)
+const catSaveError = ref<string | null>(null)
+const catDeleteError = ref<string | null>(null)
+
+const catForm = ref({
+  name: '',
+  description: '',
+  color: '#4338ca',
+  type: 'custom' as 'system' | 'custom',
+  status: 'active' as 'active' | 'inactive'
+})
+
+function openAddCategoryModal() {
+  editingCategory.value = null
+  catForm.value = { name: '', description: '', color: '#4338ca', type: 'custom', status: 'active' }
+  catSaveError.value = null
+  showAddCategoryModal.value = true
+}
+
+function openEditCategoryModal(cat: EventCategory) {
+  editingCategory.value = cat
+  catForm.value = {
+    name: cat.name,
+    description: cat.description || '',
+    color: cat.color,
+    type: cat.type,
+    status: cat.status
   }
-  return map[status] ?? 'bg-slate-100 text-slate-500'
+  catSaveError.value = null
+  showAddCategoryModal.value = true
 }
 
-// Days between two dates helper for "In X days"
+async function handleSaveCategory() {
+  catSaveError.value = null
+  if (!catForm.value.name.trim()) {
+    catSaveError.value = 'Category name is required.'
+    return
+  }
+  const payload = {
+    name: catForm.value.name.trim(),
+    description: catForm.value.description.trim() || undefined,
+    color: catForm.value.color,
+    type: catForm.value.type,
+    status: catForm.value.status
+  }
+  const result = editingCategory.value
+    ? await calendarStore.updateCategory(editingCategory.value.id, payload)
+    : await calendarStore.addCategory(payload)
+
+  if (result.success) {
+    showAddCategoryModal.value = false
+    showToast(editingCategory.value ? 'Category updated.' : 'Category created.')
+  } else {
+    catSaveError.value = result.message || 'An error occurred.'
+  }
+}
+
+function confirmDeleteCategory(cat: EventCategory) {
+  deletingCategory.value = cat
+  catDeleteError.value = null
+  showDeleteCategoryModal.value = true
+}
+
+async function handleDeleteCategory() {
+  if (!deletingCategory.value) return
+  const result = await calendarStore.deleteCategory(deletingCategory.value.id)
+  if (result.success) {
+    showDeleteCategoryModal.value = false
+    deletingCategory.value = null
+    showToast('Category deleted successfully.')
+  } else {
+    catDeleteError.value = result.message || 'Cannot delete category.'
+  }
+}
+
+// ── Active Term Settings Configuration ──────────────────────────────────────
+const configAcademicYear = ref('')
+const configSemester = ref('')
+const isSavingTerm = ref(false)
+
+async function handleSaveTermConfig() {
+  if (!configAcademicYear.value.trim() || !configSemester.value.trim()) {
+    showToast('Both Academic Year and Semester are required.', 'error')
+    return
+  }
+  isSavingTerm.value = true
+  try {
+    await settingsStore.updateTerm(configAcademicYear.value.trim(), configSemester.value.trim())
+    await calendarStore.fetchEvents()
+    showToast('Current institutional term updated successfully.')
+  } catch (err: any) {
+    showToast(err?.response?.data?.message || 'Failed to update term.', 'error')
+  } finally {
+    isSavingTerm.value = false
+  }
+}
+
+// ── Export Handling ─────────────────────────────────────────────────────────
+async function handleExport(format: 'csv' | 'pdf') {
+  showExportDropdown.value = false
+  isExporting.value = true
+  try {
+    const params: Record<string, any> = { format }
+    if (selectedAcademicYear.value && selectedAcademicYear.value !== 'all') {
+      params.academic_year = selectedAcademicYear.value
+    }
+    if (selectedSemester.value && selectedSemester.value !== 'all') {
+      params.semester = selectedSemester.value
+    }
+    if (selectedCategoryFilter.value !== 'all') {
+      params.category_id = selectedCategoryFilter.value
+    }
+
+    if (format === 'csv') {
+      const response = await apiClient.get('/admin/calendar/events/export', {
+        params,
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `wollo_university_calendar_${new Date().toISOString().slice(0, 10)}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      showToast('Academic calendar exported as CSV.')
+    } else {
+      const queryStr = new URLSearchParams(params).toString()
+      const url = `${apiClient.defaults.baseURL || 'http://localhost:8000/api/v1'}/admin/calendar/events/export?${queryStr}`
+      window.open(url, '_blank')
+    }
+  } catch (err) {
+    console.error('Export failed:', err)
+    showToast('Failed to export academic calendar.', 'error')
+  } finally {
+    isExporting.value = false
+  }
+}
+
+// ── Days Remaining & Status Helpers ─────────────────────────────────────────
 function daysUntil(dateStr: string): string {
-  const diff = Math.ceil((new Date(dateStr).getTime() - today.getTime()) / 86400000)
-  if (diff < 0)  return `${Math.abs(diff)}d ago`
+  const diff = Math.ceil((new Date(dateStr + 'T00:00:00').getTime() - new Date(todayStr + 'T00:00:00').getTime()) / 86400000)
+  if (diff < 0) return `${Math.abs(diff)}d ago`
   if (diff === 0) return 'Today'
   return `In ${diff} days`
 }
-function daysUntilColor(dateStr: string): string {
-  const diff = Math.ceil((new Date(dateStr).getTime() - today.getTime()) / 86400000)
-  if (diff < 0) return 'text-slate-400'
-  if (diff <= 7) return 'text-rose-500'
-  return 'text-emerald-600'
+
+function daysUntilBadgeColor(dateStr: string): string {
+  const diff = Math.ceil((new Date(dateStr + 'T00:00:00').getTime() - new Date(todayStr + 'T00:00:00').getTime()) / 86400000)
+  if (diff < 0) return 'bg-slate-100 text-slate-500'
+  if (diff <= 3) return 'bg-rose-50 text-rose-600 font-bold'
+  if (diff <= 7) return 'bg-amber-50 text-amber-600 font-bold'
+  return 'bg-emerald-50 text-emerald-600 font-bold'
 }
 
-// Academic summary (static — can be made dynamic later)
-const academicSummary = computed(() => [
-  { title: 'Academic Year',       date: settingsStore.academicYear || '2025/2026', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'text-[#4338ca] bg-indigo-50' },
-  { title: settingsStore.semester || 'Second Semester', date: 'Active Semester', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'text-[#4338ca] bg-indigo-50' },
-  { title: 'Registration Period', date: 'Apr 20, 2025 - Apr 30, 2025', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'text-emerald-500 bg-emerald-50' },
-  { title: 'Classes Period',      date: 'May 5, 2025 - Aug 15, 2025', icon: 'M12 14l9-5-9-5-9 5 9 5z', color: 'text-emerald-500 bg-emerald-50' },
-  { title: 'Midterm Exams',       date: 'May 12, 2025 - May 16, 2025', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'text-rose-500 bg-rose-50' },
-  { title: 'Final Exams',         date: 'May 28, 2025 - Jun 10, 2025', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'text-blue-500 bg-blue-50' },
-])
+function getStatusBadge(status: string) {
+  switch (status) {
+    case 'upcoming': return 'bg-indigo-50 text-[#4338ca] border-indigo-200'
+    case 'ongoing': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'completed': return 'bg-slate-100 text-slate-600 border-slate-200'
+    case 'cancelled': return 'bg-rose-50 text-rose-700 border-rose-200'
+    default: return 'bg-slate-50 text-slate-600 border-slate-200'
+  }
+}
 
-const eventListStats = computed(() => [
-  { label: 'Total Events',       value: String(calendarStore.eventStats.total),    sub: 'This Semester',      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',           color: 'bg-indigo-50 text-[#4338ca]',   border: 'border-indigo-100' },
-  { label: 'Academic Weeks',     value: '16',                                       sub: 'Active Period',      icon: 'M12 14l9-5-9-5-9 5 9 5z',                                                                          color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
-  { label: 'Holidays',           value: String(calendarStore.eventStats.holidays),  sub: 'Scheduled Breaks',   icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',           color: 'bg-orange-50 text-orange-500',   border: 'border-orange-100' },
-  { label: 'Exam Periods',       value: String(calendarStore.eventStats.exams),     sub: 'Scheduled Periods',  icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', color: 'bg-blue-50 text-blue-500', border: 'border-blue-100' },
-  { label: 'Important Deadlines',value: String(calendarStore.eventStats.upcoming),  sub: 'Upcoming Events',    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2m-6 9l2 2 4-4', color: 'bg-rose-50 text-rose-500', border: 'border-rose-100' },
-])
-
-const statusSummary = computed(() => [
-  { name: 'Upcoming', count: calendarStore.events.filter(e => e.status === 'upcoming').length, color: 'bg-indigo-500' },
-  { name: 'Ongoing', count: calendarStore.events.filter(e => e.status === 'ongoing').length, color: 'bg-emerald-500' },
-  { name: 'Completed', count: calendarStore.events.filter(e => e.status === 'completed').length, color: 'bg-slate-400' },
-  { name: 'Cancelled', count: calendarStore.events.filter(e => e.status === 'cancelled').length, color: 'bg-rose-500' },
-])
-
-const sidebarCategories = computed(() => {
-  return calendarStore.categories.map(cat => ({
-    id: cat.id,
-    name: cat.name,
-    color: cat.color,
-    count: calendarStore.events.filter(e => e.category_id === cat.id).length
-  }))
+// ── Real Academic Milestones ────────────────────────────────────────────────
+const realMilestones = computed(() => {
+  const list = calendarStore.events
+  return [
+    {
+      title: 'Current Academic Term',
+      date: `${settingsStore.academicYear} ${settingsStore.semester}`,
+      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+      color: 'bg-indigo-50 text-[#4338ca]'
+    },
+    {
+      title: 'Classes / Teaching Period',
+      date: list.find(e => e.title.toLowerCase().includes('class') || e.title.toLowerCase().includes('teach'))
+        ? `${list.find(e => e.title.toLowerCase().includes('class') || e.title.toLowerCase().includes('teach'))?.start_date} to ${list.find(e => e.title.toLowerCase().includes('class') || e.title.toLowerCase().includes('teach'))?.end_date}`
+        : (calendarStore.eventStats.period_start && calendarStore.eventStats.period_end ? `${calendarStore.eventStats.period_start} to ${calendarStore.eventStats.period_end}` : 'Not scheduled yet'),
+      icon: 'M12 14l9-5-9-5-9 5 9 5z',
+      color: 'bg-emerald-50 text-emerald-600'
+    },
+    {
+      title: 'Examination Periods',
+      date: list.find(e => e.category_name?.toLowerCase().includes('exam') || e.title.toLowerCase().includes('exam'))
+        ? `${list.find(e => e.category_name?.toLowerCase().includes('exam') || e.title.toLowerCase().includes('exam'))?.start_date} to ${list.find(e => e.category_name?.toLowerCase().includes('exam') || e.title.toLowerCase().includes('exam'))?.end_date}`
+        : 'Not scheduled yet',
+      icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+      color: 'bg-blue-50 text-blue-600'
+    },
+    {
+      title: 'Holidays & University Breaks',
+      date: list.find(e => e.category_name?.toLowerCase().includes('holiday') || e.title.toLowerCase().includes('break'))
+        ? `${list.find(e => e.category_name?.toLowerCase().includes('holiday'))?.start_date}`
+        : 'Not scheduled yet',
+      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+      color: 'bg-purple-50 text-purple-600'
+    }
+  ]
 })
 
-// Load data on mount
-onMounted(() => {
-  settingsStore.fetchSettings()
-  calendarStore.fetchEvents()
-  calendarStore.fetchCategories()
+// ── Initial Mount & Lifecycle ───────────────────────────────────────────────
+onMounted(async () => {
+  await Promise.all([
+    settingsStore.fetchSettings(),
+    calendarStore.fetchEvents(),
+    calendarStore.fetchCategories()
+  ])
+  configAcademicYear.value = settingsStore.academicYear
+  configSemester.value = settingsStore.semester
+  selectedAcademicYear.value = settingsStore.academicYear
+  selectedSemester.value = settingsStore.semester
 })
 </script>
 
 <template>
   <div class="space-y-6 min-w-0 w-full pb-10">
-    <template v-if="!showSettings">
-    <!-- Page Actions -->
-    <div class="flex items-center justify-end">
-      <div class="flex items-center gap-3">
-        <span class="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-50 text-[#4338ca] font-bold text-[11px] sm:text-[12px] rounded-full shadow-sm">
-          {{ settingsStore.formattedAcademicTerm }}
-        </span>
+
+    <!-- Floating Toast Notification -->
+    <Teleport to="body">
+      <div
+        v-if="toast.show"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-[13px] font-semibold transition-all animate-in fade-in slide-in-from-bottom-5"
+        :class="toast.type === 'success' ? 'bg-emerald-900/95 text-white border-emerald-700' : toast.type === 'error' ? 'bg-rose-900/95 text-white border-rose-700' : 'bg-slate-900/95 text-white border-slate-700'"
+      >
+        <span v-if="toast.type === 'success'">✓</span>
+        <span v-else-if="toast.type === 'error'">✕</span>
+        <span>{{ toast.message }}</span>
+      </div>
+    </Teleport>
+
+    <!-- ── Institutional Header & Breadcrumbs ───────────────────────────────── -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        
+        <!-- Left: Titles & Institutional Term Badge -->
+        <div class="space-y-1">
+          <div class="flex items-center gap-2 text-[12px] font-semibold text-slate-400">
+            <span>Administration</span>
+            <span>/</span>
+            <span>System</span>
+            <span>/</span>
+            <span class="text-[#4338ca] font-bold">Academic Calendar</span>
+          </div>
+
+          <div class="flex items-center gap-3 flex-wrap">
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">University Academic Calendar & Planning Center</h1>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-indigo-50 text-[#4338ca] border border-indigo-200/60 shadow-xs">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#4338ca] animate-pulse"></span>
+              {{ settingsStore.formattedAcademicTerm }}
+            </span>
+          </div>
+          <p class="text-[13px] text-slate-500 font-medium">
+            Manage academic years, semester terms, registration deadlines, examinations, and official university events.
+          </p>
+        </div>
+
+        <!-- Right: Actions Toolbar -->
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          
+          <button
+            @click="goToday(); goTodayWeek()"
+            class="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[12px] font-bold rounded-xl transition-colors shadow-xs"
+          >
+            Today
+          </button>
+
+          <button
+            @click="calendarStore.fetchEvents(); calendarStore.fetchCategories(); showToast('Calendar refreshed.')"
+            :disabled="calendarStore.isLoadingEvents"
+            class="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[12px] font-bold rounded-xl transition-colors shadow-xs disabled:opacity-50"
+            title="Reload from server"
+          >
+            <svg
+              class="w-4 h-4 text-slate-500"
+              :class="{ 'animate-spin': calendarStore.isLoadingEvents }"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span>Refresh</span>
+          </button>
+
+          <!-- Calendar Settings Button -->
+          <button
+            @click="showSettings = !showSettings"
+            class="flex items-center gap-1.5 px-3.5 py-2 border rounded-xl text-[12px] font-bold transition-all shadow-xs"
+            :class="showSettings ? 'bg-indigo-50 border-indigo-300 text-[#4338ca]' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'"
+          >
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span>{{ showSettings ? 'Close Settings' : 'Calendar Settings' }}</span>
+          </button>
+
+          <!-- Export Dropdown -->
+          <div class="relative">
+            <button
+              @click="showExportDropdown = !showExportDropdown"
+              class="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[12px] font-bold rounded-xl transition-colors shadow-xs"
+            >
+              <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>Export</span>
+              <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div
+              v-if="showExportDropdown"
+              class="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-[12px] font-medium animate-in fade-in zoom-in-95"
+            >
+              <button
+                @click="handleExport('csv')"
+                class="w-full flex items-center gap-2.5 px-4 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-[#4338ca] transition-colors"
+              >
+                <span class="w-6 h-6 rounded bg-emerald-50 text-emerald-600 font-bold text-[10px] flex items-center justify-center">CSV</span>
+                <span>Export as CSV</span>
+              </button>
+              <button
+                @click="handleExport('pdf')"
+                class="w-full flex items-center gap-2.5 px-4 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-[#4338ca] transition-colors"
+              >
+                <span class="w-6 h-6 rounded bg-indigo-50 text-[#4338ca] font-bold text-[10px] flex items-center justify-center">PDF</span>
+                <span>Printable Official Schedule</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- + Add Event Button -->
+          <button
+            @click="openAddEventModal()"
+            class="flex items-center gap-2 px-4 py-2 bg-[#4338ca] hover:bg-indigo-700 text-white text-[13px] font-bold rounded-xl transition-colors shadow-sm shadow-indigo-200"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>+ Add Event</span>
+          </button>
+
+        </div>
+
       </div>
     </div>
 
-    <!-- Tabs and Actions -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 gap-3">
-      <div class="flex items-center gap-4 sm:gap-6 overflow-x-auto min-w-0 pb-1 sm:pb-0">
-        <button v-for="tab in tabs" :key="tab" @click="activeTab = tab"
-          :class="[activeTab === tab ? 'text-[#4338ca] border-b-2 border-[#4338ca] font-bold' : 'text-slate-500 font-medium hover:text-slate-700', 'pb-3 text-[13px] transition-colors whitespace-nowrap shrink-0']">
-          {{ tab }}
+    <!-- ── Academic Period Summary KPI Cards (100% Real Database Data) ─────── -->
+    <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      
+      <!-- Total Events -->
+      <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Events</span>
+          <div class="w-8 h-8 rounded-xl bg-indigo-50 text-[#4338ca] flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+        </div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{{ calendarStore.eventStats.total }}</div>
+        <p class="text-[11px] text-slate-400 font-medium">Scheduled activities</p>
+      </div>
+
+      <!-- Academic Weeks -->
+      <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Academic Weeks</span>
+          <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/></svg>
+          </div>
+        </div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          {{ calendarStore.eventStats.academic_weeks ? calendarStore.eventStats.academic_weeks : 'N/A' }}
+        </div>
+        <p class="text-[11px] text-slate-400 font-medium">
+          {{ calendarStore.eventStats.academic_weeks ? 'Calculated term duration' : 'Awaiting scheduled dates' }}
+        </p>
+      </div>
+
+      <!-- Holidays -->
+      <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Holidays</span>
+          <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+          </div>
+        </div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{{ calendarStore.eventStats.holidays }}</div>
+        <p class="text-[11px] text-slate-400 font-medium">Scheduled institutional breaks</p>
+      </div>
+
+      <!-- Exam Periods -->
+      <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Exam Periods</span>
+          <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          </div>
+        </div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{{ calendarStore.eventStats.exams }}</div>
+        <p class="text-[11px] text-slate-400 font-medium">Midterm & final milestones</p>
+      </div>
+
+      <!-- Upcoming Deadlines -->
+      <div class="col-span-2 sm:col-span-1 p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Upcoming Events</span>
+          <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+        </div>
+        <div class="text-2xl sm:text-3xl font-black text-amber-600 tracking-tight">{{ calendarStore.eventStats.upcoming }}</div>
+        <p class="text-[11px] text-slate-400 font-medium">Pending milestone dates</p>
+      </div>
+
+    </div>
+
+    <!-- ── Settings View ────────────────────────────────────────────────────── -->
+    <div v-if="showSettings" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-6">
+      
+      <!-- Sub-Tabs inside settings -->
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div class="flex items-center gap-4">
+          <button
+            @click="settingsTab = 'Event Categories'"
+            class="text-[13px] font-bold pb-2 transition-colors border-b-2"
+            :class="settingsTab === 'Event Categories' ? 'border-[#4338ca] text-[#4338ca]' : 'border-transparent text-slate-500 hover:text-slate-700'"
+          >
+            Event Categories ({{ calendarStore.categories.length }})
+          </button>
+          <button
+            @click="settingsTab = 'Term Settings'"
+            class="text-[13px] font-bold pb-2 transition-colors border-b-2"
+            :class="settingsTab === 'Term Settings' ? 'border-[#4338ca] text-[#4338ca]' : 'border-transparent text-slate-500 hover:text-slate-700'"
+          >
+            Academic Term Configuration
+          </button>
+        </div>
+
+        <button
+          @click="showSettings = false"
+          class="text-[12px] font-bold text-slate-500 hover:text-slate-800"
+        >
+          ✕ Close Settings
         </button>
       </div>
-      <div class="flex flex-wrap items-center gap-2 sm:gap-3 pb-3">
-        <!-- Calendar View Buttons -->
-        <template v-if="activeTab === 'Calendar View'">
-          <button @click="showSettings = true" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg text-[12px] hover:bg-slate-50 transition-colors shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> Calendar Settings
-          </button>
-          <button @click="openAddEventModal" class="flex items-center gap-2 px-3 py-1.5 bg-[#4338ca] text-white font-bold rounded-lg text-[12px] hover:bg-indigo-700 transition-colors shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Event
-          </button>
-        </template>
-        <!-- Event List Buttons -->
-        <template v-else-if="activeTab === 'Event List'">
-          <button @click="openAddEventModal" class="flex items-center gap-2 px-3 py-1.5 bg-[#4338ca] text-white font-bold rounded-lg text-[12px] hover:bg-indigo-700 transition-colors shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Event
-          </button>
-          <button class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg text-[12px] hover:bg-slate-50 transition-colors shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Export
-            <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-          </button>
-        </template>
-      </div>
-    </div>
 
-    <!-- CALENDAR VIEW -->
-    <template v-if="activeTab === 'Calendar View'">
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        <div v-for="(stat, i) in statsData" :key="i" class="bg-white border rounded-xl shadow-sm p-4 flex items-start gap-4">
-          <div :class="[stat.color, stat.border, 'w-10 h-10 border rounded-lg flex items-center justify-center shrink-0']">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="stat.icon"></path></svg>
-          </div>
+      <!-- 1. Event Categories Tab -->
+      <div v-if="settingsTab === 'Event Categories'" class="space-y-4">
+        <div class="flex items-center justify-between">
           <div>
-            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{{ stat.label }}</p>
-            <p class="text-[20px] font-black text-slate-800 leading-none mt-1">{{ stat.value }}</p>
-            <p class="text-[10px] text-slate-400 font-medium mt-1">{{ stat.sub }}</p>
+            <h3 class="text-base font-black text-slate-900">Manage Event Categories</h3>
+            <p class="text-[12px] text-slate-500">Configure visual tags and category types for academic calendar events.</p>
           </div>
+          <button
+            @click="openAddCategoryModal"
+            class="px-3.5 py-1.5 bg-[#4338ca] hover:bg-indigo-700 text-white rounded-xl text-[12px] font-bold shadow-xs"
+          >
+            + New Category
+          </button>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left whitespace-nowrap text-[12px]">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
+              <tr>
+                <th class="px-4 py-3">Category Name</th>
+                <th class="px-4 py-3">Description</th>
+                <th class="px-4 py-3">Color</th>
+                <th class="px-4 py-3">Type</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="cat in calendarStore.categories" :key="cat.id" class="hover:bg-slate-50/50">
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2 font-bold text-slate-800">
+                    <span class="w-3 h-3 rounded-full shrink-0" :style="{ backgroundColor: cat.color }"></span>
+                    {{ cat.name }}
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-slate-500 max-w-xs truncate">{{ cat.description || '—' }}</td>
+                <td class="px-4 py-3 font-mono font-bold text-slate-600">{{ cat.color }}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold capitalize" :class="cat.type === 'system' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'">
+                    {{ cat.type }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold capitalize" :class="cat.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'">
+                    {{ cat.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-center">
+                  <div class="flex items-center justify-center gap-2">
+                    <button
+                      @click="openEditCategoryModal(cat)"
+                      class="text-blue-600 hover:text-blue-800 font-bold text-[11px]"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      v-if="cat.type !== 'system'"
+                      @click="confirmDeleteCategory(cat)"
+                      class="text-rose-600 hover:text-rose-800 font-bold text-[11px]"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Main Layout Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- 2. Academic Term Configuration Tab -->
+      <div v-else class="max-w-xl space-y-4">
+        <div>
+          <h3 class="text-base font-black text-slate-900">Current Academic Term</h3>
+          <p class="text-[12px] text-slate-500">Update the university-wide active Academic Year and Semester in the database.</p>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1">Active Academic Year</label>
+            <input
+              v-model="configAcademicYear"
+              type="text"
+              placeholder="e.g. 2026/2027"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+            />
+          </div>
+
+          <div>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1">Active Semester</label>
+            <select
+              v-model="configSemester"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+            >
+              <option value="First Semester">First Semester</option>
+              <option value="Second Semester">Second Semester</option>
+              <option value="Summer Term">Summer Term</option>
+            </select>
+          </div>
+
+          <button
+            @click="handleSaveTermConfig"
+            :disabled="isSavingTerm"
+            class="px-5 py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white text-[13px] font-bold rounded-xl shadow-xs disabled:opacity-50"
+          >
+            {{ isSavingTerm ? 'Updating Term…' : 'Save Institutional Term' }}
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Main Planning Center (Calendar vs Event List) ────────────────────── -->
+    <template v-if="!showSettings">
+      
+      <!-- Top Sub-Bar: View Tabs + Real Period Selectors -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-3">
         
-        <!-- Left Column (Calendar & Table) -->
-        <div class="lg:col-span-8 space-y-6">
+        <!-- Tabs -->
+        <div class="flex items-center gap-6">
+          <button
+            v-for="t in tabs"
+            :key="t"
+            @click="activeTab = t"
+            class="text-[13px] font-bold pb-2 transition-colors border-b-2"
+            :class="activeTab === t ? 'border-[#4338ca] text-[#4338ca]' : 'border-transparent text-slate-500 hover:text-slate-800'"
+          >
+            {{ t }}
+          </button>
+        </div>
+
+        <!-- Academic Period Filtering Dropdowns -->
+        <div class="flex flex-wrap items-center gap-2.5">
           
-          <!-- Calendar Container -->
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
+          <!-- Academic Year Filter -->
+          <div class="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
+            <span>Year:</span>
+            <select
+              v-model="selectedAcademicYear"
+              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:border-[#4338ca]"
+            >
+              <option value="all">All Years</option>
+              <option v-for="yr in calendarStore.eventStats.available_years" :key="yr" :value="yr">{{ yr }}</option>
+            </select>
+          </div>
+
+          <!-- Semester Filter -->
+          <div class="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
+            <span>Semester:</span>
+            <select
+              v-model="selectedSemester"
+              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:border-[#4338ca]"
+            >
+              <option value="all">All Semesters</option>
+              <option v-for="sem in calendarStore.eventStats.available_semesters" :key="sem" :value="sem">{{ sem }}</option>
+            </select>
+          </div>
+
+          <!-- Reset Filter -->
+          <button
+            v-if="selectedAcademicYear !== settingsStore.academicYear || selectedSemester !== settingsStore.semester || selectedCategoryFilter !== 'all'"
+            @click="selectedAcademicYear = settingsStore.academicYear; selectedSemester = settingsStore.semester; selectedCategoryFilter = 'all'"
+            class="text-[11px] font-bold text-rose-600 hover:underline ml-1"
+          >
+            Reset
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- ── TAB 1: CALENDAR VIEW ───────────────────────────────────────────── -->
+      <div v-if="activeTab === 'Calendar View'" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Interactive Calendar Container (Span 8) -->
+        <div class="lg:col-span-8 space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
+            
+            <!-- Calendar Header Toolbar -->
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              
+              <!-- Month Navigation -->
               <div class="flex items-center gap-2">
-                <div class="flex bg-slate-50 border border-slate-200 rounded-lg p-0.5">
-                  <button @click="calendarViewMode === 'week' ? prevWeek() : prevMonth()" class="px-2 py-1 rounded text-slate-500 hover:bg-white hover:shadow-sm hover:text-slate-700 transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-                  <button @click="calendarViewMode === 'week' ? nextWeek() : nextMonth()" class="px-2 py-1 rounded text-slate-500 hover:bg-white hover:shadow-sm hover:text-slate-700 transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                <div class="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5">
+                  <button
+                    @click="calendarViewMode === 'week' ? prevWeek() : prevMonth()"
+                    class="p-1.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-xs transition-all"
+                    title="Previous"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                  </button>
+                  <button
+                    @click="calendarViewMode === 'week' ? nextWeek() : nextMonth()"
+                    class="p-1.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-xs transition-all"
+                    title="Next"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                  </button>
                 </div>
-                <button @click="calendarViewMode === 'week' ? goTodayWeek() : goToday()" class="px-3 py-1.5 border border-slate-200 bg-slate-50 rounded-lg text-[12px] font-bold text-slate-600 hover:bg-white hover:shadow-sm transition-all">Today</button>
+
+                <button
+                  @click="calendarViewMode === 'week' ? goTodayWeek() : goToday()"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-700 hover:bg-white hover:shadow-xs transition-all"
+                >
+                  Today
+                </button>
               </div>
 
-              <h2 class="text-[16px] sm:text-[18px] font-bold text-slate-800 order-last sm:order-none w-full sm:w-auto text-center sm:text-left">
+              <!-- Month / Week Title -->
+              <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                 {{ calendarViewMode === 'week' ? weekTitle : calendarTitle }}
               </h2>
 
-              <div class="flex bg-slate-50 border border-slate-200 rounded-lg p-0.5">
-                <button @click="calendarViewMode = 'month'"
-                  :class="calendarViewMode === 'month' ? 'bg-white shadow-sm text-[#4338ca]' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'"
-                  class="px-2.5 sm:px-3 py-1 rounded-md text-[11px] sm:text-[12px] font-bold transition-colors">Month</button>
-                <button @click="calendarViewMode = 'week'"
-                  :class="calendarViewMode === 'week' ? 'bg-white shadow-sm text-[#4338ca]' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'"
-                  class="px-2.5 sm:px-3 py-1 rounded-md text-[11px] sm:text-[12px] font-bold transition-colors">Week</button>
-                <button @click="calendarViewMode = 'list'"
-                  :class="calendarViewMode === 'list' ? 'bg-white shadow-sm text-[#4338ca]' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'"
-                  class="px-2.5 sm:px-3 py-1 rounded-md text-[11px] sm:text-[12px] font-bold transition-colors">List</button>
+              <!-- View Switcher -->
+              <div class="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 text-[11px] font-bold">
+                <button
+                  @click="calendarViewMode = 'month'"
+                  class="px-3 py-1 rounded-lg transition-all"
+                  :class="calendarViewMode === 'month' ? 'bg-white text-[#4338ca] shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                >
+                  Month
+                </button>
+                <button
+                  @click="calendarViewMode === 'week'"
+                  class="px-3 py-1 rounded-lg transition-all"
+                  :class="calendarViewMode === 'week' ? 'bg-white text-[#4338ca] shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                >
+                  Week
+                </button>
+                <button
+                  @click="calendarViewMode === 'list'"
+                  class="px-3 py-1 rounded-lg transition-all"
+                  :class="calendarViewMode === 'list' ? 'bg-white text-[#4338ca] shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                >
+                  List
+                </button>
               </div>
+
             </div>
 
-            <!-- ── MONTH VIEW ── -->
-            <div v-if="calendarViewMode === 'month'" class="overflow-x-auto min-w-0 w-full">
-              <div class="min-w-[540px] sm:min-w-0 grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-lg overflow-hidden">
-                <div v-for="day in days" :key="day" class="bg-white py-2 text-center text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            <!-- 1. MONTH VIEW GRID -->
+            <div v-if="calendarViewMode === 'month'" class="overflow-x-auto min-w-0">
+              <div class="min-w-[580px] grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-xl overflow-hidden">
+                
+                <!-- Day of week headers -->
+                <div
+                  v-for="day in daysOfWeek"
+                  :key="day"
+                  class="bg-slate-50 py-2.5 text-center text-[11px] font-bold text-slate-500 uppercase tracking-wide"
+                >
                   {{ day }}
                 </div>
 
-                <!-- Dynamic calendar cells -->
-                <div v-for="(cell, idx) in calendarCells" :key="idx"
+                <!-- Calendar Day Cells -->
+                <div
+                  v-for="(cell, idx) in calendarCells"
+                  :key="idx"
+                  class="bg-white min-h-[92px] p-1.5 relative transition-colors hover:bg-slate-50/70 cursor-pointer overflow-hidden flex flex-col"
                   :class="[
-                    'bg-white h-20 p-1.5 relative overflow-hidden',
-                    cell.month !== 'current' ? 'opacity-40' : '',
-                    cell.dateStr === todayStr ? 'ring-2 ring-inset ring-[#4338ca]' : ''
-                  ]">
-                  <span :class="[
-                    'text-[12px] font-bold flex items-center justify-center w-6 h-6 rounded-full',
-                    cell.dateStr === todayStr ? 'bg-[#4338ca] text-white' : 'text-slate-700'
-                  ]">{{ cell.day }}</span>
-                  <!-- Events on this day -->
-                  <div v-for="ev in calendarStore.eventsOnDay(cell.dateStr).slice(0,1)" :key="ev.id"
-                    class="mt-0.5 px-1.5 py-0.5 text-[9px] font-bold rounded truncate cursor-pointer"
-                    :style="{ backgroundColor: ev.color + '22', color: ev.color }">
-                    <span class="inline-block w-1 h-1 rounded-full mr-1 align-middle" :style="{ backgroundColor: ev.color }"></span>
-                    <span class="align-middle">{{ ev.title }}</span>
+                    cell.month !== 'current' ? 'opacity-35 bg-slate-50/30' : '',
+                    cell.dateStr === todayStr ? 'ring-2 ring-inset ring-[#4338ca] bg-indigo-50/10' : ''
+                  ]"
+                  @click="openAddEventModal(cell.dateStr)"
+                >
+                  <!-- Day Number Badge -->
+                  <div class="flex items-center justify-between mb-1">
+                    <span
+                      class="text-[12px] font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                      :class="cell.dateStr === todayStr ? 'bg-[#4338ca] text-white shadow-xs' : 'text-slate-700'"
+                    >
+                      {{ cell.day }}
+                    </span>
                   </div>
-                  <div v-if="calendarStore.eventsOnDay(cell.dateStr).length > 1" class="text-[9px] text-slate-400 font-medium mt-0.5 pl-1">
-                    +{{ calendarStore.eventsOnDay(cell.dateStr).length - 1 }} more
+
+                  <!-- Events for this day -->
+                  <div class="space-y-1 flex-1 overflow-y-auto max-h-[68px] scrollbar-hide">
+                    <div
+                      v-for="ev in eventsOnDay(cell.dateStr)"
+                      :key="ev.id"
+                      class="px-1.5 py-1 text-[10px] font-bold rounded-md truncate cursor-pointer transition-transform hover:scale-[1.02] shadow-2xs border"
+                      :style="{
+                        backgroundColor: ev.color + '18',
+                        color: ev.color,
+                        borderColor: ev.color + '33'
+                      }"
+                      @click.stop="openDetailsModal(ev)"
+                      :title="ev.title + ' (' + ev.status + ')'"
+                    >
+                      <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" :style="{ backgroundColor: ev.color }"></span>
+                      <span class="align-middle">{{ ev.title }}</span>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+
+            <!-- 2. WEEK VIEW GRID -->
+            <div v-else-if="calendarViewMode === 'week'" class="overflow-x-auto min-w-0">
+              <div class="min-w-[580px] grid grid-cols-7 gap-2">
+                <div v-for="wd in weekDays" :key="wd.dateStr" class="flex flex-col">
+                  
+                  <!-- Day Header -->
+                  <div
+                    class="text-center py-2 rounded-t-xl text-[11px] font-bold uppercase tracking-wide border border-b-0"
+                    :class="wd.dateStr === todayStr ? 'bg-[#4338ca] text-white border-[#4338ca]' : 'bg-slate-50 text-slate-500 border-slate-200'"
+                  >
+                    <div>{{ wd.label }}</div>
+                    <div class="text-sm font-black mt-0.5">{{ wd.dayNum }}</div>
+                  </div>
+
+                  <!-- Events column -->
+                  <div
+                    class="min-h-[160px] border border-slate-200 rounded-b-xl p-1.5 space-y-1 bg-white flex-1"
+                    :class="wd.dateStr === todayStr ? 'border-[#4338ca]/30 bg-indigo-50/5' : ''"
+                  >
+                    <div
+                      v-for="ev in eventsOnDay(wd.dateStr)"
+                      :key="ev.id"
+                      class="p-1.5 text-[10px] font-bold rounded-lg cursor-pointer truncate border shadow-2xs"
+                      :style="{
+                        backgroundColor: ev.color + '18',
+                        color: ev.color,
+                        borderColor: ev.color + '33'
+                      }"
+                      @click="openDetailsModal(ev)"
+                    >
+                      <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :style="{ backgroundColor: ev.color }"></span>
+                      {{ ev.title }}
+                    </div>
+                    <div v-if="eventsOnDay(wd.dateStr).length === 0" class="h-full flex items-center justify-center">
+                      <span class="text-[11px] text-slate-300 font-bold">—</span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. LIST / AGENDA VIEW -->
+            <div v-else-if="calendarViewMode === 'list'" class="space-y-3">
+              <div v-if="listViewEvents.length === 0" class="py-12 text-center text-slate-400 text-[13px] font-medium">
+                No events scheduled for {{ calendarTitle }}.
+              </div>
+
+              <div v-else class="space-y-2">
+                <div
+                  v-for="ev in listViewEvents"
+                  :key="ev.id"
+                  class="flex items-start justify-between gap-4 p-3.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/60 transition-colors cursor-pointer"
+                  @click="openDetailsModal(ev)"
+                >
+                  <div class="flex items-start gap-3 min-w-0">
+                    <!-- Date badge -->
+                    <div class="shrink-0 w-12 text-center bg-slate-50 border border-slate-200 rounded-xl py-1">
+                      <div class="text-[10px] font-bold text-slate-400 uppercase">
+                        {{ new Date(ev.start_date + 'T00:00:00').toLocaleString('en-US', { month: 'short' }) }}
+                      </div>
+                      <div class="text-base font-black text-slate-800 leading-none">
+                        {{ new Date(ev.start_date + 'T00:00:00').getDate() }}
+                      </div>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-[13px] font-bold text-slate-900">{{ ev.title }}</span>
+                        <span v-if="ev.category_name" class="px-2 py-0.5 rounded text-[10px] font-bold" :style="{ backgroundColor: ev.color + '18', color: ev.color }">
+                          {{ ev.category_name }}
+                        </span>
+                        <span :class="getStatusBadge(ev.status)" class="px-2 py-0.5 rounded text-[10px] font-bold border capitalize">
+                          {{ ev.status }}
+                        </span>
+                      </div>
+                      <p v-if="ev.description" class="text-[12px] text-slate-500 mt-0.5 truncate">{{ ev.description }}</p>
+                      <p class="text-[11px] text-slate-400 font-medium mt-1">
+                        {{ ev.start_date }} &rarr; {{ ev.end_date }} &bull; {{ ev.academic_year }} ({{ ev.semester }})
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Relative days badge -->
+                  <div class="shrink-0">
+                    <span :class="daysUntilBadgeColor(ev.start_date)" class="px-2.5 py-1 rounded-lg text-[11px]">
+                      {{ daysUntil(ev.start_date) }}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- ── WEEK VIEW ── -->
-            <template v-else-if="calendarViewMode === 'week'">
-              <!-- 7-column week grid -->
-              <div class="overflow-x-auto min-w-0 w-full">
-                <div class="min-w-[540px] sm:min-w-0 grid grid-cols-7 gap-1">
-                  <div v-for="wd in weekDays" :key="wd.dateStr" class="flex flex-col">
-                    <!-- Day header -->
-                    <div :class="[
-                      'text-center py-2 rounded-t-lg text-[11px] font-bold uppercase tracking-wide border border-b-0',
-                      wd.dateStr === todayStr ? 'bg-[#4338ca] text-white border-[#4338ca]' : 'bg-slate-50 text-slate-500 border-slate-200'
-                    ]">
-                      <div>{{ wd.label }}</div>
-                      <div class="text-[15px] font-black mt-0.5">{{ wd.dayNum }}</div>
-                    </div>
-                    <!-- Events column -->
-                    <div :class="[
-                      'min-h-[120px] border border-slate-200 rounded-b-lg p-1 space-y-1 bg-white',
-                      wd.dateStr === todayStr ? 'border-[#4338ca]/30' : ''
-                    ]">
-                      <div v-for="ev in calendarStore.eventsOnDay(wd.dateStr)" :key="ev.id"
-                        class="px-1.5 py-1 text-[10px] font-bold rounded cursor-pointer truncate"
-                        :style="{ backgroundColor: ev.color + '22', color: ev.color }">
-                        <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" :style="{ backgroundColor: ev.color }"></span>
-                        {{ ev.title }}
-                      </div>
-                      <div v-if="calendarStore.eventsOnDay(wd.dateStr).length === 0" class="h-full flex items-center justify-center">
-                        <span class="text-[10px] text-slate-300">—</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
+          </div>
+        </div>
 
-            <!-- ── LIST VIEW ── -->
-            <template v-else-if="calendarViewMode === 'list'">
-              <div v-if="listViewEvents.length === 0" class="py-12 text-center text-[13px] text-slate-400">
-                No events found for {{ calendarTitle }}.
-              </div>
-              <div v-else class="space-y-2">
-                <div v-for="ev in listViewEvents" :key="ev.id"
-                  class="flex items-start gap-4 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors">
-                  <!-- Date badge -->
-                  <div class="shrink-0 w-12 text-center">
-                    <div class="text-[10px] font-bold text-slate-400 uppercase">
-                      {{ new Date(ev.start_date + 'T00:00').toLocaleString('default', { month: 'short' }) }}
-                    </div>
-                    <div :class="[
-                      'text-[20px] font-black leading-none',
-                      ev.start_date === todayStr ? 'text-[#4338ca]' : 'text-slate-700'
-                    ]">{{ new Date(ev.start_date + 'T00:00').getDate() }}</div>
+        <!-- Right: Upcoming Events & Categories Sidebar (Span 4) -->
+        <div class="lg:col-span-4 space-y-6">
+          
+          <!-- Upcoming Events Card -->
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-black text-slate-900">Upcoming Events</h3>
+              <span class="text-[11px] font-bold text-slate-400">{{ calendarStore.upcomingEvents.length }} Scheduled</span>
+            </div>
+
+            <div v-if="calendarStore.upcomingEvents.length === 0" class="py-6 text-center text-slate-400 text-[12px] font-medium">
+              No upcoming events found.
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="ev in calendarStore.upcomingEvents"
+                :key="ev.id"
+                class="flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer"
+                @click="openDetailsModal(ev)"
+              >
+                <div class="flex items-start gap-2.5 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full mt-1 shrink-0" :style="{ backgroundColor: ev.color }"></span>
+                  <div class="min-w-0">
+                    <p class="text-[13px] font-bold text-slate-900 truncate">{{ ev.title }}</p>
+                    <p class="text-[11px] text-slate-500 font-medium mt-0.5">{{ ev.start_date }}</p>
+                    <span v-if="ev.category_name" class="inline-block text-[10px] font-bold text-slate-400 mt-0.5">
+                      {{ ev.category_name }}
+                    </span>
                   </div>
-                  <!-- Color bar -->
-                  <div class="w-1 self-stretch rounded-full shrink-0" :style="{ backgroundColor: ev.color }"></div>
-                  <!-- Content -->
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <p class="text-[13px] font-bold text-slate-800">{{ ev.title }}</p>
-                      <span v-if="ev.category_name" class="text-[10px] font-bold px-2 py-0.5 rounded"
-                        :style="{ backgroundColor: (ev.category_color ?? ev.color) + '22', color: ev.category_color ?? ev.color }">{{ ev.category_name }}</span>
-                      <span :class="[statusBadge(ev.status), 'text-[10px] font-bold px-2 py-0.5 rounded capitalize']">{{ ev.status }}</span>
-                    </div>
-                    <p v-if="ev.description" class="text-[11px] text-slate-500 mt-1 truncate">{{ ev.description }}</p>
-                    <p class="text-[11px] text-slate-400 mt-0.5">
-                      {{ ev.start_date }}{{ ev.end_date !== ev.start_date ? ` → ${ev.end_date}` : '' }}
-                    </p>
-                  </div>
-                  <!-- Days until -->
-                  <span class="shrink-0 text-[11px] font-bold" :class="daysUntilColor(ev.start_date)">{{ daysUntil(ev.start_date) }}</span>
                 </div>
+
+                <span :class="daysUntilBadgeColor(ev.start_date)" class="px-2 py-0.5 rounded text-[10px] shrink-0">
+                  {{ daysUntil(ev.start_date) }}
+                </span>
               </div>
-            </template>
+            </div>
           </div>
 
+          <!-- Event Categories Filter Card -->
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-black text-slate-900">Event Categories</h3>
+              <button
+                v-if="selectedCategoryFilter !== 'all'"
+                @click="selectedCategoryFilter = 'all'"
+                class="text-[11px] font-bold text-[#4338ca] hover:underline"
+              >
+                Show All
+              </button>
+            </div>
 
-          <!-- Events Table -->
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 border-b border-slate-100">
-              <h3 class="text-[15px] font-bold text-slate-800">All Academic Events</h3>
-              <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
-                <div class="relative flex-1 sm:flex-none">
-                  <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                  <input v-model="eventSearch" placeholder="Search events..." class="w-full sm:w-auto pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[12px] focus:outline-none focus:border-[#4338ca] text-slate-700 min-w-[160px] sm:min-w-[200px]" />
+            <div class="space-y-2">
+              <button
+                v-for="cat in calendarStore.categories"
+                :key="cat.id"
+                @click="selectedCategoryFilter = selectedCategoryFilter === cat.id ? 'all' : cat.id"
+                class="w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left"
+                :class="selectedCategoryFilter === cat.id ? 'bg-indigo-50 border-[#4338ca] shadow-2xs' : 'bg-slate-50/50 border-slate-100 hover:border-slate-200'"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <span class="w-3 h-3 rounded-full shrink-0" :style="{ backgroundColor: cat.color }"></span>
+                  <span class="text-[12px] font-bold text-slate-800 truncate">{{ cat.name }}</span>
                 </div>
-                <select v-model="eventFilterCat" class="flex-1 sm:flex-none px-3 py-2 bg-white border border-slate-200 rounded-lg text-[12px] text-slate-600 focus:outline-none font-medium">
-                  <option value="">All Categories</option>
-                  <option v-for="cat in calendarStore.categories" :key="cat.id" :value="String(cat.id)">{{ cat.name }}</option>
+                <span class="text-[11px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                  {{ calendarStore.events.filter(e => e.category_id === cat.id).length }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Real Academic Milestones Card -->
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-black text-slate-900">Academic Milestones</h3>
+              <span class="text-[11px] font-bold text-[#4338ca] bg-indigo-50 px-2 py-0.5 rounded">{{ settingsStore.academicYear }}</span>
+            </div>
+
+            <div class="space-y-3">
+              <div v-for="(item, i) in realMilestones" :key="i" class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50/60 border border-slate-100">
+                <div :class="[item.color, 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5']">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-[12px] font-bold text-slate-800">{{ item.title }}</p>
+                  <p class="text-[11px] text-slate-500 font-medium mt-0.5">{{ item.date }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ── TAB 2: EVENT LIST VIEW ─────────────────────────────────────────── -->
+      <div v-else-if="activeTab === 'Event List'" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        
+        <!-- Filter Toolbar -->
+        <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/40">
+          
+          <!-- Search -->
+          <div class="relative flex-1 min-w-[200px] sm:min-w-[260px]">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input
+              v-model="eventListSearch"
+              placeholder="Search by event title, category, or description..."
+              class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-[12px] focus:outline-none focus:border-[#4338ca] text-slate-800 font-medium"
+            />
+          </div>
+
+          <!-- Dropdowns -->
+          <div class="flex flex-wrap items-center gap-2">
+            <select v-model="eventListCategory" class="px-3 py-2 bg-white border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 focus:outline-none">
+              <option value="">All Categories</option>
+              <option v-for="cat in calendarStore.categories" :key="cat.id" :value="String(cat.id)">{{ cat.name }}</option>
+            </select>
+
+            <select v-model="eventListStatus" class="px-3 py-2 bg-white border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 focus:outline-none">
+              <option value="">All Statuses</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+
+            <select v-model="eventListSemester" class="px-3 py-2 bg-white border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 focus:outline-none">
+              <option value="">All Semesters</option>
+              <option value="First Semester">First Semester</option>
+              <option value="Second Semester">Second Semester</option>
+              <option value="Summer Term">Summer Term</option>
+            </select>
+
+            <button
+              v-if="eventListSearch || eventListCategory || eventListStatus || eventListSemester"
+              @click="resetTableFilters"
+              class="text-[12px] font-bold text-rose-600 hover:underline px-2"
+            >
+              Clear
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto min-w-0">
+          <table class="w-full text-left whitespace-nowrap text-[12px]">
+            <thead class="bg-slate-50 border-b border-slate-200/80 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <tr>
+                <th class="px-5 py-3.5">Event Title</th>
+                <th class="px-4 py-3.5">Category</th>
+                <th class="px-4 py-3.5">Academic Period</th>
+                <th class="px-4 py-3.5">Start Date</th>
+                <th class="px-4 py-3.5">End Date</th>
+                <th class="px-4 py-3.5">Status</th>
+                <th class="px-4 py-3.5 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-if="tableFilteredEvents.length === 0">
+                <td colspan="7" class="px-5 py-12 text-center text-slate-400 font-medium">
+                  No academic events match your search filters.
+                </td>
+              </tr>
+              <tr
+                v-for="ev in tableFilteredEvents"
+                :key="ev.id"
+                class="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                @click="openDetailsModal(ev)"
+              >
+                <td class="px-5 py-3.5">
+                  <div class="flex items-center gap-2.5 font-bold text-slate-900">
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: ev.color }"></span>
+                    <span>{{ ev.title }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-3.5">
+                  <span v-if="ev.category_name" class="px-2 py-0.5 rounded text-[10px] font-bold" :style="{ backgroundColor: ev.color + '18', color: ev.color }">
+                    {{ ev.category_name }}
+                  </span>
+                  <span v-else class="text-slate-400">—</span>
+                </td>
+                <td class="px-4 py-3.5 text-slate-600 font-semibold">
+                  {{ ev.academic_year }} &bull; {{ ev.semester }}
+                </td>
+                <td class="px-4 py-3.5 text-slate-700 font-bold">{{ ev.start_date }}</td>
+                <td class="px-4 py-3.5 text-slate-700 font-bold">{{ ev.end_date }}</td>
+                <td class="px-4 py-3.5">
+                  <span :class="getStatusBadge(ev.status)" class="px-2.5 py-1 rounded text-[10px] font-bold border capitalize">
+                    {{ ev.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-3.5 text-center" @click.stop>
+                  <div class="flex items-center justify-center gap-1.5">
+                    <button
+                      @click="openDetailsModal(ev)"
+                      class="p-1.5 rounded-lg text-slate-500 hover:text-[#4338ca] hover:bg-indigo-50 transition-colors"
+                      title="View Details"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    </button>
+                    <button
+                      @click="openEditEventModal(ev)"
+                      class="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Edit Event"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button
+                      @click="confirmDeleteEvent(ev)"
+                      class="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      title="Delete Event"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="p-4 border-t border-slate-100 flex items-center justify-between text-[12px] text-slate-500">
+          <span>Showing {{ tableFilteredEvents.length }} of {{ calendarStore.events.length }} events</span>
+        </div>
+
+      </div>
+
+    </template>
+
+    <!-- ── MODAL 1: EVENT DETAILS MODAL ────────────────────────────────────── -->
+    <Teleport to="body">
+      <div v-if="showDetailsModal && viewingEvent" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs" @click="closeDetailsModal"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95">
+          
+          <!-- Header -->
+          <div class="px-6 py-5 border-b border-slate-100 flex items-start justify-between gap-3 bg-slate-50/60">
+            <div class="flex items-start gap-3">
+              <span class="w-3.5 h-3.5 rounded-full mt-1.5 shrink-0" :style="{ backgroundColor: viewingEvent.color }"></span>
+              <div>
+                <h3 class="text-lg font-black text-slate-900">{{ viewingEvent.title }}</h3>
+                <div class="flex items-center gap-2 mt-1">
+                  <span v-if="viewingEvent.category_name" class="px-2 py-0.5 rounded text-[10px] font-bold" :style="{ backgroundColor: viewingEvent.color + '18', color: viewingEvent.color }">
+                    {{ viewingEvent.category_name }}
+                  </span>
+                  <span :class="getStatusBadge(viewingEvent.status)" class="px-2 py-0.5 rounded text-[10px] font-bold border capitalize">
+                    {{ viewingEvent.status }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button @click="closeDetailsModal" class="p-1 rounded-lg text-slate-400 hover:text-slate-600">✕</button>
+          </div>
+
+          <!-- Body -->
+          <div class="p-6 space-y-4 text-[13px]">
+            <div class="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+              <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Start Date</span>
+                <span class="font-bold text-slate-800">{{ viewingEvent.start_date }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">End Date</span>
+                <span class="font-bold text-slate-800">{{ viewingEvent.end_date }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Academic Year</span>
+                <span class="font-bold text-slate-800">{{ viewingEvent.academic_year }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Semester</span>
+                <span class="font-bold text-slate-800">{{ viewingEvent.semester }}</span>
+              </div>
+            </div>
+
+            <div v-if="!viewingEvent.all_day && (viewingEvent.start_time || viewingEvent.end_time)" class="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Range</span>
+              <span class="font-bold text-slate-800">{{ viewingEvent.start_time || '—' }} to {{ viewingEvent.end_time || '—' }}</span>
+            </div>
+
+            <div class="p-3.5 rounded-xl border border-slate-200 space-y-1">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Event Description</span>
+              <p class="text-slate-700 font-medium leading-relaxed">
+                {{ viewingEvent.description || 'No description provided for this academic event.' }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Footer Actions -->
+          <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+            <button
+              @click="confirmDeleteEvent(viewingEvent)"
+              class="px-4 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-[12px] font-bold transition-colors"
+            >
+              Delete Event
+            </button>
+            <div class="flex items-center gap-2">
+              <button
+                @click="openEditEventModal(viewingEvent)"
+                class="px-4 py-2 bg-indigo-50 text-[#4338ca] hover:bg-indigo-100 rounded-xl text-[12px] font-bold transition-colors"
+              >
+                Edit Event
+              </button>
+              <button
+                @click="closeDetailsModal"
+                class="px-4 py-2 bg-slate-900 text-white rounded-xl text-[12px] font-bold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ── MODAL 2: ADD / EDIT EVENT MODAL ─────────────────────────────────── -->
+    <Teleport to="body">
+      <div v-if="showEventFormModal" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs" @click="closeEventFormModal"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[92vh] overflow-hidden flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 my-auto">
+          
+          <!-- Header -->
+          <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+            <div>
+              <h2 class="text-lg font-black text-slate-900">{{ isEditingEvent ? 'Edit Academic Event' : 'Schedule Academic Event' }}</h2>
+              <p class="text-[12px] text-slate-500">Plan and register events into the university academic calendar.</p>
+            </div>
+            <button @click="closeEventFormModal" class="p-1 rounded-lg text-slate-400 hover:text-slate-600">✕</button>
+          </div>
+
+          <!-- Body -->
+          <div class="p-6 space-y-4 overflow-y-auto">
+            
+            <div v-if="eventSaveError" class="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-[12px] font-bold rounded-xl">
+              {{ eventSaveError }}
+            </div>
+
+            <!-- Title -->
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Event Title <span class="text-rose-500">*</span></label>
+              <div v-if="!isCustomTitle" class="flex gap-2">
+                <select
+                  v-model="eventForm.title"
+                  @change="if (eventForm.title === 'Other') { isCustomTitle = true; eventForm.title = '' }"
+                  class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                >
+                  <option value="" disabled>Select a standard title or choose Other</option>
+                  <option value="Class Start">Class Start</option>
+                  <option value="Registration Period">Registration Period</option>
+                  <option value="Add / Drop Period">Add / Drop Period</option>
+                  <option value="Midterm Examination Period">Midterm Examination Period</option>
+                  <option value="Final Examination Period">Final Examination Period</option>
+                  <option value="Grade Submission Deadline">Grade Submission Deadline</option>
+                  <option value="Official Term Break">Official Term Break</option>
+                  <option value="Other">Other (Custom title...)</option>
+                </select>
+              </div>
+              <div v-else class="flex gap-2">
+                <input
+                  v-model="eventForm.title"
+                  type="text"
+                  placeholder="Enter custom event title"
+                  class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                />
+                <button
+                  type="button"
+                  @click="isCustomTitle = false; eventForm.title = ''"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[12px] font-bold"
+                >
+                  Preset List
+                </button>
+              </div>
+            </div>
+
+            <!-- Category & Color -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1">Category <span class="text-rose-500">*</span></label>
+                <select
+                  v-model="eventForm.category_id"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                >
+                  <option value="" disabled>Select category</option>
+                  <option v-for="cat in calendarStore.categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1">Color Tag</label>
+                <div class="flex items-center gap-2">
+                  <input
+                    v-model="eventForm.color"
+                    type="color"
+                    class="w-10 h-10 rounded-xl border border-slate-200 p-0.5 cursor-pointer shrink-0"
+                  />
+                  <div class="flex gap-1.5 flex-wrap">
+                    <button
+                      v-for="c in ['#4338ca', '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6']"
+                      :key="c"
+                      type="button"
+                      @click="eventForm.color = c"
+                      class="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+                      :style="{ backgroundColor: c, borderColor: eventForm.color === c ? '#1e1b4b' : 'transparent' }"
+                    ></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Academic Year & Semester -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1">Academic Year</label>
+                <input
+                  v-model="eventForm.academic_year"
+                  type="text"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                />
+              </div>
+
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1">Semester</label>
+                <select
+                  v-model="eventForm.semester"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                >
+                  <option value="First Semester">First Semester</option>
+                  <option value="Second Semester">Second Semester</option>
+                  <option value="Summer Term">Summer Term</option>
                 </select>
               </div>
             </div>
 
-            <!-- Loading -->
-            <div v-if="calendarStore.isLoadingEvents" class="flex items-center justify-center py-12">
-              <svg class="w-5 h-5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-              <span class="ml-2 text-[13px] text-slate-400">Loading events…</span>
-            </div>
+            <!-- Date Range -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1">Start Date <span class="text-rose-500">*</span></label>
+                <input
+                  v-model="eventForm.start_date"
+                  type="date"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                />
+              </div>
 
-            <div v-else class="overflow-x-auto min-w-0 w-full">
-              <table class="w-full text-left whitespace-nowrap min-w-max">
-                <thead>
-                  <tr class="border-b border-slate-100 bg-white">
-                    <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Event Title</th>
-                    <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</th>
-                    <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Start Date</th>
-                    <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">End Date</th>
-                    <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Description</th>
-                    <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
-                    <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="filteredEvents.length === 0">
-                    <td colspan="7" class="px-4 py-10 text-center text-[13px] text-slate-400">No events yet. Click "+ Add Event" to create one.</td>
-                  </tr>
-                  <tr v-for="ev in filteredEvents" :key="ev.id" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td class="px-4 py-4">
-                      <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: ev.color }"></span>
-                        <p class="text-[13px] font-bold text-slate-800">{{ ev.title }}</p>
-                      </div>
-                    </td>
-                    <td class="px-4 py-4">
-                      <span v-if="ev.category_name" class="text-[10px] font-bold px-2 py-1 rounded" :style="{ backgroundColor: (ev.category_color ?? ev.color) + '22', color: ev.category_color ?? ev.color }">{{ ev.category_name }}</span>
-                      <span v-else class="text-[10px] text-slate-400">—</span>
-                    </td>
-                    <td class="px-4 py-4 text-[12px] font-semibold text-slate-600">{{ ev.start_date }}</td>
-                    <td class="px-4 py-4 text-[12px] font-semibold text-slate-600">{{ ev.end_date }}</td>
-                    <td class="px-4 py-4 text-[12px] text-slate-500 truncate max-w-[180px]">{{ ev.description ?? '—' }}</td>
-                    <td class="px-4 py-4"><span :class="[statusBadge(ev.status), 'text-[10px] font-bold px-2 py-1 rounded capitalize']">{{ ev.status }}</span></td>
-                    <td class="px-4 py-4">
-                      <div class="flex items-center justify-center gap-2">
-                        <button class="text-blue-500 hover:bg-blue-50 p-1 rounded transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
-                        <button @click="calendarStore.deleteEvent(ev.id)" class="text-rose-500 hover:bg-rose-50 p-1 rounded transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
-              <p class="text-[12px] text-slate-500 font-medium text-center sm:text-left">Showing {{ filteredEvents.length }} of {{ calendarStore.events.length }} events</p>
-              <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-                <div class="flex items-center gap-1">
-                  <button class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:bg-slate-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-                  <button class="w-7 h-7 rounded bg-[#4338ca] text-white text-[12px] font-bold">1</button>
-                  <button class="w-7 h-7 rounded text-slate-600 hover:bg-slate-50 text-[12px] font-bold">2</button>
-                  <button class="w-7 h-7 rounded text-slate-600 hover:bg-slate-50 text-[12px] font-bold">3</button>
-                  <span class="text-slate-400 text-[12px]">...</span>
-                  <button class="w-7 h-7 rounded text-slate-600 hover:bg-slate-50 text-[12px] font-bold">5</button>
-                  <button class="w-7 h-7 rounded flex items-center justify-center text-slate-600 hover:bg-slate-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-[12px] text-slate-500 font-medium">Rows per page:</span>
-                  <select class="text-[12px] border border-slate-200 rounded px-2 py-1 text-slate-600 focus:outline-none">
-                    <option>10</option>
-                  </select>
-                </div>
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1">End Date <span class="text-rose-500">*</span></label>
+                <input
+                  v-model="eventForm.end_date"
+                  type="date"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                />
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Right Column (Sidebar Widgets) -->
-        <div class="lg:col-span-4 space-y-6">
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between mb-5">
-              <h3 class="text-[15px] font-bold text-slate-800">Upcoming Events</h3>
-              <button class="text-[12px] font-bold text-[#4338ca] hover:underline">View All</button>
-            </div>
-            <div class="space-y-4">
-              <div v-if="calendarStore.upcomingEvents.length === 0" class="text-[13px] text-slate-400 text-center py-4">No upcoming events.</div>
-              <div v-for="ev in calendarStore.upcomingEvents" :key="ev.id" class="flex items-start justify-between relative pl-4 border-l border-slate-100">
-                <!-- Timeline Dot -->
-                <span class="w-2 h-2 rounded-full absolute -left-[4px] top-1.5 ring-2 ring-white" :style="{ backgroundColor: ev.color }"></span>
-                <div>
-                  <p class="text-[13px] font-bold text-slate-800">{{ ev.title }}</p>
-                  <p class="text-[11px] text-slate-500 mt-0.5">{{ ev.start_date }}</p>
-                </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap mt-1" :class="daysUntilColor(ev.start_date)" :style="{ backgroundColor: ev.color + '18' }">{{ daysUntil(ev.start_date) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
-            <h3 class="text-[15px] font-bold text-slate-800 mb-5">Event Categories</h3>
-            <div class="space-y-3">
-              <div v-for="(cat, i) in sidebarCategories" :key="cat.id || i" class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div class="w-7 h-7 rounded flex items-center justify-center shrink-0" :style="{ backgroundColor: cat.color + '22', color: cat.color }">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-                  </div>
-                  <span class="text-[13px] font-bold text-slate-700">{{ cat.name }}</span>
-                </div>
-                <span class="text-[12px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">{{ cat.count }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-5 flex flex-col h-auto">
-            <div class="flex items-center justify-between mb-5">
-              <h3 class="text-[15px] font-bold text-slate-800">Academic Year Summary</h3>
-              <span class="text-[11px] font-bold text-[#4338ca] bg-indigo-50 px-2 py-1 rounded">{{ settingsStore.academicYear }}</span>
-            </div>
-            <div class="space-y-4 flex-1">
-              <div v-for="(block, i) in academicSummary" :key="i" class="flex items-start gap-3">
-                <div :class="['w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5', block.color]">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="block.icon"></path></svg>
-                </div>
-                <div>
-                  <p class="text-[13px] font-bold text-slate-800">{{ block.title }}</p>
-                  <p class="text-[11px] text-slate-500 font-medium">{{ block.date }}</p>
-                </div>
-              </div>
-            </div>
-            <router-link to="/admin/settings" class="block text-center w-full mt-6 py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white text-[13px] font-bold rounded-lg transition-colors">
-              Manage Academic Year
-            </router-link>
-          </div>
-        </div>
-      </div>
-    </template>
-
-    <!-- EVENT LIST VIEW -->
-    <template v-else-if="activeTab === 'Event List'">
-      
-      <div class="mb-2">
-        <h2 class="text-[18px] font-bold text-slate-800">All Academic Events</h2>
-        <p class="text-[13px] text-slate-500 mt-0.5">View, search and manage all academic events in the system.</p>
-      </div>
-
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        <div v-for="(stat, i) in eventListStats" :key="i" class="bg-white border rounded-xl shadow-sm p-4 flex items-start gap-4">
-          <div :class="[stat.color, stat.border, 'w-10 h-10 border rounded-lg flex items-center justify-center shrink-0']">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="stat.icon"></path></svg>
-          </div>
-          <div>
-            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{{ stat.label }}</p>
-            <p class="text-[20px] font-black text-slate-800 leading-none mt-1">{{ stat.value }}</p>
-            <p class="text-[10px] text-slate-400 font-medium mt-1">{{ stat.sub }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Main Layout Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- Left Column (Table) -->
-        <div class="lg:col-span-9 space-y-6">
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-            
-            <!-- Filters Toolbar -->
-            <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 p-3.5 sm:p-4 border-b border-slate-100">
-              <div class="relative flex-1 min-w-[180px] sm:min-w-[200px] w-full sm:w-auto">
-                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                <input v-model="eventSearch" placeholder="Search events by title or description..." class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[12px] focus:outline-none focus:border-[#4338ca] text-slate-700" />
-              </div>
-              <select v-model="eventFilterCat" class="flex-1 sm:flex-none px-3 py-2 bg-white border border-slate-200 rounded-lg text-[12px] text-slate-600 focus:outline-none font-medium min-w-[130px]">
-                <option value="">All Categories</option>
-                <option v-for="cat in calendarStore.categories" :key="cat.id" :value="String(cat.id)">{{ cat.name }}</option>
-              </select>
-              <select v-model="eventFilterStatus" class="flex-1 sm:flex-none px-3 py-2 bg-white border border-slate-200 rounded-lg text-[12px] text-slate-600 focus:outline-none font-medium min-w-[110px]">
-                <option value="">All Status</option>
+            <!-- Status -->
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Event Status</label>
+              <select
+                v-model="eventForm.status"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+              >
                 <option value="upcoming">Upcoming</option>
                 <option value="ongoing">Ongoing</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
-              <select v-model="eventFilterSemester" class="flex-1 sm:flex-none px-3 py-2 bg-white border border-slate-200 rounded-lg text-[12px] text-slate-600 focus:outline-none font-medium min-w-[130px]">
-                <option value="">All Semesters</option>
-                <option value="First Semester">First Semester</option>
-                <option value="Second Semester">Second Semester</option>
-                <option value="Summer">Summer</option>
-              </select>
-              <button @click="resetFilters" class="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg text-[12px] hover:bg-slate-50 transition-colors shadow-sm">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Reset
-              </button>
-            </div>
-            
-            <div class="overflow-x-auto min-w-0 w-full">
-              <table class="w-full text-left whitespace-nowrap min-w-max">
-                <thead>
-                  <tr class="border-b border-slate-100 bg-indigo-50/30">
-                    <th class="px-5 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Event Title</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Category</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Start Date</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">End Date</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Description</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Status</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="filteredEvents.length === 0">
-                    <td colspan="7" class="px-5 py-10 text-center text-[13px] text-slate-400 font-medium">No events found.</td>
-                  </tr>
-                  <tr v-for="event in filteredEvents" :key="event.id" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td class="px-5 py-4">
-                      <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: event.color }"></span>
-                        <p class="text-[13px] font-bold text-slate-800">{{ event.title }}</p>
-                      </div>
-                    </td>
-                    <td class="px-4 py-4">
-                      <span v-if="event.category_name" class="text-[10px] font-bold px-2 py-1 rounded" :style="{ backgroundColor: (event.category_color ?? event.color) + '22', color: event.category_color ?? event.color }">{{ event.category_name }}</span>
-                      <span v-else class="text-[10px] text-slate-400">—</span>
-                    </td>
-                    <td class="px-4 py-4 text-[12px] font-semibold text-slate-600">{{ event.start_date }}</td>
-                    <td class="px-4 py-4 text-[12px] font-semibold text-slate-600">{{ event.end_date }}</td>
-                    <td class="px-4 py-4 text-[12px] text-slate-500 max-w-[200px] truncate">{{ event.description ?? '—' }}</td>
-                    <td class="px-4 py-4"><span :class="[statusBadge(event.status), 'text-[10px] font-bold px-2 py-1 rounded capitalize']">{{ event.status }}</span></td>
-                    <td class="px-4 py-4">
-                      <div class="flex items-center justify-center gap-2">
-                        <button @click="calendarStore.deleteEvent(event.id)" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded transition-colors" title="Delete event"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 bg-white">
-              <p class="text-[13px] text-slate-500 font-medium text-center sm:text-left">Showing 1 to 10 of 24 events</p>
-              <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-                <div class="flex items-center gap-1.5">
-                  <button class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-50 border border-slate-200"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-                  <button class="w-8 h-8 rounded-lg bg-[#4338ca] text-white text-[13px] font-bold">1</button>
-                  <button class="w-8 h-8 rounded-lg text-slate-600 hover:bg-slate-50 border border-slate-200 text-[13px] font-bold transition-colors">2</button>
-                  <button class="w-8 h-8 rounded-lg text-slate-600 hover:bg-slate-50 border border-slate-200 text-[13px] font-bold transition-colors">3</button>
-                  <span class="text-slate-400 text-[13px] px-1">...</span>
-                  <button class="w-8 h-8 rounded-lg text-slate-600 hover:bg-slate-50 border border-slate-200 text-[13px] font-bold transition-colors">5</button>
-                  <button class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-50 border border-slate-200 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-[13px] text-slate-500 font-medium">Rows per page:</span>
-                  <select class="text-[13px] border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 font-bold focus:outline-none">
-                    <option>10</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column (Sidebar Widgets) -->
-        <div class="lg:col-span-3 space-y-6">
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
-            <h3 class="text-[15px] font-bold text-slate-800 mb-6">Event Categories</h3>
-            <div class="space-y-4">
-              <div v-for="(cat, i) in sidebarCategories" :key="cat.id || i" class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" :style="{ backgroundColor: cat.color + '22', color: cat.color }">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-                  </div>
-                  <span class="text-[13px] font-bold text-slate-700">{{ cat.name }}</span>
-                </div>
-                <span class="text-[12px] font-bold text-slate-600 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">{{ cat.count }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
-            <h3 class="text-[15px] font-bold text-slate-800 mb-6">Status</h3>
-            <div class="space-y-4">
-              <div v-for="(stat, i) in statusSummary" :key="i" class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <span :class="['w-1.5 h-1.5 rounded-full', stat.color]"></span>
-                  <span class="text-[13px] font-bold text-slate-700">{{ stat.name }}</span>
-                </div>
-                <span class="text-[12px] font-bold text-slate-600 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">{{ stat.count }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
-    </template>
-
-    <!-- SETTINGS VIEW -->
-    <template v-else>
-      <div class="flex flex-col md:flex-row md:items-center justify-end gap-4">
-        <button @click="showSettings = false" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-          Back to Calendar
-        </button>
-      </div>
-
-      <!-- Settings Tabs -->
-      <div class="flex items-center gap-6 sm:gap-8 border-b border-slate-200 mt-2 overflow-x-auto min-w-0">
-        <button v-for="tab in settingsTabs" :key="tab" @click="settingsTab = tab"
-          :class="[settingsTab === tab ? 'text-[#4338ca] border-b-2 border-[#4338ca] font-bold' : 'text-slate-500 font-medium hover:text-slate-700', 'pb-3 text-[13px] transition-colors flex items-center gap-2 whitespace-nowrap shrink-0']">
-          <svg v-if="tab === 'Event Categories'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-          <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-          {{ tab }}
-        </button>
-      </div>
-
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-4">
-        <div v-for="(stat, i) in settingsStats" :key="i" class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-5 flex items-start gap-4">
-          <div :class="[stat.color, stat.bg, 'w-12 h-12 rounded-xl flex items-center justify-center shrink-0']" v-html="`<svg class='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>${stat.icon}</svg>`">
-          </div>
-          <div>
-            <p class="text-[12px] font-bold text-slate-500">{{ stat.label }}</p>
-            <p class="text-[24px] font-black text-slate-800 leading-tight mt-0.5">{{ stat.value }}</p>
-            <p class="text-[11px] text-slate-400 font-medium mt-1">{{ stat.sub }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Main Layout Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- Left Column (Table) -->
-        <div class="lg:col-span-12 space-y-6">
-          <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-            <div class="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-slate-100">
-              <div>
-                <h3 class="text-[15px] font-bold text-slate-800">Event Categories</h3>
-                <p class="text-[12px] text-slate-500 mt-0.5">Manage event categories used in the academic calendar.</p>
-              </div>
-              <button @click="openAddModal" class="px-4 py-2 bg-[#4338ca] text-white font-bold rounded-lg text-[13px] hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Category
-              </button>
-            </div>
-
-            <!-- Loading state -->
-            <div v-if="calendarStore.isLoading" class="flex items-center justify-center py-16">
-              <div class="flex items-center gap-3 text-slate-400">
-                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                <span class="text-[13px] font-medium">Loading categories…</span>
-              </div>
-            </div>
-
-            <div v-else class="overflow-x-auto min-w-0 w-full">
-              <table class="w-full text-left whitespace-nowrap min-w-max">
-                <thead>
-                  <tr class="border-b border-slate-100 bg-white">
-                    <th class="px-5 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Category Name</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Description</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Color</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Status</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider">Type</th>
-                    <th class="px-4 py-4 text-[11px] font-black text-slate-500 capitalize tracking-wider text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- Empty state -->
-                  <tr v-if="calendarStore.categories.length === 0">
-                    <td colspan="6" class="px-5 py-12 text-center text-[13px] text-slate-400 font-medium">No categories found. Click "+ Add Category" to create one.</td>
-                  </tr>
-                  <tr v-for="cat in calendarStore.categories" :key="cat.id" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td class="px-5 py-4">
-                      <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded flex items-center justify-center shrink-0" :style="{ backgroundColor: cat.color + '22', color: cat.color }">
-                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-                        </div>
-                        <span class="text-[13px] font-bold text-slate-800">{{ cat.name }}</span>
-                      </div>
-                    </td>
-                    <td class="px-4 py-4 text-[12px] text-slate-500 whitespace-normal min-w-[200px] leading-relaxed max-w-xs">{{ cat.description ?? '—' }}</td>
-                    <td class="px-4 py-4">
-                      <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: cat.color }"></span>
-                        <span class="text-[12px] font-bold text-slate-600">{{ cat.color }}</span>
-                      </div>
-                    </td>
-                    <td class="px-4 py-4">
-                      <span :class="cat.status === 'active' ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 bg-slate-100'" class="text-[10px] font-bold px-2.5 py-1 rounded capitalize">{{ cat.status }}</span>
-                    </td>
-                    <td class="px-4 py-4">
-                      <span :class="cat.type === 'system' ? 'text-blue-600 bg-blue-50' : 'text-indigo-600 bg-indigo-50'" class="text-[10px] font-bold px-2.5 py-1 rounded capitalize">{{ cat.type }}</span>
-                    </td>
-                    <td class="px-4 py-4">
-                      <div class="flex items-center justify-center gap-2">
-                        <button @click="openEditModal(cat)" title="Edit" class="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
-                        <button @click="confirmDelete(cat)" :title="cat.type === 'system' ? 'System categories cannot be deleted' : 'Delete'" :disabled="cat.type === 'system'" :class="cat.type === 'system' ? 'text-slate-300 cursor-not-allowed' : 'text-rose-500 hover:bg-rose-50'" class="p-1.5 rounded transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 bg-white">
-              <p class="text-[13px] text-slate-500 font-medium text-center sm:text-left">Showing {{ calendarStore.categories.length }} of {{ calendarStore.categories.length }} categories</p>
-              <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-                <div class="flex items-center gap-1.5">
-                  <button class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 border border-slate-200 hover:bg-slate-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-                  <button class="w-8 h-8 rounded-lg bg-[#4338ca] text-white text-[13px] font-bold">1</button>
-                  <button class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 border border-slate-200 hover:bg-slate-50"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-[13px] text-slate-500 font-medium">Rows per page:</span>
-                  <select class="text-[13px] border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 font-bold focus:outline-none">
-                    <option>10</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 flex items-start gap-4">
-            <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center shrink-0 mt-0.5">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </div>
-            <div>
-              <h4 class="text-[14px] font-bold text-slate-800">About Event Categories</h4>
-              <p class="text-[13px] text-slate-500 mt-1 leading-relaxed">Event categories help you organize and identify different types of events in your academic calendar. System categories cannot be deleted but you can edit custom categories.</p>
-            </div>
-          </div>
-        </div>
-
-
-      </div>
-    </template>
-
-    <!-- ADD / EDIT CATEGORY MODAL -->
-    <Teleport to="body">
-      <div v-if="showAddCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-800/40 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col my-auto">
-          <!-- Modal Header -->
-          <div class="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
-            <div>
-              <h2 class="text-[17px] sm:text-[18px] font-bold text-slate-800">{{ editingCategory ? 'Edit Category' : 'Add New Category' }}</h2>
-              <p class="text-[12px] text-slate-500 mt-0.5">{{ editingCategory ? 'Update the event category details.' : 'Create a new event category for the calendar.' }}</p>
-            </div>
-            <button @click="closeModal" class="text-slate-400 hover:text-slate-600 transition-colors p-1">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-          </div>
-
-          <!-- Modal Body -->
-          <div class="p-5 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto max-h-[calc(90vh-140px)]">
-            <!-- Error Alert -->
-            <div v-if="saveError" class="flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg px-4 py-3 text-[13px] font-medium">
-              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              {{ saveError }}
-            </div>
-
-            <!-- Category Name -->
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Category Name <span class="text-rose-500">*</span></label>
-              <input v-model="catForm.name" type="text" placeholder="Enter category name" class="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] text-slate-700 transition-all placeholder:text-slate-400" />
             </div>
 
             <!-- Description -->
             <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Description</label>
-              <textarea v-model="catForm.description" rows="3" placeholder="Enter category description" class="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] text-slate-700 transition-all placeholder:text-slate-400 resize-none"></textarea>
-              <div class="text-right text-[11px] text-slate-400 mt-1 font-medium">{{ catForm.description.length }} / 200</div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Description</label>
+              <textarea
+                v-model="eventForm.description"
+                rows="3"
+                placeholder="Details, locations, or notes regarding this milestone..."
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-800 focus:outline-none focus:border-[#4338ca] resize-none"
+              ></textarea>
             </div>
 
-            <!-- Color -->
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Color <span class="text-rose-500">*</span></label>
-              <div class="flex items-center gap-3">
-                <div class="relative max-w-[220px] flex-1">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span class="w-3.5 h-3.5 rounded" :style="{ backgroundColor: catForm.color }"></span>
-                  </div>
-                  <input v-model="catForm.color" type="text" class="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-[13px] font-bold focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] text-slate-700" />
-                </div>
-                <input v-model="catForm.color" type="color" class="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white" title="Pick color" />
-              </div>
-              <p class="text-[11px] text-slate-500 mt-1.5">Choose a color for this category</p>
-            </div>
-
-            <!-- Category Type -->
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-2.5">Category Type <span class="text-rose-500">*</span></label>
-              <div class="space-y-3">
-                <label class="flex items-start gap-3 cursor-pointer">
-                  <input type="radio" v-model="catForm.type" value="system" class="mt-1 accent-[#4338ca] cursor-pointer" />
-                  <div>
-                    <p class="text-[13px] font-bold text-slate-800">System Category</p>
-                    <p class="text-[11px] text-slate-500">Default categories built into the system</p>
-                  </div>
-                </label>
-                <label class="flex items-start gap-3 cursor-pointer">
-                  <input type="radio" v-model="catForm.type" value="custom" class="mt-1 accent-[#4338ca] cursor-pointer" />
-                  <div>
-                    <p class="text-[13px] font-bold text-slate-800">Custom Category</p>
-                    <p class="text-[11px] text-slate-500">Categories created by administrators</p>
-                  </div>
-                </label>
-              </div>
-            </div>
           </div>
 
-          <!-- Modal Footer -->
-          <div class="flex items-center justify-end gap-3 px-5 sm:px-6 py-3.5 sm:py-4 border-t border-slate-100 bg-slate-50">
-            <button @click="closeModal" class="px-4 sm:px-5 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg text-[13px] hover:bg-slate-100 transition-colors shadow-sm">
+          <!-- Footer -->
+          <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50 shrink-0">
+            <button
+              @click="closeEventFormModal"
+              class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-[12px] font-bold hover:bg-slate-50"
+            >
               Cancel
             </button>
-            <button @click="saveCategory" :disabled="calendarStore.isSaving" class="px-4 sm:px-5 py-2 bg-[#4338ca] text-white font-bold rounded-lg text-[13px] hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-              <svg v-if="calendarStore.isSaving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-              {{ calendarStore.isSaving ? 'Saving…' : (editingCategory ? 'Update Category' : 'Save Category') }}
+            <button
+              @click="handleSaveEvent"
+              :disabled="calendarStore.isSaving"
+              class="px-6 py-2.5 rounded-xl bg-[#4338ca] hover:bg-indigo-700 text-white text-[12px] font-bold shadow-xs disabled:opacity-50"
+            >
+              {{ calendarStore.isSaving ? 'Saving…' : (isEditingEvent ? 'Update Event' : 'Save Event') }}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ── MODAL 3: DELETE CONFIRMATION MODAL ──────────────────────────────── -->
+    <Teleport to="body">
+      <div v-if="showDeleteEventModal && eventToDelete" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs" @click="showDeleteEventModal = false"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4 border border-slate-200 animate-in fade-in zoom-in-95">
+          <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </div>
+          <div>
+            <h3 class="text-base font-black text-slate-900">Delete Academic Event?</h3>
+            <p class="text-[12px] text-slate-500 mt-1">
+              Are you sure you want to remove <strong>"{{ eventToDelete.title }}"</strong> from the academic calendar?
+            </p>
+          </div>
+          <div class="flex items-center justify-center gap-3 pt-2">
+            <button
+              @click="showDeleteEventModal = false; eventToDelete = null"
+              class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[12px] font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              @click="handleDeleteEvent"
+              :disabled="isDeleting"
+              class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[12px] font-bold shadow-xs disabled:opacity-50"
+            >
+              {{ isDeleting ? 'Deleting…' : 'Delete Event' }}
             </button>
           </div>
         </div>
       </div>
     </Teleport>
 
-    <!-- DELETE CONFIRM MODAL -->
+    <!-- ── MODAL 4: ADD / EDIT CATEGORY MODAL ──────────────────────────────── -->
     <Teleport to="body">
-      <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-800/40 backdrop-blur-sm p-4 overflow-y-auto">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-[95vw] sm:max-w-sm p-5 sm:p-6 flex flex-col gap-4 my-auto">
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-              <svg class="w-6 h-6 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-            </div>
+      <div v-if="showAddCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs" @click="showAddCategoryModal = false"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 border border-slate-200 animate-in fade-in zoom-in-95">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="text-base font-black text-slate-900">{{ editingCategory ? 'Edit Category' : 'Create Category' }}</h3>
+            <button @click="showAddCategoryModal = false" class="text-slate-400 hover:text-slate-600">✕</button>
+          </div>
+
+          <div v-if="catSaveError" class="p-2.5 bg-rose-50 text-rose-700 text-[12px] font-bold rounded-lg">
+            {{ catSaveError }}
+          </div>
+
+          <div class="space-y-3 text-[12px]">
             <div>
-              <h3 class="text-[16px] font-bold text-slate-800">Delete Category</h3>
-              <p class="text-[13px] text-slate-500 mt-0.5">Are you sure you want to delete <strong>{{ deletingCategory?.name }}</strong>? This action cannot be undone.</p>
+              <label class="block font-bold text-slate-700 mb-1">Category Name <span class="text-rose-500">*</span></label>
+              <input v-model="catForm.name" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-[#4338ca]" />
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Description</label>
+              <textarea v-model="catForm.description" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 resize-none focus:outline-none focus:border-[#4338ca]"></textarea>
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Color</label>
+              <div class="flex items-center gap-2">
+                <input v-model="catForm.color" type="color" class="w-8 h-8 rounded-lg border border-slate-200 cursor-pointer p-0.5" />
+                <input v-model="catForm.color" type="text" class="w-28 px-2 py-1.5 rounded-lg border border-slate-200 font-mono font-bold text-slate-800 uppercase" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Status</label>
+              <select v-model="catForm.status" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold text-slate-800 focus:outline-none">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
             </div>
           </div>
-          <div v-if="deleteError" class="bg-rose-50 border border-rose-200 text-rose-600 rounded-lg px-4 py-3 text-[13px] font-medium">{{ deleteError }}</div>
-          <div class="flex items-center justify-end gap-3">
-            <button @click="showDeleteConfirm = false" class="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg text-[13px] hover:bg-slate-50">Cancel</button>
-            <button @click="doDelete" class="px-4 py-2 bg-rose-500 text-white font-bold rounded-lg text-[13px] hover:bg-rose-600 transition-colors">Delete</button>
+
+          <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button @click="showAddCategoryModal = false" class="px-4 py-2 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-700">Cancel</button>
+            <button @click="handleSaveCategory" class="px-5 py-2 bg-[#4338ca] text-white rounded-xl text-[12px] font-bold hover:bg-indigo-700">Save</button>
           </div>
         </div>
       </div>
     </Teleport>
 
-    <!-- ADD EVENT MODAL -->
+    <!-- ── MODAL 5: DELETE CATEGORY CONFIRMATION ──────────────────────────── -->
     <Teleport to="body">
-      <div v-if="showAddEventModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-800/40 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col my-auto">
-          <!-- Modal Header -->
-          <div class="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
-            <h2 class="text-[17px] sm:text-[18px] font-bold text-slate-800">Add Academic Event</h2>
-            <button @click="closeEventModal" class="text-slate-400 hover:text-slate-600 transition-colors p-1">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
+      <div v-if="showDeleteCategoryModal && deletingCategory" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs" @click="showDeleteCategoryModal = false"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4 border border-slate-200 animate-in fade-in zoom-in-95">
+          <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           </div>
-
-          <!-- Error Banner -->
-          <div v-if="eventSaveError" class="mx-5 sm:mx-6 mt-4 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-[12px] font-medium rounded-lg flex items-center gap-2">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            {{ eventSaveError }}
+          <div>
+            <h3 class="text-base font-black text-slate-900">Delete Category?</h3>
+            <p class="text-[12px] text-slate-500 mt-1">
+              Delete <strong>"{{ deletingCategory.name }}"</strong>? This action cannot be undone.
+            </p>
           </div>
-
-          <!-- Modal Body -->
-          <div class="p-5 sm:p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-              <!-- Event Title -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Event Title <span class="text-rose-500">*</span></label>
-                <div v-if="!isCustomEventTitle" class="relative">
-                  <select
-                    v-model="eventForm.title"
-                    @change="if (eventForm.title === 'Other') { isCustomEventTitle = true; eventForm.title = '' }"
-                    class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700 appearance-none"
-                  >
-                    <option value="" disabled>Select event title</option>
-                    <option value="Class Start">Class Start</option>
-                    <option value="Other">Other (Type custom title)</option>
-                  </select>
-                  <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-                <div v-else class="flex gap-2">
-                  <input v-model="eventForm.title" type="text" placeholder="Enter custom event title" class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] text-slate-700 transition-all placeholder:text-slate-400" />
-                  <button type="button" @click="isCustomEventTitle = false; eventForm.title = ''" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[12px] font-bold transition-colors flex items-center justify-center shrink-0" title="Back to predefined titles">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Category -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Category <span class="text-rose-500">*</span></label>
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <div class="w-5 h-5 rounded flex items-center justify-center bg-indigo-50 text-indigo-500">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                    </div>
-                  </div>
-                  <select v-model="eventForm.category_id" class="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700 appearance-none">
-                    <option value="">Select category</option>
-                    <option v-for="cat in calendarStore.categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                  </select>
-                  <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Academic Year -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Academic Year <span class="text-rose-500">*</span></label>
-                <div class="relative">
-                  <select v-model="eventForm.academic_year" class="w-full px-3 py-2 pr-10 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700 appearance-none">
-                    <option>2025/2026</option>
-                    <option>2024/2025</option>
-                    <option>2026/2027</option>
-                  </select>
-                  <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Semester -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Semester <span class="text-rose-500">*</span></label>
-                <div class="relative">
-                  <select v-model="eventForm.semester" class="w-full px-3 py-2 pr-10 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700 appearance-none">
-                    <option>First Semester</option>
-                    <option>Second Semester</option>
-                    <option>Summer</option>
-                  </select>
-                  <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Start Date -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Start Date <span class="text-rose-500">*</span></label>
-                <input v-model="eventForm.start_date" type="date" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700" />
-              </div>
-
-              <!-- End Date -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">End Date <span class="text-rose-500">*</span></label>
-                <input v-model="eventForm.end_date" type="date" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700" />
-              </div>
-
-              <!-- All Day Event -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1">All Day Event</label>
-                <p class="text-[11px] text-slate-500 mb-2">Enable if this event is for the whole day</p>
-                <button type="button" @click="eventForm.all_day = !eventForm.all_day"
-                  :class="[eventForm.all_day ? 'bg-[#4338ca]' : 'bg-slate-200', 'relative inline-flex h-5 w-9 items-center rounded-full transition-colors']">
-                  <span :class="[eventForm.all_day ? 'translate-x-4' : 'translate-x-0.5', 'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform']"></span>
-                </button>
-              </div>
-
-              <!-- Event Time (hidden when all day) -->
-              <div v-show="!eventForm.all_day">
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Event Time</label>
-                <div class="flex items-center gap-2">
-                  <input v-model="eventForm.start_time" type="time" placeholder="Start Time" class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700" />
-                  <span class="text-slate-400 font-bold">-</span>
-                  <input v-model="eventForm.end_time" type="time" placeholder="End Time" class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] text-slate-700" />
-                </div>
-              </div>
-
-              <!-- Description -->
-              <div class="md:col-span-2">
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Description</label>
-                <textarea v-model="eventForm.description" rows="3" placeholder="Enter event description..." maxlength="500" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-[#4338ca] focus:ring-1 focus:ring-[#4338ca] text-slate-700 transition-all placeholder:text-slate-400 resize-none"></textarea>
-                <div class="text-right text-[11px] text-slate-400 mt-1 font-medium">{{ eventForm.description.length }} / 500</div>
-              </div>
-
-              <!-- Status -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Status <span class="text-rose-500">*</span></label>
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span class="w-2 h-2 rounded-full bg-[#4338ca]"></span>
-                  </div>
-                  <select v-model="eventForm.status" class="w-full pl-8 pr-10 py-2 bg-white border border-slate-200 rounded-lg text-[13px] font-medium focus:outline-none focus:border-[#4338ca] text-slate-700 appearance-none">
-                    <option value="upcoming">Upcoming</option>
-                    <option value="ongoing">Ongoing</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                  <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Color -->
-              <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Color <span class="text-rose-500">*</span></label>
-                <div class="flex items-center gap-3">
-                  <input type="color" v-model="eventForm.color" class="w-10 h-10 border border-slate-200 rounded-lg cursor-pointer p-0.5" />
-                  <div class="flex gap-2 flex-wrap">
-                    <button v-for="c in ['#6366F1','#22C55E','#3B82F6','#F59E0B','#EF4444','#8B5CF6']" :key="c" type="button" @click="eventForm.color = c"
-                      class="w-6 h-6 rounded-full border-2 transition-all"
-                      :style="{ backgroundColor: c, borderColor: eventForm.color === c ? '#1e1b4b' : 'transparent' }"></button>
-                  </div>
-                </div>
-                <p class="text-[11px] text-slate-500 mt-1.5">Choose a color to display this event on calendar</p>
-              </div>
-
-              <!-- Repeat Event -->
-              <div class="md:col-span-2">
-                <label class="text-[12px] font-bold text-slate-700 mr-2">Repeat Event</label>
-                <button type="button" @click="eventForm.is_recurring = !eventForm.is_recurring"
-                  :class="[eventForm.is_recurring ? 'bg-[#4338ca]' : 'bg-slate-200', 'relative inline-flex h-5 w-9 items-center rounded-full transition-colors align-middle -mt-0.5']">
-                  <span :class="[eventForm.is_recurring ? 'translate-x-4' : 'translate-x-0.5', 'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform']"></span>
-                </button>
-                <p class="text-[11px] text-slate-500 mt-1">Enable if this is a recurring event</p>
-              </div>
-
-            </div>
+          <div v-if="catDeleteError" class="p-2.5 bg-rose-50 text-rose-700 text-[12px] font-bold rounded-lg">
+            {{ catDeleteError }}
           </div>
-
-          <!-- Modal Footer -->
-          <div class="px-5 sm:px-6 py-3.5 sm:py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-            <button @click="closeEventModal" class="px-4 sm:px-5 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
-              Cancel
-            </button>
-            <button @click="saveEvent" :disabled="calendarStore.isSaving" class="px-4 sm:px-5 py-2 bg-[#4338ca] text-white font-bold rounded-lg text-[13px] hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60">
-              <svg v-if="calendarStore.isSaving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-              {{ calendarStore.isSaving ? 'Saving…' : 'Save Event' }}
-            </button>
+          <div class="flex items-center justify-center gap-3 pt-2">
+            <button @click="showDeleteCategoryModal = false" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[12px] font-bold">Cancel</button>
+            <button @click="handleDeleteCategory" class="px-5 py-2 bg-rose-600 text-white rounded-xl text-[12px] font-bold hover:bg-rose-700">Delete</button>
           </div>
         </div>
       </div>

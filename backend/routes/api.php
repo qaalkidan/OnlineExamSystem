@@ -99,6 +99,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
             ->parameters(['categories' => 'id']);
 
         // Calendar Academic Events
+        Route::get('calendar/events/export',   [\App\Http\Controllers\Api\V1\AdminCalendarController::class, 'exportEvents']);
         Route::get('calendar/events',          [\App\Http\Controllers\Api\V1\AdminCalendarController::class, 'indexEvents']);
         Route::post('calendar/events',         [\App\Http\Controllers\Api\V1\AdminCalendarController::class, 'storeEvent']);
         Route::put('calendar/events/{id}',     [\App\Http\Controllers\Api\V1\AdminCalendarController::class, 'updateEvent']);

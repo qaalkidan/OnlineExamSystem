@@ -46,8 +46,19 @@ export interface EventStats {
   total: number
   upcoming: number
   ongoing: number
+  completed?: number
+  cancelled?: number
   holidays: number
   exams: number
+  deadlines?: number
+  academic_weeks?: number | null
+  days_remaining?: number | null
+  period_start?: string | null
+  period_end?: string | null
+  current_year?: string
+  current_semester?: string
+  available_years?: string[]
+  available_semesters?: string[]
 }
 
 // ── Store ───────────────────────────────────────────────────
@@ -58,7 +69,24 @@ export const useCalendarStore = defineStore('calendar', () => {
 
   // --- Events ---
   const events = ref<AcademicEvent[]>([])
-  const eventStats = ref<EventStats>({ total: 0, upcoming: 0, ongoing: 0, holidays: 0, exams: 0 })
+  const eventStats = ref<EventStats>({
+    total: 0,
+    upcoming: 0,
+    ongoing: 0,
+    completed: 0,
+    cancelled: 0,
+    holidays: 0,
+    exams: 0,
+    deadlines: 0,
+    academic_weeks: null,
+    days_remaining: null,
+    period_start: null,
+    period_end: null,
+    current_year: '',
+    current_semester: '',
+    available_years: [],
+    available_semesters: []
+  })
 
   // --- UI state ---
   const isLoading = ref(false)
@@ -154,11 +182,17 @@ export const useCalendarStore = defineStore('calendar', () => {
   }
 
   // ── Event CRUD ───────────────────────────────────────────
-  async function fetchEvents() {
+  async function fetchEvents(filters?: {
+    academic_year?: string
+    semester?: string
+    category_id?: string | number
+    status?: string
+    search?: string
+  }) {
     isLoadingEvents.value = true
     error.value = null
     try {
-      const response = await api.get('/admin/calendar/events')
+      const response = await api.get('/admin/calendar/events', { params: filters })
       events.value = response.data.data
       eventStats.value = response.data.stats
     } catch (err: any) {

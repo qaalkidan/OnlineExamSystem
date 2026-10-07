@@ -77,7 +77,7 @@ const pageInfo = computed(() => {
   if (path.includes('/exams')) return { title: 'Exams', desc: 'Manage system-wide examinations and schedules.' }
   if (path.includes('/departments')) return { title: 'Departments', desc: 'Manage departments and organizational structure.' }
   if (path.includes('/reports')) return { title: 'Reports', desc: 'View and generate comprehensive reports about the system.' }
-  if (path.includes('/calendar')) return { title: 'Academic Calendar', desc: 'Manage academic terms, semesters, and important dates.' }
+  if (path.includes('/calendar') || path.includes('/academic-calendar')) return { title: 'Academic Calendar', desc: 'Manage academic terms, semesters, and important dates.' }
   if (path.includes('/settings')) return { title: 'Settings', desc: 'Global application settings and configuration.' }
   if (path.includes('/activity-logs')) return { title: 'Activity Logs', desc: 'Track and review all system activities and events.' }
   if (path.includes('/question-banks')) return { title: 'Question Banks', desc: 'Manage centralized pools of examination questions.' }
