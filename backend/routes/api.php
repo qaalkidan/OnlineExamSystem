@@ -130,6 +130,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::prefix('dept-head')->group(function () {
         Route::get('dashboard-stats', [\App\Http\Controllers\Api\V1\DeptHead\DashboardController::class, 'stats']);
         Route::get('instructors/export', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'export']);
+        Route::patch('instructors/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'updateStatus']);
+        Route::match(['put', 'post'], 'instructors/{id}', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'update']);
         Route::apiResource('instructors', \App\Http\Controllers\Api\V1\DeptHead\InstructorController::class);
         Route::apiResource('courses', \App\Http\Controllers\Api\V1\DeptHead\CourseController::class);
         Route::get('students/export', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'export']);

@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Api\V1\DeptHead;
 use App\Exports\DepartmentInstructorExport;
 use App\Helpers\LogActivity;
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
+use App\Models\Course;
 use App\Models\Department;
+use App\Models\Exam;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -18,96 +22,471 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class InstructorController extends Controller
 {
+    /**
+     * Resolve the department ID for the logged-in Department Head.
+     */
     private function resolveDeptId(Request $request): ?int
     {
         $user = $request->user();
-        if ($user->department_id) return $user->department_id;
+        if ($user->department_id) {
+            return $user->department_id;
+        }
+
         $dept = Department::where('head_id', $user->id)->first();
         if ($dept) {
             $user->update(['department_id' => $dept->id]);
             return $dept->id;
         }
+
         return null;
     }
 
     /**
-     * Display a listing of the instructors in the department.
+     * Display a listing of the instructors in the department with server-side
+     * search, filtering, sorting, pagination, and real KPI metrics.
      */
     public function index(Request $request): JsonResponse
     {
         $deptId = $this->resolveDeptId($request);
         $currentUserId = $request->user()->id;
+        $department = $deptId ? Department::find($deptId) : null;
 
-        $instructors = User::where('department_id', $deptId)
-            ->whereIn('role', ['instructor', 'dept_head'])
-            ->with(['assignedCourses', 'coInstructorCourses', 'creator'])
-            ->get();
+        // Base department instructors query
+        $baseQuery = User::where('department_id', $deptId)
+            ->whereIn('role', ['instructor', 'dept_head']);
 
-        $totalInstructors = $instructors->count();
-        $fullTimeCount = $instructors->filter(function ($i) {
+        // -------------------------------------------------------------
+        // 1. Department-wide KPI Statistics (unfiltered by current page)
+        // -------------------------------------------------------------
+        $allDeptInstructors = (clone $baseQuery)->with(['assignedCourses', 'coInstructorCourses'])->get();
+
+        $totalInstructors = $allDeptInstructors->count();
+
+        $fullTimeCount = $allDeptInstructors->filter(function ($i) {
             $et = strtolower($i->employment_type ?? 'full_time');
             $st = strtolower($i->status ?? 'active');
             return ($et === 'full_time' || $et === 'full time') && $st !== 'on_leave';
         })->count();
 
-        $partTimeCount = $instructors->filter(function ($i) {
+        $partTimeCount = $allDeptInstructors->filter(function ($i) {
             $et = strtolower($i->employment_type ?? '');
             $st = strtolower($i->status ?? '');
             return $et === 'part_time' || $et === 'part time' || $st === 'part time';
         })->count();
 
-        $onLeaveCount = $instructors->filter(function ($i) {
+        $onLeaveCount = $allDeptInstructors->filter(function ($i) {
             $st = strtolower($i->status ?? '');
             return $st === 'on_leave' || $st === 'on leave' || $st === 'leave';
         })->count();
 
-        $newThisSemester = $instructors->filter(function ($i) {
-            return $i->created_at && $i->created_at >= Carbon::now()->subMonths(6);
+        $activeCount = $allDeptInstructors->filter(function ($i) {
+            $st = strtolower($i->status ?? 'active');
+            return $st === 'active';
         })->count();
 
-        $data = $instructors->map(function ($instructor) use ($currentUserId) {
-            // Instructor is created by department head if created_by matches current user
-            // Otherwise, it was created by super admin
+        $inactiveCount = $allDeptInstructors->filter(function ($i) {
+            $st = strtolower($i->status ?? '');
+            return $st === 'inactive' || $st === 'suspended';
+        })->count();
+
+        // Instructors who currently have assigned courses
+        $withCoursesCount = $allDeptInstructors->filter(function ($i) {
+            return $i->assignedCourses->isNotEmpty() || $i->coInstructorCourses->isNotEmpty();
+        })->count();
+
+        $withoutCoursesCount = max(0, $totalInstructors - $withCoursesCount);
+
+        // -------------------------------------------------------------
+        // 2. Dynamic Available Filter Options for this Department
+        // -------------------------------------------------------------
+        $deptCourses = Course::where('department_id', $deptId)
+            ->get(['id', 'title', 'code', 'credits', 'section', 'level', 'semester']);
+
+        $availableCourses = $deptCourses->map(function ($c) {
+            return [
+                'id'      => $c->id,
+                'title'   => $c->title,
+                'code'    => $c->code,
+                'credits' => $c->credits,
+            ];
+        })->unique('id')->values()->all();
+
+        $availableYears = $allDeptInstructors->pluck('year_level')
+            ->concat($deptCourses->pluck('level'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $currentSemester = SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester';
+        $availableSemesters = collect([$currentSemester, 'First Semester', 'Second Semester', 'Summer Term'])
+            ->concat($allDeptInstructors->pluck('semester'))
+            ->concat($deptCourses->pluck('semester'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $availableSections = $allDeptInstructors->pluck('section')
+            ->concat($deptCourses->pluck('section'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        // -------------------------------------------------------------
+        // 3. Apply Filters & Search to Query
+        // -------------------------------------------------------------
+        $query = (clone $baseQuery)->with(['assignedCourses', 'coInstructorCourses', 'creator', 'department']);
+
+        // Search across name, email, username, employee ID
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%")
+                  ->orWhere('id_no', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        // Status Filter
+        if ($request->filled('status') && $request->status !== 'all') {
+            $status = strtolower($request->status);
+            if ($status === 'active') {
+                $query->where(function ($q) {
+                    $q->where('status', 'active')->orWhereNull('status');
+                });
+            } elseif ($status === 'on_leave') {
+                $query->whereIn('status', ['on_leave', 'on leave', 'leave']);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
+        // Employment Type Filter
+        if ($request->filled('employment_type') && $request->employment_type !== 'all') {
+            $et = strtolower($request->employment_type);
+            if ($et === 'full_time' || $et === 'full-time') {
+                $query->where(function ($q) {
+                    $q->where('employment_type', 'full_time')
+                      ->orWhere('employment_type', 'full time')
+                      ->orWhereNull('employment_type');
+                });
+            } elseif ($et === 'part_time' || $et === 'part-time') {
+                $query->where(function ($q) {
+                    $q->where('employment_type', 'part_time')
+                      ->orWhere('employment_type', 'part time');
+                });
+            }
+        }
+
+        // Year Level Filter
+        if ($request->filled('year') && $request->year !== 'all') {
+            $query->where('year_level', $request->year);
+        }
+
+        // Semester Filter
+        if ($request->filled('semester') && $request->semester !== 'all') {
+            $query->where('semester', $request->semester);
+        }
+
+        // Section Filter
+        if ($request->filled('section') && $request->section !== 'all') {
+            $query->where('section', $request->section);
+        }
+
+        // Course Filter: Instructors teaching a specific course
+        if ($request->filled('course_id') && $request->course_id !== 'all') {
+            $courseId = (int) $request->course_id;
+            $query->where(function ($q) use ($courseId) {
+                $q->whereHas('assignedCourses', function ($cq) use ($courseId) {
+                    $cq->where('id', $courseId);
+                })->orWhereHas('coInstructorCourses', function ($cq) use ($courseId) {
+                    $cq->where('id', $courseId);
+                });
+            });
+        }
+
+        // Teaching Assignment Status Filter
+        if ($request->filled('assignment') && $request->assignment !== 'all') {
+            if ($request->assignment === 'assigned') {
+                $query->where(function ($q) {
+                    $q->has('assignedCourses')->orHas('coInstructorCourses');
+                });
+            } elseif ($request->assignment === 'unassigned') {
+                $query->whereDoesntHave('assignedCourses')->whereDoesntHave('coInstructorCourses');
+            }
+        }
+
+        // -------------------------------------------------------------
+        // 4. Sorting
+        // -------------------------------------------------------------
+        $sortBy = $request->query('sort_by', 'name');
+        $sortOrder = strtolower($request->query('sort_order', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        switch ($sortBy) {
+            case 'id_no':
+                $query->orderBy('id_no', $sortOrder);
+                break;
+            case 'email':
+                $query->orderBy('email', $sortOrder);
+                break;
+            case 'status':
+                $query->orderBy('status', $sortOrder);
+                break;
+            case 'employment_type':
+                $query->orderBy('employment_type', $sortOrder);
+                break;
+            case 'created_at':
+                $query->orderBy('created_at', $sortOrder);
+                break;
+            case 'name':
+            default:
+                $query->orderBy('name', $sortOrder);
+                break;
+        }
+
+        // -------------------------------------------------------------
+        // 5. Pagination
+        // -------------------------------------------------------------
+        $perPage = (int) $request->query('per_page', 10);
+        if ($perPage <= 0 || $perPage > 100) {
+            $perPage = 10;
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        // -------------------------------------------------------------
+        // 6. Map Output Data
+        // -------------------------------------------------------------
+        $items = collect($paginator->items())->map(function ($instructor) use ($currentUserId, $deptId) {
+            $isSelf = ($instructor->id === $currentUserId);
             $isCreatedByDeptHead = ($instructor->created_by === $currentUserId);
 
+            $assignedCoursesList = $instructor->assignedCourses->map(function ($c) {
+                return [
+                    'id'       => $c->id,
+                    'title'    => $c->title,
+                    'code'     => $c->code,
+                    'credits'  => (int) ($c->credits ?? 3),
+                    'level'    => $c->level,
+                    'semester' => $c->semester,
+                    'section'  => $c->section,
+                    'status'   => $c->status ?? 'active',
+                ];
+            });
+
+            $coCoursesList = $instructor->coInstructorCourses->map(function ($c) {
+                return [
+                    'id'       => $c->id,
+                    'title'    => $c->title,
+                    'code'     => $c->code,
+                    'credits'  => (int) ($c->credits ?? 3),
+                    'level'    => $c->level,
+                    'semester' => $c->semester,
+                    'section'  => $c->section,
+                    'status'   => $c->status ?? 'active',
+                ];
+            });
+
+            $totalCredits = $assignedCoursesList->sum('credits');
+            $hasCourses = $assignedCoursesList->isNotEmpty() || $coCoursesList->isNotEmpty();
+
+            // Safety rules for delete & edit:
+            // 1. Department Head can edit instructors in their department
+            // 2. Department Head CANNOT delete their own account
+            // 3. Instructors with courses or exams should be deactivated, not permanently deleted
+            $canDelete = !$isSelf && !$hasCourses;
+            $canEdit = true;
+
             return [
-                'id'                 => $instructor->id,
-                'name'               => $instructor->name,
-                'email'              => $instructor->email,
-                'username'           => $instructor->username,
-                'phone'              => $instructor->phone,
-                'gender'             => $instructor->gender,
-                'id_no'              => $instructor->id_no,
-                'role'               => $instructor->role,
-                'department_id'      => $instructor->department_id,
-                'course_code'        => $instructor->course_code,
-                'course_name'        => $instructor->course_name,
-                'year_level'         => $instructor->year_level,
-                'semester'           => $instructor->semester,
-                'section'            => $instructor->section,
-                'status'             => $instructor->status ?? 'active',
-                'employment_type'    => $instructor->employment_type ?? 'full_time',
-                'created_by'         => $instructor->created_by,
-                'creator_name'       => $instructor->creator?->name ?? 'Super Admin',
-                'can_edit'           => $isCreatedByDeptHead,
-                'can_delete'         => $isCreatedByDeptHead,
-                'is_admin_created'   => !$isCreatedByDeptHead,
-                'profile_picture'    => $instructor->profile_picture,
-                'profile_picture_url'=> $instructor->profile_picture_url,
-                'created_at'         => $instructor->created_at,
-                'assigned_courses'   => $instructor->assignedCourses,
-                'co_instructor_courses' => $instructor->coInstructorCourses,
+                'id'                  => $instructor->id,
+                'name'                => $instructor->name,
+                'email'               => $instructor->email,
+                'username'            => $instructor->username,
+                'phone'               => $instructor->phone ?: '—',
+                'gender'              => $instructor->gender ?: 'Not specified',
+                'id_no'               => $instructor->id_no ?: 'INS-' . str_pad((string)$instructor->id, 4, '0', STR_PAD_LEFT),
+                'role'                => $instructor->role,
+                'department_id'       => $instructor->department_id,
+                'department_name'     => $instructor->department?->name ?? 'Department',
+                'course_code'         => $instructor->course_code,
+                'course_name'         => $instructor->course_name,
+                'year_level'          => $instructor->year_level ?: '—',
+                'semester'            => $instructor->semester ?: '—',
+                'section'             => $instructor->section ?: '—',
+                'status'              => $instructor->status ?? 'active',
+                'employment_type'     => $instructor->employment_type ?? 'full_time',
+                'office'              => $instructor->office ?: 'Department Office',
+                'created_by'          => $instructor->created_by,
+                'creator_name'        => $instructor->creator?->name ?? ($isCreatedByDeptHead ? 'Department Head' : 'Super Admin'),
+                'is_admin_created'    => !$isCreatedByDeptHead,
+                'is_self'             => $isSelf,
+                'can_edit'            => $canEdit,
+                'can_delete'          => $canDelete,
+                'can_deactivate'      => !$isSelf,
+                'profile_picture'     => $instructor->profile_picture,
+                'profile_picture_url' => $instructor->profile_picture_url,
+                'created_at'          => $instructor->created_at ? $instructor->created_at->toIso8601String() : null,
+                'joined_formatted'    => $instructor->created_at ? $instructor->created_at->format('M d, Y') : '—',
+                'assigned_courses'    => $assignedCoursesList,
+                'co_instructor_courses'=> $coCoursesList,
+                'courses_count'       => $assignedCoursesList->count(),
+                'total_credits'       => $totalCredits,
             ];
         });
 
         return response()->json([
-            'data' => $data,
-            'stats' => [
+            'status' => 'success',
+            'data'   => $items,
+            'stats'  => [
                 'total'             => $totalInstructors,
                 'full_time'         => $fullTimeCount,
                 'part_time'         => $partTimeCount,
                 'on_leave'          => $onLeaveCount,
-                'new_this_semester' => $newThisSemester,
+                'active'            => $activeCount,
+                'inactive'          => $inactiveCount,
+                'with_courses'      => $withCoursesCount,
+                'without_courses'   => $withoutCoursesCount,
+            ],
+            'filter_options' => [
+                'courses'   => $availableCourses,
+                'years'     => $availableYears,
+                'semesters' => $availableSemesters,
+                'sections'  => $availableSections,
+            ],
+            'department' => [
+                'id'      => $department?->id,
+                'name'    => ucwords($department?->name ?? 'Department'),
+                'code'    => $department?->code ?? 'DEPT',
+                'college' => $department?->college ?? 'College of Computing and Informatics',
+            ],
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * Display detailed profile, teaching assignments, and activity of an instructor.
+     */
+    public function show(Request $request, string $id): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $currentUserId = $request->user()->id;
+
+        $instructor = User::where('department_id', $deptId)
+            ->whereIn('role', ['instructor', 'dept_head'])
+            ->with(['assignedCourses', 'coInstructorCourses', 'creator', 'department'])
+            ->findOrFail($id);
+
+        $isSelf = ($instructor->id === $currentUserId);
+        $isCreatedByDeptHead = ($instructor->created_by === $currentUserId);
+
+        // Teaching Assignments
+        $assignedCourses = $instructor->assignedCourses->map(function ($c) {
+            return [
+                'id'       => $c->id,
+                'title'    => $c->title,
+                'code'     => $c->code,
+                'credits'  => (int) ($c->credits ?? 3),
+                'level'    => $c->level,
+                'semester' => $c->semester,
+                'section'  => $c->section,
+                'status'   => $c->status ?? 'active',
+            ];
+        });
+
+        $coCourses = $instructor->coInstructorCourses->map(function ($c) {
+            return [
+                'id'       => $c->id,
+                'title'    => $c->title,
+                'code'     => $c->code,
+                'credits'  => (int) ($c->credits ?? 3),
+                'level'    => $c->level,
+                'semester' => $c->semester,
+                'section'  => $c->section,
+                'status'   => $c->status ?? 'active',
+            ];
+        });
+
+        // Exams created by this instructor
+        $exams = Exam::where('user_id', $instructor->id)
+            ->latest('created_at')
+            ->take(10)
+            ->get(['id', 'title', 'course_code', 'duration_minutes', 'status', 'scheduled_at', 'created_at'])
+            ->map(function ($e) {
+                return [
+                    'id'               => $e->id,
+                    'title'            => $e->title,
+                    'course_code'      => $e->course_code,
+                    'duration_minutes' => $e->duration_minutes,
+                    'status'           => $e->status,
+                    'scheduled_human'  => $e->scheduled_at ? $e->scheduled_at->format('M d, Y • h:i A') : 'Flexible Window',
+                    'created_human'    => $e->created_at ? $e->created_at->format('M d, Y') : '—',
+                ];
+            });
+
+        // Recent Activity Logs by this instructor
+        $activities = ActivityLog::where('user_id', $instructor->id)
+            ->latest('created_at')
+            ->take(8)
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id'      => $log->id,
+                    'action'  => $log->action,
+                    'details' => $log->details,
+                    'module'  => $log->module,
+                    'time'    => $log->created_at ? $log->created_at->diffForHumans() : 'Recently',
+                    'date'    => $log->created_at ? $log->created_at->format('M d, Y h:i A') : '',
+                ];
+            });
+
+        $totalCredits = $assignedCourses->sum('credits');
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'id'                  => $instructor->id,
+                'name'                => $instructor->name,
+                'email'               => $instructor->email,
+                'username'            => $instructor->username,
+                'phone'               => $instructor->phone ?: '—',
+                'gender'              => $instructor->gender ?: 'Not specified',
+                'id_no'               => $instructor->id_no ?: 'INS-' . str_pad((string)$instructor->id, 4, '0', STR_PAD_LEFT),
+                'role'                => $instructor->role,
+                'department_id'       => $instructor->department_id,
+                'department_name'     => $instructor->department?->name ?? 'Department',
+                'year_level'          => $instructor->year_level ?: '—',
+                'semester'            => $instructor->semester ?: '—',
+                'section'             => $instructor->section ?: '—',
+                'status'              => $instructor->status ?? 'active',
+                'employment_type'     => $instructor->employment_type ?? 'full_time',
+                'office'              => $instructor->office ?: 'Department Office',
+                'created_by'          => $instructor->created_by,
+                'creator_name'        => $instructor->creator?->name ?? ($isCreatedByDeptHead ? 'Department Head' : 'Super Admin'),
+                'is_admin_created'    => !$isCreatedByDeptHead,
+                'is_self'             => $isSelf,
+                'can_edit'            => true,
+                'can_delete'          => !$isSelf && $assignedCourses->isEmpty(),
+                'can_deactivate'      => !$isSelf,
+                'profile_picture_url' => $instructor->profile_picture_url,
+                'joined_formatted'    => $instructor->created_at ? $instructor->created_at->format('M d, Y') : '—',
+                'assigned_courses'    => $assignedCourses,
+                'co_instructor_courses'=> $coCourses,
+                'courses_count'       => $assignedCourses->count(),
+                'total_credits'       => $totalCredits,
+                'exams'               => $exams,
+                'exams_count'         => $exams->count(),
+                'activities'          => $activities,
             ]
         ]);
     }
@@ -117,6 +496,8 @@ class InstructorController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $deptId = $this->resolveDeptId($request);
+
         $request->validate([
             'name'            => 'required|string|max:255',
             'email'           => 'required|email|unique:users,email',
@@ -124,6 +505,8 @@ class InstructorController extends Controller
             'gender'          => 'required|string|max:255',
             'id_no'           => 'required|string|max:255',
             'year_level'      => 'nullable|string|max:255',
+            'semester'        => 'nullable|string|max:255',
+            'section'         => 'nullable|string|max:255',
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'username'        => 'required|string|unique:users,username',
             'password'        => [
@@ -135,14 +518,12 @@ class InstructorController extends Controller
                 'regex:/[0-9]/',
                 'regex:/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?`~]/',
             ],
-            'employment_type' => 'nullable|string|max:50',
-            'status'          => 'nullable|string|max:50',
+            'employment_type' => 'nullable|string|in:full_time,part_time,full time,part time',
+            'status'          => 'nullable|string|in:active,on_leave,inactive,suspended',
         ], [
             'password.min'   => 'Password must be at least 8 characters long.',
             'password.regex' => 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
         ]);
-
-        $deptId = $this->resolveDeptId($request);
 
         $profilePicturePath = null;
         if ($request->hasFile('profile_picture')) {
@@ -150,13 +531,15 @@ class InstructorController extends Controller
         }
 
         $instructor = User::create([
-            'name'            => $request->name,
-            'email'           => $request->email,
-            'phone'           => $request->phone,
+            'name'            => trim($request->name),
+            'email'           => trim(strtolower($request->email)),
+            'phone'           => trim($request->phone),
             'gender'          => $request->gender,
-            'id_no'           => $request->id_no,
+            'id_no'           => trim($request->id_no),
             'year_level'      => $request->year_level,
-            'username'        => $request->username,
+            'semester'        => $request->semester,
+            'section'         => $request->section,
+            'username'        => trim($request->username),
             'password'        => Hash::make($request->password),
             'role'            => 'instructor',
             'department_id'   => $deptId,
@@ -173,6 +556,7 @@ class InstructorController extends Controller
         );
 
         return response()->json([
+            'status'  => 'success',
             'message' => 'Instructor created successfully',
             'data'    => $instructor
         ], 201);
@@ -188,14 +572,6 @@ class InstructorController extends Controller
             ->whereIn('role', ['instructor', 'dept_head'])
             ->findOrFail($id);
 
-        // Security / Permission Check:
-        // Instructors created by Super Admin can only be edited by Super Admin.
-        if ($instructor->created_by !== $request->user()->id) {
-            return response()->json([
-                'message' => 'You do not have permission to edit this instructor. Instructors created by Super Admin can only be edited by Super Admin.'
-            ], 403);
-        }
-
         $request->validate([
             'name'            => 'sometimes|string|max:255',
             'email'           => 'sometimes|email|unique:users,email,' . $instructor->id,
@@ -204,8 +580,9 @@ class InstructorController extends Controller
             'id_no'           => 'nullable|string|max:255',
             'year_level'      => 'nullable|string|max:255',
             'semester'        => 'nullable|string|max:255',
-            'status'          => 'nullable|string|max:50',
-            'employment_type' => 'nullable|string|max:50',
+            'section'         => 'nullable|string|max:255',
+            'status'          => 'nullable|string|in:active,on_leave,inactive,suspended',
+            'employment_type' => 'nullable|string|in:full_time,part_time,full time,part time',
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'password'        => [
                 'nullable',
@@ -229,6 +606,7 @@ class InstructorController extends Controller
             'id_no',
             'year_level',
             'semester',
+            'section',
             'status',
             'employment_type',
         ]);
@@ -250,13 +628,52 @@ class InstructorController extends Controller
         );
 
         return response()->json([
+            'status'  => 'success',
             'message' => 'Instructor updated successfully',
             'data'    => $instructor
         ]);
     }
 
     /**
-     * Remove the specified instructor from storage.
+     * Update the status of an instructor (active, on_leave, inactive).
+     */
+    public function updateStatus(Request $request, string $id): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $instructor = User::where('department_id', $deptId)
+            ->whereIn('role', ['instructor', 'dept_head'])
+            ->findOrFail($id);
+
+        $request->validate([
+            'status' => 'required|string|in:active,on_leave,inactive,suspended',
+        ]);
+
+        $newStatus = $request->input('status');
+
+        if ($instructor->id === $request->user()->id && $newStatus !== 'active') {
+            return response()->json([
+                'message' => 'You cannot change your own Department Head account status away from Active.'
+            ], 422);
+        }
+
+        $oldStatus = $instructor->status ?? 'active';
+        $instructor->update(['status' => $newStatus]);
+
+        LogActivity::record(
+            'Status Changed',
+            'Instructors',
+            "Changed status of Instructor \"{$instructor->name}\" from {$oldStatus} to {$newStatus}"
+        );
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Instructor status updated to " . ucfirst(str_replace('_', ' ', $newStatus)),
+            'data'    => $instructor
+        ]);
+    }
+
+    /**
+     * Remove the specified instructor from storage with safety checks.
      */
     public function destroy(Request $request, string $id): JsonResponse
     {
@@ -265,12 +682,21 @@ class InstructorController extends Controller
             ->whereIn('role', ['instructor', 'dept_head'])
             ->findOrFail($id);
 
-        // Security / Permission Check:
-        // Instructors created by Super Admin can only be deleted by Super Admin.
-        if ($instructor->created_by !== $request->user()->id) {
+        // Security check: cannot delete oneself
+        if ($instructor->id === $request->user()->id) {
             return response()->json([
-                'message' => 'You do not have permission to delete this instructor. Instructors created by Super Admin can only be deleted by Super Admin.'
+                'message' => 'You cannot delete your own Department Head account.'
             ], 403);
+        }
+
+        // Academic integrity check: cannot delete if active courses or exams exist
+        $coursesCount = Course::where('instructor_id', $instructor->id)->count();
+        $examsCount = Exam::where('user_id', $instructor->id)->count();
+
+        if ($coursesCount > 0 || $examsCount > 0) {
+            return response()->json([
+                'message' => "Cannot permanently delete this instructor because they have {$coursesCount} assigned course(s) and {$examsCount} examination record(s). To preserve academic records, please set their status to Inactive instead."
+            ], 422);
         }
 
         $instructorName = $instructor->name;
@@ -282,7 +708,10 @@ class InstructorController extends Controller
             "Deleted Instructor \"$instructorName\""
         );
 
-        return response()->json(['message' => 'Instructor deleted successfully']);
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Instructor deleted successfully'
+        ]);
     }
 
     /**
@@ -306,8 +735,26 @@ class InstructorController extends Controller
                 $query->where(function ($q) {
                     $q->where('status', 'active')->orWhereNull('status');
                 });
+            } elseif ($status === 'on_leave') {
+                $query->whereIn('status', ['on_leave', 'on leave', 'leave']);
             } else {
                 $query->where('status', $status);
+            }
+        }
+
+        if ($request->filled('employment_type') && $request->employment_type !== 'all') {
+            $et = strtolower($request->employment_type);
+            if ($et === 'full_time' || $et === 'full-time') {
+                $query->where(function ($q) {
+                    $q->where('employment_type', 'full_time')
+                      ->orWhere('employment_type', 'full time')
+                      ->orWhereNull('employment_type');
+                });
+            } elseif ($et === 'part_time' || $et === 'part-time') {
+                $query->where(function ($q) {
+                    $q->where('employment_type', 'part_time')
+                      ->orWhere('employment_type', 'part time');
+                });
             }
         }
 
@@ -315,15 +762,31 @@ class InstructorController extends Controller
             $query->where('year_level', $request->year);
         }
 
+        if ($request->filled('semester') && $request->semester !== 'all') {
+            $query->where('semester', $request->semester);
+        }
+
         if ($request->filled('section') && $request->section !== 'all') {
             $query->where('section', $request->section);
         }
 
+        if ($request->filled('course_id') && $request->course_id !== 'all') {
+            $courseId = (int) $request->course_id;
+            $query->where(function ($q) use ($courseId) {
+                $q->whereHas('assignedCourses', function ($cq) use ($courseId) {
+                    $cq->where('id', $courseId);
+                })->orWhereHas('coInstructorCourses', function ($cq) use ($courseId) {
+                    $cq->where('id', $courseId);
+                });
+            });
+        }
+
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = trim($request->search);
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%")
                   ->orWhere('id_no', 'like', "%{$search}%");
             });
         }
