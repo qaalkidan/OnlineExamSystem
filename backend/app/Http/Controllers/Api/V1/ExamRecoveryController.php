@@ -23,12 +23,34 @@ class ExamRecoveryController extends Controller
     {
         $student = $request->user();
 
+        if ($student->role !== 'student') {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Logged in user is not a student (role: ' . $student->role . '). Please ensure you are logged in with the student account.',
+            ], 403);
+        }
+
         $attempt = ExamAttempt::where('exam_id', $exam->id)
             ->where('user_id', $student->id)
             ->where('status', 'in_progress')
             ->first();
 
         if (!$attempt) {
+            $alreadyDone = ExamAttempt::where('exam_id', $exam->id)
+                ->where('user_id', $student->id)
+                ->whereIn('status', ['submitted', 'graded', 'published'])
+                ->exists();
+
+            if ($alreadyDone) {
+                return response()->json([
+                    'status'        => 'success',
+                    'is_submitted'  => true,
+                    'is_cancelled'  => false,
+                    'is_paused'     => false,
+                    'message'       => 'Exam has already been submitted.',
+                ], 200);
+            }
+
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Active exam attempt not found.',
@@ -93,6 +115,13 @@ class ExamRecoveryController extends Controller
     public function reconnect(Request $request, Exam $exam): JsonResponse
     {
         $student = $request->user();
+
+        if ($student->role !== 'student') {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Logged in user is not a student (role: ' . $student->role . '). Please ensure you are logged in with the student account.',
+            ], 403);
+        }
 
         $attempt = ExamAttempt::where('exam_id', $exam->id)
             ->where('user_id', $student->id)

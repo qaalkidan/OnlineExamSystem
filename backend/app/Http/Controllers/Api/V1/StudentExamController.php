@@ -252,6 +252,12 @@ class StudentExamController extends Controller
     {
         $student = $request->user();
 
+        if ($student->role !== 'student') {
+            return response()->json([
+                'message' => 'You are currently authenticated as ' . $student->role . ' (' . $student->name . '), not a student. Please log in with your student account.',
+            ], 403);
+        }
+
         // Verify exam is published or scheduled
         if (!in_array($exam->status, ['published', 'scheduled'])) {
             if ($exam->isCancelled()) {
@@ -279,31 +285,21 @@ class StudentExamController extends Controller
             ], 403);
         }
 
-        // Enforce time window: student cannot start before scheduled_at or after the exam ends
-        if ($exam->scheduled_at) {
-            $now = Carbon::now();
-            $examStart = $exam->scheduled_at;
-            $examEnd = $exam->scheduled_at->copy()->addMinutes($exam->duration_minutes);
-
-            if ($now->lt($examStart)) {
-                return response()->json([
-                    'message' => 'This exam has not started yet. It starts at ' . $examStart->format('g:i A') . '.'
-                ], 403);
-            }
-
-            if ($now->gte($examEnd)) {
-                return response()->json([
-                    'message' => 'This exam has already ended.'
-                ], 403);
-            }
-        }
-
-        // Check if student already has an attempt
+        // Check if student already has an attempt FIRST (to allow resuming in-progress attempts)
         $existingAttempt = ExamAttempt::where('exam_id', $exam->id)
             ->where('user_id', $student->id)
             ->first();
 
         if ($existingAttempt && $existingAttempt->status === 'in_progress') {
+            // Check if student's allocated time (including any approved extra time) has fully elapsed
+            $remainingSeconds = $existingAttempt->getRemainingSeconds();
+            if ($remainingSeconds <= 0) {
+                return response()->json([
+                    'message'      => 'Your examination time has expired.',
+                    'time_expired' => true,
+                ], 403);
+            }
+
             // Resume existing attempt — return questions again
             $questions = $exam->questions()->get()->map(fn($q) => [
                 'id'          => $q->id,
@@ -332,7 +328,7 @@ class StudentExamController extends Controller
                     'saved_answers'      => $existingAttempt->answers ?? [],
                     'extra_time_seconds' => $existingAttempt->extra_time_seconds ?? 0,
                     'adjusted_deadline'  => $existingAttempt->getAdjustedDeadline()?->toIso8601String(),
-                    'remaining_seconds'  => $existingAttempt->getRemainingSeconds(),
+                    'remaining_seconds'  => $remainingSeconds,
                     'is_cancelled'       => false,
                     'settings'           => $exam->settings ?? [],
                     'questions'          => $questions,
@@ -342,6 +338,25 @@ class StudentExamController extends Controller
 
         if ($existingAttempt && (in_array($existingAttempt->status, ['submitted', 'graded', 'published']) || $existingAttempt->submitted_at !== null)) {
             return response()->json(['message' => 'You have already completed this exam.'], 409);
+        }
+
+        // Enforce time window ONLY for starting NEW attempts
+        if ($exam->scheduled_at) {
+            $now = Carbon::now();
+            $examStart = $exam->scheduled_at;
+            $examEnd = $exam->scheduled_at->copy()->addMinutes($exam->duration_minutes);
+
+            if ($now->lt($examStart)) {
+                return response()->json([
+                    'message' => 'This exam has not started yet. It starts at ' . $examStart->format('g:i A') . '.'
+                ], 403);
+            }
+
+            if ($now->gte($examEnd)) {
+                return response()->json([
+                    'message' => 'This exam has already ended.'
+                ], 403);
+            }
         }
 
         // Create new attempt
@@ -400,6 +415,12 @@ class StudentExamController extends Controller
     public function submit(Request $request, Exam $exam): JsonResponse
     {
         $student = $request->user();
+
+        if ($student->role !== 'student') {
+            return response()->json([
+                'message' => 'You are currently authenticated as ' . $student->role . ' (' . $student->name . '), not a student. Please log in with your student account.',
+            ], 403);
+        }
 
         if ($exam->isCancelled()) {
             return response()->json([
