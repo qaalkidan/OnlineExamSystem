@@ -18,33 +18,63 @@ const profileDropdownRef = ref<HTMLElement | null>(null)
 const isNotificationsOpen = ref(false)
 const notificationsRef = ref<HTMLElement | null>(null)
 
-// Department Head notifications
-const notifications = ref([
-  {
-    id: 1,
-    title: '3 instructors submitted semester packages',
-    subtitle: '2025/2026 First Semester ready for review',
-    time: '15m ago',
-    unread: true,
-    link: '/dept-head/semester-submissions'
-  },
-  {
-    id: 2,
-    title: 'New student information submitted',
-    subtitle: 'Instructor Abebe submitted student list for approval',
-    time: '1h ago',
-    unread: true,
-    link: '/dept-head/semester-submissions'
-  },
-  {
-    id: 3,
-    title: 'Exam schedule published',
-    subtitle: 'First semester department examination schedule',
-    time: '2h ago',
-    unread: true,
-    link: '/dept-head/schedule'
+import apiClient from '../../core/api/apiClient'
+
+// Department Head notifications from real backend state
+const notifications = ref<any[]>([])
+
+const fetchNotifications = async () => {
+  try {
+    const res = await apiClient.get('/dept-head/dashboard-stats')
+    const items: any[] = []
+    
+    // Check pending semester submissions
+    const subKpi = res.data?.data?.stats?.find((s: any) => s.id === 'submissions')
+    const subCount = subKpi ? Number(subKpi.value) : 0
+    if (subCount > 0) {
+      items.push({
+        id: 'sub-pending',
+        title: `${subCount} semester package${subCount > 1 ? 's' : ''} pending review`,
+        subtitle: 'Instructor submission package requires your review and approval',
+        time: 'Pending Review',
+        unread: true,
+        link: '/dept-head/semester-submissions'
+      })
+    }
+
+    // Check active exams
+    const activeExamsKpi = res.data?.data?.stats?.find((s: any) => s.id === 'active_exams')
+    const activeCount = activeExamsKpi ? Number(activeExamsKpi.value) : 0
+    if (activeCount > 0) {
+      items.push({
+        id: 'exam-active',
+        title: `${activeCount} department exam${activeCount > 1 ? 's' : ''} active`,
+        subtitle: 'Review schedule, questions, and attempt monitoring',
+        time: 'Active',
+        unread: false,
+        link: '/dept-head/exams'
+      })
+    }
+
+    // Check upcoming academic events
+    const anns = res.data?.data?.announcements || []
+    if (anns.length > 0) {
+      items.push({
+        id: 'ann-' + anns[0].id,
+        title: anns[0].title,
+        subtitle: anns[0].desc,
+        time: anns[0].date_formatted || anns[0].date_start || 'Upcoming',
+        unread: false,
+        link: '/dept-head/schedule'
+      })
+    }
+
+    notifications.value = items
+  } catch (err) {
+    console.warn('Failed to load dept notifications', err)
+    notifications.value = []
   }
-])
+}
 
 const unreadCount = computed(() => notifications.value.filter(n => n.unread).length)
 
@@ -95,6 +125,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   authStore.fetchCurrentUser()
+  settingsStore.fetchSettings()
+  fetchNotifications()
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeyDown)
 })
