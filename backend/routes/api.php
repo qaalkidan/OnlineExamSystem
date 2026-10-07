@@ -55,6 +55,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     // ------------------------------------------------------------------
     Route::prefix('admin')->group(function () {
         Route::get('dashboard-stats', [\App\Http\Controllers\Api\V1\AdminDashboardController::class, 'index']);
+        Route::get('dashboard/system-status', [\App\Http\Controllers\Api\V1\AdminDashboardController::class, 'systemStatus']);
         Route::apiResource('departments', \App\Http\Controllers\Api\V1\DepartmentController::class);
         Route::post('departments/{department}/assign-head', [\App\Http\Controllers\Api\V1\DepartmentController::class, 'assignHead']);
         Route::apiResource('users', \App\Http\Controllers\Api\V1\AdminUserController::class);
