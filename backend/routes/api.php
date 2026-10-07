@@ -81,7 +81,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::get('activity-logs/export', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'export']);
         Route::get('activity-logs/{id}', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'show']);
         Route::post('activity-logs/{id}/read', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'markAsRead']);
-        Route::get('activity-logs', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'index']);
+        Route::get('settings/info', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'systemInfo']);
+        Route::post('settings/reset-defaults', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'resetDefaults']);
         Route::post('settings', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'store']);
 
         // Admin Exam Control & Recovery Overrides

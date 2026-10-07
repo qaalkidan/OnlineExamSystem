@@ -173,6 +173,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const updateUserProfile = async (profileData: any) => {
+    const response = await apiClient.put('/user/profile', profileData)
+    if (response.data?.data) {
+      user.value = response.data.data
+      localStorage.setItem('auth_user', JSON.stringify(response.data.data))
+    }
+    return response.data
+  }
+
   const logout = async () => {
     try {
       await apiClient.post('/logout')
@@ -207,6 +216,7 @@ export const useAuthStore = defineStore('auth', () => {
     completeInstructorSetup,
     fetchCurrentUser,
     updateProfilePhoto,
+    updateUserProfile,
     logout
   }
 })
