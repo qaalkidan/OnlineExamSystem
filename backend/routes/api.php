@@ -133,6 +133,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::patch('instructors/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'updateStatus']);
         Route::match(['put', 'post'], 'instructors/{id}', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'update']);
         Route::apiResource('instructors', \App\Http\Controllers\Api\V1\DeptHead\InstructorController::class);
+        Route::get('courses/export', [\App\Http\Controllers\Api\V1\DeptHead\CourseController::class, 'export']);
         Route::apiResource('courses', \App\Http\Controllers\Api\V1\DeptHead\CourseController::class);
         Route::get('students/export', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'export']);
         Route::get('students', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'index']);
