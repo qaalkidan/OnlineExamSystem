@@ -141,10 +141,16 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::patch('students/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'updateStatus']);
         Route::match(['put', 'post'], 'students/{id}', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'update']);
         Route::delete('students/{id}', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'destroy']);
+        Route::get('exams/export', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'export']);
         Route::get('exams', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'index']);
         Route::post('exams', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'store']);
         Route::get('exams/{id}', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'show']);
-        Route::delete('exams/{id}', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'destroy']);
+        Route::match(['put', 'post'], 'exams/{id}', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'update']);
+        Route::post('exams/{id}/cancel', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'cancel']);
+        Route::post('exams/{id}/assign-instructor', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'assignInstructor']);
+        Route::get('results/export', [\App\Http\Controllers\Api\V1\DeptHead\ResultController::class, 'export']);
+        Route::get('results/attempt/{attemptId}', [\App\Http\Controllers\Api\V1\DeptHead\ResultController::class, 'showAttemptDetails']);
+        Route::post('results/{examId}/publish', [\App\Http\Controllers\Api\V1\DeptHead\ResultController::class, 'publishExamResults']);
         Route::get('results', [\App\Http\Controllers\Api\V1\DeptHead\ResultController::class, 'index']);
         Route::get('results/{examId}', [\App\Http\Controllers\Api\V1\DeptHead\ResultController::class, 'showExamResults']);
         Route::get('reports', [\App\Http\Controllers\Api\V1\DeptHead\ReportController::class, 'index']);
