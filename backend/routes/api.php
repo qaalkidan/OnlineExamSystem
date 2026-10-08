@@ -136,7 +136,6 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::apiResource('courses', \App\Http\Controllers\Api\V1\DeptHead\CourseController::class);
         Route::get('students/export', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'export']);
         Route::get('students', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'index']);
-        Route::post('students', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'store']);
         Route::get('students/{id}', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'show']);
         Route::patch('students/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'updateStatus']);
         Route::match(['put', 'post'], 'students/{id}', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'update']);
