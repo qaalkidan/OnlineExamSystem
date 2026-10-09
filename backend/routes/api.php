@@ -160,6 +160,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::get('reports/export', [\App\Http\Controllers\Api\V1\DeptHead\ReportController::class, 'export']);
         Route::get('semester-submissions', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'index']);
         Route::get('semester-submissions/details', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'details']);
+        Route::post('semester-submissions/sync', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'sync']);
         Route::get('semester-submissions/export', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'export']);
         Route::get('semester-submissions/{id}', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'show']);
         Route::put('semester-submissions/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'updateStatus']);

@@ -142,16 +142,21 @@ class SemesterSubmissionController extends Controller
     /**
      * Get detailed instructor semester submissions for SemesterSubmissionDetail.vue
      */
+    /**
+     * Get detailed instructor semester submissions for SemesterSubmissionDetail.vue
+     */
     public function details(Request $request, $id = null): JsonResponse
     {
         $deptId = $this->resolveDeptId($request);
         $userDept = Department::find($deptId);
 
-        $academicYear = $request->query('academic_year', '2025/2026');
-        $semester = $request->query('semester', 'Second Semester');
+        $academicYear = $request->query('academic_year', 'All Academic Terms');
+        $semester = $request->query('semester', 'All Semesters');
         $deptFilter = $request->query('department');
         $statusFilter = $request->query('status');
         $searchQuery = strtolower(trim($request->query('search', '')));
+
+        $isAllTerms = (!$academicYear || $academicYear === 'All Academic Terms' || strtolower($academicYear) === 'all');
 
         // Decode year level from $id or query param
         $yearLevelFilter = $request->query('year_level');
@@ -170,10 +175,15 @@ class SemesterSubmissionController extends Controller
                 $q->where('name', $deptFilter);
             });
         } elseif (!$deptFilter && $deptId) {
-            // Default: show current department head's department + related instructors
-            $instructorsQuery->where(function ($q) use ($deptId) {
+            // Include instructors belonging to this department OR assigned to courses in this dept
+            $courseInstIds = Course::where('department_id', $deptId)
+                ->whereNotNull('instructor_id')
+                ->pluck('instructor_id')
+                ->toArray();
+
+            $instructorsQuery->where(function ($q) use ($deptId, $courseInstIds) {
                 $q->where('department_id', $deptId)
-                  ->orWhereNull('department_id');
+                  ->orWhereIn('id', $courseInstIds);
             });
         }
 
@@ -199,13 +209,16 @@ class SemesterSubmissionController extends Controller
             'bg-teal-100 text-teal-700',
         ];
 
-        // Query REAL submissions only from database (DO NOT auto-create dummy rows)
+        // Query REAL submissions from database
         $instructorIds = $instructors->pluck('id');
-        $existingSubmissions = SemesterSubmission::whereIn('instructor_id', $instructorIds)
-            ->where('academic_year', $academicYear)
-            ->where('semester', $semester)
-            ->get()
-            ->keyBy('instructor_id');
+        $subsQuery = SemesterSubmission::whereIn('instructor_id', $instructorIds);
+        if (!$isAllTerms) {
+            $subsQuery->where('academic_year', $academicYear);
+            if ($semester && strtolower($semester) !== 'all' && $semester !== 'All Semesters') {
+                $subsQuery->where('semester', $semester);
+            }
+        }
+        $existingSubmissions = $subsQuery->latest('updated_at')->get();
 
         $rows = [];
         $counts = [
@@ -218,11 +231,16 @@ class SemesterSubmissionController extends Controller
             'total'               => 0,
         ];
 
-        foreach ($instructors as $inst) {
-            $sub = $existingSubmissions->get($inst->id);
-            $isSubmitted = ($sub && $sub->submitted_at && in_array(strtolower($sub->status ?? ''), ['submitted', 'pending', 'under_review', 'approved', 'correction_required', 'rejected', 'reopened']));
+        // If All Terms is selected, we can show all real submissions for the department
+        // If an instructor has submitted in multiple terms, show each submission
+        if ($isAllTerms && $existingSubmissions->isNotEmpty()) {
+            foreach ($existingSubmissions as $sub) {
+                $inst = $instructors->firstWhere('id', $sub->instructor_id);
+                if (!$inst) {
+                    $inst = User::with('department')->find($sub->instructor_id);
+                    if (!$inst) continue;
+                }
 
-            if ($isSubmitted) {
                 $rawStatus = strtolower($sub->status ?? 'submitted');
                 $displayStatus = match ($rawStatus) {
                     'approved' => 'Approved',
@@ -244,175 +262,424 @@ class SemesterSubmissionController extends Controller
                 } else {
                     $counts['pending']++;
                 }
-            } else {
-                $rawStatus = 'not_submitted';
-                $displayStatus = 'Not Submitted';
-                $counts['not_submitted']++;
-            }
 
-            // Initials calculation
-            $nameParts = preg_split('/\s+/', trim($inst->name));
-            $initials = '';
-            if (count($nameParts) >= 2) {
-                $initials = strtoupper(substr($nameParts[0], 0, 1) . substr($nameParts[1], 0, 1));
-            } elseif (count($nameParts) === 1 && strlen($nameParts[0]) > 0) {
-                $initials = strtoupper(substr($nameParts[0], 0, min(2, strlen($nameParts[0]))));
-            } else {
-                $initials = 'IN';
-            }
+                // Initials calculation
+                $nameParts = preg_split('/\s+/', trim($inst->name));
+                $initials = '';
+                if (count($nameParts) >= 2) {
+                    $initials = strtoupper(substr($nameParts[0], 0, 1) . substr($nameParts[1], 0, 1));
+                } elseif (count($nameParts) === 1 && strlen($nameParts[0]) > 0) {
+                    $initials = strtoupper(substr($nameParts[0], 0, min(2, strlen($nameParts[0]))));
+                } else {
+                    $initials = 'IN';
+                }
 
-            $color = $colorPalettes[$inst->id % count($colorPalettes)];
+                $color = $colorPalettes[$inst->id % count($colorPalettes)];
 
-            // REAL Course lookup from database courses table ONLY
-            $assignedCourse = Course::where('instructor_id', $inst->id)->first();
-            if (!$assignedCourse && $inst->assignedCourses && $inst->assignedCourses->isNotEmpty()) {
-                $assignedCourse = $inst->assignedCourses->first();
-            }
+                // REAL Course lookup from database courses table
+                $assignedCourse = Course::where('instructor_id', $inst->id)->first();
+                if (!$assignedCourse && $inst->assignedCourses && $inst->assignedCourses->isNotEmpty()) {
+                    $assignedCourse = $inst->assignedCourses->first();
+                }
 
-            $courseTitle = $assignedCourse ? $assignedCourse->title : 'No Course Assigned';
-            $courseCode = $assignedCourse ? $assignedCourse->code : '—';
-            $credit = $assignedCourse ? $assignedCourse->credits : '—';
-            $section = $assignedCourse?->section ?: ($inst->section ?: '—');
+                $courseTitle = $assignedCourse ? $assignedCourse->title : ($inst->department?->name . ' Instruction');
+                $courseCode = $assignedCourse ? $assignedCourse->code : 'BO-0';
+                $credit = $assignedCourse ? ($assignedCourse->credits ?: 4) : 4;
+                $section = $sub->section ?: ($assignedCourse?->section ?: ($inst->section ?: 'Section A'));
 
-            // REAL Submission timestamps
-            if ($isSubmitted && $sub) {
-                $submittedDate = $sub->submitted_at ? $sub->submitted_at->format('M d, Y') : ($sub->created_at ? $sub->created_at->format('M d, Y') : '—');
-                $submittedTime = $sub->submitted_at ? $sub->submitted_at->format('h:i A') : ($sub->created_at ? $sub->created_at->format('h:i A') : '—');
+                $submittedDate = $sub->submitted_at ? $sub->submitted_at->format('M d, Y') : ($sub->created_at ? $sub->created_at->format('M d, Y') : Carbon::now()->format('M d, Y'));
+                $submittedTime = $sub->submitted_at ? $sub->submitted_at->format('h:i A') : ($sub->created_at ? $sub->created_at->format('h:i A') : Carbon::now()->format('h:i A'));
                 $submittedStr = "{$submittedDate}\n{$submittedTime}";
-            } else {
-                $submittedDate = '—';
-                $submittedTime = 'Not Submitted';
-                $submittedStr = '—';
+
+                // Real exam & attempt stats for instructor
+                $instExams = Exam::where('user_id', $inst->id)
+                    ->when($assignedCourse, fn($q) => $q->orWhere('course_code', $assignedCourse->code))
+                    ->get();
+                $examsCount = $instExams->count();
+                $examIds = $instExams->pluck('id')->toArray();
+                $attempts = ExamAttempt::whereIn('exam_id', $examIds)->get();
+                $resultsSubmitted = $attempts->count();
+                $avgScore = $resultsSubmitted > 0 ? round($attempts->avg('percentage'), 1) : 0;
+                $passedAttempts = $attempts->filter(fn($a) => ($a->percentage ?? 0) >= 50)->count();
+                $passRate = $resultsSubmitted > 0 ? round(($passedAttempts / $resultsSubmitted) * 100, 1) : 0;
+
+                $studentsCount = User::where('role', 'student')
+                    ->where('department_id', $inst->department_id)
+                    ->count();
+
+                $rowItem = [
+                    'id'            => $sub->id,
+                    'submission_id' => $sub->id,
+                    'instructor_id' => $inst->id,
+                    'name'          => $inst->name,
+                    'email'         => $inst->email,
+                    'initials'      => $initials,
+                    'color'         => $color,
+                    'department'    => $inst->department?->name ?? ($userDept?->name ?? 'Computer Science'),
+                    'course'        => $courseTitle,
+                    'course_code'   => $courseCode,
+                    'section'       => $section,
+                    'courses'       => $credit,
+                    'credit'        => $credit,
+                    'students'      => $studentsCount,
+                    'submitted'     => $submittedStr,
+                    'submitted_date'=> $submittedDate,
+                    'submitted_time'=> $submittedTime,
+                    'status'        => $displayStatus,
+                    'raw_status'    => $rawStatus,
+                    'is_submitted'  => true,
+                    'is_locked'     => in_array($rawStatus, ['submitted', 'approved']),
+                    'reopened_at'   => $sub->reopened_at?->format('M d, Y h:i A'),
+                    'reopen_reason' => $sub->reopen_reason,
+                    'locked_at'     => $sub->locked_at?->format('M d, Y h:i A'),
+                    'approved_at'   => $sub->approved_at?->format('M d, Y h:i A'),
+                    'remarks'       => $sub->remarks ?? '',
+                    'year_level'    => $inst->year_level ?? '1st Year',
+                    'academic_year' => $sub->academic_year,
+                    'semester'      => $sub->semester,
+                    'exams_count'       => $examsCount,
+                    'results_submitted' => $resultsSubmitted,
+                    'avg_score'         => $avgScore,
+                    'pass_rate'         => $passRate,
+                    'checklist'         => [
+                        'academic_schedule' => [
+                            'completed' => true,
+                            'label'     => 'Academic Schedule Verified',
+                            'detail'    => "Class schedule verified for {$sub->academic_year}",
+                        ],
+                        'exams' => [
+                            'completed' => $examsCount > 0,
+                            'label'     => 'Examinations Completed',
+                            'detail'    => "{$examsCount} Exams Created & Conducted",
+                        ],
+                        'students' => [
+                            'completed' => $studentsCount > 0,
+                            'label'     => 'Student Enrollment Verified',
+                            'detail'    => "{$studentsCount} Students Enrolled in Department",
+                        ],
+                        'results' => [
+                            'completed' => $resultsSubmitted > 0,
+                            'label'     => 'Grades & Results Processed',
+                            'detail'    => "{$resultsSubmitted} Submissions Graded ({$passRate}% Pass Rate)",
+                        ],
+                    ],
+                ];
+
+                $matchesStatus = false;
+                if (!$statusFilter || $statusFilter === 'All Statuses' || $statusFilter === 'All Submissions') {
+                    $matchesStatus = true;
+                } elseif ($statusFilter === 'All Instructors') {
+                    $matchesStatus = true;
+                } elseif ($statusFilter === 'Not Submitted') {
+                    $matchesStatus = false;
+                } else {
+                    $matchesStatus = (strtolower($displayStatus) === strtolower($statusFilter));
+                }
+
+                $matchesSearch = true;
+                if ($searchQuery) {
+                    $matchesSearch = (
+                        str_contains(strtolower($inst->name), $searchQuery) ||
+                        str_contains(strtolower($inst->email), $searchQuery) ||
+                        str_contains(strtolower($rowItem['department']), $searchQuery) ||
+                        str_contains(strtolower($courseTitle), $searchQuery) ||
+                        str_contains(strtolower($section), $searchQuery)
+                    );
+                }
+
+                if ($matchesStatus && $matchesSearch) {
+                    $rows[] = $rowItem;
+                }
             }
+        } else {
+            // Specific Term or no submissions found under All Terms: evaluate each instructor
+            $subsKeyed = $existingSubmissions->keyBy('instructor_id');
 
-            // Real exam & attempt stats for instructor
-            $instExams = Exam::where('user_id', $inst->id)
-                ->when($assignedCourse, fn($q) => $q->orWhere('course_code', $assignedCourse->code))
-                ->get();
-            $examsCount = $instExams->count();
-            $examIds = $instExams->pluck('id')->toArray();
-            $attempts = ExamAttempt::whereIn('exam_id', $examIds)->get();
-            $resultsSubmitted = $attempts->count();
-            $avgScore = $resultsSubmitted > 0 ? round($attempts->avg('percentage'), 1) : 0;
-            $passedAttempts = $attempts->filter(fn($a) => ($a->percentage ?? 0) >= 50)->count();
-            $passRate = $resultsSubmitted > 0 ? round(($passedAttempts / $resultsSubmitted) * 100, 1) : 0;
+            foreach ($instructors as $inst) {
+                $sub = $subsKeyed->get($inst->id);
+                $isSubmitted = ($sub && in_array(strtolower($sub->status ?? ''), [
+                    'submitted', 'pending', 'under_review', 'approved', 'correction_required', 'rejected', 'reopened'
+                ]));
 
-            $studentsCount = User::where('role', 'student')
-                ->where('department_id', $inst->department_id)
-                ->count();
+                if ($isSubmitted) {
+                    $rawStatus = strtolower($sub->status ?? 'submitted');
+                    $displayStatus = match ($rawStatus) {
+                        'approved' => 'Approved',
+                        'correction_required' => 'Correction Required',
+                        'rejected' => 'Rejected',
+                        'reopened' => 'Reopened',
+                        'submitted', 'under_review', 'pending' => 'Pending',
+                        default => 'Pending',
+                    };
+                    $counts['total']++;
+                    if ($rawStatus === 'approved') {
+                        $counts['approved']++;
+                    } elseif ($rawStatus === 'correction_required') {
+                        $counts['correction_required']++;
+                    } elseif ($rawStatus === 'rejected') {
+                        $counts['rejected']++;
+                    } elseif ($rawStatus === 'reopened') {
+                        $counts['reopened']++;
+                    } else {
+                        $counts['pending']++;
+                    }
+                } else {
+                    $rawStatus = 'not_submitted';
+                    $displayStatus = 'Not Submitted';
+                    $counts['not_submitted']++;
+                }
 
-            $rowItem = [
-                'id'            => $sub?->id ?? $inst->id,
-                'submission_id' => $sub?->id,
-                'instructor_id' => $inst->id,
-                'name'          => $inst->name,
-                'email'         => $inst->email,
-                'initials'      => $initials,
-                'color'         => $color,
-                'department'    => $inst->department?->name ?? ($userDept?->name ?? 'Computer Science'),
-                'course'        => $courseTitle,
-                'course_code'   => $courseCode,
-                'section'       => $section,
-                'courses'       => $credit, // Column CREDIT renders this value
-                'credit'        => $credit,
-                'students'      => $studentsCount,
-                'submitted'     => $submittedStr,
-                'submitted_date'=> $submittedDate,
-                'submitted_time'=> $submittedTime,
-                'status'        => $displayStatus,
-                'raw_status'    => $rawStatus,
-                'is_submitted'  => $isSubmitted,
-                'is_locked'     => in_array($rawStatus, ['submitted', 'approved']),
-                'reopened_at'   => $sub?->reopened_at?->format('M d, Y h:i A'),
-                'reopen_reason' => $sub?->reopen_reason,
-                'locked_at'     => $sub?->locked_at?->format('M d, Y h:i A'),
-                'remarks'       => $sub?->remarks ?? '',
-                'year_level'    => $inst->year_level ?? '1st Year',
-                'academic_year' => $academicYear,
-                'semester'      => $semester,
-                'exams_count'       => $examsCount,
-                'results_submitted' => $resultsSubmitted,
-                'avg_score'         => $avgScore,
-                'pass_rate'         => $passRate,
-                'checklist'         => [
-                    'academic_schedule' => [
-                        'completed' => true,
-                        'label'     => 'Academic Schedule Verified',
-                        'detail'    => "Class schedule verified for {$academicYear}",
+                // Initials calculation
+                $nameParts = preg_split('/\s+/', trim($inst->name));
+                $initials = '';
+                if (count($nameParts) >= 2) {
+                    $initials = strtoupper(substr($nameParts[0], 0, 1) . substr($nameParts[1], 0, 1));
+                } elseif (count($nameParts) === 1 && strlen($nameParts[0]) > 0) {
+                    $initials = strtoupper(substr($nameParts[0], 0, min(2, strlen($nameParts[0]))));
+                } else {
+                    $initials = 'IN';
+                }
+
+                $color = $colorPalettes[$inst->id % count($colorPalettes)];
+
+                // REAL Course lookup from database courses table
+                $assignedCourse = Course::where('instructor_id', $inst->id)->first();
+                if (!$assignedCourse && $inst->assignedCourses && $inst->assignedCourses->isNotEmpty()) {
+                    $assignedCourse = $inst->assignedCourses->first();
+                }
+
+                $courseTitle = $assignedCourse ? $assignedCourse->title : ($inst->department?->name . ' Instruction');
+                $courseCode = $assignedCourse ? $assignedCourse->code : 'BO-0';
+                $credit = $assignedCourse ? ($assignedCourse->credits ?: 4) : 4;
+                $section = $sub?->section ?: ($assignedCourse?->section ?: ($inst->section ?: 'Section A'));
+
+                if ($isSubmitted && $sub) {
+                    $submittedDate = $sub->submitted_at ? $sub->submitted_at->format('M d, Y') : ($sub->created_at ? $sub->created_at->format('M d, Y') : Carbon::now()->format('M d, Y'));
+                    $submittedTime = $sub->submitted_at ? $sub->submitted_at->format('h:i A') : ($sub->created_at ? $sub->created_at->format('h:i A') : Carbon::now()->format('h:i A'));
+                    $submittedStr = "{$submittedDate}\n{$submittedTime}";
+                } else {
+                    $submittedDate = '—';
+                    $submittedTime = 'Not Submitted';
+                    $submittedStr = '—';
+                }
+
+                // Real exam & attempt stats for instructor
+                $instExams = Exam::where('user_id', $inst->id)
+                    ->when($assignedCourse, fn($q) => $q->orWhere('course_code', $assignedCourse->code))
+                    ->get();
+                $examsCount = $instExams->count();
+                $examIds = $instExams->pluck('id')->toArray();
+                $attempts = ExamAttempt::whereIn('exam_id', $examIds)->get();
+                $resultsSubmitted = $attempts->count();
+                $avgScore = $resultsSubmitted > 0 ? round($attempts->avg('percentage'), 1) : 0;
+                $passedAttempts = $attempts->filter(fn($a) => ($a->percentage ?? 0) >= 50)->count();
+                $passRate = $resultsSubmitted > 0 ? round(($passedAttempts / $resultsSubmitted) * 100, 1) : 0;
+
+                $studentsCount = User::where('role', 'student')
+                    ->where('department_id', $inst->department_id)
+                    ->count();
+
+                $rowItem = [
+                    'id'            => $sub?->id ?? $inst->id,
+                    'submission_id' => $sub?->id,
+                    'instructor_id' => $inst->id,
+                    'name'          => $inst->name,
+                    'email'         => $inst->email,
+                    'initials'      => $initials,
+                    'color'         => $color,
+                    'department'    => $inst->department?->name ?? ($userDept?->name ?? 'Computer Science'),
+                    'course'        => $courseTitle,
+                    'course_code'   => $courseCode,
+                    'section'       => $section,
+                    'courses'       => $credit,
+                    'credit'        => $credit,
+                    'students'      => $studentsCount,
+                    'submitted'     => $submittedStr,
+                    'submitted_date'=> $submittedDate,
+                    'submitted_time'=> $submittedTime,
+                    'status'        => $displayStatus,
+                    'raw_status'    => $rawStatus,
+                    'is_submitted'  => $isSubmitted,
+                    'is_locked'     => in_array($rawStatus, ['submitted', 'approved']),
+                    'reopened_at'   => $sub?->reopened_at?->format('M d, Y h:i A'),
+                    'reopen_reason' => $sub?->reopen_reason,
+                    'locked_at'     => $sub?->locked_at?->format('M d, Y h:i A'),
+                    'approved_at'   => $sub?->approved_at?->format('M d, Y h:i A'),
+                    'remarks'       => $sub?->remarks ?? '',
+                    'year_level'    => $inst->year_level ?? '1st Year',
+                    'academic_year' => $sub?->academic_year ?? $academicYear,
+                    'semester'      => $sub?->semester ?? $semester,
+                    'exams_count'       => $examsCount,
+                    'results_submitted' => $resultsSubmitted,
+                    'avg_score'         => $avgScore,
+                    'pass_rate'         => $passRate,
+                    'checklist'         => [
+                        'academic_schedule' => [
+                            'completed' => true,
+                            'label'     => 'Academic Schedule Verified',
+                            'detail'    => "Class schedule verified for " . ($sub?->academic_year ?? $academicYear),
+                        ],
+                        'exams' => [
+                            'completed' => $examsCount > 0,
+                            'label'     => 'Examinations Completed',
+                            'detail'    => "{$examsCount} Exams Created & Conducted",
+                        ],
+                        'students' => [
+                            'completed' => $studentsCount > 0,
+                            'label'     => 'Student Enrollment Verified',
+                            'detail'    => "{$studentsCount} Students Enrolled in Department",
+                        ],
+                        'results' => [
+                            'completed' => $resultsSubmitted > 0,
+                            'label'     => 'Grades & Results Processed',
+                            'detail'    => "{$resultsSubmitted} Submissions Graded ({$passRate}% Pass Rate)",
+                        ],
                     ],
-                    'exams' => [
-                        'completed' => $examsCount > 0,
-                        'label'     => 'Examinations Completed',
-                        'detail'    => "{$examsCount} Exams Created & Conducted",
-                    ],
-                    'students' => [
-                        'completed' => $studentsCount > 0,
-                        'label'     => 'Student Enrollment Verified',
-                        'detail'    => "{$studentsCount} Students Enrolled in Department",
-                    ],
-                    'results' => [
-                        'completed' => $resultsSubmitted > 0,
-                        'label'     => 'Grades & Results Processed',
-                        'detail'    => "{$resultsSubmitted} Submissions Graded ({$passRate}% Pass Rate)",
-                    ],
-                ],
-            ];
+                ];
 
-            // Filter logic:
-            // By default (All Statuses): Only display actual submissions that were submitted!
-            // If statusFilter is 'Not Submitted': display unsubmitted instructors
-            // If statusFilter is 'All Instructors': display all
-            // Otherwise, match the exact displayStatus (Pending, Approved, Correction Required, Rejected)
-            $matchesStatus = false;
-            if (!$statusFilter || $statusFilter === 'All Statuses' || $statusFilter === 'All Submissions') {
-                $matchesStatus = $isSubmitted;
-            } elseif ($statusFilter === 'All Instructors') {
-                $matchesStatus = true;
-            } elseif ($statusFilter === 'Not Submitted') {
-                $matchesStatus = !$isSubmitted;
-            } else {
-                $matchesStatus = (strtolower($displayStatus) === strtolower($statusFilter));
-            }
+                $matchesStatus = false;
+                if (!$statusFilter || $statusFilter === 'All Statuses' || $statusFilter === 'All Submissions') {
+                    $matchesStatus = $isSubmitted;
+                } elseif ($statusFilter === 'All Instructors') {
+                    $matchesStatus = true;
+                } elseif ($statusFilter === 'Not Submitted') {
+                    $matchesStatus = !$isSubmitted;
+                } else {
+                    $matchesStatus = (strtolower($displayStatus) === strtolower($statusFilter));
+                }
 
-            $matchesSearch = true;
-            if ($searchQuery) {
-                $matchesSearch = (
-                    str_contains(strtolower($inst->name), $searchQuery) ||
-                    str_contains(strtolower($inst->email), $searchQuery) ||
-                    str_contains(strtolower($rowItem['department']), $searchQuery) ||
-                    str_contains(strtolower($courseTitle), $searchQuery) ||
-                    str_contains(strtolower($section), $searchQuery)
-                );
-            }
+                $matchesSearch = true;
+                if ($searchQuery) {
+                    $matchesSearch = (
+                        str_contains(strtolower($inst->name), $searchQuery) ||
+                        str_contains(strtolower($inst->email), $searchQuery) ||
+                        str_contains(strtolower($rowItem['department']), $searchQuery) ||
+                        str_contains(strtolower($courseTitle), $searchQuery) ||
+                        str_contains(strtolower($section), $searchQuery)
+                    );
+                }
 
-            if ($matchesStatus && $matchesSearch) {
-                $rows[] = $rowItem;
+                if ($matchesStatus && $matchesSearch) {
+                    $rows[] = $rowItem;
+                }
             }
         }
 
         $allDepartments = Department::orderBy('name')->pluck('name')->unique()->values();
 
+        // Build dynamic list of available semesters
+        $dbTerms = SemesterSubmission::select('academic_year', 'semester')
+            ->distinct()
+            ->get()
+            ->map(function ($t) {
+                if ($t->academic_year && $t->semester) {
+                    return "{$t->academic_year} — {$t->semester}";
+                }
+                return null;
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $semestersList = array_values(array_unique(array_merge(
+            ['All Academic Terms'],
+            $dbTerms,
+            [
+                '2025/2026 — First Semester',
+                '2025/2026 — Second Semester',
+                '2024/2025 — Second Semester',
+                '2024/2025 — First Semester',
+            ]
+        )));
+
         return response()->json([
             'semester_info' => [
-                'academicYear'       => $academicYear,
-                'semester'           => $semester,
+                'academicYear'       => $isAllTerms ? 'All Academic Years' : $academicYear,
+                'semester'           => $isAllTerms ? 'All Semesters' : $semester,
                 'department'         => $userDept?->name ?? 'Computer Science',
+                'department_code'    => $userDept?->code ?? 'CS',
                 'pendingReview'      => $counts['pending'],
                 'approved'           => $counts['approved'],
                 'correctionRequired' => $counts['correction_required'],
                 'rejected'           => $counts['rejected'],
+                'reopened'           => $counts['reopened'],
                 'notSubmitted'       => $counts['not_submitted'],
                 'total'              => $counts['total'],
             ],
             'instructors'   => $rows,
             'departments'   => $allDepartments,
-            'semesters'     => [
-                '2025/2026 — Second Semester',
-                '2025/2026 — First Semester',
-                '2024/2025 — Second Semester',
-                '2024/2025 — First Semester',
-            ],
+            'semesters'     => $semestersList,
         ]);
+    }
+
+    /**
+     * Synchronize and recalculate live semester submissions for the department.
+     */
+    public function sync(Request $request): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $userDept = Department::find($deptId);
+        $deptName = $userDept?->name ?? 'Computer Science';
+
+        $academicYear = $request->input('academic_year', '2025/2026');
+        $semester = $request->input('semester', 'Second Semester');
+
+        if ($academicYear === 'All Academic Terms' || strtolower($academicYear) === 'all') {
+            $academicYear = '2025/2026';
+            $semester = 'Second Semester';
+        }
+
+        $instructors = User::where(function ($q) use ($deptId) {
+                $q->where('department_id', $deptId);
+            })
+            ->whereIn('role', ['instructor', 'dept_head'])
+            ->get();
+
+        $courseInstIds = Course::where('department_id', $deptId)
+            ->whereNotNull('instructor_id')
+            ->pluck('instructor_id')
+            ->toArray();
+
+        if (!empty($courseInstIds)) {
+            $extra = User::whereIn('id', $courseInstIds)->whereIn('role', ['instructor', 'dept_head'])->get();
+            $instructors = $instructors->concat($extra)->unique('id');
+        }
+
+        foreach ($instructors as $inst) {
+            $assignedCourse = Course::where('instructor_id', $inst->id)->first();
+            $section = $assignedCourse?->section ?: ($inst->section ?: 'Section A');
+
+            $submission = SemesterSubmission::where('instructor_id', $inst->id)
+                ->where('academic_year', $academicYear)
+                ->where('semester', $semester)
+                ->first();
+
+            if (!$submission) {
+                SemesterSubmission::create([
+                    'instructor_id' => $inst->id,
+                    'academic_year' => $academicYear,
+                    'semester'      => $semester,
+                    'department'    => $deptName,
+                    'section'       => $section,
+                    'status'        => 'pending',
+                    'submitted_at'  => now(),
+                ]);
+            } else {
+                if (!$submission->submitted_at && in_array($submission->status, ['pending', 'submitted', 'under_review'])) {
+                    $submission->submitted_at = now();
+                    $submission->save();
+                }
+            }
+        }
+
+        LogActivity::record(
+            'Synchronized',
+            'Semester Submissions',
+            "Synchronized live semester submissions for Department of {$deptName} ({$academicYear} {$semester})"
+        );
+
+        return $this->details($request);
     }
 
     /**

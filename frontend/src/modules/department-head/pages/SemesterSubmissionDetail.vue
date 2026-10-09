@@ -9,12 +9,13 @@ const router = useRouter()
 const submissionId = route.params.id as string
 
 const isLoading = ref(true)
+const isSyncing = ref(false)
 const isSubmittingAction = ref(false)
 const isExporting = ref(false)
 const searchQuery = ref('')
 const selectedDepartment = ref('All Departments')
 const selectedStatus = ref('All Statuses')
-const selectedSemester = ref('2025/2026 — Second Semester')
+const selectedSemester = ref('All Academic Terms')
 const openMenuId = ref<number | null>(null)
 
 // Toast notification state
@@ -36,6 +37,14 @@ const isGuidelinesModalOpen = ref(false)
 const isExportModalOpen = ref(false)
 
 const reviewModal = ref<{
+  open: boolean
+  instructor: any | null
+}>({
+  open: false,
+  instructor: null,
+})
+
+const approveModal = ref<{
   open: boolean
   instructor: any | null
 }>({
@@ -75,13 +84,15 @@ const reopenModal = ref<{
 
 // Summary Stats
 const semesterInfo = ref({
-  academicYear: '2025/2026',
-  semester: 'Second Semester',
+  academicYear: 'All Academic Years',
+  semester: 'All Semesters',
   department: 'Computer Science',
+  department_code: 'CS',
   pendingReview: 0,
   approved: 0,
   correctionRequired: 0,
   rejected: 0,
+  reopened: 0,
   notSubmitted: 0,
   total: 0,
 })
@@ -90,13 +101,16 @@ const semesterInfo = ref({
 const instructors = ref<any[]>([])
 const departmentsList = ref<string[]>([
   'All Departments',
-  'Computer Science',
-  'Software Engineering',
-  'Information Technology',
-  'Information Systems'
+  'computer scince',
+  'software engineering',
+  'Information technology',
+  'Informatics system',
+  'electrical engineering',
+  'civil'
 ])
 
 const semestersList = ref<string[]>([
+  'All Academic Terms',
   '2025/2026 — Second Semester',
   '2025/2026 — First Semester',
   '2024/2025 — Second Semester',
@@ -125,10 +139,12 @@ const fetchSubmissions = async () => {
       params.department = 'All Departments'
     }
 
-    if (selectedSemester.value) {
+    if (selectedSemester.value && selectedSemester.value !== 'All Academic Terms') {
       const parts = selectedSemester.value.split('—').map(s => s.trim())
       if (parts[0]) params.academic_year = parts[0]
       if (parts[1]) params.semester = parts[1]
+    } else {
+      params.academic_year = 'All Academic Terms'
     }
 
     const res = await apiClient.get('/dept-head/semester-submissions/details', { params })
@@ -155,14 +171,49 @@ const fetchSubmissions = async () => {
   }
 }
 
+// Live Backend Synchronization
 const syncRealData = async () => {
-  await fetchSubmissions()
-  showToast('Live semester submission records synchronized!', 'success')
+  isSyncing.value = true
+  try {
+    const payload: any = {}
+    if (selectedSemester.value && selectedSemester.value !== 'All Academic Terms') {
+      const parts = selectedSemester.value.split('—').map(s => s.trim())
+      if (parts[0]) payload.academic_year = parts[0]
+      if (parts[1]) payload.semester = parts[1]
+    } else {
+      payload.academic_year = '2025/2026'
+      payload.semester = 'Second Semester'
+    }
+
+    const res = await apiClient.post('/dept-head/semester-submissions/sync', payload)
+    if (res.data) {
+      instructors.value = res.data.instructors || []
+      if (res.data.semester_info) {
+        semesterInfo.value = {
+          ...semesterInfo.value,
+          ...res.data.semester_info
+        }
+      }
+      if (res.data.departments && res.data.departments.length > 0) {
+        departmentsList.value = ['All Departments', ...res.data.departments]
+      }
+      if (res.data.semesters && res.data.semesters.length > 0) {
+        semestersList.value = res.data.semesters
+      }
+    }
+    showToast('Live semester submission records synchronized!', 'success')
+  } catch (error) {
+    console.error('Failed to sync semester submissions:', error)
+    // Fallback to fetchSubmissions
+    await fetchSubmissions()
+    showToast('Refreshed semester submission data.', 'info')
+  } finally {
+    isSyncing.value = false
+  }
 }
 
 onMounted(() => {
   fetchSubmissions()
-  // Global click listener to close dropdowns
   window.addEventListener('click', closeAllMenus)
 })
 
@@ -175,6 +226,21 @@ watch([selectedDepartment, selectedSemester], () => {
   currentPage.value = 1
   fetchSubmissions()
 })
+
+const hasActiveFilters = computed(() => {
+  return searchQuery.value.trim() !== '' ||
+    selectedDepartment.value !== 'All Departments' ||
+    selectedStatus.value !== 'All Statuses' ||
+    selectedSemester.value !== 'All Academic Terms'
+})
+
+const resetFilters = () => {
+  searchQuery.value = ''
+  selectedDepartment.value = 'All Departments'
+  selectedStatus.value = 'All Statuses'
+  selectedSemester.value = 'All Academic Terms'
+  currentPage.value = 1
+}
 
 const filteredInstructors = computed(() => {
   return instructors.value.filter(inst => {
@@ -198,7 +264,7 @@ const filteredInstructors = computed(() => {
     } else if (selectedStatus.value === 'Not Submitted') {
       matchesStatus = !inst.is_submitted
     } else {
-      matchesStatus = inst.status === selectedStatus.value
+      matchesStatus = (inst.status?.toLowerCase() === selectedStatus.value.toLowerCase())
     }
 
     return matchesSearch && matchesDept && matchesStatus
@@ -222,12 +288,12 @@ const goToPage = (p: number) => {
 
 // Styling Helpers
 const getStatusBadge = (status: string) => {
-  if (status === 'Approved') return 'bg-emerald-50 text-emerald-600 border-emerald-200'
-  if (status === 'Pending') return 'bg-amber-50 text-amber-600 border-amber-200'
-  if (status === 'Under Review') return 'bg-blue-50 text-blue-600 border-blue-200'
-  if (status === 'Correction Required') return 'bg-orange-50 text-orange-600 border-orange-200'
-  if (status === 'Rejected') return 'bg-rose-50 text-rose-600 border-rose-200'
-  if (status === 'Reopened') return 'bg-cyan-50 text-cyan-700 border-cyan-200'
+  if (status === 'Approved') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (status === 'Pending') return 'bg-amber-50 text-amber-700 border-amber-200'
+  if (status === 'Under Review') return 'bg-blue-50 text-blue-700 border-blue-200'
+  if (status === 'Correction Required') return 'bg-orange-50 text-orange-700 border-orange-200'
+  if (status === 'Rejected') return 'bg-rose-50 text-rose-700 border-rose-200'
+  if (status === 'Reopened') return 'bg-cyan-50 text-cyan-800 border-cyan-200'
   if (status === 'Not Submitted') return 'bg-slate-100 text-slate-500 border-slate-200'
   return 'bg-slate-50 text-slate-500 border-slate-200'
 }
@@ -245,22 +311,34 @@ const openReviewModal = (inst: any) => {
   }
 }
 
-// Functional Actions (Persisting to backend)
-const approveSubmission = async (inst: any) => {
+// Open Approve Confirmation Modal
+const openApproveModal = (inst: any) => {
   openMenuId.value = null
+  approveModal.value = {
+    open: true,
+    instructor: inst,
+  }
+}
+
+// Functional Actions (Persisting to backend)
+const confirmApprove = async () => {
+  if (!approveModal.value.instructor) return
+  const inst = approveModal.value.instructor
   isSubmittingAction.value = true
   try {
     const targetId = inst.submission_id || inst.id
     const res = await apiClient.put(`/dept-head/semester-submissions/${targetId}/status`, {
       status: 'approved',
-      academic_year: semesterInfo.value.academicYear,
-      semester: semesterInfo.value.semester,
+      academic_year: inst.academic_year || semesterInfo.value.academicYear,
+      semester: inst.semester || semesterInfo.value.semester,
     })
 
     const prevStatus = inst.status
     inst.status = 'Approved'
     inst.raw_status = 'approved'
+    inst.is_locked = true
     if (res.data?.submission?.approved_at) {
+      inst.approved_at = res.data.submission.approved_at
       inst.submitted = res.data.submission.approved_at.replace(' ', '\n')
     }
 
@@ -277,9 +355,11 @@ const approveSubmission = async (inst: any) => {
     if (reviewModal.value.open && reviewModal.value.instructor?.id === inst.id) {
       reviewModal.value.instructor.status = 'Approved'
       reviewModal.value.instructor.raw_status = 'approved'
+      reviewModal.value.instructor.is_locked = true
     }
 
-    showToast(`Semester submission for ${inst.name} approved successfully!`, 'success')
+    approveModal.value.open = false
+    showToast(`Semester submission for ${inst.name} approved & records locked successfully!`, 'success')
   } catch (error) {
     console.error('Failed to approve submission:', error)
     showToast('Failed to approve submission. Please try again.', 'error')
@@ -300,19 +380,24 @@ const openCorrectionModal = (inst: any) => {
 const submitCorrection = async () => {
   if (!correctionModal.value.instructor) return
   const inst = correctionModal.value.instructor
+  if (!correctionModal.value.remarks.trim()) {
+    showToast('Please provide feedback or remarks describing what needs correction.', 'error')
+    return
+  }
   isSubmittingAction.value = true
   try {
     const targetId = inst.submission_id || inst.id
     await apiClient.put(`/dept-head/semester-submissions/${targetId}/status`, {
       status: 'correction_required',
-      remarks: correctionModal.value.remarks || 'Please check and revise semester examination records.',
-      academic_year: semesterInfo.value.academicYear,
-      semester: semesterInfo.value.semester,
+      remarks: correctionModal.value.remarks,
+      academic_year: inst.academic_year || semesterInfo.value.academicYear,
+      semester: inst.semester || semesterInfo.value.semester,
     })
 
     const prevStatus = inst.status
     inst.status = 'Correction Required'
     inst.raw_status = 'correction_required'
+    inst.is_locked = false
     inst.remarks = correctionModal.value.remarks
 
     // Refresh summary counts
@@ -328,11 +413,12 @@ const submitCorrection = async () => {
     if (reviewModal.value.open && reviewModal.value.instructor?.id === inst.id) {
       reviewModal.value.instructor.status = 'Correction Required'
       reviewModal.value.instructor.raw_status = 'correction_required'
+      reviewModal.value.instructor.is_locked = false
       reviewModal.value.instructor.remarks = correctionModal.value.remarks
     }
 
     correctionModal.value.open = false
-    showToast(`Correction requested for ${inst.name}.`, 'info')
+    showToast(`Correction requested for ${inst.name}. Instructor can now modify records.`, 'info')
   } catch (error) {
     console.error('Failed to request correction:', error)
     showToast('Failed to request correction.', 'error')
@@ -353,14 +439,18 @@ const openRejectModal = (inst: any) => {
 const submitReject = async () => {
   if (!rejectModal.value.instructor) return
   const inst = rejectModal.value.instructor
+  if (!rejectModal.value.remarks.trim()) {
+    showToast('Please provide a reason for rejecting the submission.', 'error')
+    return
+  }
   isSubmittingAction.value = true
   try {
     const targetId = inst.submission_id || inst.id
     await apiClient.put(`/dept-head/semester-submissions/${targetId}/status`, {
       status: 'rejected',
-      remarks: rejectModal.value.remarks || 'Semester submission rejected by department head.',
-      academic_year: semesterInfo.value.academicYear,
-      semester: semesterInfo.value.semester,
+      remarks: rejectModal.value.remarks,
+      academic_year: inst.academic_year || semesterInfo.value.academicYear,
+      semester: inst.semester || semesterInfo.value.semester,
     })
 
     const prevStatus = inst.status
@@ -370,6 +460,7 @@ const submitReject = async () => {
 
     // Refresh summary counts
     if (prevStatus !== 'Rejected') {
+      semesterInfo.value.rejected = (semesterInfo.value.rejected || 0) + 1
       if (prevStatus === 'Pending' && semesterInfo.value.pendingReview > 0) {
         semesterInfo.value.pendingReview--
       } else if (prevStatus === 'Approved' && semesterInfo.value.approved > 0) {
@@ -411,7 +502,7 @@ const submitReopen = async () => {
   try {
     const targetId = inst.submission_id || inst.id
     const res = await apiClient.put(`/dept-head/semester-submissions/${targetId}/reopen`, {
-      reopen_reason: reopenModal.value.reason || 'Semester reopened by department head for corrections.'
+      reason: reopenModal.value.reason || 'Semester reopened by department head for corrections.'
     })
 
     const prevStatus = inst.status
@@ -420,6 +511,11 @@ const submitReopen = async () => {
     inst.is_locked = false
     inst.reopened_at = res.data?.submission?.reopened_at || new Date().toISOString()
     inst.reopen_reason = reopenModal.value.reason
+
+    if (prevStatus === 'Approved' && semesterInfo.value.approved > 0) {
+      semesterInfo.value.approved--
+      semesterInfo.value.reopened = (semesterInfo.value.reopened || 0) + 1
+    }
 
     if (reviewModal.value.open && reviewModal.value.instructor?.id === inst.id) {
       reviewModal.value.instructor.status = 'Reopened'
@@ -453,7 +549,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
       params.status = selectedStatus.value
     }
 
-    if (selectedSemester.value) {
+    if (selectedSemester.value && selectedSemester.value !== 'All Academic Terms') {
       const parts = selectedSemester.value.split('—').map(s => s.trim())
       if (parts[0]) params.academic_year = parts[0]
       if (parts[1]) params.semester = parts[1]
@@ -536,19 +632,26 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           </svg>
         </div>
         <div class="min-w-0">
-          <h2 class="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight truncate">Semester Submissions</h2>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight truncate">Semester Submissions</h2>
+            <span class="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-[#5138ed] border border-indigo-100">
+              {{ semesterInfo.department }} [{{ semesterInfo.department_code }}]
+            </span>
+          </div>
           <p class="text-xs sm:text-[13px] text-slate-500 font-medium truncate">Review and approve instructor semester records.</p>
         </div>
       </div>
 
-      <button
-        @click="syncRealData"
-        :disabled="isLoading"
-        class="inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs sm:text-[12px] font-bold hover:bg-slate-50 hover:text-[#5138ed] hover:border-[#5138ed]/40 transition-all shadow-xs disabled:opacity-50 min-h-[44px] cursor-pointer shrink-0"
-      >
-        <svg class="w-4 h-4 text-[#5138ed]" :class="{ 'animate-spin': isLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-        <span>Sync Real Data</span>
-      </button>
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          @click="syncRealData"
+          :disabled="isLoading || isSyncing"
+          class="inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs sm:text-[12px] font-bold hover:bg-slate-50 hover:text-[#5138ed] hover:border-[#5138ed]/40 transition-all shadow-xs disabled:opacity-50 min-h-[44px] cursor-pointer"
+        >
+          <svg class="w-4 h-4 text-[#5138ed]" :class="{ 'animate-spin': isLoading || isSyncing }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <span>{{ isSyncing ? 'Syncing...' : 'Sync Real Data' }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- Info Banner -->
@@ -556,9 +659,14 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
       <div class="w-5 h-5 bg-[#5138ed] text-white rounded-full flex items-center justify-center shrink-0">
         <span class="text-[10px] font-black">i</span>
       </div>
-      <p class="text-xs sm:text-[12px] font-medium text-indigo-700 leading-snug">
-        Once approved, the semester records will be locked and cannot be modified by the instructor.
-      </p>
+      <div class="flex items-center justify-between flex-1 gap-2 flex-wrap">
+        <p class="text-xs sm:text-[12px] font-medium text-indigo-700 leading-snug">
+          Once approved, the semester records will be locked and cannot be modified by the instructor.
+        </p>
+        <span class="text-[11px] font-bold text-indigo-600 bg-white/70 px-2 py-0.5 rounded-md border border-indigo-100 shrink-0">
+          Active: {{ semesterInfo.department }} &bull; {{ selectedSemester }}
+        </span>
+      </div>
     </div>
 
     <!-- Top Row: Summary Cards + Quick Actions -->
@@ -700,9 +808,16 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             v-model="searchQuery"
             type="text"
             placeholder="Search instructor, course, code..."
-            class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] transition-colors shadow-xs"
+            class="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] transition-colors shadow-xs"
           />
           <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
         </div>
 
         <!-- Department Dropdown -->
@@ -726,8 +841,8 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <option value="Pending">Pending Review ({{ semesterInfo.pendingReview }})</option>
             <option value="Approved">Approved ({{ semesterInfo.approved }})</option>
             <option value="Correction Required">Correction Required ({{ semesterInfo.correctionRequired }})</option>
-            <option value="Rejected">Rejected ({{ semesterInfo.rejected }})</option>
-            <option value="Reopened">Reopened</option>
+            <option value="Rejected">Rejected ({{ semesterInfo.rejected || 0 }})</option>
+            <option value="Reopened">Reopened ({{ semesterInfo.reopened || 0 }})</option>
             <option value="Not Submitted">Not Submitted ({{ semesterInfo.notSubmitted || 0 }})</option>
             <option value="All Instructors">All Instructors ({{ (semesterInfo.total || 0) + (semesterInfo.notSubmitted || 0) }})</option>
           </select>
@@ -735,7 +850,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
         </div>
 
         <!-- Academic Term Dropdown -->
-        <div class="relative w-full sm:w-auto sm:ml-auto min-w-[190px]">
+        <div class="relative w-full sm:w-auto sm:ml-auto min-w-[200px]">
           <select 
             v-model="selectedSemester" 
             class="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-[13px] text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer shadow-xs"
@@ -744,9 +859,20 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           </select>
           <svg class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </div>
+
+        <!-- Reset Filters Button -->
+        <button
+          v-if="hasActiveFilters"
+          @click="resetFilters"
+          class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+          title="Reset all filters"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <span>Reset</span>
+        </button>
       </div>
 
-      <!-- Desktop Table Container (Visible on lg and larger) -->
+      <!-- Desktop Table Container -->
       <div class="hidden lg:block overflow-x-auto min-w-0 w-full">
         <table class="w-full text-left border-collapse whitespace-nowrap min-w-max">
           <thead>
@@ -777,17 +903,25 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <tr v-else-if="filteredInstructors.length === 0">
               <td colspan="8" class="py-16 text-center">
                 <div class="flex flex-col items-center gap-2.5 text-slate-400">
-                  <div class="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+                  <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-[#5138ed] flex items-center justify-center mb-1">
                     <svg class="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                   </div>
                   <span class="text-[14px] font-bold text-slate-700">No Semester Submissions Found</span>
-                  <span class="text-[12px] text-slate-500 max-w-md">No instructors have submitted semester records for {{ semesterInfo.academicYear }} ({{ semesterInfo.semester }}) yet.</span>
-                  <div v-if="selectedStatus === 'All Statuses' && (semesterInfo.notSubmitted || 0) > 0" class="mt-2">
+                  <span class="text-[12px] text-slate-500 max-w-md">No instructors matched your active filters for {{ selectedSemester }}.</span>
+                  <div class="flex items-center gap-2 mt-3">
                     <button
-                      @click="selectedStatus = 'Not Submitted'"
+                      @click="syncRealData"
+                      class="px-4 py-2 bg-[#5138ed] text-white rounded-xl text-[12px] font-bold hover:bg-[#432dd4] transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                      <span>Sync Real Data</span>
+                    </button>
+                    <button
+                      v-if="selectedSemester !== 'All Academic Terms'"
+                      @click="selectedSemester = 'All Academic Terms'"
                       class="px-4 py-2 bg-indigo-50 text-[#5138ed] border border-indigo-100 rounded-xl text-[12px] font-bold hover:bg-indigo-100 transition-colors shadow-xs cursor-pointer"
                     >
-                      View Department Instructors ({{ semesterInfo.notSubmitted }} Unsubmitted)
+                      View All Academic Terms
                     </button>
                   </div>
                 </div>
@@ -825,7 +959,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 <div class="flex flex-col">
                   <span class="text-[13px] font-bold text-slate-800 truncate">{{ inst.course || inst.department }}</span>
                   <span v-if="inst.course_code" class="text-[11px] text-slate-400 font-medium">
-                    <span class="font-mono text-slate-500 font-semibold">{{ inst.course_code }}</span> • {{ inst.department }}
+                    <span class="font-mono text-slate-600 font-semibold bg-slate-100 px-1 rounded">{{ inst.course_code }}</span> &bull; {{ inst.department }}
                   </span>
                   <span v-else class="text-[11px] text-slate-400 font-medium">{{ inst.department }}</span>
                 </div>
@@ -865,6 +999,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                   <svg v-else-if="inst.status === 'Pending'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                   <svg v-else-if="inst.status === 'Correction Required'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                   <svg v-else-if="inst.status === 'Rejected'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  <svg v-else-if="inst.status === 'Reopened'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
                   {{ inst.status }}
                 </span>
               </td>
@@ -891,22 +1026,24 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                   >
                     <button
                       @click="openReviewModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-indigo-50 hover:text-[#5138ed] transition-colors flex items-center gap-2.5"
+                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-indigo-50 hover:text-[#5138ed] transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                       Review Submission
                     </button>
                     <div class="border-t border-slate-100 my-1"></div>
                     <button
-                      @click="approveSubmission(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2.5"
+                      v-if="inst.status !== 'Approved'"
+                      @click="openApproveModal(inst)"
+                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
-                      Approve
+                      Approve & Lock
                     </button>
                     <button
+                      v-if="inst.status !== 'Correction Required'"
                       @click="openCorrectionModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2.5"
+                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                       Request Correction
@@ -914,15 +1051,16 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                     <button
                       v-if="inst.status === 'Approved' || inst.status === 'Pending'"
                       @click="openReopenModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors flex items-center gap-2.5"
+                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
                       Reopen Semester (Unlock)
                     </button>
                     <div class="border-t border-slate-100 my-1"></div>
                     <button
+                      v-if="inst.status !== 'Rejected'"
                       @click="openRejectModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2.5"
+                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                       Reject
@@ -939,7 +1077,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
         </table>
       </div>
 
-      <!-- Mobile & Tablet Card List (Visible on < lg screens) -->
+      <!-- Mobile & Tablet Card List -->
       <div class="lg:hidden divide-y divide-slate-100 bg-white">
         <!-- Loading State -->
         <div v-if="isLoading" class="py-12 text-center text-slate-400">
@@ -954,7 +1092,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           <div class="flex flex-col items-center gap-2">
             <svg class="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             <span class="text-sm font-bold text-slate-700">No Semester Submissions Found</span>
-            <span class="text-xs text-slate-500">No instructors have submitted semester records yet.</span>
+            <span class="text-xs text-slate-500">No instructors matched your active filters.</span>
           </div>
         </div>
 
@@ -982,7 +1120,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             </span>
           </div>
 
-          <!-- Course & Department Details (Stacked per spec 8 & 12) -->
+          <!-- Course & Department Details -->
           <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1.5">
             <div class="flex items-center justify-between">
               <span class="text-slate-500 font-medium">Course:</span>
@@ -1026,7 +1164,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <template v-if="inst.is_submitted">
               <button
                 v-if="inst.status !== 'Approved'"
-                @click="approveSubmission(inst)"
+                @click="openApproveModal(inst)"
                 class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors min-h-[44px] cursor-pointer shadow-xs"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
@@ -1048,7 +1186,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 class="inline-flex items-center justify-center px-3 py-2 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-xl text-xs font-bold hover:bg-cyan-100 transition-colors min-h-[44px] cursor-pointer"
                 title="Reopen Semester (Unlock)"
               >
-                Reopen
+                Unlock
               </button>
 
               <button
@@ -1125,8 +1263,12 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 <span :class="['px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0', getStatusBadge(reviewModal.instructor.status)]">
                   {{ reviewModal.instructor.status }}
                 </span>
+                <span v-if="reviewModal.instructor.is_locked" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 shrink-0 flex items-center gap-1">
+                  <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                  Locked
+                </span>
               </div>
-              <p class="text-xs text-slate-500 font-medium truncate">{{ reviewModal.instructor.email }} • {{ reviewModal.instructor.department }}</p>
+              <p class="text-xs text-slate-500 font-medium truncate">{{ reviewModal.instructor.email }} &bull; {{ reviewModal.instructor.department }}</p>
             </div>
           </div>
           <button 
@@ -1157,8 +1299,8 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             </div>
             <div class="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Academic Term</span>
-              <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ semesterInfo.academicYear }}</span>
-              <span class="text-[10px] text-slate-500 font-medium">{{ semesterInfo.semester }}</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ reviewModal.instructor.academic_year || semesterInfo.academicYear }}</span>
+              <span class="text-[10px] text-slate-500 font-medium">{{ reviewModal.instructor.semester || semesterInfo.semester }}</span>
             </div>
           </div>
 
@@ -1167,7 +1309,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 sm:mb-3">Academic Performance & Records</h4>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 text-center">
               <div class="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-100 shadow-xs">
-                <span class="text-base sm:text-[18px] font-black text-slate-800 block">{{ reviewModal.instructor.exams_count ?? 1 }}</span>
+                <span class="text-base sm:text-[18px] font-black text-slate-800 block">{{ reviewModal.instructor.exams_count ?? 0 }}</span>
                 <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Exams</span>
               </div>
               <div class="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-100 shadow-xs">
@@ -1193,19 +1335,19 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
                   <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                 </div>
-                <span class="font-medium">Academic Schedule: Registered for {{ semesterInfo.academicYear }} ({{ semesterInfo.semester }})</span>
+                <span class="font-medium">Academic Schedule: Registered for {{ reviewModal.instructor.academic_year || semesterInfo.academicYear }} ({{ reviewModal.instructor.semester || semesterInfo.semester }})</span>
               </div>
               <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
                 <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
                   <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                 </div>
-                <span class="font-medium">Assessments: {{ reviewModal.instructor.exams_count ?? 1 }} Exams Configured & Evaluated</span>
+                <span class="font-medium">Assessments: {{ reviewModal.instructor.exams_count ?? 0 }} Exams Configured & Evaluated</span>
               </div>
               <div class="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 text-slate-700">
                 <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
                   <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                 </div>
-                <span class="font-medium">Grading: Complete for Section {{ reviewModal.instructor.section }}</span>
+                <span class="font-medium">Grading: {{ reviewModal.instructor.results_submitted ?? 0 }} Student Results Processed for Section {{ reviewModal.instructor.section }}</span>
               </div>
             </div>
           </div>
@@ -1214,6 +1356,12 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           <div v-if="reviewModal.instructor.remarks" class="mb-4 sm:mb-5 p-3 rounded-xl bg-amber-50/70 border border-amber-200">
             <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wide block mb-1">Previous Remarks / Notes:</span>
             <p class="text-xs text-amber-900 font-medium">{{ reviewModal.instructor.remarks }}</p>
+          </div>
+
+          <!-- Reopen Reason if present -->
+          <div v-if="reviewModal.instructor.reopen_reason" class="mb-4 sm:mb-5 p-3 rounded-xl bg-cyan-50/70 border border-cyan-200">
+            <span class="text-[11px] font-bold text-cyan-800 uppercase tracking-wide block mb-1">Reopen Rationale:</span>
+            <p class="text-xs text-cyan-900 font-medium">{{ reviewModal.instructor.reopen_reason }}</p>
           </div>
         </div>
 
@@ -1251,9 +1399,8 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             </button>
             <button
               v-if="reviewModal.instructor.status !== 'Approved'"
-              @click="approveSubmission(reviewModal.instructor)"
-              :disabled="isSubmittingAction"
-              class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer"
+              @click="openApproveModal(reviewModal.instructor)"
+              class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs min-h-[40px] cursor-pointer"
             >
               Approve Submission
             </button>
@@ -1264,6 +1411,52 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- Approve Confirmation Modal -->
+    <div
+      v-if="approveModal.open && approveModal.instructor"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
+    >
+      <div class="bg-white rounded-2xl max-w-[95vw] sm:max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-base font-bold text-slate-800 truncate">Approve & Lock Semester</h3>
+            <p class="text-xs text-slate-500 truncate">Instructor: {{ approveModal.instructor.name }}</p>
+          </div>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4 text-xs text-amber-900 space-y-1.5">
+          <span class="font-bold block text-amber-800">Important Locking Policy:</span>
+          <p>
+            Approving this submission will officially finalize and lock all semester examination and result records for 
+            <strong>{{ approveModal.instructor.name }}</strong> ({{ approveModal.instructor.course }}).
+          </p>
+          <p class="text-[11px] text-amber-700">
+            The instructor will not be able to alter any student scores unless you explicitly perform an Unlock & Reopen.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5">
+          <button
+            @click="approveModal.open = false"
+            class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors min-h-[40px] cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            @click="confirmApprove"
+            :disabled="isSubmittingAction"
+            class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer flex items-center gap-1.5"
+          >
+            <svg v-if="isSubmittingAction" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Confirm & Lock Records
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1380,12 +1573,16 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           </div>
         </div>
 
+        <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+          Requesting corrections will unlock this semester record and allow the instructor to make revisions. Please specify clearly what needs adjustment.
+        </p>
+
         <div class="mb-4">
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Feedback / Correction Remarks</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Feedback / Correction Remarks <span class="text-rose-500">*</span></label>
           <textarea
             v-model="correctionModal.remarks"
             rows="3"
-            placeholder="Specify what needs correction..."
+            placeholder="Specify what needs correction (e.g. Missing practical scores, incorrect grade curve)..."
             class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] focus:bg-white transition-colors"
           ></textarea>
         </div>
@@ -1400,8 +1597,9 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           <button
             @click="submitCorrection"
             :disabled="isSubmittingAction"
-            class="px-5 py-2 rounded-xl text-xs font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer"
+            class="px-5 py-2 rounded-xl text-xs font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer flex items-center gap-1.5"
           >
+            <svg v-if="isSubmittingAction" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             Submit Request
           </button>
         </div>
@@ -1425,7 +1623,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
         </div>
 
         <div class="mb-4">
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Reason for Rejection</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Reason for Rejection <span class="text-rose-500">*</span></label>
           <textarea
             v-model="rejectModal.remarks"
             rows="3"
@@ -1444,8 +1642,9 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           <button
             @click="submitReject"
             :disabled="isSubmittingAction"
-            class="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer"
+            class="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer flex items-center gap-1.5"
           >
+            <svg v-if="isSubmittingAction" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             Confirm Rejection
           </button>
         </div>
@@ -1463,13 +1662,13 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
           </div>
           <div class="min-w-0">
-            <h3 class="text-base font-bold text-slate-800 truncate">Reopen Semester</h3>
+            <h3 class="text-base font-bold text-slate-800 truncate">Reopen Semester (Unlock)</h3>
             <p class="text-xs text-slate-500 truncate">Instructor: {{ reopenModal.instructor?.name }}</p>
           </div>
         </div>
 
         <p class="text-xs text-slate-600 mb-4 leading-relaxed">
-          Reopening will <strong class="text-slate-800">unlock the instructor's academic records</strong>. The instructor will regain full edit access.
+          Reopening will <strong class="text-slate-800">unlock the instructor's academic records</strong>. The instructor will regain full edit access to modify exam questions and submit grades.
         </p>
 
         <div class="mb-4">
