@@ -456,7 +456,6 @@ onMounted(async () => {
 })
 
 // ── Modals State ────────────────────────────────────────────────────────────
-const showScheduleModal = ref(false)
 const showDetailsModal = ref(false)
 const showRescheduleModal = ref(false)
 const showCancelModal = ref(false)
@@ -475,131 +474,6 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'succes
   clearTimeout(toastTimer)
   toast.value = { show: true, message, type }
   toastTimer = setTimeout(() => { toast.value.show = false }, 4000)
-}
-
-// ── Schedule Exam Form & Real-Time Conflict Checking ────────────────────────
-const scheduleForm = ref({
-  title: '',
-  course_code: '',
-  instructor_id: '',
-  exam_type: 'Midterm',
-  scheduled_date: '',
-  scheduled_time: '09:00',
-  duration_minutes: 60,
-  room: 'Room 101',
-  total_marks: 100,
-  description: ''
-})
-
-const scheduleFormErrors = ref<Record<string, string>>({})
-const isSubmittingSchedule = ref(false)
-const detectedConflictWarning = ref<string | null>(null)
-const isCheckingConflict = ref(false)
-
-// Pre-flight Conflict Detection
-const runConflictCheck = async () => {
-  if (!scheduleForm.value.course_code || !scheduleForm.value.scheduled_date || !scheduleForm.value.scheduled_time) {
-    detectedConflictWarning.value = null
-    return
-  }
-
-  isCheckingConflict.value = true
-  try {
-    const fullDateTime = `${scheduleForm.value.scheduled_date} ${scheduleForm.value.scheduled_time}:00`
-    const res = await apiClient.post('/dept-head/exams/check-conflict', {
-      course_code: scheduleForm.value.course_code,
-      scheduled_at: fullDateTime,
-      duration_minutes: scheduleForm.value.duration_minutes,
-      room: scheduleForm.value.room,
-      exclude_id: selectedExamForAction.value?.id || null
-    })
-
-    if (res.data?.has_conflict) {
-      detectedConflictWarning.value = res.data.message
-    } else {
-      detectedConflictWarning.value = null
-    }
-  } catch (err) {
-    detectedConflictWarning.value = null
-  } finally {
-    isCheckingConflict.value = false
-  }
-}
-
-watch(
-  () => [
-    scheduleForm.value.course_code,
-    scheduleForm.value.scheduled_date,
-    scheduleForm.value.scheduled_time,
-    scheduleForm.value.duration_minutes,
-    scheduleForm.value.room
-  ],
-  () => {
-    runConflictCheck()
-  }
-)
-
-const openScheduleModal = (dateStr?: string) => {
-  scheduleForm.value = {
-    title: '',
-    course_code: availableCourses.value[0]?.code || '',
-    instructor_id: availableCourses.value[0]?.instructor_id || '',
-    exam_type: 'Midterm',
-    scheduled_date: dateStr || new Date().toISOString().split('T')[0],
-    scheduled_time: '09:00',
-    duration_minutes: 60,
-    room: 'Room 101',
-    total_marks: 100,
-    description: ''
-  }
-  scheduleFormErrors.value = {}
-  detectedConflictWarning.value = null
-  showScheduleModal.value = true
-}
-
-const submitScheduleExam = async () => {
-  scheduleFormErrors.value = {}
-  if (!scheduleForm.value.title.trim()) {
-    scheduleFormErrors.value.title = 'Exam title is required'
-    return
-  }
-  if (!scheduleForm.value.course_code) {
-    scheduleFormErrors.value.course_code = 'Please select a course'
-    return
-  }
-  if (!scheduleForm.value.scheduled_date) {
-    scheduleFormErrors.value.scheduled_date = 'Exam date is required'
-    return
-  }
-  if (!scheduleForm.value.scheduled_time) {
-    scheduleFormErrors.value.scheduled_time = 'Start time is required'
-    return
-  }
-
-  isSubmittingSchedule.value = true
-  try {
-    const fullDateTime = `${scheduleForm.value.scheduled_date} ${scheduleForm.value.scheduled_time}:00`
-    await apiClient.post('/dept-head/exams', {
-      title: scheduleForm.value.title.trim(),
-      course_code: scheduleForm.value.course_code,
-      instructor_id: scheduleForm.value.instructor_id || null,
-      exam_type: scheduleForm.value.exam_type,
-      scheduled_at: fullDateTime,
-      duration_minutes: scheduleForm.value.duration_minutes,
-      room: scheduleForm.value.room,
-      total_marks: scheduleForm.value.total_marks,
-      description: scheduleForm.value.description
-    })
-
-    showToast('Examination successfully scheduled and added to the academic calendar!', 'success')
-    showScheduleModal.value = false
-    await fetchCalendarData()
-  } catch (err: any) {
-    const msg = err?.response?.data?.message || 'Failed to schedule exam. Please check fields.'
-    showToast(msg, 'error')
-  } finally {
-    isSubmittingSchedule.value = false
-  }
 }
 
 // ── Reschedule Exam Workflow ────────────────────────────────────────────────
@@ -893,15 +767,6 @@ const getStatusBadgeClass = (status: string) => {
         >
           <svg :class="['w-4 h-4', isRefreshing && 'animate-spin text-[#5138ed]']" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
         </button>
-
-        <!-- Schedule Exam Button -->
-        <button
-          @click="openScheduleModal()"
-          class="min-h-[42px] px-5 py-2 bg-[#5138ed] hover:bg-[#432ec7] active:bg-[#3826a6] text-white rounded-xl text-[13px] font-bold flex items-center gap-2 transition-all shadow-sm hover:shadow-md cursor-pointer"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-          Schedule Exam
-        </button>
       </div>
     </div>
 
@@ -1193,15 +1058,6 @@ const getStatusBadgeClass = (status: string) => {
               >
                 {{ cell.day }}
               </span>
-
-              <!-- Quick Add Exam on cell hover -->
-              <button
-                @click.stop="openScheduleModal(cell.dateStr)"
-                class="opacity-0 hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-[#5138ed] cursor-pointer"
-                title="Schedule Exam on this date"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-              </button>
             </div>
 
             <!-- Items list for cell -->
@@ -1412,13 +1268,6 @@ const getStatusBadgeClass = (status: string) => {
               <td colspan="7" class="px-6 py-12 text-center text-slate-400">
                 <p class="text-base font-bold text-slate-600">NO EXAMS SCHEDULED</p>
                 <p class="text-[12px] text-slate-400 mt-1">There are no exams matching your search criteria.</p>
-                <button
-                  @click="openScheduleModal()"
-                  class="mt-3 px-4 py-2 bg-[#5138ed] text-white text-[12px] font-bold rounded-xl hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                  Schedule New Exam
-                </button>
               </td>
             </tr>
 
@@ -1614,185 +1463,7 @@ const getStatusBadgeClass = (status: string) => {
     </div><!-- End Table View -->
 
 
-    <!-- ══════════════════════════════════════════════════
-         SCHEDULE EXAM MODAL
-    ══════════════════════════════════════════════════ -->
-    <div
-      v-if="showScheduleModal"
-      class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto"
-      @click.self="showScheduleModal = false"
-    >
-      <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 my-8 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-        
-        <!-- Header -->
-        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Schedule Department Examination</h3>
-            <p class="text-[12px] text-slate-500">Configure schedule timing and venue for {{ departmentInfo.name }}.</p>
-          </div>
-          <button
-            @click="showScheduleModal = false"
-            class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-          </button>
-        </div>
 
-        <!-- Real-Time Conflict Warning Banner -->
-        <div
-          v-if="detectedConflictWarning"
-          class="bg-rose-50 border border-rose-200 p-3.5 rounded-xl flex items-start gap-3 text-rose-800 animate-in fade-in"
-        >
-          <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-          <div class="text-[12px]">
-            <span class="font-bold block">Scheduling Conflict Detected!</span>
-            <p class="mt-0.5 leading-relaxed">{{ detectedConflictWarning }}</p>
-          </div>
-        </div>
-
-        <!-- Form fields -->
-        <div class="space-y-4">
-          <!-- Title -->
-          <div>
-            <label class="block text-[12px] font-bold text-slate-700 mb-1">
-              Examination Title <span class="text-rose-500">*</span>
-            </label>
-            <input
-              v-model="scheduleForm.title"
-              type="text"
-              placeholder="e.g. Midterm Examination Semester I"
-              class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
-            />
-            <p v-if="scheduleFormErrors.title" class="text-rose-500 text-[11px] mt-1">{{ scheduleFormErrors.title }}</p>
-          </div>
-
-          <!-- Course & Instructor -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">
-                Course <span class="text-rose-500">*</span>
-              </label>
-              <select
-                v-model="scheduleForm.course_code"
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-              >
-                <option v-for="c in availableCourses" :key="c.id" :value="c.code">
-                  {{ c.code }} - {{ c.title }}
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">Lead Instructor</label>
-              <select
-                v-model="scheduleForm.instructor_id"
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-              >
-                <option value="">Unassigned</option>
-                <option v-for="ins in availableInstructors" :key="ins.id" :value="ins.id">
-                  {{ ins.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Date & Start Time -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">
-                Exam Date <span class="text-rose-500">*</span>
-              </label>
-              <input
-                v-model="scheduleForm.scheduled_date"
-                type="date"
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-              />
-            </div>
-
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">
-                Start Time <span class="text-rose-500">*</span>
-              </label>
-              <input
-                v-model="scheduleForm.scheduled_time"
-                type="time"
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-              />
-            </div>
-          </div>
-
-          <!-- Duration, Room, Exam Type -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">Duration (Min)</label>
-              <input
-                v-model.number="scheduleForm.duration_minutes"
-                type="number"
-                min="10"
-                max="360"
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-              />
-            </div>
-
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">Room / Venue</label>
-              <input
-                v-model="scheduleForm.room"
-                type="text"
-                placeholder="e.g. Room 101, Lab 2"
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-              />
-            </div>
-
-            <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">Exam Type</label>
-              <select
-                v-model="scheduleForm.exam_type"
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-              >
-                <option value="Midterm">Midterm</option>
-                <option value="Final">Final</option>
-                <option value="Quiz">Quiz</option>
-                <option value="Practical">Practical</option>
-                <option value="Assignment">Assignment</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Notes -->
-          <div>
-            <label class="block text-[12px] font-bold text-slate-700 mb-1">Description / Notes (Optional)</label>
-            <textarea
-              v-model="scheduleForm.description"
-              rows="2"
-              placeholder="Instructions for faculty invigilators or students..."
-              class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
-            ></textarea>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-          <button
-            @click="showScheduleModal = false"
-            type="button"
-            class="px-4 py-2.5 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            @click="submitScheduleExam"
-            :disabled="isSubmittingSchedule || !!detectedConflictWarning"
-            type="button"
-            class="px-5 py-2.5 bg-[#5138ed] hover:bg-indigo-700 text-white text-[13px] font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-          >
-            <span v-if="isSubmittingSchedule" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-            Confirm &amp; Schedule
-          </button>
-        </div>
-
-      </div>
-    </div>
 
 
     <!-- ══════════════════════════════════════════════════
