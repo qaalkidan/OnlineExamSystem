@@ -79,6 +79,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::get('activity-logs/unread-count', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'unreadCount']);
         Route::post('activity-logs/mark-all-read', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'markAllAsRead']);
         Route::get('activity-logs/export', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'export']);
+        Route::get('activity-logs', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'index']);
         Route::get('activity-logs/{id}', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'show']);
         Route::post('activity-logs/{id}/read', [\App\Http\Controllers\Api\V1\ActivityLogController::class, 'markAsRead']);
         Route::get('settings/info', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'systemInfo']);
