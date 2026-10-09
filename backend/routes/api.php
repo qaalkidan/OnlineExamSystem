@@ -142,6 +142,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::patch('students/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'updateStatus']);
         Route::match(['put', 'post'], 'students/{id}', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'update']);
         Route::delete('students/{id}', [\App\Http\Controllers\Api\V1\DeptHead\StudentController::class, 'destroy']);
+        Route::get('calendar-events', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'calendarEvents']);
+        Route::post('exams/check-conflict', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'checkConflict']);
         Route::get('exams/export', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'export']);
         Route::get('exams', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'index']);
         Route::post('exams', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'store']);

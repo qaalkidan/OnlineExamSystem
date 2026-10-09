@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api\V1\DeptHead;
 use App\Exports\DepartmentExamExport;
 use App\Helpers\LogActivity;
 use App\Http\Controllers\Controller;
+use App\Models\AcademicEvent;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\Question;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -147,11 +149,13 @@ class ExamController extends Controller
             ->withCount(['attempts', 'questions'])
             ->get();
 
+        $conflictsMap = $this->detectExamConflicts($allDeptExams);
         $now = Carbon::now();
         $totalExams = $allDeptExams->count();
 
         $activeExams = 0;
         $upcomingExams = 0;
+        $scheduledExams = 0;
         $completedExams = 0;
         $cancelledExams = 0;
         $draftExams = 0;
@@ -162,6 +166,7 @@ class ExamController extends Controller
                 $activeExams++;
             } elseif ($status === 'Scheduled' || $status === 'Published') {
                 $upcomingExams++;
+                $scheduledExams++;
             } elseif ($status === 'Completed') {
                 $completedExams++;
             } elseif ($status === 'Cancelled') {
@@ -176,11 +181,13 @@ class ExamController extends Controller
 
         $stats = [
             'total'              => $totalExams,
+            'scheduled'          => $scheduledExams,
             'upcoming'           => $upcomingExams,
             'active'             => $activeExams,
             'completed'          => $completedExams,
             'cancelled'          => $cancelledExams,
             'draft'              => $draftExams,
+            'conflicts'          => count($conflictsMap),
             'total_submissions'  => $totalSubmissions,
             'courses_with_exams' => $coursesWithExams,
         ];
@@ -359,7 +366,7 @@ class ExamController extends Controller
 
         $totalDeptStudentsCount = User::where('department_id', $deptId)->where('role', 'student')->count();
 
-        $transformed = collect($paginated->items())->map(function ($exam) use ($deptStudentsByLevel, $totalDeptStudentsCount) {
+        $transformed = collect($paginated->items())->map(function ($exam) use ($deptStudentsByLevel, $totalDeptStudentsCount, $conflictsMap) {
             $duration = $exam->duration_minutes ?? 60;
             $scheduledAt = $exam->scheduled_at;
             $endTime = $scheduledAt ? $scheduledAt->copy()->addMinutes($duration)->format('h:i A') : 'TBD';
@@ -403,6 +410,9 @@ class ExamController extends Controller
                 'eligible_students_count' => $eligibleCount,
                 'semester'                => $exam->settings['semester'] ?? ($exam->course?->semester ?? 'Semester 1'),
                 'year'                    => $exam->settings['year_level'] ?? ($exam->course?->level ?? 'Year 1'),
+                'room'                    => $exam->settings['room'] ?? 'Room 101',
+                'has_conflict'            => isset($conflictsMap[$exam->id]),
+                'conflict_reason'         => $conflictsMap[$exam->id] ?? null,
                 'can_edit'                => !in_array($displayStatus, ['Completed', 'Cancelled']),
                 'can_cancel'              => $displayStatus !== 'Cancelled',
                 'settings'                => $exam->settings ?? [],
@@ -584,9 +594,52 @@ class ExamController extends Controller
     }
 
     /**
-     * Schedule conflict detection helper.
+     * Detect temporal and venue collisions among an exam collection.
      */
-    private function checkSchedulingConflict(?int $deptId, string $courseCode, ?string $scheduledAt, int $durationMinutes, $excludeExamId = null)
+    private function detectExamConflicts($examCollection): array
+    {
+        $conflictsMap = [];
+        $items = $examCollection->values();
+        $count = $items->count();
+
+        for ($i = 0; $i < $count; $i++) {
+            $a = $items[$i];
+            if (!$a->scheduled_at || in_array(strtolower($a->status ?? ''), ['cancelled', 'draft'])) continue;
+            $startA = Carbon::parse($a->scheduled_at);
+            $endA = $startA->copy()->addMinutes($a->duration_minutes ?? 60);
+            $roomA = trim($a->settings['room'] ?? '');
+
+            for ($j = $i + 1; $j < $count; $j++) {
+                $b = $items[$j];
+                if (!$b->scheduled_at || in_array(strtolower($b->status ?? ''), ['cancelled', 'draft'])) continue;
+                $startB = Carbon::parse($b->scheduled_at);
+                $endB = $startB->copy()->addMinutes($b->duration_minutes ?? 60);
+                $roomB = trim($b->settings['room'] ?? '');
+
+                // Temporal Overlap: Start A < End B && End A > Start B
+                if ($startA->lt($endB) && $endA->gt($startB)) {
+                    $reason = null;
+                    if ($a->course_code === $b->course_code) {
+                        $reason = "Course time conflict ({$a->course_code})";
+                    } elseif (!empty($roomA) && !empty($roomB) && strcasecmp($roomA, $roomB) === 0) {
+                        $reason = "Room double-booking ({$roomA})";
+                    }
+
+                    if ($reason) {
+                        $conflictsMap[$a->id] = $reason;
+                        $conflictsMap[$b->id] = $reason;
+                    }
+                }
+            }
+        }
+
+        return $conflictsMap;
+    }
+
+    /**
+     * Schedule conflict detection helper for pre-flight and submission validation.
+     */
+    private function checkSchedulingConflict(?int $deptId, string $courseCode, ?string $scheduledAt, int $durationMinutes, $excludeExamId = null, ?string $room = null): ?array
     {
         if (!$scheduledAt) {
             return null;
@@ -594,21 +647,228 @@ class ExamController extends Controller
 
         $newStart = Carbon::parse($scheduledAt);
         $newEnd = $newStart->copy()->addMinutes($durationMinutes);
+        $cleanRoom = trim((string)$room);
 
-        return Exam::whereIn('status', ['published', 'scheduled'])
-            ->where('course_code', $courseCode)
+        // Fetch active/scheduled exams across the department
+        $exams = Exam::whereIn('status', ['published', 'scheduled'])
             ->when($excludeExamId, function ($query) use ($excludeExamId) {
                 return $query->where('id', '!=', $excludeExamId);
             })
-            ->get()
-            ->first(function ($exam) use ($newStart, $newEnd) {
-                if (!$exam->scheduled_at) return false;
-                $existingStart = Carbon::parse($exam->scheduled_at);
-                $existingEnd = $existingStart->copy()->addMinutes($exam->duration_minutes ?? 60);
+            ->get();
 
-                // Overlap: Start A < End B && End A > Start B
-                return $newStart->lt($existingEnd) && $newEnd->gt($existingStart);
-            });
+        foreach ($exams as $exam) {
+            if (!$exam->scheduled_at) continue;
+            $existingStart = Carbon::parse($exam->scheduled_at);
+            $existingEnd = $existingStart->copy()->addMinutes($exam->duration_minutes ?? 60);
+
+            // Overlap: Start A < End B && End A > Start B
+            if ($newStart->lt($existingEnd) && $newEnd->gt($existingStart)) {
+                if ($exam->course_code === $courseCode) {
+                    return [
+                        'conflict_type' => 'course',
+                        'exam_id'       => $exam->id,
+                        'title'         => $exam->title,
+                        'course_code'   => $exam->course_code,
+                        'scheduled_at'  => $existingStart->format('M d, Y • h:i A'),
+                        'message'       => "Course Schedule Collision: Course {$courseCode} is already scheduled on {$existingStart->format('M d, Y')} at {$existingStart->format('h:i A')} (\"{$exam->title}\").",
+                    ];
+                }
+
+                $existingRoom = trim($exam->settings['room'] ?? '');
+                if (!empty($cleanRoom) && !empty($existingRoom) && strcasecmp($cleanRoom, $existingRoom) === 0) {
+                    return [
+                        'conflict_type' => 'room',
+                        'exam_id'       => $exam->id,
+                        'title'         => $exam->title,
+                        'room'          => $cleanRoom,
+                        'scheduled_at'  => $existingStart->format('M d, Y • h:i A'),
+                        'message'       => "Room Double-Booking: {$cleanRoom} is already assigned to \"{$exam->title}\" ({$exam->course_code}) at {$existingStart->format('h:i A')}.",
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Pre-flight conflict check endpoint for frontend scheduling / rescheduling modal.
+     */
+    public function checkConflict(Request $request): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+
+        $request->validate([
+            'course_code'      => 'required|string',
+            'scheduled_at'     => 'required|date',
+            'duration_minutes' => 'required|integer|min:5|max:360',
+            'room'             => 'nullable|string',
+            'exclude_id'       => 'nullable|integer',
+        ]);
+
+        $conflict = $this->checkSchedulingConflict(
+            $deptId,
+            $request->course_code,
+            $request->scheduled_at,
+            (int)$request->duration_minutes,
+            $request->exclude_id,
+            $request->room
+        );
+
+        if ($conflict) {
+            return response()->json([
+                'has_conflict' => true,
+                'conflict'     => $conflict,
+                'message'      => $conflict['message'],
+            ]);
+        }
+
+        return response()->json([
+            'has_conflict' => false,
+            'message'      => 'No scheduling conflicts detected for this time window.',
+        ]);
+    }
+
+    /**
+     * Unified calendar feed: Department-scoped exams + University academic events.
+     */
+    public function calendarEvents(Request $request): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $headId = $request->user()->id;
+        $dept = $deptId ? Department::find($deptId) : null;
+
+        // Active term from SystemSetting
+        $activeYear = SystemSetting::where('key', 'academicYear')->value('value') ?: '2028';
+        $activeSemester = SystemSetting::where('key', 'semester')->value('value') ?: 'Second Semester';
+
+        // 1. Department Exams (strictly scoped)
+        $baseQuery = $this->buildDeptExamsQuery($deptId, $headId);
+        $allDeptExams = (clone $baseQuery)
+            ->with(['course', 'instructor:id,name,email'])
+            ->get();
+
+        $now = Carbon::now();
+        $totalExams = $allDeptExams->count();
+        $scheduledCount = 0;
+        $upcomingCount = 0;
+        $completedCount = 0;
+
+        foreach ($allDeptExams as $e) {
+            $computed = $this->determineComputedStatus($e);
+            if (in_array($computed, ['Scheduled', 'Published'])) {
+                $scheduledCount++;
+            }
+            if ($e->scheduled_at && Carbon::parse($e->scheduled_at)->gte($now) && !in_array($computed, ['Cancelled', 'Completed'])) {
+                $upcomingCount++;
+            }
+            if ($computed === 'Completed') {
+                $completedCount++;
+            }
+        }
+
+        $conflictsMap = $this->detectExamConflicts($allDeptExams);
+
+        $examEvents = $allDeptExams->map(function ($e) use ($conflictsMap, $activeYear, $activeSemester) {
+            $duration = $e->duration_minutes ?? 60;
+            $start = $e->scheduled_at ? Carbon::parse($e->scheduled_at) : null;
+            $end = $start ? $start->copy()->addMinutes($duration) : null;
+            $computedStatus = $this->determineComputedStatus($e);
+
+            return [
+                'id'               => 'exam-' . $e->id,
+                'exam_id'          => $e->id,
+                'type'             => 'exam',
+                'title'            => $e->title,
+                'code'             => $this->formatExamCode($e),
+                'course_code'      => $e->course_code ?: ($e->course?->code ?? 'N/A'),
+                'course_name'      => $e->course_name ?: ($e->course?->title ?? 'Course'),
+                'instructor_name'  => $e->instructor?->name ?? 'Unassigned Faculty',
+                'instructor_email' => $e->instructor?->email ?? '',
+                'room'             => $e->settings['room'] ?? 'Room 101',
+                'section'          => $e->section ?? '',
+                'exam_type'        => $this->determineExamType($e),
+                'start'            => $start ? $start->toIso8601String() : null,
+                'end'              => $end ? $end->toIso8601String() : null,
+                'date'             => $start ? $start->format('Y-m-d') : null,
+                'date_formatted'   => $start ? $start->format('M d, Y') : 'Unscheduled',
+                'start_time'       => $start ? $start->format('h:i A') : 'TBD',
+                'end_time'         => $end ? $end->format('h:i A') : 'TBD',
+                'duration'         => $this->formatDuration($duration),
+                'duration_minutes' => $duration,
+                'total_marks'      => $e->total_marks ?? 100,
+                'status'           => $computedStatus,
+                'raw_status'       => strtolower($e->status ?? ''),
+                'has_conflict'     => isset($conflictsMap[$e->id]),
+                'conflict_reason'  => $conflictsMap[$e->id] ?? null,
+                'semester'         => $e->settings['semester'] ?? ($e->course?->semester ?? $activeSemester),
+                'academic_year'    => $e->settings['academic_year'] ?? $activeYear,
+                'color'            => isset($conflictsMap[$e->id]) ? '#ef4444' : '#5138ed',
+                'can_edit'         => !in_array($computedStatus, ['Completed', 'Cancelled']),
+                'can_cancel'       => $computedStatus !== 'Cancelled',
+            ];
+        });
+
+        // 2. University Academic Calendar Events
+        $academicEvents = AcademicEvent::with('category')->get()->map(function ($ev) {
+            return [
+                'id'             => 'event-' . $ev->id,
+                'event_id'       => $ev->id,
+                'type'           => 'academic_event',
+                'title'          => $ev->title,
+                'description'    => $ev->description,
+                'category'       => $ev->category?->name ?? 'University Date',
+                'category_color' => $ev->category?->color ?? '#3b82f6',
+                'start_date'     => $ev->start_date ? $ev->start_date->toDateString() : null,
+                'end_date'       => $ev->end_date ? $ev->end_date->toDateString() : null,
+                'start'          => $ev->start_date ? $ev->start_date->toIso8601String() : null,
+                'end'            => $ev->end_date ? $ev->end_date->toIso8601String() : null,
+                'all_day'        => (bool)$ev->all_day,
+                'start_time'     => $ev->start_time,
+                'end_time'       => $ev->end_time,
+                'status'         => $ev->status,
+                'academic_year'  => $ev->academic_year,
+                'semester'       => $ev->semester,
+                'color'          => $ev->color ?: ($ev->category?->color ?? '#3b82f6'),
+            ];
+        });
+
+        // Available filter options
+        $deptCourses = Course::where('department_id', $deptId)
+            ->select('id', 'title', 'code', 'credits', 'level', 'semester')
+            ->orderBy('title')
+            ->get();
+
+        $deptInstructors = User::where('department_id', $deptId)
+            ->whereIn('role', ['instructor', 'dept_head'])
+            ->select('id', 'name', 'email', 'id_no')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'status'          => 'success',
+            'exams'           => $examEvents,
+            'academic_events' => $academicEvents,
+            'stats'           => [
+                'total'     => $totalExams,
+                'scheduled' => $scheduledCount,
+                'upcoming'  => $upcomingCount,
+                'conflicts' => count($conflictsMap),
+                'completed' => $completedCount,
+            ],
+            'active_term'     => [
+                'academic_year' => $activeYear,
+                'semester'      => $activeSemester,
+            ],
+            'department'      => [
+                'id'      => $dept?->id,
+                'name'    => ucwords($dept?->name ?? 'Department'),
+                'code'    => $dept?->code ?? 'CS',
+                'college' => $dept?->college ?? 'College of Informatics',
+            ],
+            'courses'         => $deptCourses,
+            'instructors'     => $deptInstructors,
+        ]);
     }
 
     /**
@@ -644,11 +904,10 @@ class ExamController extends Controller
         }
 
         // Conflict check
-        $conflict = $this->checkSchedulingConflict($deptId, $request->course_code, $request->scheduled_at, (int)$request->duration_minutes);
+        $conflict = $this->checkSchedulingConflict($deptId, $request->course_code, $request->scheduled_at, (int)$request->duration_minutes, null, $request->room);
         if ($conflict) {
-            $confStart = Carbon::parse($conflict->scheduled_at)->format('M d, Y h:i A');
             return response()->json([
-                'message' => "Schedule Conflict: An examination for course {$request->course_code} is already scheduled around {$confStart}."
+                'message' => $conflict['message']
             ], 422);
         }
 
@@ -716,14 +975,15 @@ class ExamController extends Controller
             'status'           => 'sometimes|string|in:published,scheduled,draft,completed,cancelled',
         ]);
 
-        // Conflict check if scheduled_at or duration changed
-        if ($request->has('scheduled_at')) {
+        // Conflict check if scheduled_at, duration or room changed
+        if ($request->has('scheduled_at') || $request->has('room')) {
+            $schedAt = $request->scheduled_at ?? ($exam->scheduled_at ? $exam->scheduled_at->toIso8601String() : null);
             $duration = $request->duration_minutes ?? $exam->duration_minutes;
-            $conflict = $this->checkSchedulingConflict($deptId, $exam->course_code, $request->scheduled_at, (int)$duration, $exam->id);
+            $room = $request->has('room') ? $request->room : ($exam->settings['room'] ?? null);
+            $conflict = $this->checkSchedulingConflict($deptId, $exam->course_code, $schedAt, (int)$duration, $exam->id, $room);
             if ($conflict) {
-                $confStart = Carbon::parse($conflict->scheduled_at)->format('M d, Y h:i A');
                 return response()->json([
-                    'message' => "Schedule Conflict: Another exam is already scheduled at {$confStart}."
+                    'message' => $conflict['message']
                 ], 422);
             }
         }

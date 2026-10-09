@@ -291,6 +291,7 @@ export const routes: Array<RouteRecordRaw> = [
       {
         path: 'schedule',
         name: 'DeptHeadScheduleExams',
+        alias: ['academic-calendar', 'calendar'],
         component: () => import('../modules/department-head/pages/ExamSchedule.vue')
       },
       {
