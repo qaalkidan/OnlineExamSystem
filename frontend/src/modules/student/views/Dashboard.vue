@@ -197,7 +197,7 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f8f9fc] font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white flex flex-col">
+  <div class="min-h-screen bg-[#F6F8FC] font-sans text-[#17243A] antialiased selection:bg-[#4F35F3] selection:text-white flex flex-col">
     
     <!-- Top Navigation Header -->
     <Header
@@ -282,60 +282,85 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
           <Announcements :announcements="sampleAnnouncements" />
         </div>
 
-        <!-- Col 3: Need Help? — Light flat card, full height -->
-        <div class="bg-white rounded-2xl border border-slate-100 p-5 sm:p-6 shadow-sm h-full flex flex-col">
-          <h3 class="text-base font-bold text-slate-900">Need Help?</h3>
-          <p class="text-xs text-slate-500 mt-0.5">We're here to support you</p>
+        <!-- Col 3: Need Help? — Card matching screenshot -->
+        <div class="bg-white rounded-2xl border border-[#E6EBF3] p-5 sm:p-6 shadow-2xs hover:border-slate-300 transition-all h-full flex flex-col justify-between">
+          <div>
+            <h3 class="text-base font-bold text-[#17243A]">Need Help?</h3>
+            <p class="text-xs text-[#71819B] mt-0.5 font-medium">We're here to support you</p>
 
-          <div class="mt-4 sm:mt-5 space-y-3 flex-1 overflow-y-auto">
-            <!-- Help Center Item -->
-            <div class="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer min-h-[44px]">
-              <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
-                </svg>
-              </div>
-              <div>
-                <p class="text-[13px] font-bold text-slate-900">Help Center</p>
-                <p class="text-[11px] text-slate-500 mt-0.5">Find answers to common questions</p>
-              </div>
-            </div>
+            <div class="mt-4 sm:mt-5 space-y-3">
+              <!-- Help Center Item -->
+              <a 
+                href="https://wu.edu.et" 
+                target="_blank" 
+                rel="noopener"
+                class="flex items-start gap-3 p-3 rounded-xl border border-[#E6EBF3] hover:bg-[#F6F8FC] hover:border-slate-300 transition-all cursor-pointer min-h-[44px] group"
+              >
+                <div class="w-9 h-9 rounded-xl bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[13px] font-bold text-[#17243A] group-hover:text-[#4F35F3] transition-colors">Help Center</p>
+                  <p class="text-[11px] text-[#71819B] mt-0.5 font-medium">Find answers to common questions</p>
+                </div>
+              </a>
 
-            <!-- Contact Support Item -->
-            <div class="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer min-h-[44px]">
-              <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                </svg>
-              </div>
-              <div>
-                <p class="text-[13px] font-bold text-slate-900">Contact Support</p>
-                <p class="text-[11px] text-slate-500 mt-0.5">Reach our support team directly</p>
-              </div>
+              <!-- Contact Support Item -->
+              <a 
+                href="mailto:support@wu.edu.et"
+                class="flex items-start gap-3 p-3 rounded-xl border border-[#E6EBF3] hover:bg-[#F6F8FC] hover:border-slate-300 transition-all cursor-pointer min-h-[44px] group"
+              >
+                <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[13px] font-bold text-[#17243A] group-hover:text-emerald-700 transition-colors">Contact Support</p>
+                  <p class="text-[11px] text-[#71819B] mt-0.5 font-medium">Reach our support team directly</p>
+                </div>
+              </a>
             </div>
           </div>
         </div>
 
-        <!-- Col 4: You're Doing Great — Trophy image on right, text on left -->
-        <div class="bg-slate-50 rounded-2xl border border-slate-100 p-5 sm:p-6 lg:p-7 shadow-sm relative overflow-hidden h-full flex flex-col justify-between">
-          <!-- Trophy image on the right -->
-          <div class="absolute right-2 top-1/2 -translate-y-1/2 opacity-30 sm:opacity-50 lg:opacity-100 pointer-events-none">
-            <span class="text-5xl sm:text-6xl select-none">{{ encouragementData.emoji }}</span>
+        <!-- Col 4: Welcome Aboard! / Gamification Card matching screenshot -->
+        <div class="bg-white rounded-2xl border border-[#E6EBF3] p-5 sm:p-6 lg:p-7 shadow-2xs hover:border-slate-300 transition-all relative overflow-hidden h-full flex flex-col justify-between">
+          <!-- Illustration / Emoji on the right -->
+          <div class="absolute right-3 -bottom-2 opacity-80 sm:opacity-90 pointer-events-none select-none">
+            <span class="text-6xl sm:text-7xl filter drop-shadow-md">{{ encouragementData.emoji }}</span>
           </div>
 
           <!-- Text on the left -->
-          <div class="relative z-10 pr-12 sm:pr-14">
-            <p class="text-sm font-black text-slate-900 leading-snug" v-html="encouragementData.title"></p>
-            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">
+          <div class="relative z-10 pr-12">
+            <h3 class="text-lg sm:text-[19px] font-black text-[#17243A] leading-snug tracking-tight" v-html="encouragementData.title"></h3>
+            <p class="text-xs text-[#71819B] mt-2 leading-relaxed font-medium">
               {{ encouragementData.subtitle }}
             </p>
-            <button class="mt-4 w-full min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-colors shadow-sm flex items-center justify-center">
+          </div>
+
+          <div class="relative z-10 pt-5">
+            <button 
+              @click="router.push('/student/results')"
+              class="w-full min-h-[42px] bg-[#4F35F3] hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all shadow-xs flex items-center justify-center cursor-pointer"
+            >
               View Achievements
             </button>
           </div>
         </div>
 
       </div>
+
+      <!-- Footer matching Wollo University standard -->
+      <footer class="mt-12 pt-6 border-t border-[#E6EBF3] flex flex-col sm:flex-row items-center justify-between text-[11px] font-medium text-[#71819B] gap-4">
+        <div>&copy; 2025 Wollo University. All rights reserved.</div>
+        <div class="flex items-center gap-6">
+          <a href="https://wu.edu.et" target="_blank" rel="noopener" class="hover:text-[#17243A] transition-colors">Privacy Policy</a>
+          <a href="https://wu.edu.et" target="_blank" rel="noopener" class="hover:text-[#17243A] transition-colors">Terms of Service</a>
+        </div>
+      </footer>
 
     </main>
 
