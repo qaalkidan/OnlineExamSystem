@@ -28,23 +28,29 @@ const tabs = [
 </script>
 
 <template>
-  <div class="border-b border-slate-100 bg-white px-6 md:px-8 flex items-center gap-6 overflow-x-auto no-scrollbar">
+  <div class="border-b border-[#E6EBF3] bg-white px-4 sm:px-8 flex items-center gap-6 sm:gap-8 overflow-x-auto no-scrollbar shadow-2xs">
     <button
       v-for="tab in tabs"
       :key="tab.id"
       @click="profileStore.activeTab = tab.id"
       type="button"
-      class="py-4 text-[13px] font-bold flex items-center gap-2 whitespace-nowrap transition-colors border-b-2 cursor-pointer"
+      class="relative py-4 text-[13px] font-bold flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer min-h-[50px]"
       :class="[
         profileStore.activeTab === tab.id
-          ? 'text-[#5138ed] border-[#5138ed]'
-          : 'text-slate-500 hover:text-slate-800 border-transparent'
+          ? 'text-[#4F35F3]'
+          : 'text-[#71819B] hover:text-[#17243A]'
       ]"
     >
       <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
       </svg>
-      {{ tab.label }}
+      <span>{{ tab.label }}</span>
+
+      <!-- Active Purple Bottom Indicator matching screenshot -->
+      <span
+        v-if="profileStore.activeTab === tab.id"
+        class="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#4F35F3] rounded-t-full transition-all duration-200"
+      ></span>
     </button>
   </div>
 </template>
@@ -56,7 +62,7 @@ const tabs = [
 }
 /* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>

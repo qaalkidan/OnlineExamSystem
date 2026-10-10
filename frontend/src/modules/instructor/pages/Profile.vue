@@ -16,7 +16,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-[1500px] mx-auto pb-8 relative">
+  <div class="max-w-[1500px] mx-auto pb-10 relative">
     
     <!-- Floating Toast Notification -->
     <Teleport to="body">
@@ -30,13 +30,13 @@ onMounted(() => {
       >
         <div
           v-if="profileStore.toast.show"
-          class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold max-w-sm"
+          class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border text-xs font-semibold max-w-sm backdrop-blur-md"
           :class="[
             profileStore.toast.type === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              ? 'bg-rose-50/95 border-rose-200 text-rose-800'
               : profileStore.toast.type === 'info'
-              ? 'bg-blue-50 border-blue-200 text-blue-800'
-              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              ? 'bg-blue-50/95 border-blue-200 text-blue-800'
+              : 'bg-emerald-50/95 border-emerald-200 text-emerald-800'
           ]"
         >
           <svg
@@ -61,7 +61,7 @@ onMounted(() => {
           <button
             @click="profileStore.toast.show = false"
             type="button"
-            class="text-slate-400 hover:text-slate-600"
+            class="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -69,18 +69,19 @@ onMounted(() => {
       </Transition>
     </Teleport>
 
-    <div class="px-3.5 sm:px-6 lg:px-8 mt-4 sm:mt-6">
+    <!-- Main Content Container with standard padding -->
+    <div class="space-y-6">
       
-      <!-- Main Content Grid -->
+      <!-- Main Content Grid matching screenshot -->
       <div class="flex flex-col lg:flex-row gap-6">
         
-        <!-- Left Column -->
+        <!-- Left Column: Profile Overview, Tabs + Form, Statistics -->
         <div class="flex-1 min-w-0 space-y-6">
           <ProfileOverview />
           
-          <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+          <div class="bg-white border border-[#E6EBF3] rounded-2xl overflow-hidden shadow-2xs hover:border-slate-300 transition-all">
             <ProfileTabs />
-            <div class="p-4 sm:p-6">
+            <div class="p-5 sm:p-7">
               <ProfileForm />
             </div>
           </div>
@@ -88,13 +89,14 @@ onMounted(() => {
           <ProfileStats />
         </div>
 
-        <!-- Right Column -->
-        <div class="w-full lg:w-[320px] xl:w-[350px] space-y-6">
+        <!-- Right Column: Account Activity, Preferences -->
+        <div class="w-full lg:w-[320px] xl:w-[350px] space-y-6 shrink-0">
           <ProfileActivity />
           <ProfilePreferences />
         </div>
 
       </div>
+
     </div>
     
   </div>
