@@ -1,57 +1,115 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const showAllModal = ref(false)
+
+const lowestExams = [
+  { rank: 1, title: 'Theory of Computation Final', code: 'CS 401', avgScore: '58.2%', passRate: '45.1%', students: 65, isCritical: true },
+  { rank: 2, title: 'Computer Networks Mid Exam', code: 'CS 304', avgScore: '60.3%', passRate: '48.2%', students: 82, isCritical: true },
+  { rank: 3, title: 'Artificial Intelligence Quiz 1', code: 'CS 410', avgScore: '62.7%', passRate: '50.6%', students: 78, isCritical: false },
+  { rank: 4, title: 'Data Structures Final Exam', code: 'CS 202', avgScore: '63.5%', passRate: '51.3%', students: 88, isCritical: false },
+  { rank: 5, title: 'Software Engineering Quiz 2', code: 'SE 302', avgScore: '64.1%', passRate: '53.2%', students: 84, isCritical: false },
+]
+</script>
+
 <template>
-  <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
-    <div class="flex items-center justify-between mb-5">
-      <h2 class="text-[14px] font-bold text-slate-800">Lowest Performing Exams</h2>
-      <button class="text-[11px] font-bold text-[#5138ed] hover:text-indigo-700 transition-colors">
+  <div class="bg-white border border-[#E6EBF3] rounded-2xl p-5 sm:p-6 shadow-2xs hover:border-slate-300 transition-all">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-[14px] font-bold text-[#17243A]">Lowest Performing Exams</h2>
+      <button
+        @click="showAllModal = true"
+        class="text-[11px] font-bold text-[#4F35F3] hover:text-indigo-800 transition-colors cursor-pointer"
+      >
         View All
       </button>
     </div>
     
-    <!-- Table Header -->
-    <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
-      <span class="text-[10px] font-bold text-slate-800 w-1/2">Exam Title</span>
-      <span class="text-[10px] font-bold text-slate-800 w-1/4 text-center">Average Score</span>
-      <span class="text-[10px] font-bold text-slate-800 w-1/4 text-center">Pass Rate</span>
+    <!-- Table Header matching screenshot -->
+    <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2 text-[10px] font-bold text-slate-800">
+      <span class="w-1/2">Exam Title</span>
+      <span class="w-1/4 text-center">Average Score</span>
+      <span class="w-1/4 text-center">Pass Rate</span>
     </div>
 
-    <!-- Data Rows -->
-    <div class="space-y-4">
-      
-      <!-- Row 1 -->
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-slate-600 w-1/2 truncate pr-2">Theory of Computation Final</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">58.2%</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">45.1%</span>
+    <!-- Data Rows matching screenshot -->
+    <div class="space-y-3.5">
+      <div
+        v-for="exam in lowestExams"
+        :key="exam.rank"
+        class="flex items-center justify-between hover:bg-slate-50/70 p-1 rounded-lg transition-colors group cursor-pointer"
+      >
+        <span class="text-[11px] font-bold text-slate-600 group-hover:text-rose-600 w-1/2 truncate pr-2 flex items-center gap-1.5" :title="exam.title">
+          <span v-if="exam.isCritical" class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" title="Low Pass Rate Alert"></span>
+          <span class="truncate">{{ exam.title }}</span>
+        </span>
+        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">
+          {{ exam.avgScore }}
+        </span>
+        <span 
+          class="text-[11px] font-medium w-1/4 text-center"
+          :class="exam.isCritical ? 'text-rose-600 font-bold' : 'text-slate-800'"
+        >
+          {{ exam.passRate }}
+        </span>
       </div>
-
-      <!-- Row 2 -->
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-slate-600 w-1/2 truncate pr-2">Computer Networks Mid Exam</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">60.3%</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">48.2%</span>
-      </div>
-
-      <!-- Row 3 -->
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-slate-600 w-1/2 truncate pr-2">Artificial Intelligence Quiz 1</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">62.7%</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">50.6%</span>
-      </div>
-
-      <!-- Row 4 -->
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-slate-600 w-1/2 truncate pr-2">Data Structures Final Exam</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">63.5%</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">51.3%</span>
-      </div>
-
-      <!-- Row 5 -->
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-slate-600 w-1/2 truncate pr-2">Software Engineering Quiz 2</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">64.1%</span>
-        <span class="text-[11px] font-medium text-slate-800 w-1/4 text-center">53.2%</span>
-      </div>
-
     </div>
+
+    <!-- View All Modal -->
+    <div
+      v-if="showAllModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150"
+    >
+      <div class="bg-white border border-[#E6EBF3] rounded-2xl w-full max-w-lg shadow-2xl p-6 relative">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+          <div>
+            <h3 class="text-base font-bold text-[#17243A]">Lowest Performing Exams</h3>
+            <p class="text-xs text-[#71819B] mt-0.5">Exams that may require revision or additional tutorial sessions</p>
+          </div>
+          <button
+            @click="showAllModal = false"
+            class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+          <div
+            v-for="exam in lowestExams"
+            :key="exam.rank"
+            class="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-rose-100 hover:bg-rose-50/20 transition-all"
+          >
+            <div class="flex items-center gap-3">
+              <span class="w-6 h-6 rounded-full bg-rose-50 text-rose-600 font-black text-xs flex items-center justify-center">
+                {{ exam.rank }}
+              </span>
+              <div>
+                <div class="text-xs font-bold text-[#17243A]">{{ exam.title }}</div>
+                <div class="text-[10px] text-[#71819B]">{{ exam.code }} • {{ exam.students }} Students</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-black text-slate-800">Avg {{ exam.avgScore }}</div>
+              <div 
+                class="text-[10px] font-bold"
+                :class="exam.isCritical ? 'text-rose-600' : 'text-slate-500'"
+              >
+                Pass {{ exam.passRate }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 pt-3 border-t border-slate-100 flex justify-end">
+          <button
+            @click="showAllModal = false"
+            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
