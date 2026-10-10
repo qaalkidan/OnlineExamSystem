@@ -53,6 +53,15 @@ class InstructorQuestionBankController extends Controller
             }
         }
 
+        if ($request->filled('search')) {
+            $searchTerm = trim($request->search);
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('title', 'like', "%{$searchTerm}%")
+                  ->orWhere('description', 'like', "%{$searchTerm}%")
+                  ->orWhere('course_code', 'like', "%{$searchTerm}%");
+            });
+        }
+
         $banks = $query->with(['questions', 'instructor.department'])
             ->withCount('questions')
             ->latest()
@@ -74,6 +83,9 @@ class InstructorQuestionBankController extends Controller
         $totalSa = $banks->sum('sa_count');
         $totalEssay = $banks->sum('essay_count');
 
+        $latestCreated = $banks->sortByDesc('created_at')->first();
+        $latestUpdated = $banks->sortByDesc('updated_at')->first();
+
         return response()->json([
             'data' => [
                 'banks' => $banks->map(fn($bank) => [
@@ -90,7 +102,8 @@ class InstructorQuestionBankController extends Controller
                         'essay' => $bank->essay_count,
                         'tf'    => $bank->tf_count ?? 0,
                     ],
-                    'updated_at'       => $bank->updated_at->toISOString(),
+                    'created_at'       => $bank->created_at?->toISOString(),
+                    'updated_at'       => $bank->updated_at?->toISOString(),
                 ]),
                 'stats' => [
                     'total_banks'     => $totalBanks,
@@ -98,6 +111,14 @@ class InstructorQuestionBankController extends Controller
                     'mcq_questions'   => $totalMcq,
                     'sa_questions'    => $totalSa,
                     'essay_questions' => $totalEssay,
+                    'last_created'    => $latestCreated ? [
+                        'title'      => $latestCreated->title,
+                        'created_at' => $latestCreated->created_at?->toISOString(),
+                    ] : null,
+                    'last_updated'    => $latestUpdated ? [
+                        'title'      => $latestUpdated->title,
+                        'updated_at' => $latestUpdated->updated_at?->toISOString(),
+                    ] : null,
                 ]
             ]
         ]);
@@ -212,6 +233,7 @@ class InstructorQuestionBankController extends Controller
                     'essay' => 0,
                     'tf'    => 0,
                 ],
+                'created_at'       => $bank->created_at?->toISOString(),
                 'updated_at'       => $bank->updated_at->toISOString(),
             ]
         ], 201);

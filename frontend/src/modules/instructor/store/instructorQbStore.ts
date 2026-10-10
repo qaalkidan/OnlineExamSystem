@@ -6,6 +6,7 @@ export interface QbTypes {
   mcq: number
   sa: number
   essay: number
+  tf?: number
 }
 
 export interface QuestionBank {
@@ -16,6 +17,7 @@ export interface QuestionBank {
   course_name: string
   total_questions: number
   types: QbTypes
+  created_at?: string
   updated_at: string
   status: string
 }
@@ -26,6 +28,14 @@ export interface QbStats {
   mcq_questions: number
   sa_questions: number
   essay_questions: number
+  last_created?: {
+    title: string
+    created_at: string
+  } | null
+  last_updated?: {
+    title: string
+    updated_at: string
+  } | null
 }
 
 const MOCK_STATS: QbStats = {
@@ -37,8 +47,8 @@ const MOCK_STATS: QbStats = {
 }
 
 const MOCK_BANKS: QuestionBank[] = [
-  { id: 1, title: 'Database Systems Questions', description: 'All database related questions', course_name: 'Software Engineering', course_code: 'SWE-301', total_questions: 78, types: { mcq: 60, sa: 12, essay: 6 }, updated_at: '2025-05-20T10:00:00.000Z', status: 'Active' },
-  { id: 2, title: 'Web Programming Questions', description: 'HTML, CSS, JavaScript, PHP', course_name: 'Software Engineering', course_code: 'SWE-301', total_questions: 95, types: { mcq: 72, sa: 15, essay: 8 }, updated_at: '2025-05-18T10:00:00.000Z', status: 'Active' },
+  { id: 1, title: 'Database Systems Questions', description: 'All database related questions', course_name: 'Software Engineering', course_code: 'SWE-301', total_questions: 78, types: { mcq: 60, sa: 12, essay: 6 }, created_at: '2025-05-20T10:00:00.000Z', updated_at: '2025-05-20T10:00:00.000Z', status: 'Active' },
+  { id: 2, title: 'Web Programming Questions', description: 'HTML, CSS, JavaScript, PHP', course_name: 'Software Engineering', course_code: 'SWE-301', total_questions: 95, types: { mcq: 72, sa: 15, essay: 8 }, created_at: '2025-05-18T10:00:00.000Z', updated_at: '2025-05-18T10:00:00.000Z', status: 'Active' },
 ]
 
 export const useInstructorQbStore = defineStore('instructorQb', () => {
@@ -48,13 +58,17 @@ export const useInstructorQbStore = defineStore('instructorQb', () => {
   const error = ref<string | null>(null)
   const usingMockData = ref(false)
 
-  const fetchQuestionBanks = async () => {
+  const fetchQuestionBanks = async (search?: string) => {
     isLoading.value = true
     error.value = null
     usingMockData.value = false
 
     try {
-      const response = await apiClient.get('/instructor/question-banks')
+      const params: Record<string, string> = {}
+      if (search && search.trim()) {
+        params.search = search.trim()
+      }
+      const response = await apiClient.get('/instructor/question-banks', { params })
       banks.value = response.data.data.banks
       stats.value = response.data.data.stats
     } catch (err: any) {
