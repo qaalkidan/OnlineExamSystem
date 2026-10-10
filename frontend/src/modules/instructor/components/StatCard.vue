@@ -1,38 +1,67 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
   title: string
   value: string | number
-  subtitle: string
-  icon: string
-  colorClass: string
-  bgClass: string
+  subtitle?: string
+  icon?: any
+  colorClass?: string
+  bgClass?: string
+  to?: string
 }>()
+
+const isClickable = computed(() => Boolean(props.to))
 </script>
 
 <template>
-  <div class="bg-white rounded-2xl p-4 lg:p-5 border border-slate-100 shadow-sm flex items-center gap-3 lg:gap-4 transition-transform hover:-translate-y-1 hover:shadow-md overflow-hidden">
-    
+  <component
+    :is="to ? 'router-link' : 'div'"
+    :to="to"
+    class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-xs flex items-center gap-3.5 transition-all duration-200 group select-none relative overflow-hidden"
+    :class="[
+      isClickable ? 'hover:shadow-md hover:border-indigo-200/80 cursor-pointer hover:-translate-y-0.5' : ''
+    ]"
+  >
+    <!-- Soft Background Accent on Hover -->
+    <div
+      class="absolute -right-6 -bottom-6 w-20 h-20 rounded-full opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none"
+      :class="bgClass || 'bg-indigo-500'"
+    ></div>
+
     <!-- Icon Container -->
-    <div 
-      class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-      :class="bgClass"
+    <div
+      class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform"
+      :class="bgClass || 'bg-indigo-50'"
     >
-      <svg 
-        class="w-6 h-6" 
-        :class="colorClass"
-        fill="none" 
-        stroke="currentColor" 
+      <component
+        v-if="icon && typeof icon !== 'string'"
+        :is="icon"
+        class="w-6 h-6"
+        :class="colorClass || 'text-[#5138ed]'"
+      />
+      <svg
+        v-else-if="icon"
+        class="w-6 h-6"
+        :class="colorClass || 'text-[#5138ed]'"
+        fill="none"
+        stroke="currentColor"
         viewBox="0 0 24 24"
         v-html="icon"
       ></svg>
     </div>
 
-    <!-- Content -->
+    <!-- Content: Clean Typography, Never Truncated -->
     <div class="flex flex-col flex-1 min-w-0">
-      <h3 class="text-[12px] font-bold text-slate-500 mb-0.5 leading-tight truncate">{{ title }}</h3>
-      <span class="text-2xl font-extrabold text-slate-800 leading-none">{{ value }}</span>
-      <span class="text-[11px] text-slate-400 mt-1 font-medium truncate">{{ subtitle }}</span>
+      <span class="text-[12px] font-bold text-slate-500 tracking-wide uppercase leading-tight">
+        {{ title }}
+      </span>
+      <span class="text-2xl sm:text-[26px] font-black text-slate-900 leading-tight tracking-tight mt-0.5">
+        {{ value }}
+      </span>
+      <span v-if="subtitle" class="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
+        {{ subtitle }}
+      </span>
     </div>
-
-  </div>
+  </component>
 </template>

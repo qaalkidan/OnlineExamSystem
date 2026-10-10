@@ -150,6 +150,17 @@ const instructorRoleText = computed(() => {
   return str.toLowerCase()
 })
 
+const getInitials = (name?: string) => {
+  if (!name) return 'IN'
+  return name
+    .trim()
+    .split(/\s+/)
+    .map(w => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
 const isCreateExam = computed(() => route.path === '/instructor/exams/create')
 const createExamStep = computed(() => Number(route.query.step) || 1)
 
@@ -325,8 +336,9 @@ const pageTitle = computed(() => {
           :class="{ 'bg-slate-100/90 border-slate-200 shadow-xs': isProfileDropdownOpen }"
           aria-label="User Profile Menu"
         >
-          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-200 overflow-hidden border-2 border-transparent group-hover:border-[#5138ed] transition-all flex items-center justify-center shadow-xs shrink-0">
-            <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Profile" class="w-full h-full object-cover" />
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-50 overflow-hidden border-2 border-indigo-200/80 group-hover:border-[#5138ed] transition-all flex items-center justify-center shadow-xs shrink-0 text-[#5138ed] font-black text-xs">
+            <img v-if="authStore.user?.profile_picture_url" :src="authStore.user.profile_picture_url" alt="Profile" class="w-full h-full object-cover" />
+            <span v-else>{{ getInitials(instructorData?.name || authStore.user?.name) }}</span>
           </div>
           <div class="hidden md:flex flex-col text-left">
             <span class="text-sm font-bold text-slate-800 group-hover:text-slate-900 leading-tight truncate max-w-[140px] lg:max-w-[180px]">
@@ -360,8 +372,9 @@ const pageTitle = computed(() => {
           >
             <!-- User Info Header -->
             <div class="px-4 py-3 bg-gradient-to-br from-indigo-50/60 via-slate-50/50 to-white border-b border-slate-100 flex items-center gap-3">
-              <div class="relative w-11 h-11 rounded-full overflow-hidden border-2 border-indigo-400/60 shadow-xs shrink-0">
-                <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Profile" class="w-full h-full object-cover" />
+              <div class="relative w-11 h-11 rounded-full overflow-hidden border-2 border-indigo-400/60 shadow-xs shrink-0 bg-indigo-50 flex items-center justify-center text-[#5138ed] font-black text-sm">
+                <img v-if="authStore.user?.profile_picture_url" :src="authStore.user.profile_picture_url" alt="Profile" class="w-full h-full object-cover" />
+                <span v-else>{{ getInitials(instructorData?.name || authStore.user?.name) }}</span>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="text-[13px] font-bold text-slate-900 truncate">

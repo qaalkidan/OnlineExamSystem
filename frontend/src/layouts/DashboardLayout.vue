@@ -58,7 +58,7 @@ onMounted(() => {
     <Sidebar />
 
     <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col lg:pl-56 min-w-0 max-w-full overflow-x-hidden">
+    <div class="flex-1 flex flex-col lg:pl-64 min-w-0 max-w-full overflow-x-hidden">
       
       <!-- Header -->
       <Header />
@@ -76,12 +76,12 @@ onMounted(() => {
           </span>
           <span class="text-emerald-100 hidden md:inline">—</span>
           <span class="text-emerald-100 hidden md:inline truncate">
-            Your semester academic submission is completed. Modifications are disabled. Contact Department Head if corrections are needed.
+            Your semester academic submission is completed. Modifications are disabled in read-only mode.
           </span>
         </div>
         <router-link
           to="/instructor/semester-submission"
-          class="underline font-semibold hover:text-emerald-200 transition-colors shrink-0 text-left sm:text-right"
+          class="underline font-bold hover:text-emerald-200 transition-colors shrink-0 text-left sm:text-right"
         >
           View Details
         </router-link>

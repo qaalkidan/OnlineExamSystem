@@ -5,10 +5,23 @@ import apiClient from '../../../core/api/apiClient'
 export interface DashboardStats {
   course_code?: string
   course_name?: string
+  department_name?: string
+  year_level?: string
+  section?: string
   totalExams: number
+  publishedExams?: number
   upcomingExams: number
   totalStudents: number
   averageScore: number
+  highestScore?: number | null
+  lowestScore?: number | null
+  attemptsCount?: number
+  performanceByExam?: Array<{
+    exam_id: number
+    title: string
+    attempts_count: number
+    average_score: number | null
+  }>
 }
 
 export interface Exam {
