@@ -1,63 +1,80 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+
+const storagePercent = 45
+</script>
+
 <template>
-  <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
-    <h2 class="text-[14px] font-bold text-slate-800 mb-6">System Status</h2>
+  <div class="bg-white border border-[#E6EBF3] rounded-2xl p-5 sm:p-6 shadow-2xs hover:border-slate-300 transition-all">
+    <h2 class="text-[14px] font-bold text-[#17243A] mb-5">System Status</h2>
     
-    <div class="space-y-5">
+    <div class="space-y-4 sm:space-y-4.5">
       
       <!-- System Status -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3 text-slate-600">
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-          <span class="text-[12px] font-medium">System Status</span>
+      <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2.5 text-[#71819B]">
+          <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span class="font-medium">System Status</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          <span class="text-[12px] font-bold text-slate-800">Operational</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="font-bold text-[#17243A]">Operational</span>
         </div>
       </div>
 
       <!-- Last Backup -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3 text-slate-600">
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          <span class="text-[12px] font-medium">Last Backup</span>
+      <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2.5 text-[#71819B]">
+          <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="font-medium">Last Backup</span>
         </div>
-        <span class="text-[12px] font-bold text-slate-800">May 24, 2025 11:30 PM</span>
+        <span class="font-bold text-[#17243A]">May 24, 2025 11:30 PM</span>
       </div>
 
-      <!-- Storage Usage -->
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3 text-slate-600">
-            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
-            <span class="text-[12px] font-medium">Storage Usage</span>
+      <!-- Storage Usage with Progress Bar matching screenshot -->
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2.5 text-[#71819B]">
+            <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            <span class="font-medium">Storage Usage</span>
           </div>
-          <span class="text-[12px] font-bold text-slate-800">45.2 GB / 100 GB</span>
+          <span class="font-bold text-[#17243A]">45.2 GB / 100 GB</span>
         </div>
-        <div class="flex items-center gap-3">
-          <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div class="h-full bg-[#5138ed] rounded-full" style="width: 45%"></div>
+        <div class="flex items-center gap-3 pt-0.5">
+          <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full bg-[#4F35F3] rounded-full transition-all duration-500" :style="{ width: `${storagePercent}%` }"></div>
           </div>
-          <span class="text-[10px] font-bold text-slate-500">45%</span>
+          <span class="text-[10px] font-bold text-[#71819B]">{{ storagePercent }}%</span>
         </div>
       </div>
 
       <!-- Active Users -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3 text-slate-600">
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-          <span class="text-[12px] font-medium">Active Users</span>
+      <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2.5 text-[#71819B]">
+          <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <span class="font-medium">Active Users</span>
         </div>
-        <span class="text-[12px] font-bold text-slate-800">256</span>
+        <span class="font-bold text-[#17243A]">256</span>
       </div>
 
       <!-- System Version -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3 text-slate-600">
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          <span class="text-[12px] font-medium">System Version</span>
+      <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2.5 text-[#71819B]">
+          <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="font-medium">System Version</span>
         </div>
-        <span class="text-[12px] font-bold text-slate-800">v2.4.1</span>
+        <span class="font-bold text-[#17243A]">v2.4.1</span>
       </div>
 
     </div>
