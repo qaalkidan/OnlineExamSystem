@@ -1,38 +1,139 @@
 <script setup lang="ts">
-const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-// A simple static layout for May 2025 as shown in the design
-const calendarDays = [
-  { date: 27, currentMonth: false }, { date: 28, currentMonth: false }, { date: 29, currentMonth: false }, { date: 30, currentMonth: false }, { date: 1, currentMonth: true }, { date: 2, currentMonth: true }, { date: 3, currentMonth: true },
-  { date: 4, currentMonth: true }, { date: 5, currentMonth: true }, { date: 6, currentMonth: true }, { date: 7, currentMonth: true }, { date: 8, currentMonth: true }, { date: 9, currentMonth: true }, { date: 10, currentMonth: true },
-  { date: 11, currentMonth: true, hasEvent: true }, { date: 12, currentMonth: true }, { date: 13, currentMonth: true }, { date: 14, currentMonth: true }, { date: 15, currentMonth: true }, { date: 16, currentMonth: true }, { date: 17, currentMonth: true },
-  { date: 18, currentMonth: true, hasEvent: true }, { date: 19, currentMonth: true }, { date: 20, currentMonth: true }, { date: 21, currentMonth: true }, { date: 22, currentMonth: true }, { date: 23, currentMonth: true }, { date: 24, currentMonth: true },
-  { date: 25, currentMonth: true, selected: true }, { date: 26, currentMonth: true }, { date: 27, currentMonth: true }, { date: 28, currentMonth: true }, { date: 29, currentMonth: true }, { date: 30, currentMonth: true }, { date: 31, currentMonth: true }
+import { ref, computed } from 'vue'
+import { useInstructorExamStore } from '../../store/instructorExamStore'
+
+const examStore = useInstructorExamStore()
+
+const currentDate = ref(new Date())
+
+const currentYear = computed(() => currentDate.value.getFullYear())
+const currentMonth = computed(() => currentDate.value.getMonth())
+
+const monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ]
+
+const daysOfWeek = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+const monthTitle = computed(() => `${monthNames[currentMonth.value]} ${currentYear.value}`)
+
+const prevMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value - 1, 1)
+}
+
+const nextMonth = () => {
+  currentDate.value = new Date(currentYear.value, currentMonth.value + 1, 1)
+}
+
+// Days calculation for calendar grid
+const calendarDays = computed(() => {
+  const year = currentYear.value
+  const month = currentMonth.value
+
+  const firstDayIndex = new Date(year, month, 1).getDay()
+  const daysInCurrentMonth = new Date(year, month + 1, 0).getDate()
+  const daysInPrevMonth = new Date(year, month, 0).getDate()
+
+  const today = new Date()
+  const isCurrentMonthActual = today.getFullYear() === year && today.getMonth() === month
+  const actualDateToday = isCurrentMonthActual ? today.getDate() : -1
+
+  // Collect scheduled exam dates in this month
+  const examDatesInMonth = new Set<number>()
+  examStore.exams.forEach(exam => {
+    if (exam.scheduled_at) {
+      const d = new Date(exam.scheduled_at)
+      if (d.getFullYear() === year && d.getMonth() === month) {
+        examDatesInMonth.add(d.getDate())
+      }
+    }
+  })
+
+  const days: Array<{
+    date: number
+    currentMonth: boolean
+    isToday: boolean
+    hasExam: boolean
+  }> = []
+
+  // Prev month filler
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    days.push({
+      date: daysInPrevMonth - i,
+      currentMonth: false,
+      isToday: false,
+      hasExam: false,
+    })
+  }
+
+  // Current month days
+  for (let d = 1; d <= daysInCurrentMonth; d++) {
+    days.push({
+      date: d,
+      currentMonth: true,
+      isToday: d === actualDateToday,
+      hasExam: examDatesInMonth.has(d),
+    })
+  }
+
+  // Next month filler to complete 35 or 42 grid cells
+  const remainingCells = 35 - days.length > 0 ? 35 - days.length : 42 - days.length
+  for (let d = 1; d <= remainingCells; d++) {
+    days.push({
+      date: d,
+      currentMonth: false,
+      isToday: false,
+      hasExam: false,
+    })
+  }
+
+  return days
+})
 </script>
 
 <template>
-  <div class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-    <div class="flex items-center gap-2 mb-3">
-      <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-      <h2 class="text-[12px] font-bold text-slate-800">Exam Calendar</h2>
-    </div>
-
-    <!-- Header Month Navigation -->
+  <div class="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+    <!-- Header -->
     <div class="flex items-center justify-between mb-3">
-      <button class="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-      </button>
-      <span class="text-[13px] font-bold text-slate-800">May 2025</span>
-      <button class="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-      </button>
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-[#5138ed]">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Exam Schedule</h2>
+      </div>
+
+      <!-- Navigation Arrows -->
+      <div class="flex items-center gap-1">
+        <button 
+          @click="prevMonth"
+          class="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
+          aria-label="Previous month"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span class="text-xs font-bold text-slate-700 px-1">{{ monthTitle }}</span>
+        <button 
+          @click="nextMonth"
+          class="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
+          aria-label="Next month"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Days of Week -->
-    <div class="grid grid-cols-7 gap-1 mb-2">
-      <div v-for="day in daysOfWeek" :key="day" class="text-center text-[10px] font-bold text-slate-400 py-1">
+    <div class="grid grid-cols-7 gap-1 mb-1 text-center">
+      <span v-for="day in daysOfWeek" :key="day" class="text-[10px] font-bold text-slate-400 uppercase">
         {{ day }}
-      </div>
+      </span>
     </div>
 
     <!-- Calendar Grid -->
@@ -40,14 +141,35 @@ const calendarDays = [
       <div 
         v-for="(day, index) in calendarDays" 
         :key="index"
-        class="flex flex-col items-center justify-center h-6 rounded-lg text-[10px] font-medium relative cursor-pointer transition-colors"
+        class="h-7 rounded-lg flex flex-col items-center justify-center text-[11px] font-semibold relative transition-colors"
         :class="[
-          !day.currentMonth ? 'text-slate-300' : 'text-slate-600',
-          day.selected ? 'bg-[#5138ed] text-white shadow-sm shadow-indigo-200' : 'hover:bg-slate-50'
+          !day.currentMonth ? 'text-slate-300' : 'text-slate-700 hover:bg-slate-50',
+          day.isToday ? 'bg-[#5138ed] text-white font-bold shadow-2xs' : '',
+          day.hasExam && !day.isToday ? 'bg-indigo-50/80 text-[#5138ed] font-bold border border-indigo-100/80' : ''
         ]"
       >
         <span>{{ day.date }}</span>
-        <div v-if="day.hasEvent" class="absolute bottom-1 w-1 h-1 rounded-full bg-[#5138ed]"></div>
+        <!-- Exam marker dot -->
+        <span 
+          v-if="day.hasExam && day.isToday" 
+          class="absolute bottom-0.5 w-1 h-1 rounded-full bg-white"
+        ></span>
+        <span 
+          v-else-if="day.hasExam" 
+          class="absolute bottom-0.5 w-1 h-1 rounded-full bg-[#5138ed]"
+        ></span>
+      </div>
+    </div>
+
+    <!-- Footer Legend -->
+    <div class="flex items-center justify-between text-[10px] text-slate-400 pt-2 border-t border-slate-100 mt-2">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-[#5138ed]"></span>
+        <span>Today</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-indigo-200 border border-indigo-300"></span>
+        <span>Scheduled Exam</span>
       </div>
     </div>
   </div>
