@@ -46,22 +46,27 @@ class ActivityLogController extends Controller
         $user = $request->user();
 
         // Base query scoped to department or system events
-        $baseQuery = ActivityLog::with(['user:id,name,email,role,department_id', 'department:id,name,code']);
+        $baseQuery = ActivityLog::with(['user:id,name,email,role,department_id,profile_picture', 'department:id,name,code']);
 
         if ($deptId) {
-            $baseQuery->where(function ($q) use ($deptId) {
+            $baseQuery->where(function ($q) use ($deptId, $user) {
                 $q->where('department_id', $deptId)
+                  ->orWhere('user_id', $user->id)
                   ->orWhereHas('user', function ($uq) use ($deptId) {
                       $uq->where('department_id', $deptId);
-                  })
-                  ->orWhereNull('department_id');
+                  });
             });
         }
 
-        // Summary counts
+        // Summary counts from real database data
         $allCount = (clone $baseQuery)->count();
+        $todayCount = (clone $baseQuery)->whereDate('created_at', Carbon::today())->count();
         $successfulCount = (clone $baseQuery)->where('log_status', 'Success')->count();
         $failedCount = (clone $baseQuery)->where('log_status', 'Failed')->count();
+        $securityCount = (clone $baseQuery)->where(function ($q) {
+            $q->whereIn('type', ['Login', 'Login Failed', 'Security', 'Password Changed'])
+              ->orWhere('module', 'Authentication');
+        })->count();
         $loginsCount = (clone $baseQuery)->where(function ($q) {
             $q->whereIn('type', ['Login', 'Login Failed'])
               ->orWhere('module', 'Authentication');
@@ -73,6 +78,11 @@ class ActivityLogController extends Controller
             $q->whereIn('type', ['System Event', 'Backup'])
               ->orWhere('module', 'System');
         })->count();
+
+        // Distinct available modules, actions, and roles from real logs
+        $availableModules = (clone $baseQuery)->whereNotNull('module')->distinct()->pluck('module')->filter()->values();
+        $availableActions = (clone $baseQuery)->whereNotNull('type')->distinct()->pluck('type')->filter()->values();
+        $availableRoles = (clone $baseQuery)->whereNotNull('actor_role')->distinct()->pluck('actor_role')->filter()->values();
 
         // Top Active Users
         $topUsersGroup = (clone $baseQuery)
@@ -107,6 +117,7 @@ class ActivityLogController extends Controller
         // Apply filters
         $filteredQuery = clone $baseQuery;
 
+        // Activity category filter
         $filter = $request->query('filter', 'All Activities');
         if ($filter === 'Successful') {
             $filteredQuery->where('log_status', 'Success');
@@ -125,6 +136,32 @@ class ActivityLogController extends Controller
             $filteredQuery->where(function ($q) {
                 $q->whereIn('type', ['System Event', 'Backup'])
                   ->orWhere('module', 'System');
+            });
+        }
+
+        // Granular Module Filter
+        if ($request->filled('module') && $request->query('module') !== 'All Modules') {
+            $filteredQuery->where('module', $request->query('module'));
+        }
+
+        // Granular Action/Type Filter
+        if ($request->filled('action_type') && $request->query('action_type') !== 'All Actions') {
+            $filteredQuery->where('type', $request->query('action_type'));
+        }
+
+        // Granular Status Filter
+        if ($request->filled('status') && $request->query('status') !== 'All Statuses') {
+            $filteredQuery->where('log_status', $request->query('status'));
+        }
+
+        // Granular Role Filter
+        if ($request->filled('role') && $request->query('role') !== 'All Roles') {
+            $role = strtolower($request->query('role'));
+            $filteredQuery->where(function ($q) use ($role) {
+                $q->where('actor_role', $role)
+                  ->orWhereHas('user', function ($uq) use ($role) {
+                      $uq->where('role', $role);
+                  });
             });
         }
 
@@ -152,9 +189,21 @@ class ActivityLogController extends Controller
             });
         }
 
+        // Sorting
+        $sortBy = $request->query('sort_by', 'created_at');
+        $sortOrder = strtolower($request->query('sort_order', 'desc')) === 'asc' ? 'asc' : 'desc';
+        if (in_array($sortBy, ['created_at', 'type', 'module', 'log_status', 'id'])) {
+            $filteredQuery->orderBy($sortBy, $sortOrder);
+        } else {
+            $filteredQuery->latest();
+        }
+
         // Pagination
         $perPage = (int)$request->query('per_page', 10);
-        $paginated = $filteredQuery->latest()->paginate($perPage);
+        if ($perPage <= 0 || $perPage > 100) {
+            $perPage = 10;
+        }
+        $paginated = $filteredQuery->paginate($perPage);
 
         // Format logs for frontend
         $mappedLogs = collect($paginated->items())->map(function ($log) {
@@ -168,23 +217,29 @@ class ActivityLogController extends Controller
             };
 
             $createdAt = $log->created_at ? Carbon::parse($log->created_at) : Carbon::now();
-            $timeFormatted = $createdAt->format('M d, Y') . "\n" . $createdAt->format('h:i:s A');
+            $dateStr = $createdAt->format('M d, Y');
+            $timeStr = $createdAt->format('h:i:s A');
+            $timeFormatted = "{$dateStr}\n{$timeStr}";
 
             return [
-                'id'          => $log->id,
-                'time'        => $timeFormatted,
-                'raw_time'    => $createdAt->toIso8601String(),
-                'user'        => $log->user ? $log->user->name : ($rawRole === 'system' ? 'System' : 'Unknown User'),
-                'email'       => $log->user ? $log->user->email : ($rawRole === 'system' ? 'system@wollo.edu.et' : ''),
-                'role'        => $roleLabel,
-                'action'      => $log->type ?: 'Activity',
-                'actionType'  => $log->type ?: 'System Event',
-                'module'      => $log->module ?: 'General',
-                'description' => $log->details ?: $log->action ?: 'System activity recorded',
-                'ipAddress'   => $log->ip_address ?: '127.0.0.1',
-                'status'      => $log->log_status ?: 'Success',
-                'is_read'     => (bool)$log->is_read,
-                'department'  => $log->department ? $log->department->name : null,
+                'id'                  => $log->id,
+                'time'                => $timeFormatted,
+                'date'                => $dateStr,
+                'time_only'           => $timeStr,
+                'raw_time'            => $createdAt->toIso8601String(),
+                'user'                => $log->user ? $log->user->name : ($rawRole === 'system' ? 'System' : 'Unknown User'),
+                'email'               => $log->user ? $log->user->email : ($rawRole === 'system' ? 'system@wollo.edu.et' : ''),
+                'profile_picture_url' => $log->user?->profile_picture_url,
+                'role'                => $roleLabel,
+                'raw_role'            => $rawRole,
+                'action'              => $log->type ?: 'Activity',
+                'actionType'          => $log->type ?: 'System Event',
+                'module'              => $log->module ?: 'General',
+                'description'         => $log->details ?: $log->action ?: 'System activity recorded',
+                'ipAddress'           => $log->ip_address ?: '127.0.0.1',
+                'status'              => $log->log_status ?: 'Success',
+                'is_read'             => (bool)$log->is_read,
+                'department'          => $log->department ? $log->department->name : ($log->user?->department?->name ?? null),
             ];
         });
 
@@ -201,11 +256,18 @@ class ActivityLogController extends Controller
             ],
             'summary' => [
                 'all'          => $allCount,
+                'today'        => $todayCount,
                 'successful'   => $successfulCount,
                 'failed'       => $failedCount,
+                'security'     => $securityCount,
                 'logins'       => $loginsCount,
                 'dataChanges'  => $dataChangesCount,
                 'systemEvents' => $systemEventsCount,
+            ],
+            'filters' => [
+                'modules' => $availableModules,
+                'actions' => $availableActions,
+                'roles'   => $availableRoles,
             ],
             'topActiveUsers' => $topActiveUsers,
         ]);
@@ -216,7 +278,22 @@ class ActivityLogController extends Controller
      */
     public function show(Request $request, $id): JsonResponse
     {
-        $log = ActivityLog::with(['user:id,name,email,role,department_id', 'department:id,name,code'])->findOrFail($id);
+        $deptId = $this->resolveDeptId($request);
+        $user = $request->user();
+
+        $query = ActivityLog::with(['user:id,name,email,role,department_id,profile_picture', 'department:id,name,code']);
+
+        if ($deptId) {
+            $query->where(function ($q) use ($deptId, $user) {
+                $q->where('department_id', $deptId)
+                  ->orWhere('user_id', $user->id)
+                  ->orWhereHas('user', function ($uq) use ($deptId) {
+                      $uq->where('department_id', $deptId);
+                  });
+            });
+        }
+
+        $log = $query->findOrFail($id);
 
         $rawRole = $log->actor_role ?? ($log->user ? $log->user->role : 'system');
         $roleLabel = match($rawRole) {
@@ -232,19 +309,23 @@ class ActivityLogController extends Controller
         return response()->json([
             'status' => 'success',
             'data'   => [
-                'id'          => $log->id,
-                'time'        => $createdAt->format('M d, Y h:i:s A'),
-                'created_at'  => $createdAt->toIso8601String(),
-                'user'        => $log->user ? $log->user->name : 'System',
-                'email'       => $log->user ? $log->user->email : '',
-                'role'        => $roleLabel,
-                'action'      => $log->type,
-                'module'      => $log->module,
-                'description' => $log->details ?: $log->action,
-                'ip_address'  => $log->ip_address,
-                'status'      => $log->log_status,
-                'department'  => $log->department ? $log->department->name : 'General / All Departments',
-                'is_read'     => (bool)$log->is_read,
+                'id'                  => $log->id,
+                'time'                => $createdAt->format('M d, Y h:i:s A'),
+                'date'                => $createdAt->format('M d, Y'),
+                'time_only'           => $createdAt->format('h:i:s A'),
+                'created_at'          => $createdAt->toIso8601String(),
+                'user'                => $log->user ? $log->user->name : 'System',
+                'email'               => $log->user ? $log->user->email : '',
+                'profile_picture_url' => $log->user?->profile_picture_url,
+                'role'                => $roleLabel,
+                'raw_role'            => $rawRole,
+                'action'              => $log->type ?: 'Activity',
+                'module'              => $log->module ?: 'General',
+                'description'         => $log->details ?: $log->action ?: 'System activity recorded',
+                'ip_address'          => $log->ip_address ?: '127.0.0.1',
+                'status'              => $log->log_status ?: 'Success',
+                'department'          => $log->department ? $log->department->name : ($log->user?->department?->name ?? 'General / Department Head Operations'),
+                'is_read'             => (bool)$log->is_read,
             ]
         ]);
     }
@@ -258,15 +339,15 @@ class ActivityLogController extends Controller
         $dept = $deptId ? Department::find($deptId) : null;
         $deptName = $dept ? $dept->name : 'Department';
 
-        $query = ActivityLog::with(['user:id,name,email,role', 'department:id,name']);
+        $query = ActivityLog::with(['user:id,name,email,role,department_id', 'department:id,name']);
 
         if ($deptId) {
-            $query->where(function ($q) use ($deptId) {
+            $query->where(function ($q) use ($deptId, $user) {
                 $q->where('department_id', $deptId)
+                  ->orWhere('user_id', $user->id)
                   ->orWhereHas('user', function ($uq) use ($deptId) {
                       $uq->where('department_id', $deptId);
-                  })
-                  ->orWhereNull('department_id');
+                  });
             });
         }
 
@@ -291,11 +372,48 @@ class ActivityLogController extends Controller
             }
         }
 
+        if ($request->filled('module') && $request->query('module') !== 'All Modules') {
+            $query->where('module', $request->query('module'));
+        }
+
+        if ($request->filled('action_type') && $request->query('action_type') !== 'All Actions') {
+            $query->where('type', $request->query('action_type'));
+        }
+
+        if ($request->filled('status') && $request->query('status') !== 'All Statuses') {
+            $query->where('log_status', $request->query('status'));
+        }
+
+        if ($request->filled('role') && $request->query('role') !== 'All Roles') {
+            $role = strtolower($request->query('role'));
+            $query->where(function ($q) use ($role) {
+                $q->where('actor_role', $role)
+                  ->orWhereHas('user', function ($uq) use ($role) {
+                      $uq->where('role', $role);
+                  });
+            });
+        }
+
         if ($request->filled('date_from')) {
             $query->whereDate('created_at', '>=', $request->query('date_from'));
         }
         if ($request->filled('date_to')) {
             $query->whereDate('created_at', '<=', $request->query('date_to'));
+        }
+
+        if ($request->filled('search')) {
+            $search = '%' . trim($request->query('search')) . '%';
+            $query->where(function ($q) use ($search) {
+                $q->where('action', 'like', $search)
+                  ->orWhere('type', 'like', $search)
+                  ->orWhere('module', 'like', $search)
+                  ->orWhere('details', 'like', $search)
+                  ->orWhere('ip_address', 'like', $search)
+                  ->orWhereHas('user', function ($uq) use ($search) {
+                      $uq->where('name', 'like', $search)
+                         ->orWhere('email', 'like', $search);
+                  });
+            });
         }
 
         $logs = $query->latest()->get();
