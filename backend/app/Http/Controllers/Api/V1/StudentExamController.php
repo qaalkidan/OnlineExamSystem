@@ -14,11 +14,33 @@ use Illuminate\Support\Carbon;
 class StudentExamController extends Controller
 {
     /**
+     * Auto-finalize any in-progress attempts belonging to the student that have expired.
+     */
+    protected function autoFinalizeExpiredAttempts(?User $student): void
+    {
+        if (!$student) {
+            return;
+        }
+
+        $inProgressAttempts = ExamAttempt::where('user_id', $student->id)
+            ->where('status', 'in_progress')
+            ->with(['exam.questions'])
+            ->get();
+
+        foreach ($inProgressAttempts as $att) {
+            if ($att->getRemainingSeconds() <= 0) {
+                $this->finalizeAttempt($att);
+            }
+        }
+    }
+
+    /**
      * Dashboard stats for the student.
      */
     public function dashboard(Request $request): JsonResponse
     {
         $student = $request->user();
+        $this->autoFinalizeExpiredAttempts($student);
 
         // Count completed attempts (submitted, graded, or auto-published)
         $completedAttempts = ExamAttempt::where('user_id', $student->id)
@@ -66,6 +88,7 @@ class StudentExamController extends Controller
     public function index(Request $request): JsonResponse
     {
         $student = $request->user();
+        $this->autoFinalizeExpiredAttempts($student);
 
         // Get all published/scheduled exams for the student's department & year_level & section
         $exams = $this->getAvailableExamsQuery($student)
@@ -87,6 +110,16 @@ class StudentExamController extends Controller
             // Exclude exams the student has already submitted/graded/published (fully completed)
             if ($attempt && (in_array($attempt->status, ['submitted', 'graded', 'published']) || $attempt->submitted_at !== null)) {
                 continue;
+            }
+
+            // Exclude exams whose scheduled end time has already elapsed if student never attempted it
+            if ($exam->scheduled_at) {
+                $now = Carbon::now();
+                $examStart = $exam->scheduled_at;
+                $examEnd = $exam->scheduled_at->copy()->addMinutes($exam->duration_minutes);
+                if ($now->gte($examEnd) && $attemptStatus !== 'in_progress') {
+                    continue;
+                }
             }
 
             $scheduledIso = $exam->scheduled_at ? $exam->scheduled_at->toISOString() : null;
@@ -294,8 +327,9 @@ class StudentExamController extends Controller
             // Check if student's allocated time (including any approved extra time) has fully elapsed
             $remainingSeconds = $existingAttempt->getRemainingSeconds();
             if ($remainingSeconds <= 0) {
+                $this->finalizeAttempt($existingAttempt);
                 return response()->json([
-                    'message'      => 'Your examination time has expired.',
+                    'message'      => 'Your examination time has expired. Your attempt has been automatically finalized.',
                     'time_expired' => true,
                 ], 403);
             }
@@ -476,7 +510,30 @@ class StudentExamController extends Controller
         ]);
 
         $submittedAnswers = $validated['answers'];
-        $questions = $exam->questions()->get();
+        $resultData = $this->finalizeAttempt($attempt, $submittedAnswers);
+
+        return response()->json([
+            'data' => $resultData
+        ]);
+    }
+
+    /**
+     * Finalize an exam attempt, calculate grades for auto-gradeable questions,
+     * update the attempt status to 'submitted' or 'published', and set submitted_at.
+     */
+    public function finalizeAttempt(ExamAttempt $attempt, ?array $submittedAnswers = null): array
+    {
+        $exam = $attempt->exam;
+        if (!$exam) {
+            $exam = Exam::with('questions')->find($attempt->exam_id);
+        }
+
+        $answers = $submittedAnswers !== null ? $submittedAnswers : ($attempt->answers ?? []);
+        if (is_string($answers)) {
+            $answers = json_decode($answers, true) ?? [];
+        }
+
+        $questions = $exam ? $exam->questions()->get() : collect();
 
         // Question types that can be auto-graded
         $autoGradeTypes = ['multiple_choice', 'true_false', 'matching'];
@@ -490,7 +547,7 @@ class StudentExamController extends Controller
         $questionsReview = [];
 
         foreach ($questions as $q) {
-            $studentAnswer = $submittedAnswers[$q->id] ?? null;
+            $studentAnswer = $answers[$q->id] ?? null;
             $isAutoGrade   = in_array($q->type, $autoGradeTypes);
             $isCorrect     = false;
             $earnedMarks   = 0;
@@ -523,7 +580,7 @@ class StudentExamController extends Controller
                                 }
                             }
                         }
-                        $result = $this->gradeMatchingPartial($studentAnswer, $pairs, $marksPerItem, $correctAnswers);
+                        $result = $this->gradeMatchingPartial((string)$studentAnswer, $pairs, $marksPerItem, $correctAnswers);
                         $isCorrect   = $result['all_correct'];
                         $isPartial   = $result['partial'];
                         $earnedMarks = $result['earned'];
@@ -630,40 +687,41 @@ class StudentExamController extends Controller
         // - 'published' is set by instructor via publishResult (Re-Publish) OR auto here
         $status = $hasPendingMarks ? 'submitted' : 'published';
 
+        $adjustedDeadline = $attempt->getAdjustedDeadline();
+        $submittedAt      = $attempt->submitted_at ?? ($adjustedDeadline && $adjustedDeadline->isPast() ? $adjustedDeadline : now());
+
         $attempt->update([
             'score'        => $autoScore,
-            'total_marks'  => $totalPossible,
+            'total_marks'  => $totalPossible > 0 ? $totalPossible : ($exam?->total_marks ?? 0),
             'percentage'   => $percentage,
             'grade'        => $grade,
             'status'       => $status,
-            'answers'      => $submittedAnswers,
-            'submitted_at' => now(),
+            'answers'      => $answers,
+            'submitted_at' => $submittedAt,
         ]);
 
-        return response()->json([
-            'data' => [
-                'attempt_id'      => $attempt->id,
-                // Auto-graded scores
-                'auto_score'      => $autoScore,
-                'auto_total'      => $autoTotal,
-                // Pending manual marks
-                'pending_total'   => $pendingTotal,
-                'has_pending'     => $hasPendingMarks,
-                // Overall
-                'score'           => $autoScore,
-                'total_marks'     => $totalPossible,
-                'percentage'      => $hasPendingMarks ? null : $percentage,
-                'grade'           => $grade,
-                'status'          => $status,
-                // Type-level breakdown e.g. {"multiple_choice":{"earned":10,"total":20},...}
-                'type_breakdown'  => $typeBreakdown,
-                // Exam meta
-                'exam_title'      => $exam->title,
-                'course_code'     => $exam->course_code,
-                'course_name'     => $exam->course_name,
-                'questionsReview' => $questionsReview,
-            ]
-        ]);
+        return [
+            'attempt_id'      => $attempt->id,
+            // Auto-graded scores
+            'auto_score'      => $autoScore,
+            'auto_total'      => $autoTotal,
+            // Pending manual marks
+            'pending_total'   => $pendingTotal,
+            'has_pending'     => $hasPendingMarks,
+            // Overall
+            'score'           => $autoScore,
+            'total_marks'     => $totalPossible > 0 ? $totalPossible : ($exam?->total_marks ?? 0),
+            'percentage'      => $hasPendingMarks ? null : $percentage,
+            'grade'           => $grade,
+            'status'          => $status,
+            // Type-level breakdown e.g. {"multiple_choice":{"earned":10,"total":20},...}
+            'type_breakdown'  => $typeBreakdown,
+            // Exam meta
+            'exam_title'      => $exam?->title ?? '',
+            'course_code'     => $exam?->course_code ?? '',
+            'course_name'     => $exam?->course_name ?? '',
+            'questionsReview' => $questionsReview,
+        ];
     }
 
     /**
@@ -862,6 +920,7 @@ class StudentExamController extends Controller
     public function results(Request $request): JsonResponse
     {
         $student = $request->user();
+        $this->autoFinalizeExpiredAttempts($student);
 
         $attempts = ExamAttempt::where('user_id', $student->id)
             ->where(function($q) {

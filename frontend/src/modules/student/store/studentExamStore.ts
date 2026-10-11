@@ -178,6 +178,12 @@ export const useStudentExamStore = defineStore('studentExam', () => {
     } catch (err: any) {
       const message = err.response?.data?.message || 'Failed to start exam'
       console.error(message, err)
+      // When time expired, exam completed, or 403/409, refresh exams, results, and dashboard
+      if (err.response?.status === 403 || err.response?.status === 409 || err.response?.data?.time_expired) {
+        fetchExams(true).catch(() => {})
+        fetchResults().catch(() => {})
+        fetchDashboard().catch(() => {})
+      }
       throw new Error(message)
     }
   }

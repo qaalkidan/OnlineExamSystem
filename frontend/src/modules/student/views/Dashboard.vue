@@ -159,6 +159,7 @@ const handleStartUpcomingExam = async (examId: number) => {
   } catch (err: any) {
     await Promise.all([
       examStore.fetchExams(true),
+      examStore.fetchResults(),
       examStore.fetchDashboard()
     ])
     windowRef.alert(err.message || 'Failed to start exam')
