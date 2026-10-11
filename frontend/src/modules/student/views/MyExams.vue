@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { sampleAnnouncements } from '../data/mockData'
 import type { RecentResult, UpcomingExam } from '../types'
@@ -46,8 +46,9 @@ const availableCourses = computed(() => {
 
 // Helper to check if exam is scheduled for today
 const isExamToday = (e: UpcomingExam) => {
-  if (!e.scheduledAt) return true
-  const examDate = new Date(e.scheduledAt).toDateString()
+  if (!e.scheduledAt && !e.scheduledDate) return true
+  const rawDate = e.scheduledAt || e.scheduledDate
+  const examDate = new Date(rawDate).toDateString()
   const todayDate = new Date().toDateString()
   return examDate === todayDate
 }
@@ -64,7 +65,6 @@ const todaysExams = computed(() => {
 const ongoingExamsList = computed(() => {
   let list = upcomingExams.value.filter(e => e.attemptStatus === 'in_progress')
   if (activeExam.value && !list.some(e => e.id === activeExam.value?.id)) {
-    // If activeExam is present in store
     list.unshift({
       id: activeExam.value.id,
       courseCode: activeExam.value.courseCode,
@@ -95,14 +95,12 @@ const filteredCompletedExams = computed(() => {
   return list
 })
 
-const filteredAllExams = computed(() => {
-  let upcoming = upcomingExams.value
-  let res = results.value
+const futureUpcomingExams = computed(() => {
+  let list = upcomingExams.value.filter(e => !isExamToday(e) && e.attemptStatus !== 'in_progress')
   if (selectedCourse.value !== 'All Courses') {
-    upcoming = upcoming.filter(e => e.courseName === selectedCourse.value || e.courseCode === selectedCourse.value)
-    res = res.filter(r => r.courseName === selectedCourse.value || r.courseCode === selectedCourse.value)
+    list = list.filter(e => e.courseName === selectedCourse.value || e.courseCode === selectedCourse.value)
   }
-  return { upcoming, completed: res }
+  return list
 })
 
 // Real summary stats for sidebar
@@ -139,6 +137,13 @@ onMounted(async () => {
   if (activeExam.value?.time) {
     const end = new Date(Date.now() + 45 * 60 * 1000 + 32 * 1000).toISOString()
     startCountdown(end)
+  }
+})
+
+onUnmounted(() => {
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
   }
 })
 
@@ -183,18 +188,28 @@ const calDays = computed(() => {
 })
 const isToday = (d: number | null) => d === today.getDate() && calMonth.value === today.getMonth() && calYear.value === today.getFullYear()
 
+const hasExamOnDay = (d: number | null) => {
+  if (!d) return false
+  return upcomingExams.value.some(e => {
+    const raw = (e as any).scheduledAt || e.scheduledDate
+    if (!raw) return false
+    const dt = new Date(raw)
+    return dt.getDate() === d && dt.getMonth() === calMonth.value && dt.getFullYear() === calYear.value
+  })
+}
+
 const todayFormatted = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
 const quickTips = [
   'Ensure stable internet connection',
-  'Close all other applications',
-  'Read instructions carefully',
-  'Manage your time effectively',
+  'Close all other browser tabs and apps',
+  'Read instructions carefully before beginning',
+  'Manage your time effectively during the test',
 ]
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f5f6fa] font-sans text-slate-800 antialiased flex flex-col">
+  <div class="min-h-screen bg-[#F4F6FB] font-sans text-[#17243A] antialiased flex flex-col selection:bg-[#4F35F3] selection:text-white">
 
     <!-- Header & Sidebar -->
     <Header
@@ -217,7 +232,7 @@ const quickTips = [
       @close="isResultModalOpen = false"
     />
 
-    <!-- Hero Section -->
+    <!-- Protected Hero Section (Structure & Background Kept 100% Intact) -->
     <HeroSection 
       :profile="profile" 
       :stats="{ examsCompleted: results.length, upcomingExams: upcomingExams.length }" 
@@ -227,151 +242,240 @@ const quickTips = [
     />
 
     <!-- Main Exam Page Body -->
-    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
-      <div class="flex flex-col lg:flex-row gap-6">
+    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-in fade-in duration-300">
+      
+      <!-- ── Top Filter & Navigation Bar ── -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+        <!-- Modern Pill Tabs -->
+        <div class="inline-flex items-center bg-white p-1.5 rounded-2xl border border-[#E6EBF3] shadow-2xs gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar max-w-full">
+          <!-- 1. Today's Exams Tab -->
+          <button
+            @click="activeFilter = 'todays'"
+            :class="[
+              'px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[42px] flex items-center gap-2 cursor-pointer',
+              activeFilter === 'todays'
+                ? 'bg-[#4F35F3] text-white shadow-xs'
+                : 'text-[#71819B] hover:text-[#17243A] hover:bg-[#F4F6FB]'
+            ]"
+          >
+            <span>Today's Exams</span>
+            <span
+              :class="[
+                'text-[10px] font-extrabold px-2 py-0.5 rounded-full transition-colors',
+                activeFilter === 'todays' ? 'bg-white/20 text-white' : 'bg-[#F4F6FB] text-[#71819B]'
+              ]"
+            >
+              {{ summaryStats.todays }}
+            </span>
+          </button>
+
+          <!-- 2. Ongoing Tab -->
+          <button
+            @click="activeFilter = 'ongoing'"
+            :class="[
+              'px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[42px] flex items-center gap-2 cursor-pointer',
+              activeFilter === 'ongoing'
+                ? 'bg-[#4F35F3] text-white shadow-xs'
+                : 'text-[#71819B] hover:text-[#17243A] hover:bg-[#F4F6FB]'
+            ]"
+          >
+            <span>Ongoing</span>
+            <span
+              :class="[
+                'text-[10px] font-extrabold px-2 py-0.5 rounded-full transition-colors',
+                activeFilter === 'ongoing' ? 'bg-white/20 text-white' : 'bg-[#F4F6FB] text-[#71819B]'
+              ]"
+            >
+              {{ summaryStats.ongoing }}
+            </span>
+          </button>
+
+          <!-- 3. Completed Tab -->
+          <button
+            @click="activeFilter = 'completed'"
+            :class="[
+              'px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[42px] flex items-center gap-2 cursor-pointer',
+              activeFilter === 'completed'
+                ? 'bg-[#4F35F3] text-white shadow-xs'
+                : 'text-[#71819B] hover:text-[#17243A] hover:bg-[#F4F6FB]'
+            ]"
+          >
+            <span>Completed</span>
+            <span
+              :class="[
+                'text-[10px] font-extrabold px-2 py-0.5 rounded-full transition-colors',
+                activeFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-[#F4F6FB] text-[#71819B]'
+              ]"
+            >
+              {{ summaryStats.completed }}
+            </span>
+          </button>
+
+          <!-- 4. All Exams Tab -->
+          <button
+            @click="activeFilter = 'all'"
+            :class="[
+              'px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[42px] flex items-center gap-2 cursor-pointer',
+              activeFilter === 'all'
+                ? 'bg-[#4F35F3] text-white shadow-xs'
+                : 'text-[#71819B] hover:text-[#17243A] hover:bg-[#F4F6FB]'
+            ]"
+          >
+            <span>All Exams</span>
+            <span
+              :class="[
+                'text-[10px] font-extrabold px-2 py-0.5 rounded-full transition-colors',
+                activeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-[#F4F6FB] text-[#71819B]'
+              ]"
+            >
+              {{ summaryStats.total }}
+            </span>
+          </button>
+        </div>
+
+        <!-- Course Selector Dropdown with Custom Chevron -->
+        <div class="relative w-full sm:w-auto">
+          <select
+            v-model="selectedCourse"
+            class="w-full sm:w-auto appearance-none text-xs font-bold text-[#17243A] bg-white border border-[#E6EBF3] rounded-2xl pl-4 pr-10 py-2.5 shadow-2xs hover:border-[#4F35F3]/30 focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/20 focus:border-[#4F35F3] min-h-[44px] cursor-pointer transition-colors"
+          >
+            <option>All Courses</option>
+            <option v-for="c in availableCourses" :key="c" :value="c">{{ c }}</option>
+          </select>
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-[#71819B]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Layout: 2 Columns (Content + Right Sidebar) -->
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
 
         <!-- ── Left Main Content Column ── -->
-        <div class="flex-1 space-y-6">
+        <div class="flex-1 w-full space-y-6 min-w-0">
 
-          <!-- ── Top Filter Bar ── -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex items-center bg-slate-100/80 p-1 sm:p-1.5 rounded-2xl gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar max-w-full">
-              <button
-                @click="activeFilter = 'todays'"
-                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
-                  activeFilter === 'todays' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
-              >
-                Today's Exams
-              </button>
-              <button
-                @click="activeFilter = 'ongoing'"
-                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
-                  activeFilter === 'ongoing' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
-              >
-                Ongoing
-              </button>
-              <button
-                @click="activeFilter = 'completed'"
-                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
-                  activeFilter === 'completed' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
-              >
-                Completed
-              </button>
-              <button
-                @click="activeFilter = 'all'"
-                :class="['px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold transition-all duration-200 whitespace-nowrap min-h-[40px] sm:min-h-[44px] flex items-center justify-center',
-                  activeFilter === 'all' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200/80 shadow-2xs' : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/50']"
-              >
-                All Exams
-              </button>
-            </div>
-
-            <!-- Course Selector Dropdown -->
-            <select
-              v-model="selectedCourse"
-              class="w-full sm:w-auto text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-2xs focus:outline-none focus:ring-2 focus:ring-indigo-300 min-h-[44px]"
-            >
-              <option>All Courses</option>
-              <option v-for="c in availableCourses" :key="c" :value="c">{{ c }}</option>
-            </select>
-          </div>
-
-          <!-- Loading Indicator -->
-          <div v-if="isLoading" class="p-8 text-center bg-white rounded-3xl border border-slate-100 shadow-sm">
-            <svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+          <!-- Loading Indicator Skeleton -->
+          <div v-if="isLoading" class="p-8 text-center bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs">
+            <svg class="animate-spin h-7 w-7 text-[#4F35F3] mx-auto mb-3" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p class="text-xs font-semibold text-slate-500">Loading exams from Wollo University portal...</p>
+            <p class="text-xs font-bold text-[#17243A]">Connecting to Wollo University portal...</p>
+            <p class="text-[11px] text-[#71819B] mt-0.5">Fetching latest exams and schedule records</p>
           </div>
 
           <template v-else>
 
-            <!-- ── Section 1: Today's Exam Card (Red Border Container) ── -->
-            <div v-if="activeFilter === 'todays' || activeFilter === 'all'" class="bg-gradient-to-br from-red-50/30 via-white to-white rounded-3xl border-2 border-red-600/80 shadow-md p-4 sm:p-6 space-y-4 sm:space-y-5 ring-4 ring-red-50/50">
-              <!-- Section Header -->
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-9 h-9 rounded-2xl bg-indigo-100/80 border border-indigo-200 flex items-center justify-center">
-                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <!-- ── Section 1: Today's Exam Card (Clean Professional Container without red border) ── -->
+            <div
+              v-if="activeFilter === 'todays' || activeFilter === 'all'"
+              class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 sm:p-6 space-y-5 hover:border-slate-300 transition-colors"
+            >
+              <!-- Card Header -->
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shrink-0 shadow-2xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
                   </div>
                   <div>
-                    <h2 class="text-base font-bold text-slate-900 leading-tight">Today's Exam</h2>
-                    <p class="text-[11px] text-slate-400">{{ todayFormatted }}</p>
+                    <h2 class="text-base sm:text-lg font-bold text-[#17243A] leading-tight">Today's Exam</h2>
+                    <p class="text-xs text-[#71819B] font-medium mt-0.5">{{ todayFormatted }}</p>
                   </div>
                 </div>
-                <span class="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-3.5 py-1 rounded-full shadow-2xs">
+                <span class="text-xs font-bold text-[#4F35F3] bg-[#EEF0FF] border border-[#4F35F3]/20 px-3.5 py-1.5 rounded-full shadow-2xs">
                   {{ todaysExams.length }} Exam{{ todaysExams.length === 1 ? '' : 's' }} Today
                 </span>
               </div>
 
-              <!-- Student Notification & Instruction Banner -->
-              <div class="flex items-center gap-3 p-3.5 rounded-2xl bg-indigo-50/90 border border-indigo-100 text-indigo-950 text-xs font-medium shadow-2xs">
-                <span class="flex-shrink-0 text-base">🔔</span>
+              <!-- Student Instruction Banner -->
+              <div class="flex items-start sm:items-center gap-3 p-3.5 rounded-xl bg-[#EEF0FF]/60 border border-[#4F35F3]/15 text-[#17243A] text-xs font-medium shadow-2xs">
+                <div class="w-7 h-7 rounded-lg bg-[#4F35F3]/10 text-[#4F35F3] flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                  </svg>
+                </div>
                 <p class="leading-relaxed">
-                  <span class="font-bold text-indigo-700">Notice for Student:</span> Please ensure a stable internet connection and turn on your camera before clicking <span class="font-semibold text-indigo-600">Start Exam</span>.
+                  <span class="font-bold text-[#4F35F3]">Notice for Student:</span> Please ensure a stable internet connection and turn on your camera before clicking <span class="font-bold text-[#4F35F3]">Start Exam</span>.
                 </p>
               </div>
 
               <!-- Real Today's Exam List -->
-              <div v-if="todaysExams.length > 0" class="space-y-4">
+              <div v-if="todaysExams.length > 0" class="space-y-3.5">
                 <div
                   v-for="exam in todaysExams"
                   :key="exam.id"
-                  class="bg-white/90 rounded-2xl border border-indigo-100 p-4 sm:p-5 shadow-2xs"
+                  class="bg-[#F8FAFC] hover:bg-white rounded-xl border border-[#E6EBF3] hover:border-[#4F35F3]/30 p-4 sm:p-5 transition-all shadow-2xs hover:shadow-xs"
                 >
-                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 pb-4 sm:pb-5 border-b border-slate-100">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 pb-4 sm:pb-5 border-b border-[#E6EBF3]">
                     <!-- Course & Exam Info -->
-                    <div class="flex items-center gap-3 sm:gap-4 min-w-0">
-                      <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
+                    <div class="flex items-center gap-3.5 min-w-0">
+                      <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-[#4F35F3] to-indigo-700 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-2xs shrink-0">
                         {{ getCourseAbbr(exam.courseName, exam.courseCode) }}
                       </div>
                       <div class="min-w-0">
-                        <h3 class="text-sm sm:text-base font-bold text-slate-900 leading-tight truncate">{{ exam.courseName }}</h3>
-                        <p class="text-xs text-slate-500 mt-0.5 truncate">{{ exam.courseCode }} - {{ exam.examType }}</p>
-                        <div class="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                        <h3 class="text-sm sm:text-base font-bold text-[#17243A] leading-tight truncate">{{ exam.courseName }}</h3>
+                        <p class="text-xs text-[#71819B] mt-0.5 truncate font-medium">{{ exam.courseCode }} • {{ exam.examType }}</p>
+                        <div class="flex items-center gap-1.5 mt-1 text-[11px] text-[#71819B] font-medium">
+                          <svg class="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7 7z"/>
+                          </svg>
                           <span class="truncate">Instructor: {{ exam.instructor || 'Wollo University' }}</span>
                         </div>
                       </div>
                     </div>
 
                     <!-- Timing Details -->
-                    <div class="space-y-1 text-xs text-slate-600">
+                    <div class="space-y-1.5 text-xs text-[#71819B] font-medium">
                       <div class="flex items-center gap-2">
-                        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <span class="font-medium text-slate-700">{{ exam.startTime || 'Scheduled Time' }}</span>
+                        <svg class="w-4 h-4 text-[#4F35F3] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span class="font-bold text-[#17243A]">{{ exam.startTime || 'Scheduled Time' }}</span>
                       </div>
-                      <div class="flex items-center gap-2 text-slate-400">
-                        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
                         <span>Duration: {{ exam.durationMinutes }} Mins ({{ exam.totalMarks }} Marks)</span>
                       </div>
                     </div>
 
                     <!-- Status & Countdown -->
                     <div class="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 shrink-0">
-                      <span :class="[
-                        'inline-block text-[11px] font-bold px-3 py-1 rounded-full mb-0.5 sm:mb-1 border',
-                        exam.attemptStatus === 'in_progress' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                      ]">
+                      <span
+                        :class="[
+                          'inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full mb-0.5 sm:mb-1 border shadow-2xs',
+                          exam.attemptStatus === 'in_progress'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        ]"
+                      >
+                        <span
+                          :class="[
+                            'w-1.5 h-1.5 rounded-full',
+                            exam.attemptStatus === 'in_progress' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                          ]"
+                        ></span>
                         {{ exam.attemptStatus === 'in_progress' ? 'In Progress' : 'Ready' }}
                       </span>
                       <div class="text-right">
-                        <p class="text-[10px] text-slate-400">Status</p>
-                        <p class="text-base sm:text-xl font-black text-slate-900 leading-none">
+                        <p class="text-[10px] text-[#71819B] font-medium">Status</p>
+                        <p class="text-base sm:text-lg font-black text-[#17243A] leading-tight">
                           {{ exam.attemptStatus === 'in_progress' ? 'Active' : 'Scheduled' }}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <!-- Full-Width Action Button with Green Border -->
+                  <!-- Professional Start / Continue Button -->
                   <div class="pt-3.5 sm:pt-4">
                     <button
                       @click="handleStartExam(exam.id)"
-                      class="w-full min-h-[48px] bg-indigo-50 hover:bg-indigo-100 text-emerald-600 border-2 border-emerald-500 font-bold py-3 px-6 rounded-2xl shadow-2xs transition-all duration-200 flex items-center justify-center gap-2"
+                      class="w-full min-h-[46px] bg-[#4F35F3] hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs py-3 px-6 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                       <span>{{ exam.attemptStatus === 'in_progress' ? 'Continue Exam' : 'Start Exam' }}</span>
@@ -380,221 +484,373 @@ const quickTips = [
                 </div>
               </div>
 
-              <!-- Today's Exam Empty State -->
-              <div v-else class="p-6 text-center bg-white/70 rounded-2xl border border-slate-100">
-                <p class="text-xs font-semibold text-slate-500">No exams scheduled for today.</p>
-                <p class="text-[11px] text-slate-400 mt-1">Check back later or view all upcoming exams below.</p>
+              <!-- Today's Exam Polished Empty State -->
+              <div v-else class="p-8 text-center bg-[#F8FAFC] rounded-xl border border-dashed border-[#E6EBF3] flex flex-col items-center justify-center">
+                <div class="w-12 h-12 rounded-full bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center mb-3 shadow-2xs">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                  </svg>
+                </div>
+                <h3 class="text-sm font-bold text-[#17243A]">No Exams Scheduled for Today</h3>
+                <p class="text-xs text-[#71819B] max-w-md mx-auto mt-1 font-medium">
+                  You have no active or scheduled examinations for today, {{ todayFormatted }}. Check back later or review your upcoming exams below.
+                </p>
+                <button
+                  @click="activeFilter = 'all'"
+                  class="mt-4 px-4 py-2 rounded-xl bg-white border border-[#E6EBF3] hover:border-[#4F35F3]/30 text-xs font-bold text-[#4F35F3] hover:bg-[#EEF0FF] shadow-2xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>View All Exams</span>
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
               </div>
             </div>
 
             <!-- ── Section 2: Ongoing Exams ── -->
-            <div v-if="(activeFilter === 'ongoing' || activeFilter === 'all') && ongoingExamsList.length > 0" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-4">
-              <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div
+              v-if="(activeFilter === 'ongoing' || activeFilter === 'all') && ongoingExamsList.length > 0"
+              class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 sm:p-6 space-y-4 hover:border-slate-300 transition-colors"
+            >
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 class="text-base sm:text-lg font-bold text-[#17243A] leading-tight">Ongoing Exams</h2>
+                    <p class="text-xs text-[#71819B] font-medium mt-0.5">Exams currently in progress and awaiting completion</p>
+                  </div>
                 </div>
-                <h2 class="text-base font-bold text-slate-900">Ongoing Exams</h2>
+                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full shadow-2xs">
+                  {{ ongoingExamsList.length }} Active
+                </span>
               </div>
 
-              <div
-                v-for="exam in ongoingExamsList"
-                :key="exam.id"
-                class="bg-slate-50/50 rounded-2xl border border-slate-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6"
-              >
-                <!-- Course Info -->
-                <div class="flex items-center gap-3 sm:gap-4 min-w-0">
-                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
-                    {{ getCourseAbbr(exam.courseName, exam.courseCode) }}
-                  </div>
-                  <div class="min-w-0">
-                    <h3 class="text-sm sm:text-base font-bold text-slate-900 leading-tight truncate">{{ exam.courseName }}</h3>
-                    <p class="text-xs text-slate-500 mt-0.5 truncate">{{ exam.courseCode }} - {{ exam.examType }}</p>
-                    <div class="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                      <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                      <span>Online Proctored</span>
+              <div class="space-y-3.5">
+                <div
+                  v-for="exam in ongoingExamsList"
+                  :key="exam.id"
+                  class="bg-[#F8FAFC] hover:bg-white rounded-xl border border-[#E6EBF3] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 transition-all shadow-2xs hover:shadow-xs hover:border-emerald-200"
+                >
+                  <!-- Course Info -->
+                  <div class="flex items-center gap-3.5 min-w-0">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-2xs shrink-0">
+                      {{ getCourseAbbr(exam.courseName, exam.courseCode) }}
+                    </div>
+                    <div class="min-w-0">
+                      <h3 class="text-sm sm:text-base font-bold text-[#17243A] leading-tight truncate">{{ exam.courseName }}</h3>
+                      <p class="text-xs text-[#71819B] mt-0.5 truncate font-medium">{{ exam.courseCode }} • {{ exam.examType }}</p>
+                      <div class="flex items-center gap-1.5 mt-1 text-[11px] text-emerald-600 font-semibold">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                        <span>Online Proctored • Session Live</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <!-- Start Time & Duration -->
-                <div class="text-xs text-slate-500 space-y-1">
-                  <p>Started: <span class="font-semibold text-slate-700">{{ exam.startTime || 'Active' }}</span></p>
-                  <p>Duration: <span class="font-semibold text-slate-700">{{ exam.durationMinutes }} Mins</span></p>
-                </div>
+                  <!-- Start Time & Duration -->
+                  <div class="text-xs text-[#71819B] space-y-1 font-medium">
+                    <p>Started: <span class="font-bold text-[#17243A]">{{ exam.startTime || 'Active' }}</span></p>
+                    <p>Duration: <span class="font-bold text-[#17243A]">{{ exam.durationMinutes }} Mins</span></p>
+                  </div>
 
-                <!-- Time Remaining -->
-                <div class="text-left sm:text-center shrink-0">
-                  <p class="text-[11px] text-slate-400 font-medium">Time Remaining</p>
-                  <p class="text-2xl sm:text-3xl font-black text-slate-900 font-mono leading-tight">{{ countdown }}</p>
-                </div>
+                  <!-- Time Remaining -->
+                  <div class="text-left sm:text-center shrink-0">
+                    <p class="text-[11px] text-[#71819B] font-bold uppercase tracking-wider">Time Remaining</p>
+                    <p class="text-2xl sm:text-3xl font-black text-[#17243A] font-mono leading-tight mt-0.5">{{ countdown }}</p>
+                  </div>
 
-                <!-- Action Button -->
-                <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto">
-                  <span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-                    In Progress
-                  </span>
-                  <button
-                    @click="handleStartExam(exam.id)"
-                    class="w-full sm:w-auto min-h-[44px] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-600 text-xs font-bold py-2.5 px-6 rounded-2xl shadow-2xs transition-all duration-200 flex items-center justify-center gap-2"
-                  >
-                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    Continue Exam
-                  </button>
+                  <!-- Action Button -->
+                  <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto">
+                    <button
+                      @click="handleStartExam(exam.id)"
+                      class="w-full sm:w-auto min-h-[44px] bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold py-2.5 px-6 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      <span>Continue Exam</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
+            <!-- Ongoing Empty State when Ongoing tab is selected -->
+            <div
+              v-else-if="activeFilter === 'ongoing' && ongoingExamsList.length === 0"
+              class="p-8 text-center bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs flex flex-col items-center justify-center"
+            >
+              <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 shadow-2xs">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <h3 class="text-sm font-bold text-[#17243A]">No Ongoing Exams</h3>
+              <p class="text-xs text-[#71819B] mt-1 font-medium">There are currently no active exams in progress for your account.</p>
+              <button
+                @click="activeFilter = 'todays'"
+                class="mt-4 px-4 py-2 rounded-xl bg-[#EEF0FF] hover:bg-indigo-100 text-xs font-bold text-[#4F35F3] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>Check Today's Schedule</span>
+              </button>
+            </div>
+
             <!-- ── Section 3: Completed Exams ── -->
-            <div v-if="activeFilter === 'completed' || activeFilter === 'all'" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-4">
+            <div
+              v-if="activeFilter === 'completed' || activeFilter === 'all'"
+              class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 sm:p-6 space-y-4 hover:border-slate-300 transition-colors"
+            >
               <!-- Header -->
-              <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shrink-0 shadow-2xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 class="text-base sm:text-lg font-bold text-[#17243A] leading-tight">Completed Exams</h2>
+                    <p class="text-xs text-[#71819B] font-medium mt-0.5">Recorded examination submissions and verified score sheets</p>
+                  </div>
                 </div>
-                <h2 class="text-base font-bold text-slate-900">Completed Exams</h2>
+                <span class="text-xs font-bold text-[#4F35F3] bg-[#EEF0FF] border border-[#4F35F3]/20 px-3.5 py-1.5 rounded-full shadow-2xs">
+                  {{ filteredCompletedExams.length }} Recorded
+                </span>
               </div>
 
               <!-- Real Completed Exams List -->
-              <div v-if="filteredCompletedExams.length > 0" class="space-y-4">
+              <div v-if="filteredCompletedExams.length > 0" class="space-y-3.5">
                 <div
                   v-for="res in filteredCompletedExams"
                   :key="res.id"
-                  class="bg-slate-50/50 rounded-2xl border border-slate-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6"
+                  class="bg-[#F8FAFC] hover:bg-white rounded-xl border border-[#E6EBF3] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 transition-all shadow-2xs hover:shadow-xs hover:border-[#4F35F3]/30"
                 >
                   <!-- Course Info -->
-                  <div class="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-md shadow-rose-100 shrink-0">
+                  <div class="flex items-center gap-3.5 min-w-0">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-2xs shrink-0">
                       {{ getCourseAbbr(res.courseName, res.courseCode) }}
                     </div>
                     <div class="min-w-0">
-                      <h3 class="text-sm sm:text-base font-bold text-slate-900 leading-tight truncate">{{ res.courseName }}</h3>
-                      <p class="text-xs text-slate-500 mt-0.5 truncate">{{ res.courseCode }} - {{ res.examTitle }}</p>
-                      <div class="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      <h3 class="text-sm sm:text-base font-bold text-[#17243A] leading-tight truncate">{{ res.courseName }}</h3>
+                      <p class="text-xs text-[#71819B] mt-0.5 truncate font-medium">{{ res.courseCode }} • {{ res.examTitle }}</p>
+                      <div class="flex items-center gap-1.5 mt-1 text-[11px] text-emerald-600 font-semibold">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
                         <span>Official Result Logged</span>
                       </div>
                     </div>
                   </div>
 
                   <!-- Date -->
-                  <div class="text-xs text-slate-500">
-                    <p class="text-[11px] text-slate-400">Completed on</p>
-                    <p class="font-semibold text-slate-700 mt-0.5">{{ res.completedDate || 'Recently' }}</p>
+                  <div class="text-xs text-[#71819B] font-medium">
+                    <p class="text-[11px] text-[#71819B]">Completed on</p>
+                    <p class="font-bold text-[#17243A] mt-0.5">{{ res.completedDate || 'Recently' }}</p>
                   </div>
 
                   <!-- Score -->
                   <div class="text-left sm:text-center shrink-0">
-                    <p class="text-[11px] text-slate-400 font-medium">Score</p>
-                    <p :class="['text-xl sm:text-2xl font-black leading-tight', res.status === 'Passed' ? 'text-emerald-500' : 'text-rose-500']">
+                    <p class="text-[11px] text-[#71819B] font-bold uppercase tracking-wider">Score</p>
+                    <p :class="['text-xl sm:text-2xl font-black leading-tight mt-0.5 font-mono', res.status === 'Passed' ? 'text-emerald-600' : 'text-rose-500']">
                       {{ res.percentage }}%
                     </p>
                   </div>
 
                   <!-- Action Button -->
                   <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto">
-                    <span :class="['text-[11px] font-bold px-3 py-1 rounded-full border', res.status === 'Passed' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-rose-600 bg-rose-50 border-rose-200']">
+                    <span :class="['text-[11px] font-bold px-3 py-1 rounded-full border shadow-2xs', res.status === 'Passed' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-rose-700 bg-rose-50 border-rose-200']">
                       {{ res.status || 'Completed' }}
                     </span>
                     <button
                       @click="openResultReview(res)"
-                      class="w-full sm:w-auto min-h-[44px] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-600 text-xs font-bold py-2.5 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center"
+                      class="w-full sm:w-auto min-h-[42px] bg-white hover:bg-[#EEF0FF] border border-[#E6EBF3] hover:border-[#4F35F3]/30 text-[#17243A] hover:text-[#4F35F3] text-xs font-bold py-2.5 px-5 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      View Results
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                      </svg>
+                      <span>View Results</span>
                     </button>
                   </div>
                 </div>
               </div>
 
               <!-- Completed Empty State -->
-              <div v-else class="p-6 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
-                <p class="text-xs font-semibold text-slate-500">No completed exams yet.</p>
-                <p class="text-[11px] text-slate-400 mt-1">Once you complete an exam, your score sheets will appear here.</p>
+              <div v-else class="p-8 text-center bg-[#F8FAFC] rounded-xl border border-dashed border-[#E6EBF3] flex flex-col items-center justify-center">
+                <div class="w-12 h-12 rounded-full bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center mb-3 shadow-2xs">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <h3 class="text-sm font-bold text-[#17243A]">No Completed Exams Yet</h3>
+                <p class="text-xs text-[#71819B] mt-1 font-medium">Once you complete an examination and grades are finalized, your verified score sheets will appear here.</p>
               </div>
             </div>
 
-            <!-- ── Section 4: Quick Actions Row ── -->
-            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-4">
-              <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+            <!-- ── Section 4: Upcoming Scheduled Exams (When viewing All Exams) ── -->
+            <div
+              v-if="activeFilter === 'all' && futureUpcomingExams.length > 0"
+              class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 sm:p-6 space-y-4 hover:border-slate-300 transition-colors"
+            >
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 class="text-base sm:text-lg font-bold text-[#17243A] leading-tight">Upcoming Scheduled Exams</h2>
+                    <p class="text-xs text-[#71819B] font-medium mt-0.5">Exams scheduled for upcoming calendar dates</p>
+                  </div>
                 </div>
-                <h2 class="text-base font-bold text-slate-900">Quick Actions</h2>
+                <span class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-full shadow-2xs">
+                  {{ futureUpcomingExams.length }} Scheduled
+                </span>
               </div>
 
-              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div class="space-y-3.5">
+                <div
+                  v-for="exam in futureUpcomingExams"
+                  :key="exam.id"
+                  class="bg-[#F8FAFC] hover:bg-white rounded-xl border border-[#E6EBF3] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 transition-all shadow-2xs hover:shadow-xs hover:border-amber-200"
+                >
+                  <div class="flex items-center gap-3.5 min-w-0">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white font-bold text-sm sm:text-base flex items-center justify-center shadow-2xs shrink-0">
+                      {{ getCourseAbbr(exam.courseName, exam.courseCode) }}
+                    </div>
+                    <div class="min-w-0">
+                      <h3 class="text-sm sm:text-base font-bold text-[#17243A] leading-tight truncate">{{ exam.courseName }}</h3>
+                      <p class="text-xs text-[#71819B] mt-0.5 truncate font-medium">{{ exam.courseCode }} • {{ exam.examType }}</p>
+                      <div class="flex items-center gap-1.5 mt-1 text-[11px] text-[#71819B] font-medium">
+                        <svg class="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7 7z"/>
+                        </svg>
+                        <span class="truncate">Instructor: {{ exam.instructor || 'Wollo University' }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="text-xs text-[#71819B] space-y-1 font-medium">
+                    <p>Date: <span class="font-bold text-[#17243A]">{{ exam.scheduledDate || exam.scheduledAt || 'Upcoming' }}</span></p>
+                    <p>Duration: <span class="font-bold text-[#17243A]">{{ exam.durationMinutes }} Mins</span></p>
+                  </div>
+
+                  <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0 w-full sm:w-auto">
+                    <span class="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full shadow-2xs">
+                      Scheduled
+                    </span>
+                    <button
+                      @click="handleStartExam(exam.id)"
+                      class="w-full sm:w-auto min-h-[42px] bg-[#4F35F3] hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-5 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      <span>Start Exam</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Section 5: Quick Actions Row ── -->
+            <div class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 sm:p-6 space-y-4 hover:border-slate-300 transition-colors">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-base sm:text-lg font-bold text-[#17243A]">Quick Actions</h2>
+                  <p class="text-xs text-[#71819B] font-medium mt-0.5">Direct shortcuts to examination tools and student portals</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
                 <!-- 1. Take Exam -->
                 <div
                   @click="activeFilter = 'todays'"
-                  class="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-indigo-50/60 hover:border-indigo-100 transition-all cursor-pointer group"
+                  class="p-4 rounded-xl border border-[#E6EBF3] bg-white hover:bg-[#F8FAFC] hover:border-[#4F35F3]/30 shadow-2xs hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between"
                 >
-                  <div class="w-8 h-8 rounded-xl bg-purple-100/80 text-purple-600 flex items-center justify-center mb-2.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </div>
+                    <span class="text-[#71819B] group-hover:text-[#4F35F3] group-hover:translate-x-0.5 transition-all text-sm font-bold">›</span>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-bold text-slate-900">Take Exam</p>
-                    <span class="text-slate-400 group-hover:translate-x-0.5 transition-transform">›</span>
+                  <div>
+                    <p class="text-xs font-bold text-[#17243A] group-hover:text-[#4F35F3] transition-colors">Take Exam</p>
+                    <p class="text-[11px] text-[#71819B] mt-0.5 font-medium">Start available exam</p>
                   </div>
-                  <p class="text-[10px] text-slate-400 mt-0.5">Start available exam</p>
                 </div>
 
                 <!-- 2. View Results -->
                 <div
                   @click="activeFilter = 'completed'"
-                  class="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-indigo-50/60 hover:border-indigo-100 transition-all cursor-pointer group"
+                  class="p-4 rounded-xl border border-[#E6EBF3] bg-white hover:bg-[#F8FAFC] hover:border-[#4F35F3]/30 shadow-2xs hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between"
                 >
-                  <div class="w-8 h-8 rounded-xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center mb-2.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <span class="text-[#71819B] group-hover:text-[#4F35F3] group-hover:translate-x-0.5 transition-all text-sm font-bold">›</span>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-bold text-slate-900">View Results</p>
-                    <span class="text-slate-400 group-hover:translate-x-0.5 transition-transform">›</span>
+                  <div>
+                    <p class="text-xs font-bold text-[#17243A] group-hover:text-[#4F35F3] transition-colors">View Results</p>
+                    <p class="text-[11px] text-[#71819B] mt-0.5 font-medium">Check latest results</p>
                   </div>
-                  <p class="text-[10px] text-slate-400 mt-0.5">Check latest results</p>
                 </div>
 
                 <!-- 3. Exam Guidelines -->
                 <div
                   @click="windowRef.alert('ACADEMIC INTEGRITY & EXAM GUIDELINES:\n1. Ensure a stable internet connection.\n2. Enable your webcam for proctoring.\n3. Do not switch browser tabs or windows.\n4. Complete all questions within the allocated time.')"
-                  class="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-indigo-50/60 hover:border-indigo-100 transition-all cursor-pointer group"
+                  class="p-4 rounded-xl border border-[#E6EBF3] bg-white hover:bg-[#F8FAFC] hover:border-[#4F35F3]/30 shadow-2xs hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between"
                 >
-                  <div class="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-600 flex items-center justify-center mb-2.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <span class="text-[#71819B] group-hover:text-[#4F35F3] group-hover:translate-x-0.5 transition-all text-sm font-bold">›</span>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-bold text-slate-900">Exam Guidelines</p>
-                    <span class="text-slate-400 group-hover:translate-x-0.5 transition-transform">›</span>
+                  <div>
+                    <p class="text-xs font-bold text-[#17243A] group-hover:text-[#4F35F3] transition-colors">Exam Guidelines</p>
+                    <p class="text-[11px] text-[#71819B] mt-0.5 font-medium">Read instructions</p>
                   </div>
-                  <p class="text-[10px] text-slate-400 mt-0.5">Read instructions</p>
                 </div>
 
                 <!-- 4. My Schedule -->
                 <div
                   @click="activeFilter = 'todays'"
-                  class="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-indigo-50/60 hover:border-indigo-100 transition-all cursor-pointer group"
+                  class="p-4 rounded-xl border border-[#E6EBF3] bg-white hover:bg-[#F8FAFC] hover:border-[#4F35F3]/30 shadow-2xs hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between"
                 >
-                  <div class="w-8 h-8 rounded-xl bg-indigo-100/80 text-indigo-600 flex items-center justify-center mb-2.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    </div>
+                    <span class="text-[#71819B] group-hover:text-[#4F35F3] group-hover:translate-x-0.5 transition-all text-sm font-bold">›</span>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-bold text-slate-900">My Schedule</p>
-                    <span class="text-slate-400 group-hover:translate-x-0.5 transition-transform">›</span>
+                  <div>
+                    <p class="text-xs font-bold text-[#17243A] group-hover:text-[#4F35F3] transition-colors">My Schedule</p>
+                    <p class="text-[11px] text-[#71819B] mt-0.5 font-medium">View exam schedule</p>
                   </div>
-                  <p class="text-[10px] text-slate-400 mt-0.5">View exam schedule</p>
                 </div>
 
                 <!-- 5. Calculator -->
                 <div
                   @click="windowRef.alert('Scientific Calculator tool available inside the active exam console window.')"
-                  class="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-indigo-50/60 hover:border-indigo-100 transition-all cursor-pointer group"
+                  class="p-4 rounded-xl border border-[#E6EBF3] bg-white hover:bg-[#F8FAFC] hover:border-[#4F35F3]/30 shadow-2xs hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between"
                 >
-                  <div class="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-600 flex items-center justify-center mb-2.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    </div>
+                    <span class="text-[#71819B] group-hover:text-[#4F35F3] group-hover:translate-x-0.5 transition-all text-sm font-bold">›</span>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-bold text-slate-900">Calculator</p>
-                    <span class="text-slate-400 group-hover:translate-x-0.5 transition-transform">›</span>
+                  <div>
+                    <p class="text-xs font-bold text-[#17243A] group-hover:text-[#4F35F3] transition-colors">Calculator</p>
+                    <p class="text-[11px] text-[#71819B] mt-0.5 font-medium">Open calculator</p>
                   </div>
-                  <p class="text-[10px] text-slate-400 mt-0.5">Open calculator</p>
                 </div>
               </div>
             </div>
@@ -604,99 +860,140 @@ const quickTips = [
         </div>
 
         <!-- ── Right Sidebar Column ── -->
-        <div class="w-full lg:w-72 flex-shrink-0 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-1 gap-5">
+        <div class="w-full lg:w-80 flex-shrink-0 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-1 gap-5">
 
           <!-- 1. Exam Summary Card -->
-          <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
-            <h3 class="text-sm font-bold text-slate-900">Exam Summary</h3>
-            <div class="space-y-3">
-              <div class="flex items-center justify-between p-3 rounded-2xl bg-purple-50/60 border border-purple-100/80">
+          <div class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 space-y-3.5 hover:border-slate-300 transition-colors">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-[#17243A]">Exam Summary</h3>
+              <span class="text-[10px] font-bold text-[#71819B] uppercase tracking-wider bg-[#F4F6FB] px-2 py-0.5 rounded-md">Live</span>
+            </div>
+            
+            <div class="space-y-2.5">
+              <!-- Today's Exams -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-[#EEF0FF]/60 border border-[#4F35F3]/15 transition-colors">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-7 h-7 rounded-xl bg-purple-100 flex items-center justify-center">
-                    <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  <div class="w-8 h-8 rounded-lg bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                   </div>
-                  <span class="text-xs font-semibold text-slate-700">Today's Exams</span>
+                  <span class="text-xs font-bold text-[#17243A]">Today's Exams</span>
                 </div>
-                <span class="text-base font-extrabold text-slate-900">{{ summaryStats.todays }}</span>
+                <span class="text-base font-black text-[#4F35F3] font-mono">{{ summaryStats.todays }}</span>
               </div>
 
-              <div class="flex items-center justify-between p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100/80">
+              <!-- Ongoing Exams -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 transition-colors">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
-                    <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                   </div>
-                  <span class="text-xs font-semibold text-slate-700">Ongoing Exams</span>
+                  <span class="text-xs font-bold text-[#17243A]">Ongoing Exams</span>
                 </div>
-                <span class="text-base font-extrabold text-slate-900">{{ summaryStats.ongoing }}</span>
+                <span class="text-base font-black text-emerald-600 font-mono">{{ summaryStats.ongoing }}</span>
               </div>
 
-              <div class="flex items-center justify-between p-3 rounded-2xl bg-blue-50/60 border border-blue-100/80">
+              <!-- Completed Exams -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-blue-50/60 border border-blue-100 transition-colors">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-7 h-7 rounded-xl bg-blue-100 flex items-center justify-center">
-                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                   </div>
-                  <span class="text-xs font-semibold text-slate-700">Completed Exams</span>
+                  <span class="text-xs font-bold text-[#17243A]">Completed Exams</span>
                 </div>
-                <span class="text-base font-extrabold text-slate-900">{{ summaryStats.completed }}</span>
+                <span class="text-base font-black text-blue-600 font-mono">{{ summaryStats.completed }}</span>
               </div>
 
-              <div class="flex items-center justify-between p-3 rounded-2xl bg-amber-50/60 border border-amber-100/80">
+              <!-- Total Exams -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-amber-50/60 border border-amber-100 transition-colors">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-7 h-7 rounded-xl bg-amber-100 flex items-center justify-center">
-                    <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                  <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                   </div>
-                  <span class="text-xs font-semibold text-slate-700">Total Exams</span>
+                  <span class="text-xs font-bold text-[#17243A]">Total Exams</span>
                 </div>
-                <span class="text-base font-extrabold text-slate-900">{{ summaryStats.total }}</span>
+                <span class="text-base font-black text-amber-600 font-mono">{{ summaryStats.total }}</span>
               </div>
             </div>
           </div>
 
           <!-- 2. Calendar Card -->
-          <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-3">
+          <div class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 space-y-4 hover:border-slate-300 transition-colors">
             <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-900">Calendar</h3>
-              <div class="flex items-center gap-1">
-                <button @click="calMonth > 0 ? calMonth-- : (calMonth = 11, calYear--)" class="w-6 h-6 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors">
+              <h3 class="text-base font-bold text-[#17243A]">Calendar</h3>
+              <div class="flex items-center gap-1.5">
+                <button
+                  @click="calMonth > 0 ? calMonth-- : (calMonth = 11, calYear--)"
+                  class="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E6EBF3] hover:bg-[#EEF0FF] hover:text-[#4F35F3] flex items-center justify-center text-[#71819B] transition-colors cursor-pointer"
+                  title="Previous Month"
+                >
                   ‹
                 </button>
-                <span class="text-xs font-bold text-slate-700 min-w-[90px] text-center">{{ calMonthName }}</span>
-                <button @click="calMonth < 11 ? calMonth++ : (calMonth = 0, calYear++)" class="w-6 h-6 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors">
+                <span class="text-xs font-bold text-[#17243A] min-w-[96px] text-center">{{ calMonthName }}</span>
+                <button
+                  @click="calMonth < 11 ? calMonth++ : (calMonth = 0, calYear++)"
+                  class="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E6EBF3] hover:bg-[#EEF0FF] hover:text-[#4F35F3] flex items-center justify-center text-[#71819B] transition-colors cursor-pointer"
+                  title="Next Month"
+                >
                   ›
                 </button>
               </div>
             </div>
+
+            <!-- Weekday Headers -->
             <div class="grid grid-cols-7 text-center">
-              <div v-for="d in ['Su','Mo','Tu','We','Th','Fr','Sa']" :key="d" class="text-[10px] font-bold text-slate-400 py-1">{{ d }}</div>
-              <div v-for="(day, i) in calDays" :key="i"
-                :class="['text-[11px] py-1 rounded-xl cursor-pointer transition-colors',
-                  day ? (isToday(day) ? 'bg-indigo-50 text-indigo-600 font-bold border border-indigo-200' : 'text-slate-600 hover:bg-indigo-50/50') : '']">
-                {{ day || '' }}
+              <div v-for="d in ['Su','Mo','Tu','We','Th','Fr','Sa']" :key="d" class="text-[10px] font-bold text-[#71819B] py-1">
+                {{ d }}
+              </div>
+              <!-- Calendar Days -->
+              <div
+                v-for="(day, i) in calDays"
+                :key="i"
+                class="py-0.5 flex flex-col items-center justify-center"
+              >
+                <div
+                  v-if="day"
+                  :class="[
+                    'w-7 h-7 flex items-center justify-center rounded-lg text-xs transition-colors cursor-pointer relative',
+                    isToday(day)
+                      ? 'bg-[#4F35F3] text-white font-bold shadow-xs'
+                      : 'text-[#17243A] hover:bg-[#EEF0FF] hover:text-[#4F35F3] font-medium'
+                  ]"
+                >
+                  {{ day }}
+                  <span
+                    v-if="hasExamOnDay(day) && !isToday(day)"
+                    class="absolute bottom-0.5 w-1 h-1 rounded-full bg-[#4F35F3]"
+                  ></span>
+                </div>
               </div>
             </div>
-            <div class="flex flex-wrap gap-2.5 pt-3 border-t border-slate-100 text-[10px] text-slate-500">
-              <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span>Exam</div>
-              <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Ongoing</div>
-              <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Deadline</div>
-              <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Event</div>
+
+            <!-- Calendar Legend -->
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#E6EBF3] text-[10px] font-medium text-[#71819B]">
+              <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#4F35F3]"></span><span>Exam</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#10B981]"></span><span>Ongoing</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#EF4444]"></span><span>Deadline</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#3295FF]"></span><span>Event</span></div>
             </div>
           </div>
 
           <!-- 3. Quick Tips Card -->
-          <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-3.5">
+          <div class="bg-white rounded-2xl border border-[#E6EBF3] shadow-2xs p-5 space-y-3.5 hover:border-slate-300 transition-colors">
             <div class="flex items-center gap-2">
-              <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-              <h3 class="text-sm font-bold text-slate-900">Quick Tips</h3>
+              <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shadow-2xs">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+              </div>
+              <h3 class="text-sm font-bold text-[#17243A]">Quick Tips</h3>
             </div>
-            <ul class="space-y-2 text-xs text-slate-600">
+            <ul class="space-y-2 text-xs text-[#71819B] font-medium">
               <li v-for="tip in quickTips" :key="tip" class="flex items-start gap-2">
-                <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg class="w-3.5 h-3.5 text-[#10B981] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                 <span>{{ tip }}</span>
               </li>
             </ul>
             <button
               @click="windowRef.alert('ACADEMIC INTEGRITY & EXAM GUIDELINES:\n1. Ensure a stable internet connection.\n2. Enable your webcam for proctoring.\n3. Do not switch browser tabs or windows.\n4. Complete all questions within the allocated time.')"
-              class="w-full mt-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-600 text-xs font-bold py-2.5 px-4 rounded-2xl transition-all duration-200"
+              class="w-full mt-2 bg-[#EEF0FF] hover:bg-indigo-100 text-[#4F35F3] border border-[#4F35F3]/20 text-xs font-bold py-2.5 px-4 rounded-xl transition-colors cursor-pointer"
             >
               View Exam Guidelines
             </button>
@@ -705,6 +1002,16 @@ const quickTips = [
         </div>
 
       </div>
+
+      <!-- Footer matching Wollo University standard -->
+      <footer class="mt-12 pt-6 border-t border-[#E6EBF3] flex flex-col sm:flex-row items-center justify-between text-[11px] font-medium text-[#71819B] gap-4">
+        <div>&copy; 2025 Wollo University. All rights reserved.</div>
+        <div class="flex items-center gap-6">
+          <a href="https://wu.edu.et" target="_blank" rel="noopener" class="hover:text-[#17243A] transition-colors">Privacy Policy</a>
+          <a href="https://wu.edu.et" target="_blank" rel="noopener" class="hover:text-[#17243A] transition-colors">Terms of Service</a>
+        </div>
+      </footer>
+
     </main>
   </div>
 </template>
