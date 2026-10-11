@@ -9,6 +9,35 @@ import Header from '../components/Header.vue'
 import HeroSection from '../components/HeroSection.vue'
 import StudentSidebar from '../components/StudentSidebar.vue'
 import ProfileModal from '../components/ProfileModal.vue'
+import DownloadTranscriptModal from '../components/DownloadTranscriptModal.vue'
+
+import {
+  ArrowLeft,
+  Printer,
+  Download,
+  BookOpen,
+  Award,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  FileText,
+  Check,
+  X,
+  Zap,
+  FileEdit,
+  ListChecks,
+  Target,
+  Sparkles,
+  HelpCircle,
+  Maximize2,
+  Minimize2,
+  Layers,
+  GraduationCap,
+} from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,8 +46,12 @@ const { profile, fetchProfile } = useStudentProfile()
 
 const isSidebarOpen = ref(false)
 const isProfileOpen = ref(false)
+const isTranscriptOpen = ref(false)
 const isLoading = ref(true)
+
+// Filters & Accordion
 const selectedFilter = ref('all')
+const selectedOutcomeFilter = ref('all')
 const expandedQuestions = ref<Record<number, boolean>>({})
 
 // Detail data structure
@@ -74,6 +107,20 @@ const toggleQuestion = (id: number) => {
   expandedQuestions.value[id] = !expandedQuestions.value[id]
 }
 
+const areAllExpanded = computed(() => {
+  const qs = filteredQuestions.value || []
+  if (qs.length === 0) return false
+  return qs.every((q: any) => expandedQuestions.value[q.id])
+})
+
+const toggleAllQuestions = () => {
+  const target = !areAllExpanded.value
+  const qs = resultDetail.value.questions || []
+  qs.forEach((q: any) => {
+    expandedQuestions.value[q.id] = target
+  })
+}
+
 // Filter calculations
 const filterCounts = computed(() => {
   const list = resultDetail.value.questions || []
@@ -87,10 +134,37 @@ const filterCounts = computed(() => {
   }
 })
 
-const filteredQuestions = computed(() => {
+const outcomeCounts = computed(() => {
   const list = resultDetail.value.questions || []
-  if (selectedFilter.value === 'all') return list
-  return list.filter((q: any) => q.type === selectedFilter.value)
+  return {
+    all: list.length,
+    correct: list.filter((q: any) => q.status === 'correct').length,
+    wrong: list.filter((q: any) => q.status === 'wrong').length,
+    unanswered: list.filter((q: any) => q.status === 'unanswered' || q.studentAnswer === 'Not answered').length,
+    partial: list.filter((q: any) => q.status === 'partial').length,
+    pending: list.filter((q: any) => q.status === 'pending').length,
+  }
+})
+
+const filteredQuestions = computed(() => {
+  let list = resultDetail.value.questions || []
+  if (selectedFilter.value !== 'all') {
+    list = list.filter((q: any) => q.type === selectedFilter.value)
+  }
+  if (selectedOutcomeFilter.value !== 'all') {
+    if (selectedOutcomeFilter.value === 'correct') {
+      list = list.filter((q: any) => q.status === 'correct')
+    } else if (selectedOutcomeFilter.value === 'wrong') {
+      list = list.filter((q: any) => q.status === 'wrong')
+    } else if (selectedOutcomeFilter.value === 'unanswered') {
+      list = list.filter((q: any) => q.status === 'unanswered' || q.studentAnswer === 'Not answered')
+    } else if (selectedOutcomeFilter.value === 'partial') {
+      list = list.filter((q: any) => q.status === 'partial')
+    } else if (selectedOutcomeFilter.value === 'pending') {
+      list = list.filter((q: any) => q.status === 'pending')
+    }
+  }
+  return list
 })
 
 const groupedFilteredQuestions = computed(() => {
@@ -121,12 +195,12 @@ const filterLabels: Record<string, string> = {
 
 const getTypeIconBg = (type: string) => {
   switch (type) {
-    case 'multiple_choice': return 'bg-purple-50 text-purple-600 border-purple-100'
-    case 'true_false':      return 'bg-blue-50 text-blue-600 border-blue-100'
-    case 'fill_blank':      return 'bg-emerald-50 text-emerald-600 border-emerald-100'
-    case 'short_answer':    return 'bg-amber-50 text-amber-600 border-amber-100'
-    case 'matching':        return 'bg-rose-50 text-rose-600 border-rose-100'
-    default:                return 'bg-indigo-50 text-indigo-600 border-indigo-100'
+    case 'multiple_choice': return 'bg-purple-50 text-purple-600 border-purple-200'
+    case 'true_false':      return 'bg-blue-50 text-blue-600 border-blue-200'
+    case 'fill_blank':      return 'bg-emerald-50 text-emerald-600 border-emerald-200'
+    case 'short_answer':    return 'bg-amber-50 text-amber-600 border-amber-200'
+    case 'matching':        return 'bg-rose-50 text-rose-600 border-rose-200'
+    default:                return 'bg-[#EEF0FF] text-[#4F35F3] border-[#D6DBFF]'
   }
 }
 
@@ -137,13 +211,65 @@ const getTypeBadgeColor = (type: string) => {
     case 'fill_blank':      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
     case 'short_answer':    return 'bg-amber-50 text-amber-700 border-amber-200'
     case 'matching':        return 'bg-rose-50 text-rose-700 border-rose-200'
-    default:                return 'bg-indigo-50 text-indigo-700 border-indigo-200'
+    default:                return 'bg-[#EEF0FF] text-[#4F35F3] border-[#D6DBFF]'
   }
+}
+
+const getScoreColor = (percentage: number) => {
+  const p = Number(percentage || 0)
+  if (p >= 85) return 'text-emerald-600'
+  if (p >= 70) return 'text-[#4F35F3]'
+  if (p >= 50) return 'text-amber-600'
+  return 'text-rose-600'
+}
+
+const getScoreBarColor = (percentage: number) => {
+  const p = Number(percentage || 0)
+  if (p >= 85) return 'bg-emerald-500'
+  if (p >= 70) return 'bg-[#4F35F3]'
+  if (p >= 50) return 'bg-amber-500'
+  return 'bg-rose-500'
+}
+
+const getGradeBadgeClass = (grade: string) => {
+  const g = (grade || '').trim().toUpperCase()
+  if (g.startsWith('A')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (g.startsWith('B')) return 'bg-[#EEF0FF] text-[#4F35F3] border-[#D6DBFF]'
+  if (g.startsWith('C') || g.startsWith('D')) return 'bg-amber-50 text-amber-700 border-amber-200'
+  if (g === 'PENDING') return 'bg-purple-50 text-purple-700 border-purple-200'
+  return 'bg-rose-50 text-rose-700 border-rose-200'
+}
+
+const getStatusBadge = (status: string) => {
+  const s = (status || '').toLowerCase()
+  if (s === 'passed') {
+    return {
+      dot: 'bg-emerald-500',
+      pill: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      label: 'Passed Examination',
+    }
+  }
+  if (s === 'pending') {
+    return {
+      dot: 'bg-amber-500 animate-pulse',
+      pill: 'bg-amber-50 text-amber-700 border-amber-200',
+      label: 'Pending Instructor Review',
+    }
+  }
+  return {
+    dot: 'bg-rose-500',
+    pill: 'bg-rose-50 text-rose-700 border-rose-200',
+    label: 'Failed Examination',
+  }
+}
+
+const handlePrint = () => {
+  window.print()
 }
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f8f9fc] font-sans text-slate-800 antialiased flex flex-col">
+  <div class="min-h-screen bg-[#F5F7FC] font-sans text-[#17243A] antialiased flex flex-col selection:bg-[#4F35F3] selection:text-white">
 
     <!-- Top Navigation Header -->
     <Header
@@ -169,571 +295,717 @@ const getTypeBadgeColor = (type: string) => {
       @update-profile="(updated) => profile = updated"
     />
 
-    <!-- Row 1: Full-Width Hero Banner (Flush under header) -->
+    <!-- Download Transcript Modal -->
+    <DownloadTranscriptModal
+      v-if="isTranscriptOpen"
+      :profile="profile"
+      :results="examStore.results"
+      @close="isTranscriptOpen = false"
+    />
+
+    <!-- ──────────────────────────────────────────────────────────── -->
+    <!-- PROTECTED HERO SECTION (Structure & Background Kept 100% Intact) -->
+    <!-- ──────────────────────────────────────────────────────────── -->
     <HeroSection
       :profile="profile"
       :stats="{ examsCompleted: examStore.results.length, upcomingExams: examStore.upcomingExams.length }"
+      subtitle="ACADEMIC PERFORMANCE"
+      title="RESULT DETAILS"
+      description="Detailed assessment breakdown, question-by-question scoring, and official grade review."
     />
 
-    <!-- Main Content Container -->
-    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-in fade-in duration-300">
+    <!-- ──────────────────────────────────────────────────────────── -->
+    <!-- MAIN CONTENT BODY (Below the Hero Section) -->
+    <!-- ──────────────────────────────────────────────────────────── -->
+    <main class="flex-1 w-full mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-5 sm:py-6 space-y-5 animate-in fade-in duration-200">
 
-      <!-- Back Link -->
-      <div>
-        <router-link
-          to="/student/results"
-          class="inline-flex items-center gap-1.5 text-xs font-bold text-[#5138ed] hover:underline min-h-[44px] py-2"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-          </svg>
-          <span>Back to Results</span>
-        </router-link>
+      <!-- ── Breadcrumb & Top Action Toolbar ── -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-[#E5EAF3] shadow-2xs no-print">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2 text-xs font-semibold text-[#71819B]">
+            <router-link
+              to="/student/results"
+              class="inline-flex items-center gap-1.5 text-[#4F35F3] font-bold hover:underline"
+            >
+              <ArrowLeft :size="13" class="stroke-[2.5]" />
+              <span>Back to Results</span>
+            </router-link>
+            <span>•</span>
+            <span>Assessment Breakdown</span>
+            <span v-if="resultDetail.attempt.courseCode">•</span>
+            <span v-if="resultDetail.attempt.courseCode" class="font-bold text-[#17243A]">{{ resultDetail.attempt.courseCode }}</span>
+          </div>
+
+          <h1 class="text-xl sm:text-2xl font-black text-[#17243A] tracking-tight flex items-center gap-2.5 flex-wrap">
+            <span>{{ resultDetail.attempt.examTitle || 'Exam Result Details' }}</span>
+            <span v-if="resultDetail.attempt.courseCode" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#EEF0FF] text-[#4F35F3] border border-[#D6DBFF]">
+              {{ resultDetail.attempt.courseCode }}
+            </span>
+          </h1>
+
+          <p class="text-xs text-[#71819B]">
+            Course: <strong class="text-slate-800">{{ resultDetail.attempt.courseName || resultDetail.attempt.courseCode || 'Course Assessment' }}</strong>
+            <span v-if="resultDetail.attempt.completedDate"> • Completed on {{ resultDetail.attempt.completedDate }}</span>
+          </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2.5 flex-wrap sm:flex-nowrap shrink-0">
+          <button
+            @click="handlePrint"
+            class="px-3.5 py-2 rounded-xl text-xs font-bold text-[#71819B] hover:text-[#17243A] bg-[#F5F7FC] hover:bg-slate-100 border border-[#E5EAF3] transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Print result summary"
+          >
+            <Printer :size="14" class="stroke-[2.5]" />
+            <span>Print Slip</span>
+          </button>
+
+          <button
+            @click="isTranscriptOpen = true"
+            class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#4F35F3] hover:bg-[#3D25D8] shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Download :size="14" class="stroke-[2.5]" />
+            <span>Official Transcript</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Title & Academic Term Bar -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      <!-- ── Loading State ── -->
+      <div v-if="isLoading" class="bg-white rounded-2xl border border-[#E5EAF3] p-12 sm:p-16 text-center space-y-4 shadow-2xs">
+        <div class="w-12 h-12 rounded-2xl bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center mx-auto animate-spin">
+          <Clock :size="24" class="stroke-[2.5]" />
+        </div>
         <div>
-          <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Exam Result Details</h1>
-          <p class="text-xs text-slate-500 font-medium mt-1">Here is the detailed breakdown of your answers and scores.</p>
-        </div>
-
-        <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs self-start sm:self-auto min-h-[44px]">
-          <span>2025/2026 – Second Semester</span>
-          <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-          </svg>
+          <h3 class="text-sm font-bold text-[#17243A]">Loading Detailed Assessment Breakdown...</h3>
+          <p class="text-xs text-[#71819B] mt-1">Retrieving question answers, evaluation points, and teacher marks from the server.</p>
         </div>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="isLoading" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-12 sm:p-16 text-center">
-        <div class="w-10 h-10 border-4 border-indigo-200 border-t-[#5138ed] rounded-full animate-spin mx-auto mb-4"></div>
-        <h3 class="text-sm font-bold text-slate-800">Loading Exam Result Details...</h3>
-        <p class="text-xs text-slate-400 mt-1">Please wait while we prepare your academic score breakdown.</p>
-      </div>
+      <!-- ── Main Content When Loaded ── -->
+      <div v-else class="space-y-5">
 
-      <div v-else class="space-y-6 sm:space-y-8">
+        <!-- ── Section 1: Master Academic Scorecard & KPIs ── -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-        <!-- 7 Top Stat Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-4">
-          
-          <!-- Card 1: Auto Score -->
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100 shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
+          <!-- Left Column (5 cols): Primary Outcome & Score Card -->
+          <div class="lg:col-span-5 bg-white rounded-2xl border border-[#E5EAF3] p-5 sm:p-6 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-[#71819B] flex items-center gap-1.5">
+                  <Sparkles :size="13" class="text-[#4F35F3]" />
+                  Overall Performance
+                </span>
+                <!-- Outcome Pill -->
+                <span :class="['inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border', getStatusBadge(resultDetail.attempt.status).pill]">
+                  <span :class="['w-2 h-2 rounded-full', getStatusBadge(resultDetail.attempt.status).dot]"></span>
+                  <span>{{ getStatusBadge(resultDetail.attempt.status).label }}</span>
+                </span>
               </div>
-              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider leading-tight">Auto Score</span>
+
+              <!-- Main Score Display -->
+              <div class="pt-1">
+                <div class="flex items-baseline gap-2.5">
+                  <span :class="['text-4xl sm:text-5xl font-black font-mono tracking-tight', getScoreColor(resultDetail.summary.yourScore)]">
+                    {{ Number(resultDetail.summary.yourScore || 0).toFixed(1) }}%
+                  </span>
+                  <div class="text-left">
+                    <span class="text-xs font-bold text-[#71819B] block font-mono">
+                      {{ resultDetail.summary.score }} / {{ resultDetail.summary.totalMarks }} Marks
+                    </span>
+                    <span class="text-[11px] text-slate-500 font-medium">Earned Score</span>
+                  </div>
+                </div>
+
+                <!-- Visual Progress Bar with Passing Threshold Marker -->
+                <div class="mt-4 space-y-1.5">
+                  <div class="flex items-center justify-between text-[11px] font-semibold text-[#71819B]">
+                    <span>Score Progress</span>
+                    <span>Pass Target: {{ resultDetail.summary.passingMarks || 5 }} Marks (50%)</span>
+                  </div>
+                  <div class="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                    <div
+                      :class="['h-full rounded-full transition-all duration-500', getScoreBarColor(resultDetail.summary.yourScore)]"
+                      :style="{ width: `${Math.min(Math.max(Number(resultDetail.summary.yourScore || 0), 0), 100)}%` }"
+                    ></div>
+                    <!-- 50% pass threshold pin line -->
+                    <div class="absolute top-0 bottom-0 left-1/2 w-0.5 bg-slate-400/80 z-10" title="50% Passing Line"></div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <span class="text-xl font-black text-cyan-600 tracking-tight block truncate">
-                {{ resultDetail.summary.autoScore }} <span class="text-sm font-bold text-slate-400">/ {{ resultDetail.summary.autoScoreTotal }}</span>
-              </span>
-              <span class="text-[10px] font-semibold text-slate-500 mt-1 block">Marks</span>
+
+            <!-- Bottom Grade & Assessment Details -->
+            <div class="mt-5 pt-4 border-t border-[#F0F3F8] flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-[#71819B] font-medium">Grade Awarded:</span>
+                <span :class="['px-3 py-1 rounded-xl border text-sm font-black font-mono shadow-2xs', getGradeBadgeClass(resultDetail.attempt.grade)]">
+                  {{ resultDetail.attempt.grade || 'N/A' }}
+                </span>
+              </div>
+              <div class="text-right text-[11px] text-[#71819B]">
+                <span class="font-medium">Total Questions:</span> <strong class="text-[#17243A]">{{ resultDetail.summary.totalQuestions }}</strong>
+              </div>
             </div>
           </div>
 
-          <!-- Card 2: Manual Score -->
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-              </div>
-              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider leading-tight">Manual Score</span>
-            </div>
-            <div>
-              <span class="text-xl font-black text-orange-500 tracking-tight block truncate">
-                <template v-if="resultDetail.attempt.db_status !== 'graded' && resultDetail.summary.manualScoreTotal > 0">
-                  <span class="text-sm">Pending</span>
-                </template>
-                <template v-else>
-                  {{ resultDetail.summary.manualScore }}
-                </template>
-                <span class="text-sm font-bold text-slate-400">/ {{ resultDetail.summary.manualScoreTotal }}</span>
-              </span>
-              <span class="text-[10px] font-semibold text-slate-500 mt-1 block">Marks</span>
-            </div>
-          </div>
+          <!-- Right Column (7 cols): 4 Balanced Supporting KPI Tiles -->
+          <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
 
-          <!-- Card 3: Your Score -->
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
+            <!-- KPI 1: Auto-Graded Score -->
+            <div class="bg-white rounded-2xl border border-[#E5EAF3] p-4.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-all">
+              <div class="flex items-start justify-between">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-wider text-[#71819B]">Auto-Graded Marks</p>
+                  <div class="flex items-baseline gap-1.5 mt-1.5">
+                    <span class="text-2xl font-black font-mono text-[#17243A]">
+                      {{ resultDetail.summary.autoScore }}
+                    </span>
+                    <span class="text-xs font-semibold text-[#71819B] font-mono">
+                      / {{ resultDetail.summary.autoScoreTotal }} Marks
+                    </span>
+                  </div>
+                </div>
+                <div class="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0 border border-cyan-100">
+                  <Zap :size="16" class="stroke-[2.5]" />
+                </div>
               </div>
-              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider leading-tight">Your Score</span>
+              <div class="mt-3 pt-2.5 border-t border-[#F0F3F8] text-[11px] text-[#71819B] flex items-center justify-between">
+                <span>Objective format</span>
+                <span class="font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-full">System Evaluated</span>
+              </div>
             </div>
-            <div>
-              <span class="text-xl font-black text-[#5138ed] tracking-tight block truncate">
-                {{ resultDetail.summary.score }} <span class="text-sm font-bold text-slate-400">/ {{ resultDetail.summary.totalMarks }}</span>
-              </span>
-              <span class="text-[10px] font-semibold text-slate-500 mt-1 block truncate">
-                Marks
-              </span>
-            </div>
-          </div>
 
-          <!-- Card 4: Total Questions -->
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                </svg>
+            <!-- KPI 2: Manual Subjective Marks -->
+            <div class="bg-white rounded-2xl border border-[#E5EAF3] p-4.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-all">
+              <div class="flex items-start justify-between">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-wider text-[#71819B]">Manual Marks</p>
+                  <div class="flex items-baseline gap-1.5 mt-1.5">
+                    <template v-if="resultDetail.attempt.db_status !== 'graded' && resultDetail.summary.manualScoreTotal > 0">
+                      <span class="text-base font-bold text-amber-600">Pending Review</span>
+                    </template>
+                    <template v-else>
+                      <span class="text-2xl font-black font-mono text-[#17243A]">
+                        {{ resultDetail.summary.manualScore }}
+                      </span>
+                    </template>
+                    <span class="text-xs font-semibold text-[#71819B] font-mono">
+                      / {{ resultDetail.summary.manualScoreTotal }} Marks
+                    </span>
+                  </div>
+                </div>
+                <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                  <FileEdit :size="16" class="stroke-[2.5]" />
+                </div>
               </div>
-              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider leading-tight">Questions</span>
+              <div class="mt-3 pt-2.5 border-t border-[#F0F3F8] text-[11px] text-[#71819B] flex items-center justify-between">
+                <span>Subjective format</span>
+                <span class="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                  {{ resultDetail.summary.manualScoreTotal === 0 ? 'None in Exam' : 'Instructor Scored' }}
+                </span>
+              </div>
             </div>
-            <div>
-              <span class="text-xl font-black text-emerald-600 tracking-tight block">
-                {{ resultDetail.summary.totalQuestions }}
-              </span>
-              <span class="text-[10px] font-semibold text-slate-500 mt-1 block truncate">
-                Atmpt: {{ resultDetail.summary.attempted }}
-              </span>
-            </div>
-          </div>
 
-          <!-- Card 5: Correct Answers -->
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
+            <!-- KPI 3: Accuracy & Answers Rate -->
+            <div class="bg-white rounded-2xl border border-[#E5EAF3] p-4.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-all">
+              <div class="flex items-start justify-between">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-wider text-[#71819B]">Response Accuracy</p>
+                  <div class="flex items-baseline gap-1.5 mt-1.5">
+                    <span class="text-2xl font-black font-mono text-emerald-600">
+                      {{ resultDetail.summary.correctAnswers }}
+                    </span>
+                    <span class="text-xs font-semibold text-[#71819B]">
+                      Correct ({{ resultDetail.summary.correctPct }}%)
+                    </span>
+                  </div>
+                </div>
+                <div class="w-9 h-9 rounded-xl bg-emerald-50 text-[#10B981] flex items-center justify-center shrink-0 border border-emerald-100">
+                  <Target :size="16" class="stroke-[2.5]" />
+                </div>
               </div>
-              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider leading-tight">Correct</span>
+              <div class="mt-3 pt-2.5 border-t border-[#F0F3F8] text-[11px] text-[#71819B] flex items-center justify-between">
+                <span>Wrong/Missed:</span>
+                <span class="font-bold text-rose-600 font-mono">
+                  {{ resultDetail.summary.wrongAnswers }} ({{ resultDetail.summary.wrongPct }}%)
+                </span>
+              </div>
             </div>
-            <div>
-              <span class="text-xl font-black text-blue-600 tracking-tight block">
-                {{ resultDetail.summary.correctAnswers }}
-              </span>
-              <span class="text-[10px] font-semibold text-slate-500 mt-1 block">
-                {{ resultDetail.summary.correctPct }}%
-              </span>
-            </div>
-          </div>
 
-          <!-- Card 6: Wrong Answers -->
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
+            <!-- KPI 4: Questions Attempted -->
+            <div class="bg-white rounded-2xl border border-[#E5EAF3] p-4.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-all">
+              <div class="flex items-start justify-between">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-wider text-[#71819B]">Attempt Coverage</p>
+                  <div class="flex items-baseline gap-1.5 mt-1.5">
+                    <span class="text-2xl font-black font-mono text-[#17243A]">
+                      {{ resultDetail.summary.attempted }}
+                    </span>
+                    <span class="text-xs font-semibold text-[#71819B]">
+                      of {{ resultDetail.summary.totalQuestions }} Attempted
+                    </span>
+                  </div>
+                </div>
+                <div class="w-9 h-9 rounded-xl bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shrink-0 border border-[#D6DBFF]">
+                  <ListChecks :size="16" class="stroke-[2.5]" />
+                </div>
               </div>
-              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider leading-tight">Missed</span>
+              <div class="mt-3 pt-2.5 border-t border-[#F0F3F8] text-[11px] text-[#71819B] flex items-center justify-between">
+                <span>Unanswered:</span>
+                <span class="font-bold text-slate-700 font-mono">
+                  {{ resultDetail.summary.totalQuestions - resultDetail.summary.attempted }} questions
+                </span>
+              </div>
             </div>
-            <div>
-              <span class="text-xl font-black text-amber-500 tracking-tight block">
-                {{ resultDetail.summary.wrongAnswers }}
-              </span>
-              <span class="text-[10px] font-semibold text-slate-500 mt-1 block">
-                {{ resultDetail.summary.wrongPct }}%
-              </span>
-            </div>
-          </div>
 
-          <!-- Card 7: Total Marks -->
-          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center border border-rose-100 shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-              </div>
-              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wider leading-tight">Total Marks</span>
-            </div>
-            <div>
-              <span class="text-xl font-black text-rose-500 tracking-tight block">
-                {{ resultDetail.summary.totalMarks }}
-              </span>
-              <span class="text-[10px] font-semibold text-slate-500 mt-1 block truncate">
-                Pass: {{ resultDetail.summary.passingMarks }}
-              </span>
-            </div>
           </div>
 
         </div>
 
-        <!-- Score by Question Type Section -->
-        <div class="space-y-3">
-          <h2 class="text-sm font-bold text-slate-900">Score by Question Type</h2>
+        <!-- ── Section 2: Question Type Performance Breakdown ── -->
+        <div v-if="resultDetail.scoreByType && resultDetail.scoreByType.length > 0" class="bg-white rounded-2xl border border-[#E5EAF3] p-4 sm:p-5 shadow-2xs space-y-3.5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-bold text-[#17243A] flex items-center gap-2">
+                <Layers :size="15" class="text-[#4F35F3]" />
+                Performance by Question Format
+              </h2>
+              <p class="text-xs text-[#71819B] mt-0.5">Evaluation accuracy across question types.</p>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FAFBFD] border border-[#E5EAF3] text-[#71819B]">
+              {{ resultDetail.scoreByType.length }} Format{{ resultDetail.scoreByType.length === 1 ? '' : 's' }}
+            </span>
+          </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div
               v-for="typeItem in resultDetail.scoreByType"
               :key="typeItem.key"
-              class="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs flex flex-col justify-between"
+              class="p-3.5 rounded-xl border border-[#E5EAF3] bg-[#FAFBFD]/60 flex flex-col justify-between space-y-2.5"
             >
-              <!-- Type Top Header -->
-              <div class="flex items-center gap-2 mb-3">
-                <div :class="['w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold border', getTypeIconBg(typeItem.key)]">
-                  <svg v-if="typeItem.key === 'multiple_choice'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-                  <svg v-else-if="typeItem.key === 'true_false'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  <svg v-else-if="typeItem.key === 'fill_blank'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                  <svg v-else-if="typeItem.key === 'short_answer'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-                  <svg v-else-if="typeItem.key === 'matching'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                  <span v-else>#</span>
+              <div class="flex items-center justify-between gap-1.5">
+                <span class="text-xs font-bold text-[#17243A] truncate">{{ typeItem.label }}</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-white border border-[#E5EAF3] text-[#71819B] font-mono">
+                  {{ typeItem.count }} Qs
+                </span>
+              </div>
+
+              <div>
+                <div class="flex items-baseline justify-between">
+                  <span class="font-mono font-black text-sm text-[#17243A]">
+                    {{ typeItem.earned }} <span class="text-[11px] font-semibold text-[#71819B]">/ {{ typeItem.total }} pts</span>
+                  </span>
+                  <span :class="['text-[11px] font-extrabold font-mono', typeItem.percentage >= 50 ? 'text-emerald-600' : 'text-rose-600']">
+                    {{ typeItem.percentage }}%
+                  </span>
                 </div>
-                <span class="text-xs font-bold text-slate-800 truncate">{{ typeItem.label }}</span>
+                <!-- Mini Progress Bar -->
+                <div class="h-1.5 w-full bg-slate-200/70 rounded-full mt-1.5 overflow-hidden">
+                  <div
+                    :class="['h-full rounded-full', typeItem.percentage >= 50 ? 'bg-emerald-500' : 'bg-rose-500']"
+                    :style="{ width: `${typeItem.percentage}%` }"
+                  ></div>
+                </div>
               </div>
+            </div>
+          </div>
+        </div>
 
-              <!-- Main Counts & Pill -->
-              <div class="flex items-center justify-between mt-1">
-                <span class="text-sm font-black text-slate-800">
-                  {{ typeItem.earned }} / {{ typeItem.total }}
-                </span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                  {{ typeItem.percentage }}%
-                </span>
-              </div>
+        <!-- ── Section 3: Question Review Toolbar (Filters + Controls + Legend) ── -->
+        <div class="bg-white rounded-2xl border border-[#E5EAF3] p-4 sm:p-5 shadow-2xs space-y-4">
 
-              <!-- Marks -->
-              <span class="text-[11px] font-semibold text-slate-400 mt-2 block">
-                Marks
+          <!-- Row 1: Question Type Pills + Expand/Collapse Button -->
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs font-bold text-[#71819B] mr-1 flex items-center gap-1">
+                <FileText :size="13" /> Format:
               </span>
+              <button
+                v-for="(count, typeKey) in filterCounts"
+                :key="typeKey"
+                @click="selectedFilter = typeKey"
+                :class="[
+                  'px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer',
+                  selectedFilter === typeKey
+                    ? 'bg-[#4F35F3] text-white border-[#4F35F3] shadow-xs'
+                    : 'bg-[#F5F7FC] text-[#71819B] hover:text-[#17243A] hover:bg-[#EEF0FF] border-[#E5EAF3]'
+                ]"
+              >
+                <span>{{ filterLabels[typeKey] || typeKey }}</span>
+                <span
+                  :class="[
+                    'px-1.5 py-0.2 rounded-full text-[9px] font-mono font-black',
+                    selectedFilter === typeKey ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700'
+                  ]"
+                >
+                  {{ count }}
+                </span>
+              </button>
+            </div>
+
+            <!-- Expand / Collapse All Toggle -->
+            <button
+              @click="toggleAllQuestions"
+              class="self-start md:self-auto px-3.5 py-1.5 rounded-xl border border-[#E5EAF3] bg-[#F5F7FC] hover:bg-[#EEF0FF] text-xs font-bold text-[#71819B] hover:text-[#4F35F3] transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <component :is="areAllExpanded ? Minimize2 : Maximize2" :size="13" />
+              <span>{{ areAllExpanded ? 'Collapse All' : 'Expand All' }}</span>
+            </button>
+          </div>
+
+          <!-- Row 2: Outcome Filter Pills + Unified Visual Legend -->
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-[#F0F3F8]">
+
+            <!-- Outcome Segmented Buttons -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs font-bold text-[#71819B] mr-1">Status:</span>
+
+              <button
+                @click="selectedOutcomeFilter = 'all'"
+                :class="[
+                  'px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer',
+                  selectedOutcomeFilter === 'all'
+                    ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
+                    : 'bg-white text-[#71819B] hover:text-[#17243A] border-[#E5EAF3]'
+                ]"
+              >
+                All ({{ outcomeCounts.all }})
+              </button>
+
+              <button
+                @click="selectedOutcomeFilter = 'correct'"
+                :class="[
+                  'px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer',
+                  selectedOutcomeFilter === 'correct'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                    : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                ]"
+              >
+                <Check :size="12" class="stroke-[3]" />
+                <span>Correct ({{ outcomeCounts.correct }})</span>
+              </button>
+
+              <button
+                @click="selectedOutcomeFilter = 'wrong'"
+                :class="[
+                  'px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer',
+                  selectedOutcomeFilter === 'wrong'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                    : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+                ]"
+              >
+                <X :size="12" class="stroke-[3]" />
+                <span>Incorrect ({{ outcomeCounts.wrong }})</span>
+              </button>
+
+              <button
+                v-if="outcomeCounts.unanswered > 0"
+                @click="selectedOutcomeFilter = 'unanswered'"
+                :class="[
+                  'px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1 cursor-pointer',
+                  selectedOutcomeFilter === 'unanswered'
+                    ? 'bg-slate-600 text-white border-slate-600 shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                ]"
+              >
+                <span>Unanswered ({{ outcomeCounts.unanswered }})</span>
+              </button>
+            </div>
+
+            <!-- Legend Dots -->
+            <div class="flex items-center gap-4 text-[11px] font-bold text-[#71819B] flex-wrap">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></span>
+                <span>Correct</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-100"></span>
+                <span>Incorrect</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-amber-100"></span>
+                <span>Partial</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-400 ring-2 ring-slate-100"></span>
+                <span>Unanswered</span>
+              </div>
             </div>
 
           </div>
 
-          <!-- Total Marks Footer Bar -->
-          <div class="flex items-center justify-center gap-2 py-3 bg-purple-50/70 border border-purple-100/80 rounded-2xl text-[#5138ed] font-bold text-xs">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
-            </svg>
-            <span>Total Marks: {{ resultDetail.summary.score }} / {{ resultDetail.summary.totalMarks }}</span>
-          </div>
         </div>
 
-        <!-- Legend Indicator Bar -->
-        <div class="flex flex-wrap items-center gap-6 py-2 px-3 text-xs font-bold text-slate-600">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></span>
-            <span>Correct Answer</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 ring-4 ring-rose-100"></span>
-            <span>Wrong Answer</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100"></span>
-            <span>Partially Correct</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-slate-400 ring-4 ring-slate-100"></span>
-            <span>Unanswered</span>
-          </div>
-        </div>
-
-        <!-- Horizontal Filter by Type Bar -->
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-3 sm:px-4 sm:py-3 flex flex-wrap items-center gap-2">
-          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2 shrink-0">Filter by Type:</span>
-          <button
-            v-for="(count, typeKey) in filterCounts"
-            :key="typeKey"
-            @click="selectedFilter = typeKey"
-            :class="[
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border min-h-[38px] sm:min-h-[40px]',
-              selectedFilter === typeKey
-                ? 'bg-[#5138ed] text-white border-[#5138ed] shadow-sm'
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-[#5138ed] hover:bg-indigo-50'
-            ]"
-          >
-            <span>{{ filterLabels[typeKey] || typeKey }}</span>
-            <span
-              :class="[
-                'px-1.5 py-0.5 rounded-full text-[9px] font-black',
-                selectedFilter === typeKey ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
-              ]"
-            >
-              {{ count }}
-            </span>
-          </button>
-        </div>
-
-        <!-- Full-Width Question Cards Section -->
+        <!-- ── Section 4: Questions List Section ── -->
         <div class="space-y-4">
 
-          <!-- List Header -->
+          <!-- Section Heading -->
           <div class="flex items-center justify-between px-1">
-            <h3 class="text-sm font-extrabold text-slate-800">
-              {{ filterLabels[selectedFilter] || 'All Questions' }}
+            <h3 class="text-sm font-black text-[#17243A] flex items-center gap-2">
+              <HelpCircle :size="16" class="text-[#4F35F3]" />
+              Question Responses & Evaluation
             </h3>
-            <span class="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full">
-              {{ filteredQuestions.length }} Questions
+            <span class="text-xs font-bold text-[#4F35F3] bg-[#EEF0FF] border border-[#D6DBFF] px-2.5 py-0.5 rounded-full">
+              Showing {{ filteredQuestions.length }} of {{ resultDetail.questions?.length || 0 }} Questions
             </span>
           </div>
 
-          <!-- Empty Filter State -->
-          <div v-if="filteredQuestions.length === 0" class="bg-white rounded-3xl border border-slate-100 p-12 text-center text-slate-400 shadow-xs">
-            <p class="text-xs font-bold">No questions found under this filter category.</p>
+          <!-- Empty Filter Alert -->
+          <div v-if="filteredQuestions.length === 0" class="bg-white rounded-2xl border border-[#E5EAF3] p-10 text-center space-y-3 shadow-2xs">
+            <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-100">
+              <AlertCircle :size="20" class="stroke-[2.5]" />
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-[#17243A]">No Questions Under This Filter</h4>
+              <p class="text-xs text-[#71819B] mt-0.5">Try resetting your format or status filter to see other questions.</p>
+            </div>
+            <button
+              @click="selectedFilter = 'all'; selectedOutcomeFilter = 'all'"
+              class="px-4 py-1.5 rounded-xl bg-[#F5F7FC] hover:bg-[#EEF0FF] text-[#4F35F3] border border-[#E5EAF3] text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+            >
+              <X :size="12" /> Reset Filters
+            </button>
           </div>
 
           <!-- Question Groups by Instruction -->
-          <div v-else class="space-y-6">
+          <div v-else class="space-y-5">
             <template v-for="(group, gIdx) in groupedFilteredQuestions" :key="gIdx">
-              
-              <!-- Instruction Group Header Divider -->
-              <div class="flex items-center gap-3 my-4 first:mt-0">
-                <div class="flex-1 h-px bg-slate-200/80"></div>
-                <div
-                  v-if="group.instruction"
-                  class="flex items-center gap-2 px-4 py-1.5 bg-indigo-50 border border-indigo-100/80 rounded-full shrink-0 shadow-xs max-w-full truncate"
-                >
-                  <svg class="w-3.5 h-3.5 text-[#5138ed] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                  </svg>
-                  <span class="text-[11px] font-bold text-[#5138ed] italic truncate">{{ group.instruction }}</span>
+
+              <!-- Instruction Divider -->
+              <div v-if="group.instruction" class="flex items-center gap-3 pt-2">
+                <div class="flex-1 h-px bg-[#E5EAF3]"></div>
+                <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#EEF0FF] border border-[#D6DBFF] text-[#4F35F3] text-xs font-bold shrink-0 shadow-2xs">
+                  <FileText :size="13" class="stroke-[2.5]" />
+                  <span>{{ group.instruction }}</span>
                 </div>
-                <div
-                  v-else
-                  class="flex items-center gap-2 px-4 py-1.5 bg-slate-50 border border-slate-200 rounded-full shrink-0"
-                >
-                  <span class="text-[11px] font-medium text-slate-400 italic">General Questions</span>
-                </div>
-                <div class="flex-1 h-px bg-slate-200/80"></div>
+                <div class="flex-1 h-px bg-[#E5EAF3]"></div>
               </div>
 
-              <!-- Questions within this Instruction Group -->
-              <div class="space-y-4">
+              <!-- Question Cards within Group -->
+              <div class="space-y-3.5">
                 <div
                   v-for="q in group.questions"
                   :key="q.id"
-                  class="bg-white rounded-3xl border border-slate-100 shadow-xs p-4 sm:p-6 transition-all space-y-4 sm:space-y-5"
+                  class="bg-white rounded-2xl border border-[#E5EAF3] p-4 sm:p-5.5 shadow-2xs hover:shadow-xs transition-all space-y-4"
                 >
-                    <!-- Card Top Row -->
-                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-                      
-                      <!-- Left: Question Number, Type Badge & Statement -->
-                      <div class="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
-                        <!-- Number Circle -->
-                        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-indigo-200 text-[#5138ed] bg-indigo-50/40 flex items-center justify-center text-xs font-black shrink-0 mt-0.5">
-                          {{ q.number }}
-                        </div>
+                  <!-- Card Header: Number + Type + Prompt + Outcome Badge + Chevron -->
+                  <div class="flex items-start justify-between gap-3">
 
-                        <div class="space-y-2 flex-1 min-w-0">
-                          <!-- Type Badge -->
-                          <span :class="['inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border', getTypeBadgeColor(q.type)]">
+                    <div class="flex items-start gap-3 min-w-0 flex-1">
+                      <!-- Question Number Badge -->
+                      <div class="w-8 h-8 rounded-xl bg-[#EEF0FF] text-[#4F35F3] border border-[#D6DBFF] flex items-center justify-center font-mono font-black text-xs shrink-0 mt-0.5">
+                        Q{{ q.number }}
+                      </div>
+
+                      <div class="space-y-2 min-w-0 flex-1">
+                        <!-- Type Pill & Marks Pill -->
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span :class="['px-2.5 py-0.5 rounded-md text-[10px] font-extrabold border', getTypeBadgeColor(q.type)]">
                             {{ q.typeLabel || q.type }}
                           </span>
+                          <span class="text-[11px] font-bold font-mono text-[#71819B] bg-[#F5F7FC] px-2 py-0.5 rounded-md border border-[#E5EAF3]">
+                            Weight: {{ q.marks }} Marks
+                          </span>
+                        </div>
 
-                          <!-- Question Prompt / Text -->
-                          <p class="text-xs sm:text-sm font-bold text-slate-800 leading-relaxed break-words">
-                            {{ q.text }}
-                          </p>
+                        <!-- Question Statement Prompt -->
+                        <div class="text-sm font-bold text-[#17243A] leading-relaxed break-words">
+                          {{ q.text }}
+                        </div>
 
-                          <!-- Multiple Choice Option Choices (If MCQ) -->
-                          <div v-if="q.type === 'multiple_choice' && q.options && q.options.length > 0" class="space-y-1.5 pt-1 pl-1">
-                            <div
-                              v-for="opt in q.options"
-                              :key="opt.label"
-                              class="text-xs font-semibold text-slate-600 flex items-start gap-2 break-words"
-                            >
-                              <span class="text-slate-400 font-bold shrink-0">{{ opt.label }}.</span>
-                              <span>{{ opt.text }}</span>
-                            </div>
+                        <!-- MCQ Options Display (If Multiple Choice) -->
+                        <div v-if="q.type === 'multiple_choice' && q.options && q.options.length > 0" class="space-y-1.5 pt-1">
+                          <div
+                            v-for="opt in q.options"
+                            :key="opt.label"
+                            class="text-xs font-medium text-slate-700 flex items-start gap-2 bg-[#FAFBFD] p-2 rounded-lg border border-[#E5EAF3]/80"
+                          >
+                            <span class="font-bold text-[#4F35F3] font-mono shrink-0 w-5">{{ opt.label }}.</span>
+                            <span>{{ opt.text }}</span>
                           </div>
                         </div>
                       </div>
-
-                      <!-- Right: Marks & Outcome Status Icon & Chevron -->
-                      <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                        <span class="text-xs sm:text-sm font-black text-slate-800">
-                          {{ q.earnedMarks !== null ? q.earnedMarks : 'Pending' }} <template v-if="q.earnedMarks !== null">/</template><template v-else> of</template> {{ q.marks }}
-                        </span>
-
-                        <div class="flex items-center gap-1.5 sm:gap-2">
-                          <!-- Status Icon Circle -->
-                          <div
-                            v-if="q.status === 'correct'"
-                            class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs"
-                            title="Correct"
-                          >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-                            </svg>
-                          </div>
-
-                          <div
-                            v-else-if="q.status === 'partial'"
-                            class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs"
-                            title="Partially Correct"
-                          >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M20 12H4"/>
-                            </svg>
-                          </div>
-
-                          <div
-                            v-else-if="q.status === 'pending'"
-                            class="w-6 h-6 rounded-full bg-indigo-400 text-white flex items-center justify-center shadow-xs"
-                            title="Pending Instructor Review"
-                          >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-
-                          <div
-                            v-else
-                            class="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs"
-                            title="Incorrect"
-                          >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                          </div>
-
-                          <!-- Expand/Collapse Chevron -->
-                          <button
-                            @click="toggleQuestion(q.id)"
-                            class="text-slate-400 hover:text-slate-600 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
-                            :aria-label="expandedQuestions[q.id] ? 'Collapse question' : 'Expand question'"
-                          >
-                            <svg
-                              :class="['w-4 h-4 transition-transform', expandedQuestions[q.id] ? 'rotate-180' : '']"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                          </svg>
-                        </button>
-                      </div>
                     </div>
-                  </div><!-- end card top row -->
 
-                  <!-- Collapsible Content -->
-                  <div v-show="expandedQuestions[q.id]" class="pt-2 border-t border-slate-50 space-y-4">
-                      
-                      <!-- 1. MULTIPLE CHOICE / TRUE-FALSE / FILL IN THE BLANK -->
+                    <!-- Right Side: Marks Score + Status Badge + Chevron -->
+                    <div class="flex items-center gap-2 shrink-0">
+                      <!-- Status Outcome Badge -->
                       <div
-                        v-if="q.type === 'multiple_choice' || q.type === 'true_false' || q.type === 'fill_blank'"
-                        class="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                        v-if="q.status === 'correct'"
+                        class="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black flex items-center gap-1.5"
                       >
-                        <!-- Your Answer Box -->
-                        <div class="space-y-1.5">
-                          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Your Answer</span>
-                          <div class="p-3.5 bg-slate-50/70 border border-slate-200/80 rounded-2xl flex items-center justify-between">
-                            <span :class="['text-xs font-bold', q.status === 'correct' ? 'text-emerald-700' : 'text-rose-600']">
-                              {{ q.studentAnswer }}
-                            </span>
-                            <span v-if="q.status === 'correct'" class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                              <span>Correct</span>
-                            </span>
-                            <span v-else class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600">
-                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
-                              <span>Incorrect</span>
-                            </span>
-                          </div>
-                        </div>
-
-                        <!-- Correct Answer Box -->
-                        <div class="space-y-1.5">
-                          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Correct Answer</span>
-                          <div class="p-3.5 bg-emerald-50/40 border border-emerald-200/60 rounded-2xl flex items-center justify-between">
-                            <span class="text-xs font-bold text-emerald-800">
-                              {{ q.correctAnswer }}
-                            </span>
-                          </div>
-                        </div>
+                        <Check :size="13" class="stroke-[3]" />
+                        <span>+{{ q.earnedMarks }} pts</span>
                       </div>
 
-                      <!-- 2. SHORT ANSWER / ESSAY -->
-                      <div v-else-if="q.type === 'short_answer'" class="space-y-4">
-                        <!-- Student Answer Text Box -->
-                        <div class="space-y-1.5">
-                          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Your Answer</span>
-                          <div class="p-4 bg-slate-50/70 border border-slate-200/80 rounded-2xl text-xs text-slate-700 font-medium leading-relaxed">
-                            {{ q.studentAnswer }}
-                          </div>
-                        </div>
-
-                        <!-- Correct / Sample Answer Text Box -->
-                        <div class="space-y-1.5">
-                          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Correct Answer</span>
-                          <div class="p-4 bg-emerald-50/30 border border-emerald-200/60 rounded-2xl text-xs text-slate-700 font-medium leading-relaxed">
-                            {{ q.correctAnswer }}
-                          </div>
-                        </div>
+                      <div
+                        v-else-if="q.status === 'partial'"
+                        class="px-2.5 py-1 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black flex items-center gap-1.5"
+                      >
+                        <AlertCircle :size="13" class="stroke-[2.5]" />
+                        <span>+{{ q.earnedMarks }} pts</span>
                       </div>
 
-                      <!-- 3. MATCHING QUESTIONS -->
-                      <div v-else-if="q.type === 'matching'" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          
-                          <!-- Left: Your Matched Answers -->
-                          <div class="space-y-2">
-                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Your Answer</span>
-                            <div class="p-4 bg-slate-50/70 border border-slate-200/80 rounded-2xl space-y-2.5">
-                              <div
-                                v-for="pair in (q.matchingPairs || [])"
-                                :key="pair.index"
-                                class="flex items-center justify-between gap-3 text-xs"
-                              >
-                                <span class="font-bold text-slate-700">{{ pair.index }}. {{ pair.left }}</span>
-                                <span class="text-slate-400">➔</span>
-                                <span :class="['font-bold', pair.isCorrect ? 'text-emerald-700' : 'text-rose-600']">
-                                  {{ pair.studentRight }}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <!-- Right: Correct Matches -->
-                          <div class="space-y-2">
-                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Correct Answer</span>
-                            <div class="p-4 bg-emerald-50/40 border border-emerald-200/60 rounded-2xl space-y-2.5">
-                              <div
-                                v-for="pair in (q.matchingPairs || [])"
-                                :key="'corr-' + pair.index"
-                                class="flex items-center justify-between gap-3 text-xs"
-                              >
-                                <span class="font-bold text-slate-700">{{ pair.index }}. {{ pair.left }}</span>
-                                <span class="text-emerald-500">➔</span>
-                                <span class="font-bold text-emerald-800">
-                                  {{ pair.correctRight }}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                        </div>
+                      <div
+                        v-else-if="q.status === 'pending'"
+                        class="px-2.5 py-1 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5"
+                      >
+                        <Clock :size="13" class="stroke-[2.5]" />
+                        <span>Pending</span>
                       </div>
 
-                      <!-- Explanation (if available) -->
-                      <div v-if="q.explanation" class="p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-2xl text-xs text-indigo-900 leading-relaxed flex items-start gap-2">
-                        <svg class="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <div>
-                          <span class="font-bold block mb-0.5">Explanation:</span>
-                          <span>{{ q.explanation }}</span>
-                        </div>
+                      <div
+                        v-else
+                        class="px-2.5 py-1 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 text-xs font-black flex items-center gap-1.5"
+                      >
+                        <X :size="13" class="stroke-[3]" />
+                        <span>0 / {{ q.marks }} pts</span>
                       </div>
 
+                      <!-- Expand / Collapse Button -->
+                      <button
+                        @click="toggleQuestion(q.id)"
+                        class="p-1.5 rounded-lg border border-[#E5EAF3] bg-[#F5F7FC] hover:bg-[#EEF0FF] text-[#71819B] hover:text-[#4F35F3] transition-colors cursor-pointer"
+                        :title="expandedQuestions[q.id] ? 'Collapse response' : 'Expand response'"
+                      >
+                        <component :is="expandedQuestions[q.id] ? ChevronUp : ChevronDown" :size="14" class="stroke-[2.5]" />
+                      </button>
                     </div>
 
-                  </div><!-- end v-for card -->
-                </div><!-- end space-y-4 -->
+                  </div>
+
+                  <!-- Collapsible Response Comparison Panels -->
+                  <div v-show="expandedQuestions[q.id]" class="pt-3 border-t border-[#F0F3F8] space-y-3">
+
+                    <!-- Standard Question (MCQ, True/False, Fill Blank) -->
+                    <div
+                      v-if="q.type === 'multiple_choice' || q.type === 'true_false' || q.type === 'fill_blank'"
+                      class="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    >
+                      <!-- Your Answer Box -->
+                      <div class="space-y-1.5">
+                        <span class="text-[10px] font-bold text-[#71819B] uppercase tracking-wider block">Your Selected Answer</span>
+                        <div :class="[
+                          'p-3.5 rounded-xl border flex items-center justify-between text-xs',
+                          q.status === 'correct'
+                            ? 'bg-emerald-50/40 border-emerald-200 text-emerald-800'
+                            : 'bg-rose-50/40 border-rose-200 text-rose-800'
+                        ]">
+                          <span class="font-bold">
+                            {{ q.studentAnswer || 'Not answered' }}
+                          </span>
+                          <span :class="['inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full', q.status === 'correct' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800']">
+                            <component :is="q.status === 'correct' ? Check : X" :size="12" class="stroke-[3]" />
+                            <span>{{ q.status === 'correct' ? 'Correct' : 'Incorrect' }}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Correct Answer Box -->
+                      <div class="space-y-1.5">
+                        <span class="text-[10px] font-bold text-[#71819B] uppercase tracking-wider block">Official Correct Key</span>
+                        <div class="p-3.5 rounded-xl border bg-emerald-50/60 border-emerald-200 text-xs flex items-center justify-between text-emerald-900">
+                          <span class="font-black text-emerald-900">
+                            {{ q.correctAnswer || 'Provided by instructor' }}
+                          </span>
+                          <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                            <Check :size="12" class="stroke-[3]" />
+                            <span>Correct Key</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Short Answer / Essay -->
+                    <div v-else-if="q.type === 'short_answer'" class="space-y-3">
+                      <div class="space-y-1.5">
+                        <span class="text-[10px] font-bold text-[#71819B] uppercase tracking-wider block">Your Submitted Response</span>
+                        <div class="p-3.5 rounded-xl border border-[#E5EAF3] bg-[#FAFBFD] text-xs text-slate-800 leading-relaxed font-medium">
+                          {{ q.studentAnswer || 'No written response submitted.' }}
+                        </div>
+                      </div>
+                      <div v-if="q.correctAnswer" class="space-y-1.5">
+                        <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Expected Key / Benchmark</span>
+                        <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/40 text-xs text-emerald-900 leading-relaxed font-medium">
+                          {{ q.correctAnswer }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Matching Pairs Comparison -->
+                    <div v-else-if="q.type === 'matching'" class="space-y-2">
+                      <span class="text-[10px] font-bold text-[#71819B] uppercase tracking-wider block">Matched Column Pairs</span>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- Student Matched Pairs -->
+                        <div class="p-3.5 rounded-xl border border-[#E5EAF3] bg-[#FAFBFD] space-y-2 text-xs">
+                          <div class="font-bold text-[#71819B] text-[11px] uppercase tracking-wider pb-1 border-b border-slate-200">
+                            Your Matching
+                          </div>
+                          <div
+                            v-for="pair in (q.matchingPairs || [])"
+                            :key="'std-' + pair.index"
+                            class="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-white border border-[#E5EAF3]"
+                          >
+                            <span class="font-bold text-[#17243A]">{{ pair.index }}. {{ pair.left }}</span>
+                            <span class="text-[#71819B]">➔</span>
+                            <span :class="['font-bold font-mono px-2 py-0.5 rounded', pair.isCorrect ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700']">
+                              {{ pair.studentRight || 'Not matched' }}
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- Correct Matched Pairs -->
+                        <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 space-y-2 text-xs">
+                          <div class="font-bold text-emerald-700 text-[11px] uppercase tracking-wider pb-1 border-b border-emerald-200">
+                            Correct Key
+                          </div>
+                          <div
+                            v-for="pair in (q.matchingPairs || [])"
+                            :key="'corr-' + pair.index"
+                            class="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-white border border-emerald-200/80"
+                          >
+                            <span class="font-bold text-[#17243A]">{{ pair.index }}. {{ pair.left }}</span>
+                            <span class="text-emerald-500">➔</span>
+                            <span class="font-bold font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              {{ pair.correctRight }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Explanation Callout (If Available) -->
+                    <div v-if="q.explanation" class="p-3.5 rounded-xl bg-[#EEF0FF] border border-[#D6DBFF] text-xs text-[#17243A] flex items-start gap-2.5">
+                      <HelpCircle :size="16" class="text-[#4F35F3] shrink-0 mt-0.5" />
+                      <div>
+                        <strong class="text-[#4F35F3] font-bold block mb-0.5">Instructor Explanation:</strong>
+                        <p class="text-[#17243A] leading-relaxed">{{ q.explanation }}</p>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+              </div>
 
             </template>
-          </div><!-- end v-else groups -->
+          </div>
 
-        </div><!-- end full-width questions section -->
+        </div>
 
-      </div><!-- end v-else main content -->
+      </div>
 
     </main>
 
   </div>
 </template>
+
+<style scoped>
+@media print {
+  :deep(header),
+  :deep(nav),
+  :deep(.no-print) {
+    display: none !important;
+  }
+}
+</style>
