@@ -379,11 +379,13 @@ const fetchExams = async (silent = false) => {
 }
 
 const openDetailsPage = async (exam: any) => {
+  selectedExam.value = exam
+  showDetailsPage.value = true
+  showAllQuestions.value = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
   try {
     const res = await apiClient.get(`/admin/exams/${exam.id}`)
     selectedExam.value = res.data.data
-    showDetailsPage.value = true
-    showAllQuestions.value = false
   } catch (error) {
     console.error('Failed to load exam details', error)
     showToast('Could not load detailed examination data.', 'error')
@@ -391,11 +393,13 @@ const openDetailsPage = async (exam: any) => {
 }
 
 const openQuestionsPage = async (exam: any) => {
+  selectedExam.value = exam
+  showAllQuestions.value = true
+  showDetailsPage.value = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
   try {
     const res = await apiClient.get(`/admin/exams/${exam.id}`)
     selectedExam.value = res.data.data
-    showAllQuestions.value = true
-    showDetailsPage.value = false
   } catch (error) {
     console.error('Failed to load exam questions', error)
     showToast('Could not load questions for this examination.', 'error')
@@ -1140,17 +1144,6 @@ onUnmounted(() => {
                         <span>View Questions ({{ exam.questions_count }})</span>
                       </button>
 
-                      <!-- Edit Exam -->
-                      <button
-                        @click="handleActionClick(() => openEditModal(exam))"
-                        class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2.5 transition-colors group/item"
-                      >
-                        <svg class="w-4 h-4 text-slate-400 group-hover/item:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                        <span>Edit Exam</span>
-                      </button>
-
                       <!-- Cancel or Reinstate Action -->
                       <div class="h-px bg-slate-100 my-1"></div>
 
@@ -1174,17 +1167,6 @@ onUnmounted(() => {
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         <span>Reinstate Exam</span>
-                      </button>
-
-                      <!-- Delete Exam -->
-                      <button
-                        @click="handleActionClick(() => confirmDelete(exam))"
-                        class="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition-colors group/item"
-                      >
-                        <svg class="w-4 h-4 text-rose-400 group-hover/item:text-rose-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        <span>Delete Exam</span>
                       </button>
                     </div>
                   </div>

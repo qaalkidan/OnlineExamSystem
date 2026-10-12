@@ -976,9 +976,6 @@ onMounted(() => {
               <th class="px-4 py-3.5">Actor / User</th>
               <th class="px-4 py-3.5">By Who (Role)</th>
               <th class="px-4 py-3.5">Action</th>
-              <th class="px-4 py-3.5">Module</th>
-              <th class="px-4 py-3.5">Description</th>
-              <th class="px-4 py-3.5">IP Address</th>
               <th class="px-4 py-3.5">Status</th>
               <th class="px-4 py-3.5 text-center">Action</th>
             </tr>
@@ -1046,29 +1043,6 @@ onMounted(() => {
                   </div>
                   <span class="text-[12px] font-bold text-slate-900 whitespace-nowrap">{{ log.action }}</span>
                 </div>
-              </td>
-
-              <!-- Module -->
-              <td class="px-4 py-3.5">
-                <span
-                  :class="getModuleBadge(log.module)"
-                  class="inline-block px-2 py-0.5 rounded text-[11px] font-bold border"
-                >
-                  {{ log.module }}
-                </span>
-              </td>
-
-              <!-- Description -->
-              <td class="px-4 py-3.5 text-[12px] text-slate-600 max-w-[280px] truncate" :title="log.description">
-                <span v-if="log.resource" class="font-bold text-slate-900 mr-1">"{{ log.resource }}"</span>
-                {{ log.description }}
-              </td>
-
-              <!-- IP Address -->
-              <td class="px-4 py-3.5">
-                <span class="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                  {{ log.ip_address }}
-                </span>
               </td>
 
               <!-- Status -->

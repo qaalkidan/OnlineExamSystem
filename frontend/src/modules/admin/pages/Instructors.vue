@@ -57,7 +57,6 @@ const visibleColumns = ref({
   year: true,
   status: true,
   joined: true,
-  lastLogin: true,
 })
 
 // Pagination
@@ -278,7 +277,6 @@ const fetchInstructors = async (silent = false) => {
         }),
         departmentName: u.department?.name || '—',
         employeeId: u.id_no || u.employee_id || `WU-INS-${(u.id || 1).toString().padStart(4, '0')}`,
-        lastLogin: u.last_login_at || 'Never',
         phone: u.phone || 'N/A',
         gender: u.gender || 'N/A',
         section: u.section || '—',
@@ -1272,10 +1270,6 @@ const recentRegistrations = computed(() => {
                   <input type="checkbox" v-model="visibleColumns.joined" class="rounded text-indigo-600" />
                   Join Date
                 </label>
-                <label class="flex items-center gap-2 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 rounded cursor-pointer">
-                  <input type="checkbox" v-model="visibleColumns.lastLogin" class="rounded text-indigo-600" />
-                  Last Login
-                </label>
               </div>
             </div>
           </div>
@@ -1343,7 +1337,6 @@ const recentRegistrations = computed(() => {
                     <span v-if="sortField === 'joined'" class="text-indigo-600 font-black">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
                   </div>
                 </th>
-                <th v-if="visibleColumns.lastLogin" class="px-4 py-3.5 whitespace-nowrap">Last Login</th>
                 <th class="px-5 py-3.5 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
@@ -1366,7 +1359,6 @@ const recentRegistrations = computed(() => {
                 <td v-if="visibleColumns.year" class="px-4 py-3.5"><div class="h-3 w-16 bg-slate-100 rounded"></div></td>
                 <td v-if="visibleColumns.status" class="px-4 py-3.5"><div class="h-5 w-16 bg-slate-100 rounded-full"></div></td>
                 <td v-if="visibleColumns.joined" class="px-4 py-3.5"><div class="h-3 w-20 bg-slate-100 rounded"></div></td>
-                <td v-if="visibleColumns.lastLogin" class="px-4 py-3.5"><div class="h-3 w-14 bg-slate-100 rounded"></div></td>
                 <td class="px-5 py-3.5 text-right"><div class="h-6 w-16 bg-slate-100 rounded ml-auto"></div></td>
               </tr>
             </tbody>
@@ -1453,11 +1445,6 @@ const recentRegistrations = computed(() => {
                 <!-- Joined -->
                 <td v-if="visibleColumns.joined" class="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
                   {{ inst.joined }}
-                </td>
-
-                <!-- Last Login -->
-                <td v-if="visibleColumns.lastLogin" class="px-4 py-3.5 text-xs text-slate-400 font-medium whitespace-nowrap">
-                  {{ inst.lastLogin }}
                 </td>
 
                 <!-- Actions -->
