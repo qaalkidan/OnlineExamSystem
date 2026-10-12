@@ -40,13 +40,15 @@ class AdminDashboardController extends Controller
         $prevUsersCount = User::whereBetween('created_at', [$prevStartDate, $startDate])->count();
         $usersGrowth = $this->calculateGrowth($currUsersCount, $prevUsersCount);
 
-        $instructors = User::where('role', 'instructor')->count();
-        $activeInstructors = User::where('role', 'instructor')
+        // Faculty instructors count: include both instructors and department heads (who are teaching faculty listed in /admin/instructors)
+        $facultyRoles = ['instructor', 'dept_head'];
+        $instructors = User::whereIn('role', $facultyRoles)->count();
+        $activeInstructors = User::whereIn('role', $facultyRoles)
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'inactive');
             })->count();
-        $currInstructorsCount = User::where('role', 'instructor')->where('created_at', '>=', $startDate)->count();
-        $prevInstructorsCount = User::where('role', 'instructor')->whereBetween('created_at', [$prevStartDate, $startDate])->count();
+        $currInstructorsCount = User::whereIn('role', $facultyRoles)->where('created_at', '>=', $startDate)->count();
+        $prevInstructorsCount = User::whereIn('role', $facultyRoles)->whereBetween('created_at', [$prevStartDate, $startDate])->count();
         $instructorsGrowth = $this->calculateGrowth($currInstructorsCount, $prevInstructorsCount);
 
         $students = User::where('role', 'student')->count();
@@ -100,7 +102,7 @@ class AdminDashboardController extends Controller
         $chart = $this->generateChartData($startDate, $now, $period);
 
         // ── 4. Academic Semester & Calendar Period ───────────────────────────
-        $academicYear = SystemSetting::where('key', 'academicYear')->value('value') ?? '2026';
+        $academicYear = SystemSetting::where('key', 'academicYear')->value('value') ?? '2028';
         $semester = SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester';
         $formattedTerm = trim("{$academicYear} {$semester}");
 
@@ -111,8 +113,18 @@ class AdminDashboardController extends Controller
         ->orderBy('start_date', 'desc')
         ->first();
 
+        // If no event matches the exact year/semester string, fallback to latest recorded event in academic calendar
+        if (!$currentEvent) {
+            $currentEvent = AcademicEvent::orderBy('start_date', 'desc')->first();
+        }
+
+        // Real lock status calculation
+        $hasApprovedSubmissions = \App\Models\SemesterSubmission::where('status', 'approved')->exists();
+        $lockStatus = $hasApprovedSubmissions ? 'Submissions In Review' : 'Open for Submissions';
+
         // ── 5. User Distribution ─────────────────────────────────────────────
         $userTotalForDist = max(1, $totalUsers);
+        $onlyInstructors = User::where('role', 'instructor')->count();
         $userDistribution = [
             [
                 'label' => 'Students',
@@ -122,8 +134,8 @@ class AdminDashboardController extends Controller
             ],
             [
                 'label' => 'Instructors',
-                'count' => $instructors,
-                'pct'   => round(($instructors / $userTotalForDist) * 100, 1) . '%',
+                'count' => $onlyInstructors,
+                'pct'   => round(($onlyInstructors / $userTotalForDist) * 100, 1) . '%',
                 'color' => '#10b981', // Emerald
             ],
             [
@@ -259,10 +271,11 @@ class AdminDashboardController extends Controller
                 'academicYear'   => $academicYear,
                 'semester'       => $semester,
                 'formattedTerm'  => $formattedTerm,
-                'eventTitle'     => $currentEvent?->title ?? 'Semester Period',
-                'startDate'      => $currentEvent?->start_date?->format('M d, Y') ?? null,
-                'endDate'        => $currentEvent?->end_date?->format('M d, Y') ?? null,
-                'status'         => $currentEvent?->status ?? 'Active',
+                'eventTitle'     => $currentEvent?->title ?? 'Regular Academic Calendar',
+                'startDate'      => $currentEvent?->start_date?->format('M d, Y') ?? Carbon::now()->startOfMonth()->format('M d, Y'),
+                'endDate'        => $currentEvent?->end_date?->format('M d, Y') ?? Carbon::now()->addMonths(4)->endOfMonth()->format('M d, Y'),
+                'status'         => ucfirst($currentEvent?->status ?? 'Active'),
+                'lockStatus'     => $lockStatus,
             ],
             'userDistribution'   => $userDistribution,
             'recentActivities'   => $recentActivities,

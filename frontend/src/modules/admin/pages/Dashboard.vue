@@ -74,6 +74,7 @@ interface DashboardData {
     startDate: string | null
     endDate: string | null
     status: string
+    lockStatus?: string
   }
   userDistribution: Array<{
     label: string
@@ -162,16 +163,31 @@ onMounted(() => {
 })
 
 // ── SVG Chart Calculations ────────────────────────────────────────────────────
+const activeChartMetric = ref<'attempts' | 'exams'>('attempts')
+
+const activeChartData = computed(() => {
+  if (activeChartMetric.value === 'exams') {
+    return dashboard.value?.chart?.exams || []
+  }
+  return dashboard.value?.chart?.attempts || []
+})
+
 const chartCoords = computed(() => {
-  if (!dashboard.value?.chart?.attempts?.length) return []
-  const data = dashboard.value.chart.attempts
+  const data = activeChartData.value
+  if (!data.length) return []
   const maxVal = Math.max(...data, 5) // Minimum ceiling of 5 to avoid flat 0-div
   const count = data.length
 
   return data.map((val, idx) => {
     const x = count > 1 ? (idx / (count - 1)) * 600 : 300
     const y = 175 - (val / maxVal) * 145
-    return { x, y, value: val, label: dashboard.value?.chart.labels[idx] ?? '', fullDate: dashboard.value?.chart.fullDates[idx] ?? '' }
+    return {
+      x,
+      y,
+      value: val,
+      label: dashboard.value?.chart.labels[idx] ?? '',
+      fullDate: dashboard.value?.chart.fullDates[idx] ?? ''
+    }
   })
 })
 
@@ -220,6 +236,21 @@ const getHealthStatusBadge = (status: string) => {
       return { text: 'text-red-700 bg-red-50 border-red-200', dot: 'bg-red-500' }
     default:
       return { text: 'text-slate-700 bg-slate-50 border-slate-200', dot: 'bg-slate-400' }
+  }
+}
+
+const formatActorRole = (role: string) => {
+  switch ((role || '').toLowerCase()) {
+    case 'admin':
+      return 'Super Admin'
+    case 'dept_head':
+      return 'Department Head'
+    case 'instructor':
+      return 'Instructor'
+    case 'student':
+      return 'Student'
+    default:
+      return role || 'System'
   }
 }
 </script>
@@ -326,9 +357,13 @@ const getHealthStatusBadge = (status: string) => {
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
       
       <!-- Total Users -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group">
+      <div
+        @click="router.push('/admin/users')"
+        class="bg-white rounded-2xl border border-slate-100 hover:border-indigo-200 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group cursor-pointer"
+        title="View All Users"
+      >
         <div class="flex items-start justify-between gap-3">
-          <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
@@ -338,7 +373,7 @@ const getHealthStatusBadge = (status: string) => {
           </span>
         </div>
         <div class="mt-4">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Users</p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">Total Users</p>
           <div v-if="isLoading" class="h-8 w-20 bg-slate-100 animate-pulse rounded mt-1"></div>
           <p v-else class="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
             {{ dashboard?.kpi.totalUsers.value.toLocaleString() ?? '—' }}
@@ -348,9 +383,13 @@ const getHealthStatusBadge = (status: string) => {
       </div>
 
       <!-- Instructors -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group">
+      <div
+        @click="router.push('/admin/instructors')"
+        class="bg-white rounded-2xl border border-slate-100 hover:border-emerald-200 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group cursor-pointer"
+        title="Manage University Instructors"
+      >
         <div class="flex items-start justify-between gap-3">
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
             </svg>
@@ -360,7 +399,7 @@ const getHealthStatusBadge = (status: string) => {
           </span>
         </div>
         <div class="mt-4">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Instructors</p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-emerald-600 transition-colors">Instructors</p>
           <div v-if="isLoading" class="h-8 w-20 bg-slate-100 animate-pulse rounded mt-1"></div>
           <p v-else class="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
             {{ dashboard?.kpi.instructors.value.toLocaleString() ?? '—' }}
@@ -372,9 +411,13 @@ const getHealthStatusBadge = (status: string) => {
       </div>
 
       <!-- Students -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group">
+      <div
+        @click="router.push('/admin/students')"
+        class="bg-white rounded-2xl border border-slate-100 hover:border-blue-200 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group cursor-pointer"
+        title="Manage Enrolled Students"
+      >
         <div class="flex items-start justify-between gap-3">
-          <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
             </svg>
@@ -384,7 +427,7 @@ const getHealthStatusBadge = (status: string) => {
           </span>
         </div>
         <div class="mt-4">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Students</p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-blue-600 transition-colors">Students</p>
           <div v-if="isLoading" class="h-8 w-20 bg-slate-100 animate-pulse rounded mt-1"></div>
           <p v-else class="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
             {{ dashboard?.kpi.students.value.toLocaleString() ?? '—' }}
@@ -396,9 +439,13 @@ const getHealthStatusBadge = (status: string) => {
       </div>
 
       <!-- Courses -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group">
+      <div
+        @click="router.push('/admin/courses')"
+        class="bg-white rounded-2xl border border-slate-100 hover:border-amber-200 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group cursor-pointer"
+        title="View Courses Directory"
+      >
         <div class="flex items-start justify-between gap-3">
-          <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
             </svg>
@@ -408,7 +455,7 @@ const getHealthStatusBadge = (status: string) => {
           </span>
         </div>
         <div class="mt-4">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Courses</p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-amber-600 transition-colors">Courses</p>
           <div v-if="isLoading" class="h-8 w-20 bg-slate-100 animate-pulse rounded mt-1"></div>
           <p v-else class="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
             {{ dashboard?.kpi.courses.value.toLocaleString() ?? '—' }}
@@ -418,9 +465,13 @@ const getHealthStatusBadge = (status: string) => {
       </div>
 
       <!-- Exams -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group">
+      <div
+        @click="router.push('/admin/exams')"
+        class="bg-white rounded-2xl border border-slate-100 hover:border-rose-200 shadow-xs p-5 hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group cursor-pointer"
+        title="Manage Examinations"
+      >
         <div class="flex items-start justify-between gap-3">
-          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
             </svg>
@@ -430,7 +481,7 @@ const getHealthStatusBadge = (status: string) => {
           </span>
         </div>
         <div class="mt-4">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Exams</p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-rose-600 transition-colors">Exams</p>
           <div v-if="isLoading" class="h-8 w-20 bg-slate-100 animate-pulse rounded mt-1"></div>
           <p v-else class="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
             {{ dashboard?.kpi.exams.value.toLocaleString() ?? '—' }}
@@ -456,7 +507,31 @@ const getHealthStatusBadge = (status: string) => {
             <p class="text-xs text-slate-500 mt-0.5">Student exam attempts and testing volume over time</p>
           </div>
           
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <!-- Metric Toggle (Attempts vs Exams) -->
+            <div class="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                @click="activeChartMetric = 'attempts'"
+                :class="[
+                  'px-2.5 py-1 text-xs font-bold rounded-md transition-all',
+                  activeChartMetric === 'attempts' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+                ]"
+              >
+                Attempts ({{ dashboard?.academicOverview.totalAttempts.value ?? 0 }})
+              </button>
+              <button
+                type="button"
+                @click="activeChartMetric = 'exams'"
+                :class="[
+                  'px-2.5 py-1 text-xs font-bold rounded-md transition-all',
+                  activeChartMetric === 'exams' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+                ]"
+              >
+                Exams ({{ dashboard?.kpi.exams.value ?? 0 }})
+              </button>
+            </div>
+
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
               <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
               {{ currentPeriodLabel }}
@@ -537,7 +612,9 @@ const getHealthStatusBadge = (status: string) => {
               :style="{ left: `${(chartCoords[hoveredPointIndex].x / 600) * 100}%` }"
             >
               <span>{{ chartCoords[hoveredPointIndex].fullDate }}:</span>
-              <span class="font-bold text-indigo-300">{{ chartCoords[hoveredPointIndex].value }} Attempts</span>
+              <span class="font-bold text-indigo-300">
+                {{ chartCoords[hoveredPointIndex].value }} {{ activeChartMetric === 'exams' ? 'Exams Created' : 'Attempts' }}
+              </span>
             </div>
 
             <!-- SVG Container -->
@@ -579,7 +656,7 @@ const getHealthStatusBadge = (status: string) => {
 
             <!-- X-Axis Labels -->
             <div class="flex justify-between items-center mt-2 px-1 text-[11px] font-medium text-slate-400">
-              <span v-for="p in chartCoords" :key="p.label">{{ p.label }}</span>
+              <span v-for="(p, idx) in chartCoords" :key="idx">{{ p.label }}</span>
             </div>
           </div>
         </div>
@@ -738,10 +815,10 @@ const getHealthStatusBadge = (status: string) => {
           <div class="p-4 rounded-xl bg-gradient-to-br from-indigo-50/70 to-blue-50/50 border border-indigo-100 mb-4">
             <p class="text-[11px] font-bold text-indigo-500 uppercase tracking-wider">Active Term</p>
             <p class="text-xl font-black text-slate-900 tracking-tight mt-0.5">
-              {{ dashboard?.academicPeriod.formattedTerm || '2026 Second Semester' }}
+              {{ dashboard?.academicPeriod.formattedTerm || '2028 Second Semester' }}
             </p>
             <p class="text-xs text-slate-600 mt-1 font-medium">
-              Academic Year {{ dashboard?.academicPeriod.academicYear }} • {{ dashboard?.academicPeriod.semester }}
+              Academic Year {{ dashboard?.academicPeriod.academicYear || '2028' }} • {{ dashboard?.academicPeriod.semester || 'Second Semester' }}
             </p>
           </div>
 
@@ -756,7 +833,12 @@ const getHealthStatusBadge = (status: string) => {
             </div>
             <div class="flex items-center justify-between py-1">
               <span class="text-slate-400">Lock Status</span>
-              <span class="font-semibold text-emerald-700">Open for Submissions</span>
+              <span
+                class="font-semibold"
+                :class="(dashboard?.academicPeriod.lockStatus || '').includes('Review') ? 'text-amber-600' : 'text-emerald-700'"
+              >
+                {{ dashboard?.academicPeriod.lockStatus ?? 'Open for Submissions' }}
+              </span>
             </div>
           </div>
         </div>
@@ -971,7 +1053,7 @@ const getHealthStatusBadge = (status: string) => {
                     {{ act.module }}
                   </span>
                   <span class="text-[10px] text-slate-400">
-                    By {{ act.actor_name }} ({{ act.actor_role }})
+                    By {{ act.actor_name }} ({{ formatActorRole(act.actor_role) }})
                   </span>
                 </div>
               </div>
