@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '../../modules/auth/store/authStore'
 import { useSettingsStore } from '../../store/settingsStore'
-import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted, isRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import apiClient from '../../core/api/apiClient'
 
@@ -11,6 +11,12 @@ const route = useRoute()
 const router = useRouter()
 
 const toggleSidebar = inject<() => void>('toggleSidebar', () => {})
+const sidebarOpen = inject<any>('sidebarOpen', ref(true))
+const isExpanded = computed(() => {
+  if (isRef(sidebarOpen)) return sidebarOpen.value
+  if (sidebarOpen && typeof sidebarOpen.value === 'boolean') return sidebarOpen.value
+  return Boolean(sidebarOpen)
+})
 
 const instructorData = ref<any>(null)
 const isProfileDropdownOpen = ref(false)
@@ -187,16 +193,30 @@ const pageTitle = computed(() => {
 <template>
   <header class="h-16 sm:h-20 lg:h-24 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 sm:px-6 lg:px-8 sticky top-0 z-30">
     
-    <!-- Left Side: Title & Menu Toggle (Mobile/Tablet) -->
-    <div class="flex items-center gap-2 sm:gap-4 min-w-0">
+    <!-- Left Side: Title & Menu Toggle -->
+    <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+      
+      <!-- Hamburger Toggle Button — Desktop & Mobile -->
       <button 
         type="button"
         @click="toggleSidebar"
-        class="p-2 -ml-1 rounded-xl text-slate-600 hover:bg-slate-100 lg:hidden transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
+        class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white hover:bg-slate-50 border border-[#E5EAF3] hover:border-[#4F35F3]/40 text-slate-700 hover:text-[#4F35F3] shadow-2xs hover:shadow-xs transition-all duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/20 shrink-0 group active:scale-95 cursor-pointer"
+        :aria-expanded="isExpanded"
+        :title="isExpanded ? 'Collapse navigation menu' : 'Expand navigation menu'"
         aria-label="Toggle navigation menu"
       >
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+        <svg 
+          class="w-5 h-5 transition-transform duration-200" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            stroke-linecap="round" 
+            stroke-linejoin="round" 
+            stroke-width="2" 
+            d="M4 6h16M4 12h16M4 18h16"
+          />
         </svg>
       </button>
       

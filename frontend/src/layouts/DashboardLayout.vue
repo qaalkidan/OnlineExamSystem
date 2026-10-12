@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, provide, onMounted, watch } from 'vue'
+import { ref, provide, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import Header from './components/Header.vue'
@@ -9,8 +9,10 @@ import SemesterLockedNoticeModal from '../modules/instructor/components/Semester
 const lockStore = useSemesterLockStore()
 const route = useRoute()
 
-// Mobile / Tablet Drawer State
-const sidebarOpen = ref(false)
+// Desktop (>= 1024px) defaults to expanded (true).
+// Mobile / Tablet (< 1024px) defaults to closed drawer (false).
+const isLargeScreen = () => typeof window !== 'undefined' && window.innerWidth >= 1024
+const sidebarOpen = ref(isLargeScreen())
 
 const toggleSidebar = () => {
   sidebarOpen.value = !sidebarOpen.value
@@ -24,20 +26,56 @@ provide('sidebarOpen', sidebarOpen)
 provide('toggleSidebar', toggleSidebar)
 provide('closeSidebar', closeSidebar)
 
-// Close sidebar drawer automatically on navigation
+// Close sidebar drawer automatically on navigation on mobile/tablet
 watch(() => route.path, () => {
-  sidebarOpen.value = false
+  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+    sidebarOpen.value = false
+  }
 })
+
+// Prevent background body scrolling when mobile drawer is open
+watch(sidebarOpen, (open) => {
+  if (typeof window !== 'undefined') {
+    if (window.innerWidth < 1024) {
+      document.body.style.overflow = open ? 'hidden' : ''
+    } else {
+      document.body.style.overflow = ''
+    }
+  }
+})
+
+// Close mobile drawer on Escape key
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && sidebarOpen.value && typeof window !== 'undefined' && window.innerWidth < 1024) {
+    sidebarOpen.value = false
+  }
+}
+
+const handleResize = () => {
+  if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+    document.body.style.overflow = ''
+  }
+}
 
 onMounted(() => {
   lockStore.fetchLockStatus()
+  window.addEventListener('keydown', handleKeyDown)
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('resize', handleResize)
+  if (typeof window !== 'undefined') {
+    document.body.style.overflow = ''
+  }
 })
 </script>
 
 <template>
   <div class="min-h-screen bg-[#f8fafc] font-sans flex flex-col lg:flex-row min-w-0 max-w-full overflow-x-hidden relative">
     
-    <!-- Backdrop Overlay on Mobile & Tablet -->
+    <!-- Backdrop Overlay on Mobile & Tablet (<1024px) -->
     <Transition
       enter-active-class="transition-opacity duration-200 ease-out"
       enter-from-class="opacity-0"
@@ -54,11 +92,14 @@ onMounted(() => {
       ></div>
     </Transition>
 
-    <!-- Sidebar (Drawer on mobile/tablet, Fixed on desktop) -->
+    <!-- Sidebar (Drawer on mobile/tablet, Collapsible Fixed Rail on desktop) -->
     <Sidebar />
 
-    <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col lg:pl-64 min-w-0 max-w-full overflow-x-hidden">
+    <!-- Main Content Area: smoothly adjusts left padding on desktop (lg:) -->
+    <div 
+      class="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden transition-all duration-300 ease-in-out pl-0"
+      :class="sidebarOpen ? 'lg:pl-64' : 'lg:pl-20'"
+    >
       
       <!-- Header -->
       <Header />
