@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../auth/store/authStore'
 import { useSettingsStore } from '../../../store/settingsStore'
+import { useStudentExamStore } from '../store/studentExamStore'
+import { sampleUpcomingExams, sampleRecentResults } from '../data/mockData'
 import type { StudentProfile, Announcement } from '../types'
 
 const props = defineProps<{
@@ -19,9 +21,32 @@ const emit = defineEmits<{
 const router = useRouter()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
+const examStore = useStudentExamStore()
+
+// Search state
 const searchQuery = ref('')
+const isSearchOpen = ref(false)
+const searchContainerRef = ref<HTMLElement | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const mobileSearchInputRef = ref<HTMLInputElement | null>(null)
+const isMobileSearchOpen = ref(false)
+const highlightedIndex = ref(-1)
+
+// Profile Dropdown state
 const isProfileDropdownOpen = ref(false)
 const profileDropdownRef = ref<HTMLElement | null>(null)
+
+// Search result item contract
+interface SearchResultItem {
+  id: string
+  type: 'exam' | 'result' | 'course' | 'quick-link'
+  title: string
+  subtitle: string
+  badgeText?: string
+  badgeColor?: string
+  iconType: 'exam' | 'result' | 'course' | 'calendar' | 'profile' | 'dashboard'
+  route: string
+}
 
 // Dynamically resolve academic year from instructor assignment, student profile, or system settings
 const displayAcademicYear = computed(() => {
@@ -53,6 +78,287 @@ const displayTabletYear = computed(() => {
   return displayAcademicYear.value.replace(/\s*academic\s*year\s*/i, '').trim()
 })
 
+// Comprehensive global search across exams, results, enrolled courses, and portal pages
+const searchResults = computed<SearchResultItem[]>(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+
+  // Standard Navigation Links
+  const navigationLinks: SearchResultItem[] = [
+    {
+      id: 'nav-dashboard',
+      type: 'quick-link',
+      title: 'Dashboard',
+      subtitle: 'Overview of courses, exams, and academic stats',
+      badgeText: 'Page',
+      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
+      iconType: 'dashboard',
+      route: '/student'
+    },
+    {
+      id: 'nav-exams',
+      type: 'quick-link',
+      title: 'My Exams',
+      subtitle: 'Examination schedules, active exams, and upcoming sessions',
+      badgeText: 'Page',
+      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
+      iconType: 'exam',
+      route: '/student/exams'
+    },
+    {
+      id: 'nav-results',
+      type: 'quick-link',
+      title: 'Exam Results',
+      subtitle: 'Review performance breakdown, scores, and official grades',
+      badgeText: 'Page',
+      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+      iconType: 'result',
+      route: '/student/results'
+    },
+    {
+      id: 'nav-calendar',
+      type: 'quick-link',
+      title: 'Academic Calendar',
+      subtitle: 'Key milestone dates, deadlines, and university events',
+      badgeText: 'Page',
+      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
+      iconType: 'calendar',
+      route: '/student/calendar'
+    },
+    {
+      id: 'nav-profile',
+      type: 'quick-link',
+      title: 'Student Profile',
+      subtitle: 'Personal details, department, and academic term information',
+      badgeText: 'Page',
+      badgeColor: 'bg-purple-50 text-[#4F35F3] border-[#4F35F3]/20',
+      iconType: 'profile',
+      route: '/student/profile'
+    }
+  ]
+
+  // If search query is empty, show quick navigation suggestions
+  if (!query) {
+    return navigationLinks
+  }
+
+  const items: SearchResultItem[] = []
+
+  // 1. Navigation items matching query
+  navigationLinks.forEach(link => {
+    if (link.title.toLowerCase().includes(query) || link.subtitle.toLowerCase().includes(query)) {
+      items.push(link)
+    }
+  })
+
+  // 2. Active & Upcoming Exams
+  const allExams = [
+    ...(examStore.activeExam ? [examStore.activeExam] : []),
+    ...(examStore.upcomingExams.length ? examStore.upcomingExams : sampleUpcomingExams)
+  ]
+
+  const seenExamIds = new Set<string | number>()
+  allExams.forEach((e: any) => {
+    if (seenExamIds.has(e.id)) return
+    seenExamIds.add(e.id)
+
+    const code = e.courseCode || ''
+    const course = e.courseName || ''
+    const title = e.examType || e.examTitle || 'Examination'
+    const instructor = e.instructor || ''
+    const status = e.status || (e.attemptStatus === 'in_progress' ? 'In Progress' : 'Upcoming')
+
+    if (
+      code.toLowerCase().includes(query) ||
+      course.toLowerCase().includes(query) ||
+      title.toLowerCase().includes(query) ||
+      instructor.toLowerCase().includes(query)
+    ) {
+      const isReady = status === 'Ready' || e.attemptStatus === 'in_progress'
+      items.push({
+        id: `exam-${e.id}`,
+        type: 'exam',
+        title: `${code ? code + ' — ' : ''}${title}`,
+        subtitle: `${course}${instructor ? ' • ' + instructor : ''}`,
+        badgeText: status,
+        badgeColor: isReady 
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+          : 'bg-blue-50 text-blue-700 border-blue-200',
+        iconType: 'exam',
+        route: `/student/exams?search=${encodeURIComponent(code || course || title)}`
+      })
+    }
+  })
+
+  // 3. Exam Results
+  const allResults = examStore.results.length ? examStore.results : sampleRecentResults
+  allResults.forEach((r: any) => {
+    const code = r.courseCode || ''
+    const course = r.courseName || ''
+    const title = r.examTitle || r.examType || 'Examination'
+    const grade = r.grade || ''
+    const status = r.status || ''
+
+    if (
+      code.toLowerCase().includes(query) ||
+      course.toLowerCase().includes(query) ||
+      title.toLowerCase().includes(query) ||
+      grade.toLowerCase().includes(query) ||
+      status.toLowerCase().includes(query)
+    ) {
+      items.push({
+        id: `result-${r.id}`,
+        type: 'result',
+        title: `${code ? code + ' — ' : ''}${course}`,
+        subtitle: `${title} • Score: ${r.score}/${r.totalMarks} (${r.percentage}%)`,
+        badgeText: r.status || (r.grade ? `Grade ${r.grade}` : 'Result'),
+        badgeColor: r.status === 'Passed' 
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+          : r.status === 'Failed' 
+            ? 'bg-rose-50 text-rose-700 border-rose-200' 
+            : 'bg-purple-50 text-purple-700 border-purple-200',
+        iconType: 'result',
+        route: `/student/results?search=${encodeURIComponent(code || course)}`
+      })
+    }
+  })
+
+  // 4. Distinct Enrolled Courses
+  const distinctCourses = new Map<string, { code: string, name: string }>()
+  allExams.forEach((e: any) => {
+    if (e.courseCode || e.courseName) {
+      const key = (e.courseCode || e.courseName).toLowerCase()
+      if (!distinctCourses.has(key)) {
+        distinctCourses.set(key, { code: e.courseCode || '', name: e.courseName || '' })
+      }
+    }
+  })
+  allResults.forEach((r: any) => {
+    if (r.courseCode || r.courseName) {
+      const key = (r.courseCode || r.courseName).toLowerCase()
+      if (!distinctCourses.has(key)) {
+        distinctCourses.set(key, { code: r.courseCode || '', name: r.courseName || '' })
+      }
+    }
+  })
+
+  if (props.profile?.department) {
+    const key = props.profile.department.toLowerCase()
+    if (!distinctCourses.has(key)) {
+      distinctCourses.set(key, { code: '', name: props.profile.department })
+    }
+  }
+
+  distinctCourses.forEach((c) => {
+    if (
+      c.code.toLowerCase().includes(query) ||
+      c.name.toLowerCase().includes(query)
+    ) {
+      if (!items.some(i => i.title.toLowerCase() === (c.name || c.code).toLowerCase())) {
+        items.push({
+          id: `course-${c.code || c.name}`,
+          type: 'course',
+          title: c.name || c.code,
+          subtitle: c.code ? `Course Code: ${c.code}` : 'Enrolled Academic Course',
+          badgeText: 'Course',
+          badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+          iconType: 'course',
+          route: `/student/exams?search=${encodeURIComponent(c.code || c.name)}`
+        })
+      }
+    }
+  })
+
+  return items
+})
+
+const handleSearchFocus = () => {
+  isSearchOpen.value = true
+  highlightedIndex.value = -1
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+  highlightedIndex.value = -1
+  if (searchInputRef.value) {
+    searchInputRef.value.focus()
+  }
+}
+
+const toggleMobileSearch = () => {
+  isMobileSearchOpen.value = !isMobileSearchOpen.value
+  if (isMobileSearchOpen.value) {
+    isSearchOpen.value = true
+    nextTick(() => {
+      mobileSearchInputRef.value?.focus()
+    })
+  } else {
+    isSearchOpen.value = false
+  }
+}
+
+const handleSelectResult = (item: SearchResultItem) => {
+  searchQuery.value = ''
+  isSearchOpen.value = false
+  isMobileSearchOpen.value = false
+  highlightedIndex.value = -1
+  if (item.route === '/student/profile') {
+    emit('open-profile')
+  }
+  router.push(item.route)
+}
+
+const handleSearchSubmit = () => {
+  if (highlightedIndex.value >= 0 && searchResults.value[highlightedIndex.value]) {
+    handleSelectResult(searchResults.value[highlightedIndex.value])
+    return
+  }
+
+  const query = searchQuery.value.trim()
+  if (!query) {
+    isSearchOpen.value = false
+    return
+  }
+
+  if (searchResults.value.length > 0) {
+    handleSelectResult(searchResults.value[0])
+    return
+  }
+
+  isSearchOpen.value = false
+  isMobileSearchOpen.value = false
+  router.push({
+    path: '/student/exams',
+    query: { search: query }
+  })
+}
+
+const handleSearchKeyDown = (e: KeyboardEvent) => {
+  if (!isSearchOpen.value) {
+    if (e.key === 'ArrowDown' || e.key === 'Enter') {
+      isSearchOpen.value = true
+    }
+    return
+  }
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (searchResults.value.length > 0) {
+      highlightedIndex.value = (highlightedIndex.value + 1) % searchResults.value.length
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    if (searchResults.value.length > 0) {
+      highlightedIndex.value = (highlightedIndex.value - 1 + searchResults.value.length) % searchResults.value.length
+    }
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    handleSearchSubmit()
+  } else if (e.key === 'Escape') {
+    isSearchOpen.value = false
+    highlightedIndex.value = -1
+  }
+}
+
 const toggleProfileDropdown = () => {
   isProfileDropdownOpen.value = !isProfileDropdownOpen.value
 }
@@ -75,19 +381,26 @@ const handleLogout = async () => {
 }
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (profileDropdownRef.value && !profileDropdownRef.value.contains(event.target as Node)) {
+  const target = event.target as Node
+  if (profileDropdownRef.value && !profileDropdownRef.value.contains(target)) {
     isProfileDropdownOpen.value = false
+  }
+  if (searchContainerRef.value && !searchContainerRef.value.contains(target)) {
+    isSearchOpen.value = false
   }
 }
 
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
     isProfileDropdownOpen.value = false
+    isSearchOpen.value = false
   }
 }
 
 onMounted(() => {
   settingsStore.fetchSettings()
+  examStore.fetchExams(true).catch(() => {})
+  examStore.fetchResults().catch(() => {})
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeyDown)
 })
@@ -126,24 +439,172 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Center: Search Bar (Hidden on small screens) -->
-      <div class="hidden md:flex flex-1 max-w-xs lg:max-w-md mx-3 lg:mx-8 relative">
-        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-          <svg class="h-4 w-4 text-[#71819B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
+      <!-- Center: Search Bar with Live Suggestions Dropdown (Desktop & Tablet) -->
+      <div ref="searchContainerRef" class="hidden md:flex flex-1 max-w-xs lg:max-w-md mx-3 lg:mx-8 relative">
+        <div class="relative w-full">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#71819B]">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+          </div>
+          
+          <input 
+            ref="searchInputRef"
+            type="text" 
+            v-model="searchQuery"
+            @focus="handleSearchFocus"
+            @keydown="handleSearchKeyDown"
+            placeholder="Search courses, exams, results..." 
+            class="block w-full pl-10 pr-9 py-2 rounded-xl bg-[#F6F8FC] border border-[#E6EBF3] text-[#17243A] placeholder-[#71819B] text-xs sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/20 focus:border-[#4F35F3] focus:bg-white transition-all shadow-2xs"
+            aria-label="Search courses, exams, and results"
+            autocomplete="off"
+          />
+
+          <!-- Clear Search Button -->
+          <button 
+            v-if="searchQuery"
+            type="button"
+            @click="clearSearch"
+            class="absolute inset-y-0 right-0 pr-3 flex items-center text-[#71819B] hover:text-[#17243A] cursor-pointer"
+            aria-label="Clear search"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
         </div>
-        <input 
-          type="text" 
-          v-model="searchQuery"
-          placeholder="Search courses, exams, results..." 
-          class="block w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#F6F8FC] border border-[#E6EBF3] text-[#17243A] placeholder-[#71819B] text-xs sm:text-[13px] focus:outline-none focus:ring-1 focus:ring-[#4F35F3] focus:border-[#4F35F3] transition-all shadow-2xs"
-        />
+
+        <!-- Live Search Dropdown -->
+        <Transition
+          enter-active-class="transition duration-150 ease-out"
+          enter-from-class="transform scale-95 opacity-0 -translate-y-1"
+          enter-to-class="transform scale-100 opacity-100 translate-y-0"
+          leave-active-class="transition duration-100 ease-in"
+          leave-from-class="transform scale-100 opacity-100 translate-y-0"
+          leave-to-class="transform scale-95 opacity-0 -translate-y-1"
+        >
+          <div
+            v-if="isSearchOpen"
+            class="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-[#E6EBF3] shadow-xl py-2 z-50 max-h-[420px] overflow-y-auto"
+          >
+            <!-- Dropdown Section Header -->
+            <div class="px-3.5 py-1.5 text-[11px] font-bold text-[#71819B] uppercase tracking-wider flex items-center justify-between border-b border-[#F0F4FA] mb-1">
+              <span>{{ searchQuery.trim() ? `Results for "${searchQuery.trim()}"` : 'Quick Navigation & Suggestions' }}</span>
+              <span v-if="searchResults.length" class="text-[10px] font-normal text-[#71819B]">{{ searchResults.length }} items</span>
+            </div>
+
+            <!-- Empty State -->
+            <div v-if="searchResults.length === 0" class="py-8 text-center px-4">
+              <div class="w-10 h-10 rounded-full bg-[#F6F8FC] text-[#71819B] flex items-center justify-center mx-auto mb-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </div>
+              <p class="text-xs font-semibold text-[#17243A]">No matches found</p>
+              <p class="text-[11px] text-[#71819B] mt-0.5">Try searching with a course code (e.g. CS201) or exam title</p>
+            </div>
+
+            <!-- List of Results -->
+            <div v-else class="px-1.5 space-y-0.5">
+              <button
+                v-for="(item, index) in searchResults"
+                :key="item.id"
+                type="button"
+                @click="handleSelectResult(item)"
+                @mouseenter="highlightedIndex = index"
+                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-colors cursor-pointer group"
+                :class="highlightedIndex === index ? 'bg-[#EEF0FF] text-[#4F35F3]' : 'hover:bg-[#F6F8FC] text-[#17243A]'"
+              >
+                <!-- Icon by Type -->
+                <div 
+                  class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
+                  :class="highlightedIndex === index ? 'bg-[#4F35F3] text-white' : 'bg-[#EEF0FF] text-[#4F35F3]'"
+                >
+                  <!-- Exam Icon -->
+                  <svg v-if="item.iconType === 'exam'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                  </svg>
+                  <!-- Result Icon -->
+                  <svg v-else-if="item.iconType === 'result'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                  </svg>
+                  <!-- Course Icon -->
+                  <svg v-else-if="item.iconType === 'course'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                  </svg>
+                  <!-- Calendar Icon -->
+                  <svg v-else-if="item.iconType === 'calendar'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                  <!-- Profile Icon -->
+                  <svg v-else-if="item.iconType === 'profile'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                  <!-- Dashboard / Default Icon -->
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                  </svg>
+                </div>
+
+                <!-- Info -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold truncate" :class="highlightedIndex === index ? 'text-[#4F35F3]' : 'text-[#17243A]'">
+                      {{ item.title }}
+                    </span>
+                    <span 
+                      v-if="item.badgeText"
+                      class="px-1.5 py-0.5 rounded text-[10px] font-semibold border shrink-0"
+                      :class="item.badgeColor || 'bg-slate-50 text-slate-700 border-slate-200'"
+                    >
+                      {{ item.badgeText }}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-[#71819B] truncate mt-0.5">{{ item.subtitle }}</p>
+                </div>
+
+                <!-- Action Chevron -->
+                <svg class="w-3.5 h-3.5 text-[#71819B] group-hover:text-[#4F35F3] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Footer Keyboard Shortcuts Hint -->
+            <div class="mt-2 pt-2 border-t border-[#F0F4FA] px-3.5 flex items-center justify-between text-[10px] text-[#71819B]">
+              <span class="flex items-center gap-1.5">
+                <kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[9px]">↑↓</kbd> Navigate
+                <kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[9px]">↵</kbd> Select
+                <kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[9px]">Esc</kbd> Close
+              </span>
+              <button 
+                v-if="searchQuery.trim()" 
+                type="button" 
+                @click="handleSearchSubmit" 
+                class="text-[#4F35F3] hover:underline font-bold cursor-pointer"
+              >
+                View in Exams →
+              </button>
+            </div>
+          </div>
+        </Transition>
       </div>
 
       <!-- Right: Academic Badges, Notifications & Profile -->
       <div class="flex items-center gap-2 sm:gap-3 shrink-0">
         
+        <!-- Mobile Search Toggle Button -->
+        <button
+          @click="toggleMobileSearch"
+          class="flex md:hidden h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-[#E6EBF3] text-[#71819B] hover:text-[#17243A] hover:bg-[#F6F8FC] transition-colors focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/20 cursor-pointer shadow-2xs"
+          aria-label="Search"
+          title="Search"
+        >
+          <svg class="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </button>
+
         <!-- Desktop Academic Year & Semester Badge -->
         <div class="hidden xl:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EEF0FF]/80 text-[#17243A] text-xs font-bold border border-[#4F35F3]/20 shadow-2xs">
           <span class="w-2 h-2 rounded-full bg-[#4F35F3] shrink-0"></span>
@@ -333,5 +794,79 @@ onUnmounted(() => {
 
       </div>
     </div>
+
+    <!-- Mobile Search Drawer (Screen width < md) -->
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="transform -translate-y-2 opacity-0"
+      enter-to-class="transform translate-y-0 opacity-100"
+      leave-active-class="transition duration-100 ease-in"
+      leave-from-class="transform translate-y-0 opacity-100"
+      leave-to-class="transform -translate-y-2 opacity-0"
+    >
+      <div v-if="isMobileSearchOpen" class="md:hidden border-t border-[#E6EBF3] bg-white px-3.5 py-3 shadow-md">
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#71819B]">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+          </div>
+          <input 
+            ref="mobileSearchInputRef"
+            type="text" 
+            v-model="searchQuery"
+            @keydown="handleSearchKeyDown"
+            placeholder="Search courses, exams, results..." 
+            class="block w-full pl-9 pr-9 py-2 rounded-xl bg-[#F6F8FC] border border-[#E6EBF3] text-[#17243A] placeholder-[#71819B] text-xs focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/20 focus:border-[#4F35F3] focus:bg-white"
+            autocomplete="off"
+          />
+          <button 
+            v-if="searchQuery"
+            type="button"
+            @click="clearSearch"
+            class="absolute inset-y-0 right-0 pr-3 flex items-center text-[#71819B] hover:text-[#17243A] cursor-pointer"
+            aria-label="Clear search"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Mobile Results List -->
+        <div v-if="searchResults.length > 0" class="mt-2.5 max-h-64 overflow-y-auto space-y-1 divide-y divide-[#F0F4FA]">
+          <button
+            v-for="item in searchResults"
+            :key="'mobile-' + item.id"
+            type="button"
+            @click="handleSelectResult(item)"
+            class="w-full flex items-center gap-2.5 pt-1.5 pb-1 px-2 rounded-lg text-left hover:bg-[#EEF0FF] transition-colors cursor-pointer group"
+          >
+            <div class="w-7 h-7 rounded-lg bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shrink-0">
+              <svg v-if="item.iconType === 'exam'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+              </svg>
+              <svg v-else-if="item.iconType === 'result'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+              <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-bold text-[#17243A] truncate group-hover:text-[#4F35F3]">{{ item.title }}</p>
+              <p class="text-[10px] text-[#71819B] truncate">{{ item.subtitle }}</p>
+            </div>
+            <span v-if="item.badgeText" class="text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0" :class="item.badgeColor">
+              {{ item.badgeText }}
+            </span>
+          </button>
+        </div>
+
+        <div v-else-if="searchQuery.trim()" class="py-4 text-center">
+          <p class="text-xs text-[#71819B]">No results found for "{{ searchQuery }}"</p>
+        </div>
+      </div>
+    </Transition>
   </header>
 </template>

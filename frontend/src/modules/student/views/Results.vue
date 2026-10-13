@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { sampleAnnouncements } from '../data/mockData'
 import type { RecentResult } from '../types'
 import { useStudentExamStore } from '../store/studentExamStore'
@@ -41,6 +41,7 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
 const examStore = useStudentExamStore()
 const { profile, fetchProfile } = useStudentProfile()
 
@@ -58,7 +59,7 @@ const isLoading = computed(() => examStore.isLoading)
 const upcomingExams = computed(() => examStore.upcomingExams)
 
 // Filters & Controls
-const searchQuery = ref('')
+const searchQuery = ref(String(route.query.search || ''))
 const selectedStatus = ref<'all' | 'Passed' | 'Failed' | 'Pending'>('all')
 const selectedCourse = ref('All Courses')
 const selectedGradeRange = ref('All Grades')
@@ -69,11 +70,20 @@ const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
 onMounted(async () => {
+  if (route.query.search) {
+    searchQuery.value = String(route.query.search)
+  }
   await Promise.all([
     fetchProfile(),
     examStore.fetchResults(),
     examStore.fetchExams(),
   ])
+})
+
+watch(() => route.query.search, (val) => {
+  if (val !== undefined) {
+    searchQuery.value = String(val || '')
+  }
 })
 
 // Reset pagination on filter change

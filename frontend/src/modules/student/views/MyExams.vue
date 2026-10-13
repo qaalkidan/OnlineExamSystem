@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { sampleAnnouncements } from '../data/mockData'
 import type { RecentResult, UpcomingExam } from '../types'
 import { useStudentExamStore } from '../store/studentExamStore'
@@ -13,6 +13,7 @@ import ProfileModal from '../components/ProfileModal.vue'
 import ResultReviewModal from '../components/ResultReviewModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const examStore = useStudentExamStore()
 const { profile, fetchProfile } = useStudentProfile()
 
@@ -31,6 +32,14 @@ const isLoading = computed(() => examStore.isLoading)
 // Filter state
 const activeFilter = ref<'todays' | 'ongoing' | 'completed' | 'all'>('todays')
 const selectedCourse = ref<string>('All Courses')
+const searchQuery = ref(String(route.query.search || ''))
+
+watch(() => route.query.search, (val) => {
+  searchQuery.value = String(val || '')
+  if (val) {
+    activeFilter.value = 'all'
+  }
+})
 
 // Course filter dropdown options
 const availableCourses = computed(() => {
@@ -53,11 +62,26 @@ const isExamToday = (e: UpcomingExam) => {
   return examDate === todayDate
 }
 
+const matchesSearch = (item: any) => {
+  if (!searchQuery.value.trim()) return true
+  const q = searchQuery.value.trim().toLowerCase()
+  return (
+    (item.courseName && item.courseName.toLowerCase().includes(q)) ||
+    (item.courseCode && item.courseCode.toLowerCase().includes(q)) ||
+    (item.examType && item.examType.toLowerCase().includes(q)) ||
+    (item.examTitle && item.examTitle.toLowerCase().includes(q)) ||
+    (item.instructor && item.instructor.toLowerCase().includes(q))
+  )
+}
+
 // Dynamically filtered exam lists
 const todaysExams = computed(() => {
   let list = upcomingExams.value.filter(e => isExamToday(e) || e.attemptStatus === 'in_progress')
   if (selectedCourse.value !== 'All Courses') {
     list = list.filter(e => e.courseName === selectedCourse.value || e.courseCode === selectedCourse.value)
+  }
+  if (searchQuery.value.trim()) {
+    list = list.filter(matchesSearch)
   }
   return list
 })
@@ -84,6 +108,9 @@ const ongoingExamsList = computed(() => {
   if (selectedCourse.value !== 'All Courses') {
     list = list.filter(e => e.courseName === selectedCourse.value || e.courseCode === selectedCourse.value)
   }
+  if (searchQuery.value.trim()) {
+    list = list.filter(matchesSearch)
+  }
   return list
 })
 
@@ -92,6 +119,9 @@ const filteredCompletedExams = computed(() => {
   if (selectedCourse.value !== 'All Courses') {
     list = list.filter(r => r.courseName === selectedCourse.value || r.courseCode === selectedCourse.value)
   }
+  if (searchQuery.value.trim()) {
+    list = list.filter(matchesSearch)
+  }
   return list
 })
 
@@ -99,6 +129,9 @@ const futureUpcomingExams = computed(() => {
   let list = upcomingExams.value.filter(e => !isExamToday(e) && e.attemptStatus !== 'in_progress')
   if (selectedCourse.value !== 'All Courses') {
     list = list.filter(e => e.courseName === selectedCourse.value || e.courseCode === selectedCourse.value)
+  }
+  if (searchQuery.value.trim()) {
+    list = list.filter(matchesSearch)
   }
   return list
 })
@@ -351,6 +384,20 @@ const quickTips = [
             </svg>
           </div>
         </div>
+      </div>
+
+      <!-- Active Search Filter Indicator -->
+      <div v-if="searchQuery.trim()" class="flex items-center justify-between gap-3 px-4 py-2 bg-[#EEF0FF] border border-[#4F35F3]/20 rounded-xl text-xs text-[#17243A] shadow-2xs">
+        <div class="flex items-center gap-2 min-w-0">
+          <svg class="w-4 h-4 text-[#4F35F3] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <span class="truncate">Filtered by search: <strong class="text-[#4F35F3]">"{{ searchQuery }}"</strong></span>
+        </div>
+        <button
+          @click="searchQuery = ''; router.replace({ path: '/student/exams' })"
+          class="px-2.5 py-1 rounded-lg bg-white border border-[#4F35F3]/20 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-[#4F35F3] font-bold text-[11px] transition-colors shrink-0 cursor-pointer"
+        >
+          Clear filter ✕
+        </button>
       </div>
 
       <!-- Main Layout: 2 Columns with Balanced Spacing -->
