@@ -11,6 +11,21 @@ const qbStore = useInstructorQbStore()
 const lockStore = useSemesterLockStore()
 const showCreateModal = ref(false)
 const bankToEdit = ref<{ id: number; title: string; description: string } | null>(null)
+const toastMessage = ref<{ text: string; type: 'success' | 'error' | 'info' } | null>(null)
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastMessage.value = { text, type }
+  toastTimer = setTimeout(() => {
+    toastMessage.value = null
+  }, 4500)
+}
+
+const dismissToast = () => {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastMessage.value = null
+}
 
 onMounted(() => {
   qbStore.fetchQuestionBanks()
@@ -46,9 +61,19 @@ const handleSubmitBank = async (payload: { id?: number; title: string; descripti
   }
   if (payload.id) {
     await qbStore.updateQuestionBank(payload.id, payload)
+    showCreateModal.value = false
+    bankToEdit.value = null
+    showToast(`Question bank "${payload.title}" updated successfully!`, 'success')
   } else {
     await qbStore.createQuestionBank(payload)
+    showCreateModal.value = false
+    bankToEdit.value = null
+    showToast(`Question bank "${payload.title}" created successfully!`, 'success')
   }
+}
+
+const handleDeletedBank = (bankTitle: string) => {
+  showToast(`Question bank "${bankTitle}" deleted successfully.`, 'success')
 }
 
 const handleRetry = () => {
@@ -58,6 +83,47 @@ const handleRetry = () => {
 
 <template>
   <div class="max-w-[1400px] mx-auto space-y-6">
+
+    <!-- Floating Toast Notification -->
+    <transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="transform -translate-y-2 opacity-0"
+      enter-to-class="transform translate-y-0 opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="transform translate-y-0 opacity-100"
+      leave-to-class="transform -translate-y-2 opacity-0"
+    >
+      <div
+        v-if="toastMessage"
+        class="fixed top-5 right-5 z-[60] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-semibold transition-all max-w-[calc(100vw-2.5rem)]"
+        :class="{
+          'bg-emerald-600 text-white border-emerald-500 shadow-emerald-200/50': toastMessage.type === 'success',
+          'bg-rose-600 text-white border-rose-500 shadow-rose-200/50': toastMessage.type === 'error',
+          'bg-[#4F35F3] text-white border-indigo-400 shadow-indigo-200/50': toastMessage.type === 'info',
+        }"
+      >
+        <svg v-if="toastMessage.type === 'success'" class="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+        </svg>
+        <svg v-else-if="toastMessage.type === 'error'" class="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        <svg v-else class="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>{{ toastMessage.text }}</span>
+        <button
+          @click="dismissToast"
+          type="button"
+          class="ml-1 p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
+          aria-label="Dismiss notification"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </transition>
     
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
@@ -98,6 +164,40 @@ const handleRetry = () => {
         </div>
       </div>
     </div>
+
+    <!-- Inline Success Banner -->
+    <transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-1"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-1"
+    >
+      <div
+        v-if="toastMessage && toastMessage.type === 'success'"
+        class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-4 py-3.5 text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-2xs"
+      >
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <span class="truncate">{{ toastMessage.text }}</span>
+        </div>
+        <button
+          @click="dismissToast"
+          type="button"
+          class="p-1 rounded-lg text-emerald-600 hover:text-emerald-900 hover:bg-emerald-100 transition-colors shrink-0 cursor-pointer"
+          aria-label="Close alert"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </transition>
 
     <!-- Polished Semester Lock Banner (When Locked) -->
     <div
@@ -182,14 +282,14 @@ const handleRetry = () => {
     <QBStatCards />
 
     <!-- Main Table Area -->
-    <QBTable @edit="openEditModal" @create="openCreateModal" />
+    <QBTable @edit="openEditModal" @create="openCreateModal" @deleted="handleDeletedBank" />
 
     <!-- Create / Edit Bank Modal -->
     <CreateBankModal 
       :show="showCreateModal"
       :initial-data="bankToEdit"
+      :on-submit="handleSubmitBank"
       @close="showCreateModal = false" 
-      @submit="handleSubmitBank" 
     />
 
   </div>

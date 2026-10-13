@@ -11,6 +11,7 @@ const router = useRouter()
 const emit = defineEmits<{
   (e: 'edit', bank: QuestionBank): void
   (e: 'create'): void
+  (e: 'deleted', title: string): void
 }>()
 
 const searchQuery = ref('')
@@ -132,11 +133,13 @@ const executeDelete = async () => {
     return
   }
 
+  const deletedTitle = bankToDelete.value.title
   isDeleting.value = true
   try {
     await qbStore.deleteQuestionBank(bankToDelete.value.id)
     showDeleteModal.value = false
     bankToDelete.value = null
+    emit('deleted', deletedTitle)
     // Adjust page if last item on page was deleted
     if (paginatedBanks.value.length === 0 && currentPage.value > 1) {
       currentPage.value--

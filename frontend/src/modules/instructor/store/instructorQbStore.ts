@@ -106,6 +106,7 @@ export const useInstructorQbStore = defineStore('instructorQb', () => {
 
   const createQuestionBank = async (payload: { title: string, description: string }) => {
     try {
+      const nowIso = new Date().toISOString()
       if (usingMockData.value) {
         // Mock creation
         const newBank: QuestionBank = {
@@ -116,17 +117,29 @@ export const useInstructorQbStore = defineStore('instructorQb', () => {
           course_name: 'Software Engineering',
           total_questions: 0,
           types: { mcq: 0, sa: 0, essay: 0 },
-          updated_at: new Date().toISOString(),
+          created_at: nowIso,
+          updated_at: nowIso,
           status: 'Active'
         }
         banks.value.unshift(newBank)
         stats.value.total_banks++
+        stats.value.last_created = { title: newBank.title, created_at: nowIso }
+        stats.value.last_updated = { title: newBank.title, updated_at: nowIso }
         return newBank
       } else {
         const response = await apiClient.post('/instructor/question-banks', payload)
-        banks.value.unshift(response.data.data)
+        const created = response.data.data
+        banks.value.unshift(created)
         stats.value.total_banks++
-        return response.data.data
+        stats.value.last_created = {
+          title: created?.title || payload.title,
+          created_at: created?.created_at || created?.updated_at || nowIso
+        }
+        stats.value.last_updated = {
+          title: created?.title || payload.title,
+          updated_at: created?.updated_at || nowIso
+        }
+        return created
       }
     } catch (err: any) {
       console.error("Failed to create question bank", err)
@@ -175,10 +188,15 @@ export const useInstructorQbStore = defineStore('instructorQb', () => {
       if (!usingMockData.value) {
         await apiClient.put(`/instructor/question-banks/${id}`, payload)
       }
+      const nowIso = new Date().toISOString()
       // Update local state
       const idx = banks.value.findIndex(b => b.id === id)
       if (idx !== -1) {
-        banks.value[idx] = { ...banks.value[idx], ...payload, updated_at: new Date().toISOString() }
+        banks.value[idx] = { ...banks.value[idx], ...payload, updated_at: nowIso }
+      }
+      stats.value.last_updated = {
+        title: payload.title,
+        updated_at: nowIso
       }
     } catch (err: any) {
       console.error("Failed to update question bank", err)

@@ -4,11 +4,11 @@ import { ref, watch } from 'vue'
 const props = defineProps<{
   show: boolean
   initialData?: { id: number; title: string; description: string } | null
+  onSubmit?: (payload: { id?: number; title: string; description: string }) => Promise<void> | void
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'submit', payload: { id?: number; title: string; description: string }): Promise<void> | void
 }>()
 
 const title = ref('')
@@ -17,8 +17,9 @@ const isSubmitting = ref(false)
 const errorMessage = ref('')
 
 watch(() => props.show, (newVal) => {
+  errorMessage.value = ''
+  isSubmitting.value = false
   if (newVal) {
-    errorMessage.value = ''
     if (props.initialData) {
       title.value = props.initialData.title
       description.value = props.initialData.description || ''
@@ -26,6 +27,9 @@ watch(() => props.show, (newVal) => {
       title.value = ''
       description.value = ''
     }
+  } else {
+    title.value = ''
+    description.value = ''
   }
 })
 
@@ -50,8 +54,14 @@ const handleSubmit = async () => {
     if (props.initialData?.id) {
       payload.id = props.initialData.id
     }
-    await emit('submit', payload)
-    handleClose()
+    if (props.onSubmit) {
+      await props.onSubmit(payload)
+    }
+    isSubmitting.value = false
+    title.value = ''
+    description.value = ''
+    errorMessage.value = ''
+    emit('close')
   } catch (err: any) {
     console.error('Error submitting question bank:', err)
     errorMessage.value = err?.response?.data?.message || err?.message || 'Failed to save question bank. Please try again.'
