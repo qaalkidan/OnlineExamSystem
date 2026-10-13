@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { MoreVertical, Eye, Plus, Pencil, Trash2 } from 'lucide-vue-next'
 import { useInstructorQbStore, type QuestionBank } from '../../store/instructorQbStore'
 import { useSemesterLockStore } from '../../store/semesterLockStore'
 
@@ -19,14 +20,132 @@ const perPage = ref(10)
 const currentPage = ref(1)
 const isRefreshing = ref(false)
 
+// Three-dot action dropdown menu state
+const activeMenuBank = ref<QuestionBank | null>(null)
+const activeTriggerEl = ref<HTMLElement | null>(null)
+const menuRef = ref<HTMLElement | null>(null)
+const menuStyle = ref<Record<string, string>>({})
+
 // Delete confirmation modal state
 const showDeleteModal = ref(false)
 const bankToDelete = ref<QuestionBank | null>(null)
 const isDeleting = ref(false)
 
+const closeActionMenu = (restoreFocus = false) => {
+  const trigger = activeTriggerEl.value
+  activeMenuBank.value = null
+  activeTriggerEl.value = null
+  if (restoreFocus && trigger) {
+    trigger.focus()
+  }
+}
+
+const updateMenuPosition = () => {
+  if (!activeTriggerEl.value || !activeMenuBank.value) return
+  const rect = activeTriggerEl.value.getBoundingClientRect()
+
+  // Close menu if trigger scrolled out of viewport
+  if (rect.bottom < 0 || rect.top > window.innerHeight) {
+    closeActionMenu()
+    return
+  }
+
+  const menuWidth = 220
+  const estimatedMenuHeight = 198
+  const margin = 12
+
+  const spaceBelow = window.innerHeight - rect.bottom
+  const openUpward = spaceBelow < estimatedMenuHeight + margin && rect.top > estimatedMenuHeight
+
+  const left = Math.max(
+    margin,
+    Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - margin)
+  )
+
+  if (openUpward) {
+    menuStyle.value = {
+      bottom: `${window.innerHeight - rect.top + 6}px`,
+      left: `${left}px`,
+      width: `${menuWidth}px`
+    }
+  } else {
+    menuStyle.value = {
+      top: `${rect.bottom + 6}px`,
+      left: `${left}px`,
+      width: `${menuWidth}px`
+    }
+  }
+}
+
+const toggleActionMenu = async (bank: QuestionBank, event: MouseEvent) => {
+  event.stopPropagation()
+  if (activeMenuBank.value?.id === bank.id) {
+    closeActionMenu()
+    return
+  }
+  activeMenuBank.value = bank
+  activeTriggerEl.value = event.currentTarget as HTMLElement
+  updateMenuPosition()
+  await nextTick()
+  updateMenuPosition()
+}
+
+const handleDocumentMouseDown = (event: MouseEvent) => {
+  if (!activeMenuBank.value) return
+  const target = event.target as Node
+  if (menuRef.value?.contains(target) || activeTriggerEl.value?.contains(target)) {
+    return
+  }
+  closeActionMenu()
+}
+
+const handleDocumentKeyDown = (event: KeyboardEvent) => {
+  if (!activeMenuBank.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeActionMenu(true)
+    return
+  }
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    if (!menuRef.value) return
+    const items = Array.from(menuRef.value.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    if (!items.length) return
+    event.preventDefault()
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+    let nextIndex = 0
+    if (event.key === 'ArrowDown') {
+      nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0
+    } else {
+      nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1
+    }
+    items[nextIndex]?.focus()
+  }
+}
+
+const handleScrollOrResize = () => {
+  if (activeMenuBank.value) {
+    updateMenuPosition()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleDocumentMouseDown)
+  document.addEventListener('keydown', handleDocumentKeyDown)
+  window.addEventListener('scroll', handleScrollOrResize, true)
+  window.addEventListener('resize', handleScrollOrResize)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handleDocumentMouseDown)
+  document.removeEventListener('keydown', handleDocumentKeyDown)
+  window.removeEventListener('scroll', handleScrollOrResize, true)
+  window.removeEventListener('resize', handleScrollOrResize)
+})
+
 // Reset to page 1 on search or perPage change
 watch([searchQuery, perPage], () => {
   currentPage.value = 1
+  closeActionMenu()
 })
 
 // Format ISO date strings
@@ -78,6 +197,7 @@ const paginationEnd = computed(() => {
 })
 
 const handleRefresh = async () => {
+  closeActionMenu()
   isRefreshing.value = true
   try {
     await qbStore.fetchQuestionBanks(searchQuery.value)
@@ -92,15 +212,18 @@ const clearSearch = () => {
 
 const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value) {
+    closeActionMenu()
     currentPage.value = page
   }
 }
 
 const handleView = (bank: QuestionBank) => {
+  closeActionMenu()
   router.push(`/instructor/question-banks/${bank.id}`)
 }
 
 const handleAddQuestion = (bank: QuestionBank) => {
+  closeActionMenu()
   if (lockStore.isLocked) {
     lockStore.promptLockedNotice('add questions')
     return
@@ -109,6 +232,7 @@ const handleAddQuestion = (bank: QuestionBank) => {
 }
 
 const handleEdit = (bank: QuestionBank) => {
+  closeActionMenu()
   if (lockStore.isLocked) {
     lockStore.promptLockedNotice('edit question bank')
     return
@@ -117,6 +241,7 @@ const handleEdit = (bank: QuestionBank) => {
 }
 
 const confirmDelete = (bank: QuestionBank) => {
+  closeActionMenu()
   if (lockStore.isLocked) {
     lockStore.promptLockedNotice('delete question bank')
     return
@@ -384,82 +509,33 @@ const executeDelete = async () => {
             </td>
 
             <!-- Actions -->
-            <td class="py-4 pl-4 pr-6 text-right">
-              <div class="flex items-center justify-end gap-1.5">
-                
-                <!-- Unlocked Mode Actions -->
-                <template v-if="!lockStore.isLocked">
-                  <!-- View Questions -->
-                  <button 
-                    @click="handleView(bank)" 
-                    class="w-8 h-8 flex items-center justify-center border border-slate-200 text-slate-600 hover:text-[#5138ed] hover:border-indigo-200 hover:bg-indigo-50/50 rounded-lg transition-colors min-h-[34px] min-w-[34px]" 
-                    title="View Questions"
-                    aria-label="View Questions"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  </button>
+            <td class="py-3.5 pl-4 pr-6 text-right align-middle">
+              <div class="inline-flex items-center justify-end gap-2">
+                <span
+                  v-if="lockStore.isLocked"
+                  class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/70 inline-flex items-center gap-1"
+                  title="Semester Locked (Read-Only)"
+                >
+                  <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Locked
+                </span>
 
-                  <!-- Add Question -->
-                  <button 
-                    @click="handleAddQuestion(bank)" 
-                    class="w-8 h-8 flex items-center justify-center border border-slate-200 text-[#5138ed] hover:bg-indigo-50 hover:border-indigo-200 rounded-lg transition-colors min-h-[34px] min-w-[34px]" 
-                    title="Add Question to Bank"
-                    aria-label="Add Question"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-
-                  <!-- Edit Bank Title/Desc -->
-                  <button 
-                    @click="handleEdit(bank)" 
-                    class="w-8 h-8 flex items-center justify-center border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 hover:border-slate-300 rounded-lg transition-colors min-h-[34px] min-w-[34px]" 
-                    title="Edit Bank Details"
-                    aria-label="Edit Bank Details"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </button>
-
-                  <!-- Delete Bank -->
-                  <button 
-                    @click="confirmDelete(bank)" 
-                    class="w-8 h-8 flex items-center justify-center border border-slate-200 text-rose-500 hover:bg-rose-50 hover:border-rose-200 rounded-lg transition-colors min-h-[34px] min-w-[34px]" 
-                    title="Delete Bank"
-                    aria-label="Delete Bank"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </template>
-
-                <!-- Semester Locked Mode Actions -->
-                <template v-else>
-                  <button 
-                    @click="handleView(bank)" 
-                    class="px-3 py-1.5 flex items-center gap-1.5 border border-slate-200 bg-white hover:bg-indigo-50/50 hover:border-indigo-200 text-slate-700 hover:text-[#5138ed] rounded-lg transition-colors text-xs font-bold min-h-[34px] cursor-pointer"
-                    title="View Questions (Read-Only)"
-                  >
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    <span>View</span>
-                  </button>
-                  <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200/70 inline-flex items-center gap-1">
-                    <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    Locked
-                  </span>
-                </template>
-
+                <button
+                  type="button"
+                  @click.stop="toggleActionMenu(bank, $event)"
+                  class="w-9 h-9 rounded-xl border transition-all duration-150 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/25 cursor-pointer shrink-0"
+                  :class="activeMenuBank?.id === bank.id
+                    ? 'bg-[#EEF0FF] border-[#4F35F3]/40 text-[#4F35F3] shadow-2xs'
+                    : 'bg-white border-[#E5EAF3] text-slate-600 hover:text-[#4F35F3] hover:border-[#4F35F3]/40 hover:bg-[#EEF0FF]/50'"
+                  :aria-label="`Actions for ${bank.title}`"
+                  aria-haspopup="menu"
+                  :aria-expanded="activeMenuBank?.id === bank.id"
+                  :title="`Actions for ${bank.title}`"
+                >
+                  <MoreVertical class="w-4 h-4" />
+                </button>
               </div>
             </td>
           </tr>
@@ -525,15 +601,32 @@ const executeDelete = async () => {
               <span class="text-[10px] text-slate-400">ID: #{{ bank.id }}</span>
             </div>
           </div>
-          <span v-if="lockStore.isLocked" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0 flex items-center gap-1">
-            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            Locked
-          </span>
-          <span v-else class="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded shrink-0">
-            {{ bank.course_code || 'GENERAL' }}
-          </span>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <span v-if="lockStore.isLocked" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Locked
+            </span>
+            <span v-else class="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+              {{ bank.course_code || 'GENERAL' }}
+            </span>
+
+            <button
+              type="button"
+              @click.stop="toggleActionMenu(bank, $event)"
+              class="w-9 h-9 rounded-xl border transition-all duration-150 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/25 cursor-pointer"
+              :class="activeMenuBank?.id === bank.id
+                ? 'bg-[#EEF0FF] border-[#4F35F3]/40 text-[#4F35F3] shadow-2xs'
+                : 'bg-white border-[#E5EAF3] text-slate-600 hover:text-[#4F35F3] hover:border-[#4F35F3]/40 hover:bg-[#EEF0FF]/50'"
+              :aria-label="`Actions for ${bank.title}`"
+              aria-haspopup="menu"
+              :aria-expanded="activeMenuBank?.id === bank.id"
+            >
+              <MoreVertical class="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <p class="text-xs text-slate-600 line-clamp-2" :class="{ 'italic text-slate-400': !bank.description }">
@@ -546,50 +639,6 @@ const executeDelete = async () => {
             {{ bank.total_questions }} {{ bank.total_questions === 1 ? 'question' : 'questions' }}
           </span>
           <span>Created: {{ formatDate(bank.created_at || bank.updated_at) }}</span>
-        </div>
-
-        <!-- Mobile Actions -->
-        <div class="grid grid-cols-2 gap-2 pt-1">
-          <button 
-            @click="handleView(bank)"
-            class="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-[#5138ed] bg-indigo-50 border border-indigo-100 rounded-xl hover:bg-indigo-100 transition-colors min-h-[44px]"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-            View
-          </button>
-          
-          <template v-if="!lockStore.isLocked">
-            <button 
-              @click="handleAddQuestion(bank)"
-              class="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors min-h-[44px]"
-            >
-              <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              Add Qs
-            </button>
-            <button 
-              @click="handleEdit(bank)"
-              class="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors min-h-[44px]"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              Edit
-            </button>
-            <button 
-              @click="confirmDelete(bank)"
-              class="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-colors min-h-[44px]"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Delete
-            </button>
-          </template>
         </div>
       </div>
     </div>
@@ -644,6 +693,74 @@ const executeDelete = async () => {
         </button>
       </div>
     </div>
+
+    <!-- Teleported Three-Dot Action Dropdown Menu (Never Clipped by Table Overflow) -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-100 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
+      >
+        <div
+          v-if="activeMenuBank"
+          ref="menuRef"
+          :style="menuStyle"
+          role="menu"
+          :aria-label="`Actions for ${activeMenuBank.title}`"
+          @click.stop
+          class="fixed z-[80] bg-white border border-[#E5EAF3] rounded-xl shadow-[0_12px_32px_-4px_rgba(23,36,58,0.14),0_4px_12px_-2px_rgba(23,36,58,0.06)] p-1.5 select-none focus:outline-none"
+        >
+          <!-- 1. View Question Bank -->
+          <button
+            type="button"
+            role="menuitem"
+            @click="handleView(activeMenuBank)"
+            class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-semibold text-[#17243A] hover:bg-[#EEF0FF] hover:text-[#4F35F3] focus:bg-[#EEF0FF] focus:text-[#4F35F3] focus:outline-none transition-colors group cursor-pointer text-left"
+          >
+            <Eye class="w-4 h-4 text-slate-400 group-hover:text-[#4F35F3] group-focus:text-[#4F35F3] shrink-0 transition-colors" />
+            <span class="truncate">View Question Bank</span>
+          </button>
+
+          <!-- 2. Add Questions -->
+          <button
+            type="button"
+            role="menuitem"
+            @click="handleAddQuestion(activeMenuBank)"
+            class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-semibold text-[#17243A] hover:bg-[#EEF0FF] hover:text-[#4F35F3] focus:bg-[#EEF0FF] focus:text-[#4F35F3] focus:outline-none transition-colors group cursor-pointer text-left"
+          >
+            <Plus class="w-4 h-4 text-slate-400 group-hover:text-[#4F35F3] group-focus:text-[#4F35F3] shrink-0 transition-colors" />
+            <span class="truncate">Add Questions</span>
+          </button>
+
+          <!-- 3. Edit Question Bank -->
+          <button
+            type="button"
+            role="menuitem"
+            @click="handleEdit(activeMenuBank)"
+            class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-semibold text-[#17243A] hover:bg-[#EEF0FF] hover:text-[#4F35F3] focus:bg-[#EEF0FF] focus:text-[#4F35F3] focus:outline-none transition-colors group cursor-pointer text-left"
+          >
+            <Pencil class="w-4 h-4 text-slate-400 group-hover:text-[#4F35F3] group-focus:text-[#4F35F3] shrink-0 transition-colors" />
+            <span class="truncate">Edit Question Bank</span>
+          </button>
+
+          <div class="my-1 border-t border-[#E5EAF3]/80" role="separator"></div>
+
+          <!-- 4. Delete Question Bank -->
+          <button
+            type="button"
+            role="menuitem"
+            @click="confirmDelete(activeMenuBank)"
+            class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 focus:bg-rose-50 focus:text-rose-700 focus:outline-none transition-colors group cursor-pointer text-left"
+          >
+            <Trash2 class="w-4 h-4 text-rose-500 group-hover:text-rose-600 group-focus:text-rose-600 shrink-0 transition-colors" />
+            <span class="truncate">Delete Question Bank</span>
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Clean Delete Confirmation Modal -->
     <div 
