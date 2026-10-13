@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../auth/store/authStore'
+import { useSettingsStore } from '../../../store/settingsStore'
 import type { StudentProfile, Announcement } from '../types'
 
 const props = defineProps<{
@@ -17,9 +18,40 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
 const searchQuery = ref('')
 const isProfileDropdownOpen = ref(false)
 const profileDropdownRef = ref<HTMLElement | null>(null)
+
+// Dynamically resolve academic year from instructor assignment, student profile, or system settings
+const displayAcademicYear = computed(() => {
+  const raw =
+    props.profile?.instructorAcademicYear ||
+    props.profile?.academicYear ||
+    settingsStore.academicYear ||
+    ''
+
+  if (!raw) return 'Academic Year'
+  const clean = raw.replace(/\s*academic\s*year\s*/i, '').trim()
+  return clean ? `${clean} Academic Year` : 'Academic Year'
+})
+
+// Dynamically resolve semester from instructor assignment, course semester, student profile, or system settings
+const displaySemester = computed(() => {
+  const raw =
+    props.profile?.instructorSemester ||
+    props.profile?.courseSemester ||
+    props.profile?.semester ||
+    settingsStore.semester ||
+    'First Semester'
+
+  return raw
+})
+
+// Compact label for tablet view
+const displayTabletYear = computed(() => {
+  return displayAcademicYear.value.replace(/\s*academic\s*year\s*/i, '').trim()
+})
 
 const toggleProfileDropdown = () => {
   isProfileDropdownOpen.value = !isProfileDropdownOpen.value
@@ -55,6 +87,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
 }
 
 onMounted(() => {
+  settingsStore.fetchSettings()
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeyDown)
 })
@@ -114,14 +147,14 @@ onUnmounted(() => {
         <!-- Desktop Academic Year & Semester Badge -->
         <div class="hidden xl:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EEF0FF]/80 text-[#17243A] text-xs font-bold border border-[#4F35F3]/20 shadow-2xs">
           <span class="w-2 h-2 rounded-full bg-[#4F35F3] shrink-0"></span>
-          <span>{{ profile.academicYear || '2025/2026 Academic Year' }}</span>
+          <span>{{ displayAcademicYear }}</span>
           <span class="text-slate-300">•</span>
-          <span class="text-[#4F35F3] font-black">{{ profile.semester || 'First Semester' }}</span>
+          <span class="text-[#4F35F3] font-black">{{ displaySemester }}</span>
         </div>
 
         <!-- Tablet Compact Academic Badge -->
         <div class="hidden md:flex xl:hidden items-center px-3 py-1.5 rounded-full bg-[#EEF0FF]/80 text-[#17243A] text-[11px] font-bold border border-[#4F35F3]/20">
-          <span>{{ (profile.academicYear || '2025/2026').split(' ')[0] }} • {{ (profile.semester || 'First').split(' ')[0] }}</span>
+          <span>{{ displayTabletYear }} • {{ displaySemester }}</span>
         </div>
 
         <!-- Notification Bell Icon Button -->

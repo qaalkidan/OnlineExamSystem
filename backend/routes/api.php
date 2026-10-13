@@ -36,7 +36,20 @@ Route::prefix('v1')->group(function () {
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
     // Current user info
-    Route::get('/user', fn(Request $request) => $request->user()->load('department.head'));
+    Route::get('/user', function (Request $request) {
+        $user = $request->user()->load('department.head');
+        if ($user->role === 'student') {
+            $academic = $user->resolveStudentAcademicContext();
+            $user->academic_year = $academic['academic_year'];
+            $user->semester = $academic['semester'];
+            $user->instructor_academic_year = $academic['instructor_academic_year'];
+            $user->instructor_semester = $academic['instructor_semester'];
+            $user->course_semester = $academic['course_semester'];
+            $user->assigned_instructor = $academic['instructor'];
+            $user->assigned_course = $academic['course'];
+        }
+        return $user;
+    });
 
     // Auth — logout & change password
     Route::post('/logout', [\App\Http\Controllers\Api\V1\AuthController::class, 'logout']);

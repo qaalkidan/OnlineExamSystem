@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue'
 import { useAuthStore } from '../../auth/store/authStore'
+import { useSettingsStore } from '../../../store/settingsStore'
 import apiClient from '../../../core/api/apiClient'
 import type { StudentProfile } from '../types'
 
@@ -14,7 +15,7 @@ const DEFAULT_AVATAR =
 /**
  * Maps a raw backend user object → StudentProfile shape.
  */
-function mapToProfile(user: any): StudentProfile {
+function mapToProfile(user: any, settingsStore?: any): StudentProfile {
   const department =
     (user.department?.name ?? user.department ?? 'Software Engineering') as string
 
@@ -27,8 +28,27 @@ function mapToProfile(user: any): StudentProfile {
       : DEFAULT_AVATAR)
 
   const formattedDept = department
-    ? department.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+    ? department.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
     : 'General Studies'
+
+  // Dynamic Instructor/Course/Settings Academic Year resolution
+  const rawYear =
+    user.instructor_academic_year ||
+    user.academic_year ||
+    (settingsStore?.academicYear ? settingsStore.academicYear : '') ||
+    '2025/2026'
+
+  const cleanYear = String(rawYear).replace(/\s*academic\s*year\s*/i, '').trim()
+  const formattedAcademicYear = cleanYear ? `${cleanYear} Academic Year` : 'Academic Year'
+
+  // Dynamic Instructor/Course/Settings Semester resolution
+  const resolvedSemester =
+    user.instructor_semester ||
+    user.course_semester ||
+    user.semester ||
+    user.assigned_course?.semester ||
+    (settingsStore?.semester ? settingsStore.semester : '') ||
+    'First Semester'
 
   return {
     name: user.name ?? 'Student',
@@ -36,8 +56,13 @@ function mapToProfile(user: any): StudentProfile {
     email: user.email ?? '',
     department: formattedDept,
     program: user.program ?? `Bachelor of Science (B.Sc.) in ${formattedDept}`,
-    semester: user.semester ?? 'First Semester',
-    academicYear: user.academic_year ?? '2025/2026 Academic Year',
+    semester: resolvedSemester,
+    academicYear: formattedAcademicYear,
+    instructorAcademicYear: user.instructor_academic_year || user.academic_year,
+    instructorSemester: user.instructor_semester || user.semester,
+    courseSemester: user.course_semester || user.assigned_course?.semester,
+    assignedInstructor: user.assigned_instructor,
+    assignedCourse: user.assigned_course,
     avatar: photo,
     cgpa: Number(user.cgpa) || 0,
     creditsCompleted: Number(user.credits_completed) || 0,
@@ -54,6 +79,7 @@ function mapToProfile(user: any): StudentProfile {
 
 export function useStudentProfile() {
   const authStore = useAuthStore()
+  const settingsStore = useSettingsStore()
   const isFetching = ref(false)
   const isSaving = ref(false)
   const isUploadingPhoto = ref(false)
@@ -62,7 +88,7 @@ export function useStudentProfile() {
   // Start from authStore.user (set immediately after login) so there is
   // never a blank state while the network call is in flight.
   const profile = ref<StudentProfile>(
-    authStore.user ? mapToProfile(authStore.user) : mapToProfile({})
+    authStore.user ? mapToProfile(authStore.user, settingsStore) : mapToProfile({}, settingsStore)
   )
 
   /**
@@ -77,17 +103,22 @@ export function useStudentProfile() {
     fetchError.value = null
 
     try {
+      // Ensure global settings are also loaded
+      if (!settingsStore.academicYear || settingsStore.academicYear === '2026') {
+        settingsStore.fetchSettings().catch(() => {})
+      }
+
       const response = await apiClient.get('/user')
       const serverUser = response.data
 
       authStore.user = { ...authStore.user, ...serverUser }
-      profile.value = mapToProfile(serverUser)
+      profile.value = mapToProfile(serverUser, settingsStore)
     } catch (err: any) {
       fetchError.value = err.message ?? 'Failed to fetch profile'
       console.warn('[useStudentProfile] Using cached login data:', fetchError.value)
 
       if (authStore.user) {
-        profile.value = mapToProfile(authStore.user)
+        profile.value = mapToProfile(authStore.user, settingsStore)
       }
     } finally {
       isFetching.value = false

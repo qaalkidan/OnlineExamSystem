@@ -133,22 +133,45 @@ class AuthController extends Controller
             "Logged in successfully"
         );
 
+        $academicYear = $user->academic_year;
+        $semester = $user->semester;
+        $instructorAcademicYear = null;
+        $instructorSemester = null;
+        $assignedInstructor = null;
+        $assignedCourse = null;
+
+        if ($effectiveRole === 'student') {
+            $academic = $user->resolveStudentAcademicContext();
+            $academicYear = $academic['academic_year'];
+            $semester = $academic['semester'];
+            $instructorAcademicYear = $academic['instructor_academic_year'];
+            $instructorSemester = $academic['instructor_semester'];
+            $assignedInstructor = $academic['instructor'];
+            $assignedCourse = $academic['course'];
+        }
+
         return response()->json([
             'data' => [
                 'user'  => [
-                    'id'            => $user->id,
-                    'name'          => $user->name,
-                    'email'         => $user->email,
-                    'username'      => $user->username,
-                    'role'          => $effectiveRole,
-                    'department_id' => $user->department_id,
-                    'department'    => $user->department,
+                    'id'                  => $user->id,
+                    'name'                => $user->name,
+                    'email'               => $user->email,
+                    'username'            => $user->username,
+                    'role'                => $effectiveRole,
+                    'department_id'       => $user->department_id,
+                    'department'          => $user->department,
                     'profile_picture'     => $user->profile_picture,
                     'profile_picture_url' => $user->profile_picture_url,
                     'course_code'         => $user->course_code,
                     'course_name'         => $user->course_name,
                     'section'             => $user->section,
                     'year_level'          => $user->year_level,
+                    'academic_year'            => $academicYear,
+                    'semester'                 => $semester,
+                    'instructor_academic_year' => $instructorAcademicYear,
+                    'instructor_semester'      => $instructorSemester,
+                    'assigned_instructor'      => $assignedInstructor,
+                    'assigned_course'          => $assignedCourse,
                 ],
                 'token'            => $token,
                 'assigned_options' => $assignedOptions,
@@ -375,6 +398,23 @@ class AuthController extends Controller
             'hours_saved'       => max(1, (int)$hoursSaved),
         ];
 
+        $academicYear = $user->academic_year;
+        $semester = $user->semester;
+        $instructorAcademicYear = null;
+        $instructorSemester = null;
+        $assignedInstructor = null;
+        $assignedCourse = null;
+
+        if ($user->role === 'student') {
+            $academic = $user->resolveStudentAcademicContext();
+            $academicYear = $academic['academic_year'];
+            $semester = $academic['semester'];
+            $instructorAcademicYear = $academic['instructor_academic_year'];
+            $instructorSemester = $academic['instructor_semester'];
+            $assignedInstructor = $academic['instructor'];
+            $assignedCourse = $academic['course'];
+        }
+
         return response()->json([
             'data' => [
                 'id'                       => $user->id,
@@ -393,10 +433,14 @@ class AuthController extends Controller
                 'department_name'          => $user->department?->name ?? 'Computer Science',
                 'course_code'              => $user->course_code,
                 'course_name'              => $user->course_name,
-                'academic_year'            => $user->academic_year,
+                'academic_year'            => $academicYear,
                 'year_level'               => $user->year_level,
-                'semester'                 => $user->semester,
+                'semester'                 => $semester,
                 'section'                  => $user->section,
+                'instructor_academic_year' => $instructorAcademicYear,
+                'instructor_semester'      => $instructorSemester,
+                'assigned_instructor'      => $assignedInstructor,
+                'assigned_course'          => $assignedCourse,
                 'employment_type'          => $user->employment_type ?: 'Full Time',
                 'member_since'             => $user->created_at ? $user->created_at->format('M d, Y') : 'Jan 15, 2023',
                 'created_at'               => $user->created_at?->toIso8601String(),

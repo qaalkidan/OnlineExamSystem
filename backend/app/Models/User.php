@@ -118,4 +118,122 @@ class User extends Authenticatable
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    /**
+     * Resolves the instructor-assigned academic year, semester, course, and instructor for a student.
+     */
+    public function resolveStudentAcademicContext(): array
+    {
+        $systemSettings = SystemSetting::pluck('value', 'key');
+        $defaultYear = $systemSettings['academicYear'] ?? '2025/2026';
+        $defaultSem = $systemSettings['semester'] ?? 'First Semester';
+
+        $course = null;
+        $instructor = null;
+
+        if ($this->course_code) {
+            $course = Course::where('code', $this->course_code)->first();
+        }
+
+        if (!$course && $this->department_id) {
+            $course = Course::where('department_id', $this->department_id)
+                ->where(function ($q) {
+                    if ($this->year_level) {
+                        $q->where('level', $this->year_level)->orWhereNull('level');
+                    }
+                })
+                ->where(function ($q) {
+                    if ($this->section) {
+                        $cleanSec = trim(str_ireplace('Section', '', $this->section));
+                        $q->where('section', $this->section)
+                          ->orWhere('section', $cleanSec)
+                          ->orWhere('section', "Section $cleanSec")
+                          ->orWhereIn('section', ['Both Sections', 'All Sections'])
+                          ->orWhereNull('section');
+                    }
+                })
+                ->first();
+        }
+
+        if (!$course && $this->department_id) {
+            $course = Course::where('department_id', $this->department_id)->first();
+        }
+
+        if ($course && $course->instructor_id) {
+            $instructor = User::find($course->instructor_id);
+        }
+
+        if (!$instructor && $this->course_code) {
+            $instructor = User::where('role', 'instructor')
+                ->where('course_code', $this->course_code)
+                ->first();
+        }
+
+        if (!$instructor && $this->department_id) {
+            $instructor = User::where('role', 'instructor')
+                ->where('department_id', $this->department_id)
+                ->where(function ($q) {
+                    if ($this->year_level) {
+                        $q->where('year_level', $this->year_level)->orWhereNull('year_level');
+                    }
+                })
+                ->first();
+        }
+
+        if (!$instructor && $this->department_id) {
+            $instructor = User::where('role', 'instructor')
+                ->where('department_id', $this->department_id)
+                ->first();
+        }
+
+        if (!$instructor) {
+            $exam = Exam::where('course_code', $this->course_code)
+                ->orWhere('department_id', $this->department_id)
+                ->latest()
+                ->first();
+            if ($exam && $exam->user_id) {
+                $instructor = User::find($exam->user_id);
+            }
+        }
+
+        // Academic year priority:
+        // 1. Instructor's assigned academic year (if set)
+        // 2. Student's academic year (if set)
+        // 3. System setting academic year
+        $resolvedYear = $instructor?->academic_year
+            ?: ($this->academic_year ?: $defaultYear);
+
+        // Semester priority:
+        // 1. Course semester (if set)
+        // 2. Instructor's semester (if set)
+        // 3. Student's semester (if set)
+        // 4. System setting semester
+        $resolvedSemester = $course?->semester
+            ?: ($instructor?->semester ?: ($this->semester ?: $defaultSem));
+
+        return [
+            'academic_year'            => $resolvedYear,
+            'semester'                 => $resolvedSemester,
+            'instructor_academic_year' => $instructor?->academic_year ?: $resolvedYear,
+            'instructor_semester'      => $instructor?->semester ?: $resolvedSemester,
+            'course_semester'          => $course?->semester,
+            'instructor'               => $instructor ? [
+                'id'            => $instructor->id,
+                'name'          => $instructor->name,
+                'email'         => $instructor->email,
+                'academic_year' => $instructor->academic_year,
+                'semester'      => $instructor->semester,
+                'course_code'   => $instructor->course_code,
+                'course_name'   => $instructor->course_name,
+            ] : null,
+            'course'                   => $course ? [
+                'id'            => $course->id,
+                'title'         => $course->title,
+                'code'          => $course->code,
+                'semester'      => $course->semester,
+                'level'         => $course->level,
+                'section'       => $course->section,
+            ] : null,
+        ];
+    }
 }

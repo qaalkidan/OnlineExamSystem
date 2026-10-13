@@ -22,56 +22,12 @@ const instructorData = ref<any>(null)
 const isProfileDropdownOpen = ref(false)
 const profileDropdownRef = ref<HTMLElement | null>(null)
 
-const isNotificationsOpen = ref(false)
-const notificationsRef = ref<HTMLElement | null>(null)
-
-// Instructor notifications
-const notifications = ref([
-  {
-    id: 1,
-    title: 'Exam submission deadline approaching',
-    subtitle: 'Finalize and submit course exams for semester approval',
-    time: '30m ago',
-    unread: true,
-    link: '/instructor/semester-submission'
-  },
-  {
-    id: 2,
-    title: 'Question Bank updated',
-    subtitle: 'New review items available in course question bank',
-    time: '2h ago',
-    unread: true,
-    link: '/instructor/question-banks'
-  },
-  {
-    id: 3,
-    title: 'Student submission received',
-    subtitle: 'Students completed recent exam assessment',
-    time: '5h ago',
-    unread: false,
-    link: '/instructor/results'
-  }
-])
-
-const unreadCount = computed(() => notifications.value.filter(n => n.unread).length)
-
-const toggleNotifications = () => {
-  isNotificationsOpen.value = !isNotificationsOpen.value
-  if (isNotificationsOpen.value) {
-    isProfileDropdownOpen.value = false
-  }
-}
-
 const toggleProfileDropdown = () => {
   isProfileDropdownOpen.value = !isProfileDropdownOpen.value
-  if (isProfileDropdownOpen.value) {
-    isNotificationsOpen.value = false
-  }
 }
 
 const closeDropdowns = () => {
   isProfileDropdownOpen.value = false
-  isNotificationsOpen.value = false
 }
 
 const navigateTo = (path: string) => {
@@ -89,9 +45,6 @@ const handleClickOutside = (e: MouseEvent) => {
   if (profileDropdownRef.value && !profileDropdownRef.value.contains(target)) {
     isProfileDropdownOpen.value = false
   }
-  if (notificationsRef.value && !notificationsRef.value.contains(target)) {
-    isNotificationsOpen.value = false
-  }
 }
 
 const handleKeyDown = (e: KeyboardEvent) => {
@@ -101,6 +54,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
 }
 
 onMounted(async () => {
+  settingsStore.fetchSettings()
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeyDown)
 
@@ -170,190 +124,82 @@ const getInitials = (name?: string) => {
 const isCreateExam = computed(() => route.path === '/instructor/exams/create')
 const createExamStep = computed(() => Number(route.query.step) || 1)
 
-// Map routes to dynamic titles
-const pageTitle = computed(() => {
+// Map routes to dynamic titles and descriptions matching Super Admin header layout
+const pageInfo = computed(() => {
+  const path = route.path
   if (isCreateExam.value) {
-    if (createExamStep.value === 4) return 'Review & Publish'
-    if (createExamStep.value === 2) return 'Add Questions'
-    return 'Create New Exam'
+    if (createExamStep.value === 4) return { title: 'Review & Publish', desc: 'Verify examination details and publish to students.' }
+    if (createExamStep.value === 2) return { title: 'Add Questions', desc: 'Select and configure questions for your examination.' }
+    return { title: 'Create New Exam', desc: 'Configure examination parameters and scheduling.' }
   }
-  if (route.path.includes('/dashboard')) return 'Instructor Dashboard'
-  if (route.path.includes('/question-banks')) return 'Question Banks'
-  if (route.path.includes('/exams')) return 'Exams Management'
-  if (route.path.includes('/students')) return 'Student Management'
-  if (route.path.includes('/results')) return 'Results'
-  if (route.path.includes('/reports')) return 'Reports'
-  if (route.path.includes('/semester-submission')) return 'Semester Submission'
-  if (route.path.includes('/profile')) return 'My Profile'
-  if (route.path.includes('/settings')) return 'Settings'
-  return 'Dashboard'
+  if (path.includes('/dashboard')) return { title: 'Dashboard', desc: 'Overview of your assigned courses, exams, and student activity.' }
+  if (path.includes('/question-banks')) return { title: 'Question Banks', desc: 'Manage centralized pools of examination questions.' }
+  if (path.includes('/exams')) return { title: 'Exams', desc: 'Create, schedule, and manage course examinations.' }
+  if (path.includes('/students')) return { title: 'Students', desc: 'Manage enrolled students and monitor academic progress.' }
+  if (path.includes('/results')) return { title: 'Results', desc: 'View and analyze exam results and student performance.' }
+  if (path.includes('/semester-submission')) return { title: 'Semester Submission', desc: 'Review and submit finalized semester examination archive.' }
+  if (path.includes('/reports')) return { title: 'Reports', desc: 'View and generate comprehensive course and exam reports.' }
+  if (path.includes('/connection-issues')) return { title: 'Connection Issues', desc: 'Review and resolve student exam connectivity incidents.' }
+  if (path.includes('/profile')) return { title: 'My Profile', desc: 'View and manage your account information and preferences.' }
+  if (path.includes('/settings')) return { title: 'Settings', desc: 'Manage your portal settings and security preferences.' }
+  return { title: 'Dashboard', desc: 'Overview of your assigned courses, exams, and student activity.' }
 })
 </script>
 
 <template>
-  <header class="h-16 sm:h-20 lg:h-24 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 sm:px-6 lg:px-8 sticky top-0 z-30">
+  <header class="h-16 sm:h-20 lg:h-[88px] bg-white/95 backdrop-blur-md border-b border-[#E8EDF5] flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 min-w-0">
     
-    <!-- Left Side: Title & Menu Toggle -->
+    <!-- Left Side: Hamburger Button + Page Title & Subtitle -->
     <div class="flex items-center gap-3 sm:gap-4 min-w-0">
       
-      <!-- Hamburger Toggle Button — Desktop & Mobile -->
+      <!-- Hamburger Toggle Button — Matches Super Admin Header -->
       <button 
         type="button"
         @click="toggleSidebar"
-        class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white hover:bg-slate-50 border border-[#E5EAF3] hover:border-[#4F35F3]/40 text-slate-700 hover:text-[#4F35F3] shadow-2xs hover:shadow-xs transition-all duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/20 shrink-0 group active:scale-95 cursor-pointer"
+        class="p-2 sm:p-2.5 rounded-xl bg-white hover:bg-slate-50 border border-[#E7ECF4] hover:border-[#4F35F3]/30 text-slate-600 hover:text-[#4F35F3] transition-all duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#4F35F3]/20 shrink-0 cursor-pointer"
         :aria-expanded="isExpanded"
-        :title="isExpanded ? 'Collapse navigation menu' : 'Expand navigation menu'"
+        :title="isExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
         aria-label="Toggle navigation menu"
       >
-        <svg 
-          class="w-5 h-5 transition-transform duration-200" 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path 
-            stroke-linecap="round" 
-            stroke-linejoin="round" 
-            stroke-width="2" 
-            d="M4 6h16M4 12h16M4 18h16"
-          />
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
       
       <div class="flex flex-col min-w-0">
-        <h1 class="text-base sm:text-lg lg:text-xl font-bold text-slate-800 truncate leading-tight">{{ pageTitle }}</h1>
-        <div v-if="isCreateExam" class="hidden sm:flex items-center gap-2 mt-0.5 text-[12px] font-medium text-slate-500 truncate">
-          <router-link to="/instructor/exams" class="hover:text-[#5138ed] transition-colors">Exams</router-link>
+        <h1 class="text-base sm:text-lg lg:text-xl font-bold text-[#17243A] truncate leading-tight">{{ pageInfo.title }}</h1>
+        <div v-if="isCreateExam" class="hidden sm:flex items-center gap-2 mt-0.5 text-[11px] lg:text-[12px] font-medium text-[#71819B] truncate">
+          <router-link to="/instructor/exams" class="hover:text-[#4F35F3] transition-colors">Exams</router-link>
           <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-          <router-link to="/instructor/exams/create" class="hover:text-[#5138ed] transition-colors" :class="{'text-slate-700': createExamStep === 1 || createExamStep === 3 || createExamStep === 4}">Create New Exam</router-link>
+          <router-link to="/instructor/exams/create" class="hover:text-[#4F35F3] transition-colors" :class="{'text-[#17243A]': createExamStep === 1 || createExamStep === 3 || createExamStep === 4}">Create New Exam</router-link>
           
           <template v-if="createExamStep === 2">
             <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            <span class="text-slate-700">Add Questions</span>
+            <span class="text-[#17243A]">Add Questions</span>
           </template>
         </div>
-        <div v-else-if="route.path.includes('/results')" class="hidden sm:block mt-0.5 text-[12px] font-medium text-slate-500 truncate">
-          View and analyze exam results and performance.
-        </div>
-        <div v-else-if="route.path.includes('/reports')" class="hidden sm:block mt-0.5 text-[12px] font-medium text-slate-500 truncate">
-          View and analyze exam, student and performance reports.
-        </div>
-        <div v-else-if="route.path.includes('/profile')" class="hidden sm:block mt-0.5 text-[12px] font-medium text-slate-500 truncate">
-          View and manage your account information and preferences.
-        </div>
-        <div v-else-if="route.path.includes('/settings')" class="hidden sm:block mt-0.5 text-[12px] font-medium text-slate-500 truncate">
-          Manage system settings and preferences.
-        </div>
-        <div v-else-if="route.path.includes('/semester-submission')" class="hidden sm:block mt-0.5 text-[12px] font-medium text-slate-500 truncate">
-          Submit finalized semester examination archive.
+        <div v-else class="hidden sm:block text-[11px] lg:text-[12px] font-medium text-[#71819B] truncate max-w-xs md:max-w-md mt-0.5">
+          {{ pageInfo.desc }}
         </div>
       </div>
     </div>
 
-    <!-- Center: Semester/Year Badge (Visible on xl screens to avoid crowding) -->
-    <div class="hidden xl:flex items-center">
-      <span class="text-[13px] font-bold text-[#5138ed] bg-indigo-50 px-4 py-1.5 rounded-full border border-indigo-100 shadow-xs whitespace-nowrap">
+    <!-- Center: Academic Semester Indicator (Centered like Super Admin Header) -->
+    <div class="absolute left-1/2 -translate-x-1/2 hidden xl:flex items-center pointer-events-none">
+      <span class="text-[13px] font-bold text-[#4F35F3] bg-[#EEF2FF] px-5 py-1.5 rounded-full border border-indigo-100 shadow-2xs whitespace-nowrap">
         {{ settingsStore.formattedAcademicTerm }}
       </span>
     </div>
 
-    <!-- Right Side: Notifications & User Profile -->
-    <div class="flex items-center gap-1 sm:gap-2">
-      <!-- Notifications Dropdown -->
-      <div class="relative" ref="notificationsRef">
-        <button
-          type="button"
-          @click="toggleNotifications"
-          class="relative p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none min-h-[44px] min-w-[44px] flex items-center justify-center"
-          aria-label="Notifications"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
-          <span v-if="unreadCount > 0" class="absolute top-2.5 right-2.5 w-2 h-2 bg-[#5138ed] rounded-full ring-2 ring-white"></span>
-        </button>
-
-        <Transition
-          enter-active-class="transition duration-150 ease-out"
-          enter-from-class="transform scale-95 opacity-0 -translate-y-1"
-          enter-to-class="transform scale-100 opacity-100 translate-y-0"
-          leave-active-class="transition duration-100 ease-in"
-          leave-from-class="transform scale-100 opacity-100 translate-y-0"
-          leave-to-class="transform scale-95 opacity-0 -translate-y-1"
-        >
-          <div
-            v-if="isNotificationsOpen"
-            class="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-24px)] bg-white/95 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-[0_15px_50px_-10px_rgba(0,0,0,0.15)] py-2 z-50 select-none overflow-hidden"
-          >
-            <!-- Panel Header -->
-            <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-slate-800">Notifications</span>
-                <span v-if="unreadCount > 0" class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#5138ed]/10 text-[#5138ed]">
-                  {{ unreadCount }} new
-                </span>
-              </div>
-              <button
-                type="button"
-                @click="isNotificationsOpen = false"
-                class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                title="Close notifications"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Notification Items -->
-            <div class="max-h-72 overflow-y-auto divide-y divide-slate-50">
-              <div 
-                v-for="item in notifications" 
-                :key="item.id"
-                @click="navigateTo(item.link)"
-                class="p-3.5 hover:bg-indigo-50/40 transition-colors cursor-pointer flex items-start gap-3 min-h-[44px]"
-              >
-                <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0 mt-0.5">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="text-[12px] font-semibold text-slate-800 leading-tight">
-                    {{ item.title }}
-                  </p>
-                  <p class="text-[11px] text-slate-500 leading-normal mt-0.5">
-                    {{ item.subtitle }}
-                  </p>
-                  <span class="text-[10px] text-slate-400 font-medium mt-1 block">
-                    {{ item.time }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Panel Footer -->
-            <div class="p-2 border-t border-slate-100 bg-slate-50/40 text-center">
-              <button
-                type="button"
-                @click="navigateTo('/instructor/semester-submission')"
-                class="w-full py-1.5 text-xs font-semibold text-[#5138ed] hover:text-indigo-700 transition-colors"
-              >
-                View semester status →
-              </button>
-            </div>
-          </div>
-        </Transition>
-      </div>
-
-      <!-- User Profile & Dropdown -->
+    <!-- Right Side: Instructor Profile & Dropdown (Notification bell removed) -->
+    <div class="flex items-center shrink-0">
       <div class="relative" ref="profileDropdownRef">
         <!-- Trigger Button -->
         <button
           type="button"
           @click="toggleProfileDropdown"
-          class="flex items-center gap-2 sm:gap-3 p-1 sm:px-3 sm:py-2 rounded-2xl hover:bg-slate-100/80 transition-all border border-transparent hover:border-slate-200 cursor-pointer group focus:outline-none min-h-[44px]"
-          :class="{ 'bg-slate-100/90 border-slate-200 shadow-xs': isProfileDropdownOpen }"
+          class="flex items-center gap-2 sm:gap-3 p-1.5 sm:px-3 sm:py-2 rounded-2xl hover:bg-slate-100/80 transition-all border border-transparent hover:border-slate-200 cursor-pointer group focus:outline-none"
+          :class="{ 'bg-slate-100/90 border-slate-200 shadow-2xs': isProfileDropdownOpen }"
           aria-label="User Profile Menu"
         >
           <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-50 overflow-hidden border-2 border-indigo-200/80 group-hover:border-[#5138ed] transition-all flex items-center justify-center shadow-xs shrink-0 text-[#5138ed] font-black text-xs">

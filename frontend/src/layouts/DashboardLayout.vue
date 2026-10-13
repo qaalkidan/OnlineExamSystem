@@ -73,7 +73,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f8fafc] font-sans flex flex-col lg:flex-row min-w-0 max-w-full overflow-x-hidden relative">
+  <div class="min-h-screen bg-[#F7F9FC] font-sans flex flex-col lg:flex-row min-w-0 max-w-full overflow-x-hidden relative">
     
     <!-- Backdrop Overlay on Mobile & Tablet (<1024px) -->
     <Transition
@@ -87,7 +87,7 @@ onUnmounted(() => {
       <div 
         v-if="sidebarOpen" 
         @click="closeSidebar" 
-        class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden cursor-pointer"
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden cursor-pointer"
         aria-label="Close Navigation Drawer"
       ></div>
     </Transition>
@@ -98,7 +98,7 @@ onUnmounted(() => {
     <!-- Main Content Area: smoothly adjusts left padding on desktop (lg:) -->
     <div 
       class="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden transition-all duration-300 ease-in-out pl-0"
-      :class="sidebarOpen ? 'lg:pl-64' : 'lg:pl-20'"
+      :class="sidebarOpen ? 'lg:pl-[272px]' : 'lg:pl-20'"
     >
       
       <!-- Header -->
@@ -129,7 +129,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Page Content with Responsive Padding -->
-      <main class="flex-1 p-3.5 sm:p-5 lg:p-7 min-w-0 max-w-full overflow-x-hidden">
+      <main class="flex-1 p-4 sm:p-6 lg:p-7 min-w-0 max-w-full overflow-x-hidden">
         <router-view :key="$route.path" />
       </main>
 

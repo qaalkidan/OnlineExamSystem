@@ -16,6 +16,11 @@ export interface StudentProfile {
   office?: string;
   username?: string;
   status?: string;
+  instructorAcademicYear?: string;
+  instructorSemester?: string;
+  courseSemester?: string;
+  assignedInstructor?: any;
+  assignedCourse?: any;
   rawUser?: any;
 }
 

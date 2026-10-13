@@ -244,6 +244,11 @@ class InstructorStudentController extends Controller
         $now = now();
         $password = Hash::make('password123');
 
+        $systemSettings = SystemSetting::pluck('value', 'key');
+        $importAcademicYear = $instructor->academic_year ?: ($systemSettings['academicYear'] ?? '2025/2026');
+        $course = Course::where('instructor_id', $instructor->id)->first() ?? Course::where('code', $instructor->course_code)->first();
+        $importSemester = $course?->semester ?: ($instructor->semester ?: ($systemSettings['semester'] ?? 'First Semester'));
+
         foreach ($students as $s) {
             if (empty($s['email']) || empty($s['name'])) continue;
 
@@ -260,6 +265,8 @@ class InstructorStudentController extends Controller
                     'course_name'   => $instructor->course_name,
                     'year_level'    => $instructor->year_level ?? '1st Year',
                     'section'       => $instructor->section ?? 'Section B',
+                    'academic_year' => $importAcademicYear,
+                    'semester'      => $importSemester,
                     'status'        => 'active',
                     'created_at'    => $now,
                     'updated_at'    => $now,
