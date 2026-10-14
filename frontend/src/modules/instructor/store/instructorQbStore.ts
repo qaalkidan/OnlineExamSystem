@@ -246,7 +246,7 @@ export const useInstructorQbStore = defineStore('instructorQb', () => {
       if (!usingMockData.value) {
         const response = await apiClient.post(`/instructor/question-banks/${bankId}/questions`, payload)
         const saved = response.data.data
-        draftQuestions.value.unshift(saved)
+        await fetchDraftQuestions(bankId)
         return saved
       }
       const mockSaved = { ...payload, id: Date.now(), question_bank_id: Number(bankId) }
@@ -254,6 +254,32 @@ export const useInstructorQbStore = defineStore('instructorQb', () => {
       return mockSaved
     } catch (err: any) {
       console.error("Failed to save draft question", err)
+      if (err.response && err.response.data && err.response.data.errors) {
+        throw new Error(Object.values(err.response.data.errors).flat().join(', '))
+      }
+      throw err
+    }
+  }
+
+  const bulkSaveQuestionDrafts = async (bankId: number | string, questions: any[]) => {
+    try {
+      if (!usingMockData.value) {
+        const response = await apiClient.post(`/instructor/question-banks/${bankId}/bulk-questions`, {
+          questions
+        })
+        await fetchDraftQuestions(bankId)
+        return response.data
+      }
+      const mockSaved = questions.map((q, idx) => ({
+        ...q,
+        id: Date.now() + idx,
+        question_bank_id: Number(bankId),
+        status: 'draft'
+      }))
+      draftQuestions.value.unshift(...mockSaved)
+      return { count: mockSaved.length, data: mockSaved }
+    } catch (err: any) {
+      console.error("Failed to bulk save draft questions", err)
       if (err.response && err.response.data && err.response.data.errors) {
         throw new Error(Object.values(err.response.data.errors).flat().join(', '))
       }
@@ -330,6 +356,7 @@ export const useInstructorQbStore = defineStore('instructorQb', () => {
     deleteQuestionBank,
     addQuestion,
     saveQuestionDraft,
+    bulkSaveQuestionDrafts,
     fetchDraftQuestions,
     publishQuestions,
     importQuestions,

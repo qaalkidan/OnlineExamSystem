@@ -12,7 +12,19 @@ import {
 } from '../../utils/questionImportValidator'
 import apiClient from '../../../../core/api/apiClient'
 
-const emit = defineEmits(['imported', 'switch-to-manual', 'switch-to-bank', 'next'])
+const props = withDefaults(defineProps<{
+  mode?: 'exam' | 'bank'
+  targetName?: string
+  bankId?: string | number
+  importHandler?: (questions: ParsedQuestionRow[]) => Promise<{ count: number; marks: number }>
+}>(), {
+  mode: 'exam',
+  targetName: 'Exam',
+  bankId: undefined,
+  importHandler: undefined
+})
+
+const emit = defineEmits(['imported', 'import-questions', 'switch-to-manual', 'switch-to-bank', 'next'])
 const formStore = useCreateExamStore()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -193,8 +205,8 @@ const selectedMarks = computed(() => {
     .reduce((sum, q) => sum + (Number(q.marks) || 0), 0)
 })
 
-// Import parsed questions into exam draft
-const importSelectedQuestions = () => {
+// Import parsed questions into exam or bank draft
+const importSelectedQuestions = async () => {
   // Only import valid selected questions
   const questionsToImport = parsedQuestions.value.filter(
     q => selectedRowIds.value.includes(q.id) && q.status === 'valid'
@@ -202,6 +214,34 @@ const importSelectedQuestions = () => {
   if (questionsToImport.length === 0) return
 
   isImporting.value = true
+
+  if (props.mode === 'bank') {
+    try {
+      let importedCount = 0
+      let totalImportMarks = 0
+
+      if (props.importHandler) {
+        const res = await props.importHandler(questionsToImport)
+        importedCount = res?.count ?? questionsToImport.length
+        totalImportMarks = res?.marks ?? questionsToImport.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)
+      } else {
+        emit('import-questions', questionsToImport)
+        importedCount = questionsToImport.length
+        totalImportMarks = questionsToImport.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)
+      }
+
+      isImported.value = true
+      successBanner.value = `Successfully imported ${importedCount} valid question${importedCount !== 1 ? 's' : ''} (${totalImportMarks} marks) from "${fileName.value}" into this Question Bank!`
+      emit('imported', { count: importedCount, marks: totalImportMarks, questions: questionsToImport })
+      return { count: importedCount, marks: totalImportMarks }
+    } catch (err: any) {
+      console.error('Import failed:', err)
+      parseError.value = err.message || 'Failed to import questions into Question Bank.'
+      throw err
+    } finally {
+      isImporting.value = false
+    }
+  }
 
   let importedCount = 0
   let totalImportMarks = 0
@@ -281,6 +321,7 @@ defineExpose({
   parsedQuestions,
   selectedRowIds,
   validCount,
+  selectedCount,
   isImported,
   hasSelectedQuestions: computed(() => selectedRowIds.value.length > 0 && parsedQuestions.value.some(q => selectedRowIds.value.includes(q.id) && q.status === 'valid'))
 })
@@ -296,7 +337,14 @@ defineExpose({
         </div>
         <div>
           <p class="text-[13px] font-bold">{{ successBanner }}</p>
-          <p class="text-[11px] text-emerald-600 mt-0.5">Total questions currently in this exam: <strong class="text-emerald-800">{{ formStore.questions.length }}</strong></p>
+          <p class="text-[11px] text-emerald-600 mt-0.5">
+            <template v-if="mode === 'bank'">
+              Questions saved as drafts in this Question Bank and ready for review.
+            </template>
+            <template v-else>
+              Total questions currently in this exam: <strong class="text-emerald-800">{{ formStore.questions.length }}</strong>
+            </template>
+          </p>
         </div>
       </div>
       <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
@@ -305,8 +353,7 @@ defineExpose({
           @click="emit('next')"
           class="px-4 py-2 bg-[#4F35F3] hover:bg-indigo-600 text-white font-bold text-[12px] rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
         >
-          Next: Exam Settings
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          {{ mode === 'bank' ? 'Review & Publish Drafts →' : 'Next: Exam Settings →' }}
         </button>
         <button @click="successBanner = ''" class="text-emerald-500 hover:text-emerald-700 font-bold text-sm px-2 py-1 cursor-pointer">&times;</button>
       </div>
@@ -534,7 +581,7 @@ defineExpose({
           <svg v-if="!isImporting && !isImported" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
           <svg v-else-if="isImported" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
           <span v-else class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-          <span>{{ isImported ? `✓ Imported (${selectedCount}) to Exam` : `Import Selected (${selectedCount}) to Exam` }}</span>
+          <span>{{ isImported ? `✓ Imported (${selectedCount}) to ${targetName}` : `Import Selected (${selectedCount}) to ${targetName}` }}</span>
         </button>
       </div>
 

@@ -42,20 +42,14 @@ class StudentExamController extends Controller
         $student = $request->user();
         $this->autoFinalizeExpiredAttempts($student);
 
-        // Count completed attempts (submitted, graded, or auto-published)
+        // Count completed attempts with published results
         $completedAttempts = ExamAttempt::where('user_id', $student->id)
-            ->where(function($q) {
-                $q->whereIn('status', ['submitted', 'graded', 'published'])
-                  ->orWhereNotNull('submitted_at');
-            })
+            ->where('status', 'published')
             ->count();
 
-        // Average score across all submitted attempts
+        // Average score across published attempts
         $avgScore = ExamAttempt::where('user_id', $student->id)
-            ->where(function($q) {
-                $q->whereIn('status', ['submitted', 'graded', 'published'])
-                  ->orWhereNotNull('submitted_at');
-            })
+            ->where('status', 'published')
             ->whereNotNull('percentage')
             ->avg('percentage');
 
@@ -930,11 +924,9 @@ class StudentExamController extends Controller
         $student = $request->user();
         $this->autoFinalizeExpiredAttempts($student);
 
+        // Only return published results — graded (unpublished) results remain hidden from student
         $attempts = ExamAttempt::where('user_id', $student->id)
-            ->where(function($q) {
-                $q->whereIn('status', ['submitted', 'graded', 'published'])
-                  ->orWhereNotNull('submitted_at');
-            })
+            ->where('status', 'published')
             ->with(['exam', 'exam.questions', 'exam.instructor'])
             ->latest('submitted_at')
             ->get();
@@ -1019,6 +1011,12 @@ class StudentExamController extends Controller
 
         if (!$attempt || !$attempt->exam) {
             return response()->json(['message' => 'Exam result not found.'], 404);
+        }
+
+        if ($attempt->status !== 'published') {
+            return response()->json([
+                'message' => 'This exam result has not been published yet. Results and manual scores will be visible once published by your instructor.',
+            ], 403);
         }
 
         $exam = $attempt->exam;
@@ -1156,7 +1154,7 @@ class StudentExamController extends Controller
                 $correctVal = strip_tags($q->correct_answer ?? $q->sample_answer ?? '');
                 $studentVal = $isAnswered ? strip_tags((string)$studentAns) : 'Not answered';
 
-                if ($attempt->status === 'graded') {
+                if (in_array($attempt->status, ['graded', 'published']) || isset($answers['_manual_scores'][$q->id])) {
                     $earnedMarks = (float)($answers['_manual_scores'][$q->id] ?? 0);
                     $isCorrect = ($earnedMarks >= $qMarks);
                 } else {
@@ -1171,8 +1169,7 @@ class StudentExamController extends Controller
                 $studentVal = $isAnswered ? strip_tags((string)$studentAns) : 'Not answered';
 
                 // For short answer / essay, if student attempted and it's marked or graded
-                // If attempt score contains manual marking or auto heuristic
-                if ($attempt->status === 'graded') {
+                if (in_array($attempt->status, ['graded', 'published']) || isset($answers['_manual_scores'][$q->id])) {
                     $earnedMarks = (float)($answers['_manual_scores'][$q->id] ?? 0);
                     $isCorrect = ($earnedMarks >= $qMarks);
                     $isPartial = ($earnedMarks > 0 && $earnedMarks < $qMarks);

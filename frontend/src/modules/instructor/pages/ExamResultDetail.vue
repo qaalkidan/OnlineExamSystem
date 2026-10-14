@@ -132,6 +132,7 @@ const getStatusClass = (status: string) => {
 // Selection & Publish state
 const selectedStudentIds = ref<number[]>([])
 const showPublishModal = ref<boolean>(false)
+const publishedCount = ref<number>(0)
 
 const toggleSelectStudent = (student: any) => {
   if (lockStore.isLocked) return
@@ -158,10 +159,12 @@ const publishSelectedResults = async () => {
   if (selectedStudentIds.value.length === 0) return
   
   isPublishing.value = true
+  publishedCount.value = selectedStudentIds.value.length
   try {
     for (const studentId of selectedStudentIds.value) {
       await apiClient.post(`/instructor/results/${examId}/student/${studentId}/publish`)
     }
+    selectedStudentIds.value = []
     // Refresh the data to show updated statuses
     await fetchExamDetails()
     showPublishModal.value = true
@@ -585,10 +588,10 @@ const resetFilters = () => {
 
         <h3 class="text-xl font-extrabold text-slate-800 mb-2">Results Published!</h3>
         <p class="text-xs text-slate-500 font-medium mb-6 text-center">
-          Successfully published examination results for <span class="font-bold text-slate-800">{{ selectedStudentIds.length }} graded student(s)</span>.
+          Successfully published examination results for <span class="font-bold text-slate-800">{{ publishedCount }} graded student(s)</span>.
         </p>
 
-        <button @click="selectedStudentIds = []; showPublishModal = false" class="w-full py-3 bg-[#5138ed] text-white text-xs font-bold rounded-xl shadow-sm hover:bg-[#4530d1] transition-colors">
+        <button @click="showPublishModal = false" class="w-full py-3 bg-[#5138ed] text-white text-xs font-bold rounded-xl shadow-sm hover:bg-[#4530d1] transition-colors">
           Got It
         </button>
       </div>

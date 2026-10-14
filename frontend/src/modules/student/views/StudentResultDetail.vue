@@ -48,6 +48,8 @@ const isSidebarOpen = ref(false)
 const isProfileOpen = ref(false)
 const isTranscriptOpen = ref(false)
 const isLoading = ref(true)
+const errorMessage = ref<string | null>(null)
+const isUnpublished = ref(false)
 
 // Filters & Accordion
 const selectedFilter = ref('all')
@@ -85,6 +87,8 @@ onMounted(async () => {
 
 const loadDetail = async () => {
   isLoading.value = true
+  errorMessage.value = null
+  isUnpublished.value = false
   try {
     const data = await examStore.fetchResultDetail(attemptId.value)
     if (data) {
@@ -96,8 +100,14 @@ const loadDetail = async () => {
         })
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error loading result detail:', err)
+    if (err?.response?.status === 403 || err?.message?.includes('not been published')) {
+      isUnpublished.value = true
+      errorMessage.value = err?.response?.data?.message || 'This exam result has not been published yet. Results and manual scores will be visible once published by your instructor.'
+    } else {
+      errorMessage.value = err?.response?.data?.message || 'Unable to load examination result.'
+    }
   } finally {
     isLoading.value = false
   }
@@ -378,6 +388,30 @@ const handlePrint = () => {
         <div>
           <h3 class="text-sm font-bold text-[#17243A]">Loading Detailed Assessment Breakdown...</h3>
           <p class="text-xs text-[#71819B] mt-1">Retrieving question answers, evaluation points, and teacher marks from the server.</p>
+        </div>
+      </div>
+
+      <!-- ── Unpublished / Error State ── -->
+      <div v-else-if="errorMessage" class="bg-white rounded-2xl border border-[#E5EAF3] p-10 sm:p-14 text-center max-w-xl mx-auto space-y-5 shadow-2xs">
+        <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 shadow-xs">
+          <AlertCircle :size="32" class="stroke-[2]" />
+        </div>
+        <div class="space-y-2">
+          <h3 class="text-lg font-black text-[#17243A]">
+            {{ isUnpublished ? 'Result Not Published Yet' : 'Unable to Load Result' }}
+          </h3>
+          <p class="text-xs text-[#71819B] leading-relaxed max-w-md mx-auto">
+            {{ errorMessage }}
+          </p>
+        </div>
+        <div class="pt-2">
+          <router-link
+            to="/student/results"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#4F35F3] hover:bg-[#3D25D8] transition-all shadow-xs"
+          >
+            <ArrowLeft :size="14" class="stroke-[2.5]" />
+            <span>Return to Results</span>
+          </router-link>
         </div>
       </div>
 

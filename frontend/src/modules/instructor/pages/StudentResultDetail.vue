@@ -134,9 +134,10 @@ const formatTime = (iso: string | null) => {
 }
 
 const statusColor = (s: string) => {
-  if (s === 'Graded')   return 'bg-emerald-50 text-emerald-600'
-  if (s === 'Submitted') return 'bg-blue-50 text-blue-600'
-  return 'bg-amber-50 text-amber-600'
+  if (s === 'Published') return 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+  if (s === 'Graded')    return 'bg-blue-50 text-blue-600 border border-blue-200'
+  if (s === 'Submitted') return 'bg-amber-50 text-amber-600 border border-amber-200'
+  return 'bg-slate-50 text-slate-600 border border-slate-200'
 }
 
 /* ─── Computed live scores (updates as instructor enters marks) ─── */
@@ -207,6 +208,15 @@ const saveGrades = async (publish = false) => {
     }
 
     if (publish) {
+      if (attempt.value) {
+        attempt.value.final_score  = liveFinalScore.value
+        attempt.value.percentage   = parseFloat(livePct.value)
+        attempt.value.grade        = liveGrade.value
+        attempt.value.status       = 'Published'
+      }
+      if (examInfo.value) {
+        examInfo.value.is_published = true
+      }
       lastAction.value = 'publish'
       showSuccessModal.value = true
     } else {
@@ -319,7 +329,7 @@ const groupedFilteredQuestions = computed(() => {
               {{ studentInfo.initials || '?' }}
             </div>
             <div class="absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full"
-              :class="attempt?.status === 'Graded' ? 'bg-emerald-500' : attempt?.status === 'Submitted' ? 'bg-blue-500' : 'bg-slate-400'"></div>
+              :class="attempt?.status === 'Published' ? 'bg-emerald-500' : attempt?.status === 'Graded' ? 'bg-blue-500' : attempt?.status === 'Submitted' ? 'bg-amber-500' : 'bg-slate-400'"></div>
           </div>
           <div class="flex flex-col">
             <div class="flex items-center gap-2 mb-1">
@@ -774,13 +784,38 @@ const groupedFilteredQuestions = computed(() => {
                 </div>
               </div>
             </div>
-            <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-start gap-2.5">
-              <div class="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-blue-500 shrink-0 shadow-sm">
+            <!-- Dynamic Status Banner -->
+            <div v-if="attempt?.status === 'Published'"
+              class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2.5">
+              <div class="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-emerald-600 shrink-0 shadow-xs border border-emerald-100">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-[11px] text-emerald-800 font-bold">Results are published</p>
+                <p class="text-[10px] text-emerald-700 font-medium leading-relaxed">This student can now view their scores and breakdown in their portal.</p>
+              </div>
+            </div>
+
+            <div v-else-if="attempt?.status === 'Graded'"
+              class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+              <div class="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-amber-600 shrink-0 shadow-xs border border-amber-100">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-[11px] text-amber-900 font-bold">Grades saved as Draft (Unpublished)</p>
+                <p class="text-[10px] text-amber-700 font-medium leading-relaxed">Hidden from student until published. Click "Publish Results" or publish from the student table to release.</p>
+              </div>
+            </div>
+
+            <div v-else
+              class="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-start gap-2.5">
+              <div class="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-blue-500 shrink-0 shadow-xs border border-blue-100">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
-              <p class="text-[10px] text-blue-700 font-medium leading-relaxed">
-                Results are visible to students only after publishing.
-              </p>
+              <div class="flex-1 min-w-0">
+                <p class="text-[11px] text-blue-900 font-bold">Pending instructor review</p>
+                <p class="text-[10px] text-blue-700 font-medium leading-relaxed">Scores will be visible to the student only after publishing.</p>
+              </div>
             </div>
           </div>
 
@@ -792,10 +827,10 @@ const groupedFilteredQuestions = computed(() => {
                 <!-- Publish -->
                 <button @click="saveGrades(true)" :disabled="isPublishing || !attempt?.id"
                   class="w-full min-h-[44px] py-2.5 text-white text-[12px] font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                  :class="examInfo?.is_published ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#5138ed] hover:bg-[#4530d1]'">
+                  :class="attempt?.status === 'Published' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#5138ed] hover:bg-[#4530d1]'">
                   <svg v-if="isPublishing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                   <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
-                  {{ examInfo?.is_published ? 'Re-Publish Results' : 'Publish Results' }}
+                  {{ attempt?.status === 'Published' ? 'Re-Publish Results' : 'Publish Results' }}
                 </button>
                 <!-- Save grade only -->
                 <button @click="saveGrades(false)" :disabled="isSaving || !attempt?.id"
@@ -808,7 +843,7 @@ const groupedFilteredQuestions = computed(() => {
               <template v-else>
                 <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] leading-relaxed font-medium space-y-1">
                   <div class="flex items-center gap-1.5 font-bold text-amber-900">
-                    <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                     <span>Grading Locked</span>
                   </div>
                   <p>Semester submission completed. Grades cannot be entered, edited, or published.</p>
@@ -843,16 +878,19 @@ const groupedFilteredQuestions = computed(() => {
           <div class="absolute bottom-4 right-8 w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
           <div class="absolute top-6 left-1/2 w-1.5 h-1.5 rounded-full bg-amber-500"></div>
           <div class="absolute bottom-1/4 right-1/4 w-2 h-2 rounded-full bg-blue-400"></div>
-          <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-500 z-10 shadow-sm border-4 border-white">
+          <div class="w-16 h-16 rounded-full flex items-center justify-center z-10 shadow-sm border-4 border-white"
+            :class="lastAction === 'publish' ? 'bg-emerald-100 text-emerald-500' : 'bg-blue-100 text-blue-500'">
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
           </div>
         </div>
 
         <h3 class="text-[22px] font-extrabold text-slate-800 mb-2">
-          {{ lastAction === 'publish' ? 'Results Published!' : 'Grades Saved!' }}
+          {{ lastAction === 'publish' ? 'Results Published!' : 'Grades Saved as Draft' }}
         </h3>
-        <p class="text-[13px] text-slate-500 font-medium mb-8">
-          {{ lastAction === 'publish' ? 'The exam result is now visible to the student.' : 'The exam score has been recorded and saved.' }}
+        <p class="text-[13px] text-slate-500 font-medium mb-8 text-center max-w-[360px]">
+          {{ lastAction === 'publish'
+            ? 'The exam result is now published and visible to the student in their student portal.'
+            : 'The exam score has been saved as a draft. It is NOT visible to the student until published.' }}
         </p>
 
         <div v-if="savedResult" class="w-full border border-slate-100 rounded-2xl p-5 mb-8 space-y-3 shadow-sm bg-white">

@@ -240,12 +240,24 @@ class InstructorQuestionBankController extends Controller
     }
 
     /**
+     * Helper to verify if the authenticated user has access to a question bank.
+     */
+    private function canAccessBank($user, QuestionBank $questionBank): bool
+    {
+        if (!$user) return false;
+        if ($questionBank->user_id === $user->id) return true;
+        if ($user->role === 'admin' || $user->role === 'department_head') return true;
+        $bankOwner = $questionBank->instructor;
+        if ($user->department_id && $bankOwner?->department_id === $user->department_id) return true;
+        return false;
+    }
+
+    /**
      * Store a new question in the specified question bank.
      */
     public function storeQuestion(Request $request, QuestionBank $questionBank): JsonResponse
     {
-        // Ensure the instructor owns the question bank
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -295,11 +307,65 @@ class InstructorQuestionBankController extends Controller
     }
 
     /**
+     * Bulk store questions in the specified question bank as drafts.
+     */
+    public function bulkStoreQuestions(Request $request, QuestionBank $questionBank): JsonResponse
+    {
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'questions' => 'required|array|min:1',
+            'questions.*.type' => 'required|string',
+            'questions.*.title' => 'nullable|string|max:255',
+            'questions.*.description' => 'nullable|string',
+            'questions.*.instruction' => 'nullable|string',
+            'questions.*.difficulty' => 'nullable|string',
+            'questions.*.chapter' => 'nullable|string',
+            'questions.*.topic' => 'nullable|string',
+            'questions.*.text' => 'required|string',
+            'questions.*.options' => 'nullable|array',
+            'questions.*.correct_answer' => 'nullable',
+            'questions.*.explanation' => 'nullable|string',
+            'questions.*.marks' => 'required|numeric|min:0.1',
+            'questions.*.settings' => 'nullable|array',
+            'questions.*.question_data' => 'nullable|array',
+        ]);
+
+        if ($validator->fails()) {
+            \Log::error('Bulk Store Questions Validation Failed: ', $validator->errors()->toArray());
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
+        $created = [];
+
+        DB::transaction(function () use ($questionBank, $validated, &$created) {
+            foreach ($validated['questions'] as $qData) {
+                if (empty($qData['status'])) {
+                    $qData['status'] = 'draft';
+                }
+                if (isset($qData['correct_answer']) && !is_string($qData['correct_answer'])) {
+                    $qData['correct_answer'] = (string) $qData['correct_answer'];
+                }
+                $created[] = $questionBank->questions()->create($qData);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Successfully saved ' . count($created) . ' questions as drafts',
+            'data' => $created,
+            'count' => count($created)
+        ], 201);
+    }
+
+    /**
      * Get all draft questions for a specific question bank, grouped hierarchically.
      */
     public function getDraftQuestions(Request $request, QuestionBank $questionBank): JsonResponse
     {
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -370,7 +436,7 @@ class InstructorQuestionBankController extends Controller
      */
     public function publishQuestions(Request $request, QuestionBank $questionBank): JsonResponse
     {
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -399,7 +465,7 @@ class InstructorQuestionBankController extends Controller
      */
     public function update(Request $request, QuestionBank $questionBank): JsonResponse
     {
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -421,7 +487,7 @@ class InstructorQuestionBankController extends Controller
      */
     public function destroy(Request $request, QuestionBank $questionBank): JsonResponse
     {
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -438,7 +504,7 @@ class InstructorQuestionBankController extends Controller
     public function updateQuestion(Request $request, Question $question): JsonResponse
     {
         $questionBank = $question->questionBank;
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$questionBank || !$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -489,7 +555,7 @@ class InstructorQuestionBankController extends Controller
     public function destroyQuestion(Request $request, Question $question): JsonResponse
     {
         $questionBank = $question->questionBank;
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$questionBank || !$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -506,7 +572,7 @@ class InstructorQuestionBankController extends Controller
      */
     public function importQuestions(Request $request, QuestionBank $questionBank): JsonResponse
     {
-        if ($questionBank->user_id !== $request->user()->id) {
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

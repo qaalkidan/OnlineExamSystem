@@ -204,6 +204,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         // Question Banks Management
         Route::apiResource('question-banks', InstructorQuestionBankController::class);
         Route::post('question-banks/{question_bank}/questions', [InstructorQuestionBankController::class, 'storeQuestion']);
+        Route::post('question-banks/{question_bank}/bulk-questions', [InstructorQuestionBankController::class, 'bulkStoreQuestions']);
         Route::get('question-banks/{question_bank}/drafts', [InstructorQuestionBankController::class, 'getDraftQuestions']);
         Route::post('question-banks/{question_bank}/publish', [InstructorQuestionBankController::class, 'publishQuestions']);
         Route::post('question-banks/{question_bank}/import', [InstructorQuestionBankController::class, 'importQuestions']);

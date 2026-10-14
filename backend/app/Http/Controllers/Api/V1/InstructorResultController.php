@@ -212,22 +212,31 @@ class InstructorResultController extends Controller
                     $answers = $attempt->answers ?? [];
                     if (is_string($answers)) $answers = json_decode($answers, true) ?? [];
 
-                    // Real auto score from MCQ/TF answers
+                    // Real auto score computed across all MCQ, TF, and Matching questions
                     $autoScore = 0;
                     foreach ($examQuestions as $q) {
                         if (!$autoQIds->has($q->id)) continue;
                         $studentAns = $answers[(string)$q->id] ?? null;
-                        if ($studentAns !== null && strtolower($studentAns) === strtolower($q->correct_answer ?? '')) {
-                            $autoScore += $q->marks;
-                        }
+                        $autoScore += $this->computeQuestionAutoScore($q, $studentAns);
                     }
+                    $autoScore = round($autoScore, 2);
+
                     // Real manual score from stored _manual_scores
                     $manualScores = $answers['_manual_scores'] ?? [];
-                    $manualScore = array_sum($manualScores);
+                    $manualScore  = round(array_sum($manualScores), 2);
 
-                    $score       = (int)($attempt->score ?? 0);
-                    $pct         = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0;
-                    $grade       = $attempt->grade ?? $this->calculateGrade($pct);
+                    $score = round($autoScore + $manualScore, 2);
+                    $pct   = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0;
+                    $grade = $this->calculateGrade($pct);
+
+                    // Auto-sync attempt record in DB if score was previously out of sync
+                    if ((float)($attempt->score ?? 0) !== (float)$score) {
+                        $attempt->update([
+                            'score'      => $score,
+                            'percentage' => $pct,
+                            'grade'      => $grade,
+                        ]);
+                    }
 
                     // Status shown in the instructor's student result table:
                     // Published: attempt status is 'published' (auto-graded all-MCQ, or instructor clicked Re-Publish)
@@ -483,8 +492,8 @@ class InstructorResultController extends Controller
 
                 // ── MCQ / True-False ─────────────────────────────────────────
                 if ($isAuto) {
-                    $isCorrect = $studentAns !== null && strtolower($studentAns) === strtolower($correct);
-                    $scored    = $isCorrect ? $q->marks : 0;
+                    $scored    = $this->computeQuestionAutoScore($q, $studentAns);
+                    $isCorrect = ($q->marks > 0 && $scored >= $q->marks);
 
                     $formattedOptions = collect($options)->map(function ($opt, $i) {
                         $letter = chr(65 + $i);
@@ -513,64 +522,92 @@ class InstructorResultController extends Controller
 
                 // ── Matching ─────────────────────────────────────────────────
                 if ($isMatching) {
+                    // 1. Parse correct_answers map
+                    $correctAnswers = null;
+                    if (!empty($q->question_data['correct_answers'])) {
+                        $correctAnswers = $q->question_data['correct_answers'];
+                    } elseif (!empty($q->correct_answer)) {
+                        $correctAnswers = [];
+                        foreach (explode(',', $q->correct_answer) as $part) {
+                            $p = explode('-', $part, 2);
+                            if (count($p) === 2) {
+                                $correctAnswers[trim($p[0])] = strtoupper(trim($p[1]));
+                            }
+                        }
+                    }
+
+                    // 2. Parse student selections
                     $studentPairs = [];
                     if ($studentAns && is_string($studentAns)) {
-                        foreach (explode(',', $studentAns) as $part) {
-                            $pieces = explode(':', $part, 2);
-                            if (count($pieces) === 2) {
-                                $studentPairs[(string)$pieces[0]] = strtoupper(trim($pieces[1]));
+                        $decoded = json_decode($studentAns, true);
+                        if (is_array($decoded)) {
+                            $studentPairs = $decoded;
+                        } else {
+                            foreach (explode(',', $studentAns) as $part) {
+                                $pieces = explode(':', $part, 2);
+                                if (count($pieces) === 2) {
+                                    $studentPairs[(string)$pieces[0]] = strtoupper(trim($pieces[1]));
+                                }
                             }
                         }
                     } elseif (is_array($studentAns)) {
                         $studentPairs = $studentAns;
                     }
 
-                    // Build Column A (left items) and Column B (right items, shuffled display)
-                    $pairs = collect($options)->map(function ($opt, $i) use ($studentPairs, $options) {
-                        $leftText  = is_array($opt) ? strip_tags($opt['left']  ?? '') : '';
-                        $rightText = is_array($opt) ? strip_tags($opt['right'] ?? '') : '';
-                        $letter    = chr(65 + $i); // A, B, C, D for Column A items
+                    // Build Column A (left items) and Column B (right items)
+                    $colACounter = 0;
+                    $pairs = collect($options)->map(function ($opt, $i) use ($studentPairs, $options, $correctAnswers, &$colACounter) {
+                        $leftText = is_array($opt) ? strip_tags($opt['left'] ?? '') : '';
+                        if ($leftText === '') return null;
 
-                        // What did the student match this left item to?
-                        $studentMatchLetter = $studentPairs[(string)$i] ?? ($studentPairs[$letter] ?? '');
-                        
-                        // Look up the right text that corresponds to the student's selected letter
+                        $colACounter++;
+                        $colAKey = (string)$colACounter;
+
+                        // Expected letter and text for this row
+                        $expectedLetter = isset($correctAnswers[$colAKey])
+                            ? strtoupper($correctAnswers[$colAKey])
+                            : ($correctAnswers[(string)$i] ?? chr(65 + $i));
+
+                        $expectedLetterIdx = ord($expectedLetter) - 65;
+                        $correctRightText  = ($expectedLetterIdx >= 0 && isset($options[$expectedLetterIdx]))
+                            ? strip_tags($options[$expectedLetterIdx]['right'] ?? '')
+                            : '';
+
+                        // Student selection
+                        $studentMatchLetter = $studentPairs[(string)$i]
+                            ?? ($studentPairs[$colAKey]
+                            ?? ($studentPairs[chr(65 + $i)]
+                            ?? ''));
+
                         $studentRightText = 'Not matched';
                         if ($studentMatchLetter !== '') {
-                            $studentLetterIdx = ord($studentMatchLetter) - 65;
+                            $studentLetterIdx = ord(strtoupper($studentMatchLetter)) - 65;
                             if ($studentLetterIdx >= 0 && isset($options[$studentLetterIdx])) {
                                 $studentRightText = strip_tags($options[$studentLetterIdx]['right'] ?? 'Not matched');
                             }
                         }
 
-                        $isRowCorrect  = $studentMatchLetter !== '' &&
-                            $studentMatchLetter === $letter;
+                        $isRowCorrect = $studentMatchLetter !== '' &&
+                            strtoupper(trim((string)$studentMatchLetter)) === strtoupper(trim((string)$expectedLetter));
 
                         return [
                             'index'          => $i,
-                            'left_letter'    => $letter,
+                            'left_letter'    => (string)$colACounter,
                             'left_text'      => $leftText,
-                            'right_text'     => $rightText,  // correct match
+                            'right_text'     => $correctRightText,  // correct match text
                             'student_match'  => $studentRightText === 'Not matched' ? null : $studentRightText,
                             'is_correct'     => $isRowCorrect,
                         ];
-                    })->values()->all();
+                    })->filter()->values()->all();
 
-                    // Column B = all right-side texts with index labels (1, 2, 3...)
+                    // Column B = all right-side texts with letter labels (A, B, C, D...)
                     $columnB = collect($options)->map(function ($opt, $i) {
                         $rightText = is_array($opt) ? strip_tags($opt['right'] ?? '') : '';
-                        return ['index' => $i, 'label' => (string)($i + 1), 'text' => $rightText];
+                        return ['index' => $i, 'label' => chr(65 + $i), 'text' => $rightText];
                     })->values()->all();
 
-                    $colACounter = count($pairs);
-                    $correctMatchCount = collect($pairs)->where('is_correct', true)->count();
-                    $allCorrect = $colACounter > 0 && $correctMatchCount === $colACounter;
-
-                    $marksPerItem = (float)($q->marks_per_item ?? 0);
-                    if ($marksPerItem <= 0 && $colACounter > 0) {
-                        $marksPerItem = round($q->marks / $colACounter, 2);
-                    }
-                    $earnedMarks = round($correctMatchCount * $marksPerItem, 2);
+                    $earnedMarks = $this->computeQuestionAutoScore($q, $studentAns);
+                    $allCorrect  = ($q->marks > 0 && $earnedMarks >= $q->marks);
 
                     return [
                         'id'             => $q->id,
@@ -617,12 +654,21 @@ class InstructorResultController extends Controller
             $manualQuestions  = collect($questionList)->filter(fn($q) => !$q['is_auto']);
             $autoTotal        = $autoQuestions->sum('marks');
             $manualTotal      = $manualQuestions->sum('marks');
-            $autoScore        = $autoQuestions->sum('scored');
-            $manualScore      = $attempt ? (($attempt->score ?? 0) - $autoScore) : 0;
-            $manualScore      = max(0, $manualScore);
-            $finalScore       = $attempt ? (int)($attempt->score ?? 0) : 0;
+            $autoScore        = round($autoQuestions->sum('scored'), 2);
+            $manualScoresList = $answers['_manual_scores'] ?? [];
+            $manualScore      = round(array_sum($manualScoresList), 2);
+            $finalScore       = round($autoScore + $manualScore, 2);
             $pct              = $totalMarks > 0 ? round(($finalScore / $totalMarks) * 100, 1) : 0;
             $grade            = $attempt ? ($attempt->grade ?? $this->calculateGrade($pct)) : 'F';
+
+            // Sync attempt in DB if out of sync
+            if ($attempt && (float)($attempt->score ?? 0) !== (float)$finalScore) {
+                $attempt->update([
+                    'score'      => $finalScore,
+                    'percentage' => $pct,
+                    'grade'      => $grade,
+                ]);
+            }
 
             // Time taken calculation
             $timeTaken = null;
@@ -632,6 +678,7 @@ class InstructorResultController extends Controller
 
             $submittedOn = $attempt?->submitted_at?->toIso8601String() ?? null;
             $status = $attempt ? match($attempt->status) {
+                'published' => 'Published',
                 'graded'    => 'Graded',
                 'submitted' => 'Submitted',
                 default     => 'In Progress',
@@ -709,7 +756,8 @@ class InstructorResultController extends Controller
 
     /**
      * POST /instructor/results/{examId}/student/{studentId}/save
-     * Save manual scores per question without publishing.
+     * Save manual scores per question without publishing (status = 'graded').
+     * Only visible to instructor; strictly hidden from student.
      */
     public function saveGrades(Request $request, string $examId, string $studentId): JsonResponse
     {
@@ -725,33 +773,35 @@ class InstructorResultController extends Controller
                 return response()->json(['error' => 'No attempt found for this student'], 404);
             }
 
-            // manual_scores: { question_id: score }
-            $manualScores = $request->input('manual_scores', []);
-            $questionIds  = \App\Models\Question::where('exam_id', $exam->id)->pluck('marks', 'id');
-
-            // Auto score (MCQ/True-False)
-            $answers      = $attempt->answers ?? [];
+            $answers = $attempt->answers ?? [];
             if (is_string($answers)) $answers = json_decode($answers, true) ?? [];
-            $autoScore    = 0;
-            foreach ($questionIds as $qId => $marks) {
-                $q = \App\Models\Question::find($qId);
-                if (!$q) continue;
-                if (!in_array($q->type, ['multiple_choice', 'true_false'])) continue;
-                $studentAns = $answers[(string)$qId] ?? null;
-                if ($studentAns !== null && strtolower($studentAns) === strtolower($q->correct_answer)) {
-                    $autoScore += $marks;
-                }
+
+            // If manual_scores are provided in request, update them
+            // Otherwise preserve existing manual_scores from $answers['_manual_scores']
+            if ($request->has('manual_scores')) {
+                $manualScores = $request->input('manual_scores', []);
+                $answers['_manual_scores'] = $manualScores;
+            } else {
+                $manualScores = $answers['_manual_scores'] ?? [];
             }
 
-            $manualTotal = array_sum($manualScores);
-            $finalScore  = $autoScore + $manualTotal;
+            // Accurately calculate auto-score (MCQ, True/False, Matching)
+            $questions = \App\Models\Question::where('exam_id', $exam->id)->get();
+            $autoScore = 0;
+            foreach ($questions as $q) {
+                if (in_array($q->type, ['multiple_choice', 'true_false', 'true-false', 'matching'])) {
+                    $studentAns = $answers[(string)$q->id] ?? null;
+                    $autoScore += $this->computeQuestionAutoScore($q, $studentAns);
+                }
+            }
+            $autoScore   = round($autoScore, 2);
+            $manualTotal = round(array_sum($manualScores), 2);
+            $finalScore  = round($autoScore + $manualTotal, 2);
             $totalMarks  = (int)($exam->total_marks ?? 0);
             $pct         = $totalMarks > 0 ? round(($finalScore / $totalMarks) * 100, 1) : 0;
             $grade       = $this->calculateGrade($pct);
 
-            $answers['_manual_scores'] = $manualScores;
-
-            // Save Grades (No Publish) → status = 'graded' (not visible to student yet)
+            // Save Grades (No Publish) → status = 'graded' (only visible to instructor, strictly hidden from student)
             $attempt->update([
                 'score'      => $finalScore,
                 'percentage' => $pct,
@@ -761,7 +811,7 @@ class InstructorResultController extends Controller
             ]);
 
             return response()->json([
-                'message'     => 'Grades saved successfully',
+                'message'     => 'Grades saved successfully (Unpublished)',
                 'final_score' => $finalScore,
                 'percentage'  => $pct,
                 'grade'       => $grade,
@@ -775,12 +825,12 @@ class InstructorResultController extends Controller
 
     /**
      * POST /instructor/results/{examId}/student/{studentId}/publish
-     * Save grades AND mark both the attempt and exam as published.
+     * Save grades AND mark the attempt as published (visible to student).
      */
     public function publishResult(Request $request, string $examId, string $studentId): JsonResponse
     {
         try {
-            // Reuse saveGrades logic
+            // Reuse saveGrades logic (preserves existing manual_scores if not passed in request)
             $saveResponse = $this->saveGrades($request, $examId, $studentId);
             $saveData     = json_decode($saveResponse->getContent(), true);
 
@@ -788,7 +838,7 @@ class InstructorResultController extends Controller
                 return $saveResponse;
             }
 
-            // Re-Publish: update attempt status to 'published' so student can see their result
+            // Publish: update attempt status to 'published' so student can see their result
             $student = \App\Models\User::find((int)$studentId);
             if ($student) {
                 ExamAttempt::where('exam_id', (int)$examId)
@@ -796,8 +846,20 @@ class InstructorResultController extends Controller
                     ->update(['status' => 'published']);
             }
 
-            // Mark the exam as published
-            Exam::where('id', (int)$examId)->update(['status' => 'published', 'published_at' => now()]);
+            // Check if all submitted attempts are now published
+            $submittedCount = ExamAttempt::where('exam_id', (int)$examId)
+                ->whereIn('status', ['submitted', 'graded', 'published'])
+                ->count();
+            $publishedCount = ExamAttempt::where('exam_id', (int)$examId)
+                ->where('status', 'published')
+                ->count();
+
+            if ($submittedCount > 0 && $publishedCount >= $submittedCount) {
+                Exam::where('id', (int)$examId)->update([
+                    'status'       => 'published',
+                    'published_at' => now(),
+                ]);
+            }
 
             return response()->json([
                 'message'     => 'Results published successfully',
@@ -810,6 +872,119 @@ class InstructorResultController extends Controller
             Log::error('publishResult: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Compute auto-grade score for a specific question given student answers.
+     * Accurately supports Multiple Choice, True/False, and Matching questions.
+     */
+    private function computeQuestionAutoScore($q, $studentAns): float
+    {
+        if ($studentAns === null || $studentAns === '') {
+            return 0.0;
+        }
+
+        if ($q->type === 'matching') {
+            $options = $q->options ?? [];
+            if (is_string($options)) $options = json_decode($options, true) ?? [];
+            if (empty($options)) return 0.0;
+
+            // 1. Parse correct_answers map (e.g. {"1": "B", "2": "D", "3": "C", "4": "A"})
+            $correctAnswers = null;
+            if (!empty($q->question_data['correct_answers'])) {
+                $correctAnswers = $q->question_data['correct_answers'];
+            } elseif (!empty($q->correct_answer)) {
+                $correctAnswers = [];
+                foreach (explode(',', $q->correct_answer) as $part) {
+                    $p = explode('-', $part, 2);
+                    if (count($p) === 2) {
+                        $correctAnswers[trim($p[0])] = strtoupper(trim($p[1]));
+                    }
+                }
+            }
+
+            // 2. Parse student selections (e.g. "0:B,1:D,2:C,3:A" or {"0":"B","1":"D"} or ["B","D"])
+            $studentPairs = [];
+            if (is_string($studentAns)) {
+                $decoded = json_decode($studentAns, true);
+                if (is_array($decoded)) {
+                    $studentPairs = $decoded;
+                } else {
+                    foreach (explode(',', $studentAns) as $part) {
+                        $pieces = explode(':', $part, 2);
+                        if (count($pieces) === 2) {
+                            $studentPairs[trim($pieces[0])] = strtoupper(trim($pieces[1]));
+                        }
+                    }
+                }
+            } elseif (is_array($studentAns)) {
+                $studentPairs = $studentAns;
+            }
+
+            $colACounter = 0;
+            $correctMatchCount = 0;
+            foreach ($options as $i => $opt) {
+                $leftText = strip_tags(trim($opt['left'] ?? ''));
+                if ($leftText === '') continue;
+
+                $colACounter++;
+                $colAKey = (string)$colACounter;
+                $expectedLetter = isset($correctAnswers[$colAKey])
+                    ? strtoupper($correctAnswers[$colAKey])
+                    : ($correctAnswers[(string)$i] ?? chr(65 + $i));
+
+                $studentMatch = $studentPairs[(string)$i]
+                    ?? ($studentPairs[$colAKey]
+                    ?? ($studentPairs[chr(65 + $i)]
+                    ?? ''));
+
+                if ($studentMatch !== '' && strtoupper(trim((string)$studentMatch)) === strtoupper(trim((string)$expectedLetter))) {
+                    $correctMatchCount++;
+                }
+            }
+
+            if ($colACounter === 0) $colACounter = count($options);
+            $marksPerItem = (float)($q->marks_per_item ?? 0);
+            if ($marksPerItem <= 0 && $colACounter > 0) {
+                $marksPerItem = round($q->marks / $colACounter, 2);
+            }
+
+            return (float)round($correctMatchCount * $marksPerItem, 2);
+        }
+
+        if ($q->type === 'true_false' || $q->type === 'true-false') {
+            $cRaw = strtolower(trim((string)$q->correct_answer));
+            $isTrue = in_array($cRaw, ['true', 'a', '1', 'yes', 'correct']);
+            $sRaw = strtolower(trim((string)$studentAns));
+            $sTrue = in_array($sRaw, ['true', 'a', '1', 'yes', 'correct']);
+            $sFalse = in_array($sRaw, ['false', 'b', '0', 'no', 'incorrect']);
+            if (($isTrue && $sTrue) || (!$isTrue && $sFalse)) {
+                return (float)$q->marks;
+            }
+            return 0.0;
+        }
+
+        if ($q->type === 'multiple_choice') {
+            $cRaw = strtolower(trim((string)$q->correct_answer));
+            $sRaw = strtolower(trim((string)$studentAns));
+            if ($cRaw === $sRaw) {
+                return (float)$q->marks;
+            }
+            $options = $q->options ?? [];
+            if (is_string($options)) $options = json_decode($options, true) ?? [];
+            if (strlen($cRaw) === 1 && ctype_alpha($cRaw)) {
+                $letterIdx = ord($cRaw) - 97;
+                if (isset($options[$letterIdx])) {
+                    $optText = strtolower(trim(strip_tags((string)$options[$letterIdx])));
+                    if ($sRaw === $optText) {
+                        return (float)$q->marks;
+                    }
+                }
+            }
+            return 0.0;
+        }
+
+        return 0.0;
     }
 
     private function calculateGrade(float $pct): string

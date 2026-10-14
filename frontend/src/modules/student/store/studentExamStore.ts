@@ -247,14 +247,20 @@ export const useStudentExamStore = defineStore('studentExam', () => {
         })),
       }
 
-      // Prepend to results
-      results.value.unshift(result)
+      // Prepend to results only if published (auto-graded with no pending manual grading)
+      if (!hasPending) {
+        results.value.unshift(result)
+      }
 
       // Clear active exam
       activeExam.value = null
 
       // Remove from upcoming
       upcomingExams.value = upcomingExams.value.filter(e => e.id !== examId)
+
+      // Refresh dashboard and results asynchronously
+      fetchDashboard().catch(() => {})
+      fetchResults().catch(() => {})
 
       return result
     } catch (err: any) {

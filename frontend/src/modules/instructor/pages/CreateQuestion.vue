@@ -4,7 +4,31 @@ import { useRoute, useRouter } from 'vue-router'
 import { useInstructorQbStore } from '../store/instructorQbStore'
 import { useSemesterLockStore } from '../store/semesterLockStore'
 import RichTextEditor from '../../../components/RichTextEditor.vue'
-import { GripVertical } from 'lucide-vue-next'
+import ImportQuestionsFile from '../components/create-exam/ImportQuestionsFile.vue'
+import type { ParsedQuestionRow } from '../utils/questionImportValidator'
+import {
+  GripVertical,
+  Layers,
+  FileText,
+  Upload,
+  CheckCircle2,
+  HelpCircle,
+  Plus,
+  Trash2,
+  Edit3,
+  Eye,
+  Send,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  AlertCircle,
+  BookOpen,
+  Sparkles,
+  Maximize2,
+  Minimize2,
+  FileSpreadsheet,
+  Shuffle
+} from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,6 +41,11 @@ const isLoading = ref(true)
 
 // Step Wizard State: 1 = Bank Info, 2 = Add Questions, 3 = Review & Publish
 const currentStep = ref(1)
+
+// Step 2 Input Mode: 'manual' | 'file'
+const activeInputMode = ref<'manual' | 'file'>('manual')
+const importQuestionsRef = ref<any>(null)
+const isImportingFile = ref(false)
 
 // Common Form State
 const questionType = ref('Multiple Choice (MCQ)')
@@ -127,6 +156,40 @@ const totalDraftCount = computed(() => {
     }
   })
   return count
+})
+
+// Compute total marks across all draft questions
+const totalDraftMarks = computed(() => {
+  let marks = 0
+  if (!Array.isArray(draftQuestions.value)) return 0
+  draftQuestions.value.forEach((typeGroup: any) => {
+    if (typeGroup.instructionGroups) {
+      typeGroup.instructionGroups.forEach((instGroup: any) => {
+        if (instGroup.questions) {
+          instGroup.questions.forEach((q: any) => {
+            marks += Number(q.marks) || 0
+          })
+        }
+      })
+    }
+  })
+  return marks
+})
+
+// Compute breakdown of drafts by type
+const draftsByType = computed(() => {
+  const counts: Record<string, number> = {}
+  if (!Array.isArray(draftQuestions.value)) return counts
+  draftQuestions.value.forEach((typeGroup: any) => {
+    let typeCount = 0
+    if (typeGroup.instructionGroups) {
+      typeGroup.instructionGroups.forEach((instGroup: any) => {
+        if (instGroup.questions) typeCount += instGroup.questions.length
+      })
+    }
+    counts[typeGroup.questionType] = typeCount
+  })
+  return counts
 })
 
 const triggerToast = (msg: string) => {
@@ -251,6 +314,123 @@ const buildQuestionPayload = () => {
   }
 }
 
+// Convert parsed question row from file import to bank draft payload
+const convertParsedQuestionToBankDraft = (q: ParsedQuestionRow, currentChapter: string = '1') => {
+  let mappedType = q.type // 'multiple_choice' | 'true_false' | 'fill_in_blank' | 'short_answer' | 'matching'
+  if (mappedType === 'fill_blank') mappedType = 'fill_in_blank'
+  if (mappedType === 'mcq') mappedType = 'multiple_choice'
+  if (mappedType === 'tf') mappedType = 'true_false'
+  if (mappedType === 'sa') mappedType = 'short_answer'
+
+  let qData: any = null
+  let optionsPayload: any = null
+  let corrAns = q.correct_answer || ''
+
+  if (mappedType === 'multiple_choice') {
+    const opts = (q.options || []).map((opt: any, idx: number) => {
+      const label = String.fromCharCode(65 + idx)
+      const text = typeof opt === 'object' && opt.text ? opt.text : String(opt)
+      return { label, text }
+    })
+    optionsPayload = opts
+    qData = {
+      options: opts,
+      shuffle_choices: true
+    }
+  } else if (mappedType === 'true_false') {
+    const lower = String(corrAns).toLowerCase().trim()
+    if (lower === 'true' || lower === 'a' || lower === '1' || lower === 'yes' || lower === 't') corrAns = 'True'
+    else if (lower === 'false' || lower === 'b' || lower === '0' || lower === 'no' || lower === 'f') corrAns = 'False'
+    optionsPayload = [
+      { label: 'True', text: 'True' },
+      { label: 'False', text: 'False' }
+    ]
+  } else if (mappedType === 'fill_in_blank') {
+    const answers = (q as any).question_data?.answers || (corrAns ? String(corrAns).split(',').map(s => s.trim()).filter(Boolean) : [])
+    qData = {
+      answers: answers.length > 0 ? answers : [String(corrAns || '')],
+      case_sensitive: false
+    }
+  } else if (mappedType === 'short_answer') {
+    qData = {
+      expected_answer: corrAns,
+      max_length: 255
+    }
+  } else if (mappedType === 'matching') {
+    const colA = q.column_a || (q as any).question_data?.column_a || []
+    const rawColB = q.column_b || (q as any).question_data?.column_b || []
+    const colB = rawColB.map((item: any, idx: number) => ({
+      label: (typeof item === 'object' && item.label) ? item.label : String.fromCharCode(65 + idx),
+      text: (typeof item === 'object' && item.text) ? item.text : String(item)
+    }))
+    const correctAnswers = q.correct_answers || (q as any).question_data?.correct_answers || {}
+    const perItemMark = q.marks_per_item || (q as any).question_data?.marks_per_item || (colA.length > 0 ? Math.round(((q.marks || 1) / colA.length) * 100) / 100 : 1)
+
+    qData = {
+      column_a: colA,
+      column_b: colB,
+      correct_answers: correctAnswers,
+      marks_per_item: perItemMark
+    }
+  }
+
+  const cleanText = (q.text && q.text.trim()) ? q.text : (mappedType === 'matching' ? '<p>Match the following items:</p>' : '<p>Question</p>')
+
+  return {
+    type: mappedType,
+    title: q.instruction || 'Instruction',
+    instruction: q.instruction || '',
+    description: q.description || '',
+    text: cleanText,
+    options: optionsPayload,
+    correct_answer: corrAns ? String(corrAns) : null,
+    explanation: '',
+    marks: Math.max(1, Math.round(Number(q.marks) || 1)),
+    difficulty: q.difficulty || 'Medium',
+    chapter: `Chapter ${currentChapter || '1'}`,
+    settings: {
+      requiredQuestion: true,
+      allowPartialMarks: false,
+      negativeMarking: false,
+      showExplanation: true
+    },
+    question_data: qData,
+    status: 'draft'
+  }
+}
+
+// Bulk save handler passed to ImportQuestionsFile
+const saveImportedQuestionsToBank = async (questionsToImport: ParsedQuestionRow[]) => {
+  const converted = questionsToImport.map(q => convertParsedQuestionToBankDraft(q, chapter.value))
+  try {
+    const res = await qbStore.bulkSaveQuestionDrafts(bankId, converted)
+    await qbStore.fetchDraftQuestions(bankId)
+    const marksSum = converted.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)
+    triggerToast(`Successfully imported ${converted.length} question(s) (${marksSum} marks) as drafts!`)
+    return {
+      count: converted.length,
+      marks: marksSum
+    }
+  } catch (err: any) {
+    console.error("Bulk save failed, attempting individual draft saves...", err)
+    let savedCount = 0
+    let totalMarks = 0
+    for (const qPayload of converted) {
+      await qbStore.saveQuestionDraft(bankId, qPayload)
+      savedCount++
+      totalMarks += Number(qPayload.marks) || 0
+    }
+    await qbStore.fetchDraftQuestions(bankId)
+    triggerToast(`Successfully imported ${savedCount} question(s) as drafts!`)
+    return { count: savedCount, marks: totalMarks }
+  }
+}
+
+const onFileImported = async (data: { count: number; marks: number }) => {
+  await qbStore.fetchDraftQuestions(bankId)
+  triggerToast(`Import complete: ${data.count} draft questions added!`)
+}
+
 onMounted(async () => {
   await lockStore.fetchLockStatus()
   if (lockStore.isLocked) {
@@ -324,7 +504,6 @@ const populateFormForEdit = (draft: any) => {
     saMaxLength.value = qData.max_length || 255
   } else if (draft.type === 'matching') {
     if (qData.column_a && qData.column_b) {
-      // New Letter-Based Format
       const maxLen = Math.max(qData.column_a.length, qData.column_b.length, 2)
       matchPairs.value = Array.from({ length: maxLen }).map((_, idx) => ({
         id: Date.now() + idx,
@@ -343,7 +522,6 @@ const populateFormForEdit = (draft: any) => {
       }
       matchMappings.value = newMappings
     } else if (qData.question_content && qData.answer_pairs) {
-      // Legacy Format fallback (v1)
       const colA = qData.question_content.column_a || []
       const colB = qData.question_content.column_b || []
       const maxLen = Math.max(colA.length, colB.length, 2)
@@ -354,7 +532,6 @@ const populateFormForEdit = (draft: any) => {
       }))
       matchMappings.value = (qData.answer_pairs || []).map((m: any) => getLetterLabel(m.right))
     } else if (qData.pairs) {
-      // Legacy Format fallback (v0)
       matchPairs.value = qData.pairs.map((p: any, idx: number) => ({ id: Date.now() + idx, left: p.left, right: p.right }))
       matchMappings.value = qData.pairs.map((_: any, idx: number) => getLetterLabel(idx))
     }
@@ -384,7 +561,6 @@ const removeOption = (index: number) => {
     triggerToast("Minimum of 2 options required.")
     return
   }
-  // if removing correct answer, clear it
   if (correctAnswer.value === options.value[index].label) {
     correctAnswer.value = ''
   }
@@ -442,7 +618,16 @@ const removeMatchPair = (index: number) => {
 // Step Navigation Handlers
 const goToStep = async (step: number) => {
   if (step === 3) {
-    // Always re-fetch grouped drafts when entering Step 3
+    if (activeInputMode.value === 'file' && importQuestionsRef.value && !importQuestionsRef.value.isImported && importQuestionsRef.value.hasSelectedQuestions) {
+      isImportingFile.value = true
+      try {
+        await importQuestionsRef.value.importSelectedQuestions()
+      } catch (err: any) {
+        console.error("Auto-import before Step 3 failed", err)
+      } finally {
+        isImportingFile.value = false
+      }
+    }
     await qbStore.fetchDraftQuestions(bankId)
   }
   currentStep.value = step
@@ -553,10 +738,26 @@ const isFormEmpty = () => {
 }
 
 const handleReviewAndPublish = async () => {
-  // If the form is completely empty (e.g. they just clicked "Save & Add Another"),
-  // just skip saving and go directly to Step 3.
+  if (activeInputMode.value === 'file') {
+    if (importQuestionsRef.value && !importQuestionsRef.value.isImported && importQuestionsRef.value.hasSelectedQuestions) {
+      isImportingFile.value = true
+      try {
+        await importQuestionsRef.value.importSelectedQuestions()
+      } catch (err: any) {
+        console.error("Auto import before review failed", err)
+        triggerToast(err.message || "Failed to import file questions. Please check the file.")
+        isImportingFile.value = false
+        return
+      } finally {
+        isImportingFile.value = false
+      }
+    }
+    await goToStep(3)
+    return
+  }
+  
   if (isFormEmpty()) {
-    goToStep(3)
+    await goToStep(3)
     return
   }
   
@@ -569,14 +770,13 @@ const handleReviewAndPublish = async () => {
       await qbStore.saveQuestionDraft(bankId, payload)
     }
     resetForm()
-    // Re-fetch grouped drafts so Step 3 displays them immediately
     await qbStore.fetchDraftQuestions(bankId)
   } catch (err: any) {
     console.error("Failed auto-saving draft before review", err)
     triggerToast(err.message || "Failed to save draft. Please try again.")
     return
   }
-  goToStep(3)
+  await goToStep(3)
 }
 
 const isEditingModalOpen = ref(false)
@@ -625,6 +825,7 @@ const handleEditDraft = (q: any) => {
   if (currentStep.value === 3) {
     isEditingModalOpen.value = true
   } else {
+    activeInputMode.value = 'manual'
     goToStep(2)
   }
 }
@@ -697,496 +898,1086 @@ const getDifficultyClass = (diff: string) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#f8fafc] p-4 sm:p-6 lg:p-10 font-sans pb-32">
+  <div class="min-h-screen bg-[#f8fafc] p-4 sm:p-6 lg:p-10 font-sans pb-36">
 
     <!-- Toast Notification -->
     <transition enter-active-class="transition duration-300 ease-out" enter-from-class="transform translate-y-2 opacity-0" enter-to-class="transform translate-y-0 opacity-100" leave-active-class="transition duration-200 ease-in" leave-from-class="transform translate-y-0 opacity-100" leave-to-class="transform translate-y-2 opacity-0">
-      <div v-if="showToast" class="fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-2xl border border-slate-800">
-        <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+      <div v-if="showToast" class="fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 bg-slate-900 text-white text-xs font-semibold rounded-2xl shadow-2xl border border-slate-800">
+        <div class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+          <Check class="w-3.5 h-3.5" />
+        </div>
         <span>{{ toastMessage }}</span>
       </div>
     </transition>
 
-    <!-- Page Header & Stepper -->
-    <div class="max-w-[1200px] mx-auto mb-6 sm:mb-8">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-3">
-        <div class="flex items-center gap-1.5 sm:gap-2 text-xs font-semibold text-slate-400 flex-wrap">
-          <router-link to="/instructor/question-banks" class="hover:text-slate-600 transition-colors">Question Banks</router-link>
-          <span>/</span>
-          <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-600 transition-colors truncate max-w-[120px] sm:max-w-none">{{ bank?.title || 'Question Bank' }}</router-link>
-          <span>/</span>
-          <span class="text-[#5138ed]">Wizard</span>
+    <!-- Top Navigation Breadcrumbs -->
+    <div class="max-w-[1240px] mx-auto mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 flex-wrap">
+          <router-link to="/instructor/question-banks" class="hover:text-slate-700 transition-colors flex items-center gap-1.5">
+            <BookOpen class="w-3.5 h-3.5 text-slate-400" />
+            <span>Question Banks</span>
+          </router-link>
+          <span class="text-slate-300">/</span>
+          <router-link :to="`/instructor/question-banks/${bankId}`" class="hover:text-slate-700 transition-colors truncate max-w-[200px] sm:max-w-none text-slate-600 font-bold">
+            {{ bank?.title || 'Question Bank' }}
+          </router-link>
+          <span class="text-slate-300">/</span>
+          <span class="px-2 py-0.5 rounded-md bg-[#5138ed]/10 text-[#5138ed] font-bold text-[11px]">
+            Question Wizard
+          </span>
         </div>
-        <router-link :to="`/instructor/question-banks/${bankId}`" class="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 shadow-xs whitespace-nowrap self-start min-h-[38px]">
-           <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-           Back to Bank
+
+        <router-link
+          :to="`/instructor/question-banks/${bankId}`"
+          class="px-3.5 py-2 bg-white border border-slate-200/90 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-2xs whitespace-nowrap self-start min-h-[38px]"
+        >
+          <ArrowLeft class="w-3.5 h-3.5 text-slate-400" />
+          <span>Exit to Bank</span>
         </router-link>
       </div>
 
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-xs mb-6">
-        <div>
-          <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Create Questions Wizard</h1>
-          <p class="text-xs text-slate-500 mt-0.5 sm:mt-1">Complete the steps below to add and publish dynamic questions.</p>
+      <!-- Modern Interactive Stepper Hero Card -->
+      <div class="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-7 relative overflow-hidden">
+        <!-- Background subtle glow -->
+        <div class="absolute -top-24 -right-24 w-72 h-72 bg-gradient-to-br from-indigo-100/40 via-purple-50/20 to-transparent rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-[#5138ed] text-[11px] font-bold uppercase tracking-wider">
+                Question Bank Builder
+              </span>
+              <span v-if="bank?.course_code" class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold">
+                {{ bank?.course_code }}
+              </span>
+            </div>
+            <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              {{ currentStep === 1 ? 'Step 1: Question Bank Details' : currentStep === 2 ? 'Step 2: Add or Import Questions' : 'Step 3: Review & Publish' }}
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
+              {{ currentStep === 1 
+                  ? 'Review target bank details, enrolled course assignments, and questions metrics.' 
+                  : currentStep === 2 
+                  ? 'Compose dynamic questions manually or bulk-import via Excel, CSV, JSON, or PDF.' 
+                  : 'Review all questions grouped by type and instructor instructions before publishing.' }}
+            </p>
+          </div>
+
+          <!-- Desktop & Tablet Connected Stepper (3 Steps) -->
+          <div class="flex items-center gap-1.5 sm:gap-3 bg-slate-50/80 p-2 sm:p-2.5 rounded-2xl border border-slate-200/80 shrink-0">
+            <!-- Step 1 Button -->
+            <button
+              @click="goToStep(1)"
+              :class="[
+                'flex items-center gap-2.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all min-h-[42px] cursor-pointer',
+                currentStep === 1
+                  ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-300/40'
+                  : currentStep > 1
+                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'text-slate-500 hover:bg-slate-200/60'
+              ]"
+            >
+              <span
+                :class="[
+                  'w-6 h-6 rounded-lg flex items-center justify-center text-xs font-extrabold shrink-0',
+                  currentStep === 1
+                    ? 'bg-white/20 text-white'
+                    : currentStep > 1
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-200 text-slate-600'
+                ]"
+              >
+                <Check v-if="currentStep > 1" class="w-3.5 h-3.5 stroke-[3]" />
+                <span v-else>1</span>
+              </span>
+              <div class="text-left hidden sm:block">
+                <span class="block leading-none">Bank Info</span>
+                <span :class="currentStep === 1 ? 'text-indigo-100' : 'text-slate-400'" class="text-[10px] font-normal">Overview</span>
+              </div>
+            </button>
+
+            <!-- Connector -->
+            <div :class="currentStep > 1 ? 'bg-emerald-400' : 'bg-slate-200'" class="w-3 sm:w-6 h-[2px] rounded-full transition-colors"></div>
+
+            <!-- Step 2 Button -->
+            <button
+              @click="goToStep(2)"
+              :class="[
+                'flex items-center gap-2.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all min-h-[42px] cursor-pointer',
+                currentStep === 2
+                  ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-300/40'
+                  : currentStep > 2
+                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'text-slate-500 hover:bg-slate-200/60'
+              ]"
+            >
+              <span
+                :class="[
+                  'w-6 h-6 rounded-lg flex items-center justify-center text-xs font-extrabold shrink-0',
+                  currentStep === 2
+                    ? 'bg-white/20 text-white'
+                    : currentStep > 2
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-200 text-slate-600'
+                ]"
+              >
+                <Check v-if="currentStep > 2" class="w-3.5 h-3.5 stroke-[3]" />
+                <span v-else>2</span>
+              </span>
+              <div class="text-left hidden sm:block">
+                <span class="block leading-none">Add Questions</span>
+                <span :class="currentStep === 2 ? 'text-indigo-100' : 'text-slate-400'" class="text-[10px] font-normal">Manual &amp; Import</span>
+              </div>
+            </button>
+
+            <!-- Connector -->
+            <div :class="currentStep > 2 ? 'bg-emerald-400' : 'bg-slate-200'" class="w-3 sm:w-6 h-[2px] rounded-full transition-colors"></div>
+
+            <!-- Step 3 Button -->
+            <button
+              @click="goToStep(3)"
+              :class="[
+                'flex items-center gap-2.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all min-h-[42px] cursor-pointer relative',
+                currentStep === 3
+                  ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-300/40'
+                  : 'text-slate-500 hover:bg-slate-200/60'
+              ]"
+            >
+              <span
+                :class="[
+                  'w-6 h-6 rounded-lg flex items-center justify-center text-xs font-extrabold shrink-0',
+                  currentStep === 3 ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                ]"
+              >
+                3
+              </span>
+              <div class="text-left hidden sm:block">
+                <span class="block leading-none">Review &amp; Publish</span>
+                <span :class="currentStep === 3 ? 'text-indigo-100' : 'text-slate-400'" class="text-[10px] font-normal">
+                  {{ (totalDraftCount > 0 || (activeInputMode === 'file' && importQuestionsRef?.selectedCount)) ? `${totalDraftCount || importQuestionsRef?.selectedCount} Drafts` : 'Ready' }}
+                </span>
+              </div>
+
+              <!-- Draft count pill if any -->
+              <span
+                v-if="(totalDraftCount > 0 || (activeInputMode === 'file' && importQuestionsRef?.selectedCount)) && currentStep !== 3"
+                class="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-full shadow-xs"
+              >
+                {{ totalDraftCount || importQuestionsRef?.selectedCount }}
+              </span>
+            </button>
+          </div>
         </div>
 
-        <!-- Mobile Stepper (sm:hidden) -->
-        <div class="sm:hidden flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-bold">
-          <span class="text-slate-600">Step {{ currentStep }} of 3</span>
-          <span class="text-[#5138ed]">{{ currentStep === 1 ? '1. Bank Info' : currentStep === 2 ? '2. Add Questions' : '3. Review & Publish' }}</span>
-        </div>
-
-        <!-- Tablet/Desktop Stepper (hidden sm:flex) -->
-        <div class="hidden sm:flex items-center gap-2 sm:gap-4">
-          <button @click="goToStep(1)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px]', currentStep === 1 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">1</span><span>Bank Info</span></button>
-          <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-          <button @click="goToStep(2)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px]', currentStep === 2 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">2</span><span>Add Questions</span></button>
-          <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-          <button @click="goToStep(3)" :class="['flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px]', currentStep === 3 ? 'bg-[#5138ed] text-white shadow-md shadow-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200']"><span class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px]">3</span><span>Review & Publish</span></button>
+        <!-- Mobile Step Title Bar -->
+        <div class="sm:hidden mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
+          <span class="text-slate-400">Step {{ currentStep }} of 3</span>
+          <span class="text-[#5138ed]">
+            {{ currentStep === 1 ? '1. Bank Info' : currentStep === 2 ? '2. Add Questions' : '3. Review & Publish' }}
+          </span>
         </div>
       </div>
     </div>
 
-    <!-- MAIN STEP CONTENT -->
-    <div class="max-w-[1200px] mx-auto">
-      
-      <!-- ==================== STEP 1: QUESTION BANK INFORMATION ==================== -->
+    <!-- MAIN STEP CONTAINER -->
+    <div class="max-w-[1240px] mx-auto">
+
+      <!-- ====================================================================== -->
+      <!-- STEP 1: QUESTION BANK DETAILS & OVERVIEW                               -->
+      <!-- ====================================================================== -->
       <div v-if="currentStep === 1" class="space-y-6">
-        <div class="bg-white rounded-2xl border border-slate-100 p-8 shadow-sm">
-          <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-            <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#5138ed]">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-            </div>
-            <div>
-              <h2 class="text-lg font-bold text-slate-900">Step 1: Question Bank Details</h2>
-              <p class="text-xs text-slate-500">Review the target question bank information before adding questions.</p>
-            </div>
-          </div>
-
-          <div v-if="isLoading" class="p-8 text-center text-slate-500 text-xs font-medium">Loading question bank information...</div>
-          <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/60">
-              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Question Bank Name</p>
-              <p class="text-sm font-bold text-slate-800">{{ bank?.title }}</p>
-            </div>
-            <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/60">
-              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Course</p>
-              <p class="text-sm font-bold text-slate-800">{{ bank?.course_name }} ({{ bank?.course_code }})</p>
-            </div>
-            <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/60">
-              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Department</p>
-              <p class="text-sm font-bold text-slate-800">{{ bank?.department || 'Computer Science' }}</p>
-            </div>
-            <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/60">
-              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Questions & Marks</p>
-              <p class="text-sm font-bold text-slate-800">{{ bank?.total_questions || 0 }} Questions • {{ bank?.total_marks || 0 }} Total Marks</p>
-            </div>
-            <div class="md:col-span-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200/60">
-              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Description</p>
-              <p class="text-xs text-slate-700 leading-relaxed">{{ bank?.description || 'No description specified.' }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==================== STEP 2: ADD QUESTIONS FORM ==================== -->
-      <Teleport to="body" :disabled="!isEditingModalOpen">
-        <div v-show="currentStep === 2 || isEditingModalOpen" 
-             :class="isEditingModalOpen ? 'fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm' : ''">
-          
-          <div :class="isEditingModalOpen ? 'bg-[#f8fafc] w-full max-w-[1200px] rounded-2xl shadow-2xl relative my-auto max-h-full flex flex-col' : 'w-full'">
-            
-            <!-- Modal Header -->
-            <div v-if="isEditingModalOpen" class="flex items-center justify-between p-5 sm:p-6 border-b border-slate-200 shrink-0 bg-white rounded-t-2xl">
-              <h2 class="text-lg font-bold text-slate-800">Edit Question</h2>
-              <button @click="closeEditModal" class="p-2 text-slate-400 hover:text-slate-600 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-            </div>
-
-            <!-- Form Content -->
-            <div :class="isEditingModalOpen ? 'p-5 sm:p-6 overflow-y-auto space-y-6 flex-1' : 'space-y-6 w-full'">
         
-        <!-- Base Information -->
-        <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <div class="flex items-center justify-between mb-6">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-[#5138ed]">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-              </div>
-              <h2 class="text-[15px] font-bold text-slate-800">Dynamic Question Details</h2>
-            </div>
-            <button @click="toggleFullscreen" class="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors" :title="isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'">
-              <svg v-if="!isFullscreen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14L4 20M10 14v6m0-6H4m10 0l6 6m-6-6v6m0-6h6M14 10L20 4M14 10V4m0 6h6M10 10L4 4M10 10V4m0 6H4"></path></svg>
-            </button>
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Question Type <span class="text-rose-500">*</span></label>
-              <select v-model="questionType" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-slate-700 font-semibold focus:outline-none focus:border-[#5138ed] appearance-none cursor-pointer">
-                <option>Multiple Choice (MCQ)</option>
-                <option>True / False</option>
-                <option>Fill in the Blank</option>
-                <option>Short Answer</option>
-                <option>Matching</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Difficulty</label>
-              <select v-model="difficulty" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed] appearance-none cursor-pointer">
-                <option>Easy</option>
-                <option>Medium</option>
-                <option>Hard</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Score Marks <span class="text-rose-500">*</span></label>
-              <input v-model="score" type="number" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed]" min="1" />
-            </div>
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Chapter <span class="text-rose-500">*</span></label>
-              <div class="flex items-center">
-                <span class="px-3 py-2.5 bg-slate-100 border border-slate-200 border-r-0 rounded-l-xl text-[13px] text-slate-500 font-medium whitespace-nowrap">Chapter</span>
-                <input v-model="chapter" type="number" min="1" class="w-full bg-white border border-slate-200 rounded-r-xl px-3 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed]" placeholder="e.g. 1" />
-              </div>
-            </div>
-          </div>
+        <!-- Loading State -->
+        <div v-if="isLoading" class="p-12 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs">
+          <div class="w-10 h-10 border-3 border-[#5138ed] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p class="text-sm font-bold text-slate-700">Loading Question Bank Information...</p>
         </div>
 
-        <!-- Question Content -->
-        <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Instructor Instruction <span class="text-rose-500">*</span></label>
-              <input type="text" v-model="title" list="instruction-options" placeholder="e.g., Choose the correct answer" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#5138ed] transition-colors shadow-sm" />
-              <datalist id="instruction-options">
-                <option v-for="inst in instructionOptions" :key="inst" :value="inst"></option>
-              </datalist>
-            </div>
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Question Description (Optional)</label>
-              <input v-model="description" type="text" placeholder="Additional context..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed]" />
-            </div>
-          </div>
-
-          <div v-if="questionType !== 'Matching'">
-            <label class="block text-[12px] font-bold text-slate-800 mb-2">Question Text <span class="text-rose-500">*</span></label>
-            <RichTextEditor v-model="questionText" placeholder="Type your question content here..." minHeight="200px" />
-          </div>
-
-          <!-- Matching Question Editor -->
-          <div v-else>
-            <div class="mb-4">
-              <h3 class="text-[14px] font-bold text-slate-900">Question Writing</h3>
-              <p class="text-[12px] text-slate-500">Write the matching statements that students will see during the exam.</p>
-            </div>
-            
-            <!-- Shared Editor -->
-            <div class="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4 pt-6 relative" v-if="activeMatchingCell">
-              <div class="absolute -top-3 left-4 px-2 py-0.5 bg-[#5138ed] text-white text-[10px] font-bold uppercase rounded shadow-sm">
-                Currently Editing: Column {{ activeMatchingCell.col === 'left' ? 'A' : 'B' }} • Row {{ activeMatchingCell.rowIndex + 1 }}
-              </div>
-              <RichTextEditor v-model="sharedEditorContent" placeholder="Type your content here..." minHeight="120px" />
-            </div>
-
-            <div class="space-y-4">
-              <div class="grid grid-cols-[1fr_1fr_auto] gap-6 font-bold text-[11px] text-slate-500">
-                <div>Column A (Questions / Prompts) <span class="text-rose-500">*</span></div>
-                <div>Column B (Items to Match) <span class="text-rose-500">*</span></div>
-                <div class="w-8"></div>
-              </div>
-
-              <div v-for="(pair, index) in matchPairs" :key="pair.id" class="grid grid-cols-[1fr_1fr_auto] gap-6 items-center">
-                <!-- Column A -->
-                <div class="flex items-start gap-3">
-                  <div class="w-6 shrink-0 mt-3 font-bold text-slate-400 text-sm text-right">{{ index + 1 }}.</div>
-                  <div 
-                    @click="activeMatchingCell = { rowIndex: index, col: 'left' }"
-                    :class="[
-                      'w-full min-h-[60px] max-h-[120px] overflow-y-auto bg-white border rounded-xl p-3 text-[13px] text-slate-700 cursor-pointer transition-all prose prose-sm',
-                      activeMatchingCell?.rowIndex === index && activeMatchingCell?.col === 'left' ? 'border-[#5138ed] ring-1 ring-[#5138ed] shadow-sm' : 'border-slate-200 hover:border-slate-300'
-                    ]"
-                  >
-                    <div v-if="pair.left" v-html="pair.left"></div>
-                    <div v-else class="text-slate-400 italic mt-1">Click to edit...</div>
+        <template v-else>
+          <!-- Bank Hero Card -->
+          <div class="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs relative overflow-hidden">
+            <div class="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-slate-100">
+              <div class="flex items-start gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-200">
+                  <BookOpen class="w-7 h-7" />
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <span class="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold rounded-md">
+                      ● Active Bank
+                    </span>
+                    <span class="px-2.5 py-0.5 bg-indigo-50 text-[#5138ed] text-[11px] font-bold rounded-md">
+                      {{ bank?.course_code || 'CS301' }}
+                    </span>
+                    <span class="text-xs text-slate-400">•</span>
+                    <span class="text-xs text-slate-500 font-semibold">
+                      {{ bank?.academic_year || 'Academic Year' }} • {{ bank?.semester || 'Semester I' }}
+                    </span>
                   </div>
-                </div>
-
-                <!-- Column B -->
-                <div class="flex items-start gap-3">
-                  <div class="w-6 shrink-0 mt-3 font-bold text-slate-400 text-sm text-right">{{ getLetterLabel(index) }}.</div>
-                  <div 
-                    @click="activeMatchingCell = { rowIndex: index, col: 'right' }"
-                    :class="[
-                      'w-full min-h-[60px] max-h-[120px] overflow-y-auto bg-white border rounded-xl p-3 text-[13px] text-slate-700 cursor-pointer transition-all prose prose-sm',
-                      activeMatchingCell?.rowIndex === index && activeMatchingCell?.col === 'right' ? 'border-[#5138ed] ring-1 ring-[#5138ed] shadow-sm' : 'border-slate-200 hover:border-slate-300'
-                    ]"
-                  >
-                    <div v-if="pair.right" v-html="pair.right"></div>
-                    <div v-else class="text-slate-400 italic mt-1">Click to edit...</div>
-                  </div>
-                </div>
-
-                <button @click="removeMatchPair(index)" class="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg self-start mt-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-              </div>
-            </div>
-            <button @click="addMatchPair" class="mt-4 px-4 py-2 bg-indigo-50 text-[#5138ed] border border-indigo-100 text-xs font-bold rounded-lg hover:bg-indigo-100 transition-colors">+ Add Matching Row</button>
-          </div>
-        </div>
-
-        <!-- ================= DYNAMIC QUESTION TYPE SECTIONS ================= -->
-
-        <!-- 1. Multiple Choice (MCQ) -->
-        <div v-if="questionType === 'Multiple Choice (MCQ)'" class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <div class="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
-            <label class="block text-sm font-bold text-slate-800">Answer Options <span class="text-rose-500">*</span></label>
-            <label class="flex items-center gap-2 text-[12px] text-slate-700 cursor-pointer">
-              <input type="checkbox" v-model="shuffleChoices" class="rounded border-slate-300 text-[#5138ed] focus:ring-[#5138ed]" /> Shuffle Choices Automatically
-            </label>
-          </div>
-          
-          <div class="space-y-4 mb-4">
-            <div 
-              v-for="(option, index) in options" 
-              :key="option.id" 
-              class="flex items-start gap-4 p-4 rounded-xl border transition-colors relative group"
-              :class="correctAnswer === option.label ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-200 bg-slate-50'"
-              draggable="true"
-              @dragstart="onDragStart($event, index)"
-              @dragover.prevent
-              @drop="onDrop($event, index)"
-            >
-              <!-- Drag Handle -->
-              <div class="cursor-grab hover:text-slate-700 text-slate-400 mt-2" title="Drag to reorder">
-                <GripVertical class="w-5 h-5" />
-              </div>
-
-              <!-- Label & Correct Answer Radio -->
-              <div class="flex flex-col items-center gap-2 mt-2">
-                <div class="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 shadow-sm text-[13px] font-extrabold text-slate-700">{{ option.label }}</div>
-                <div 
-                  class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors" 
-                  :class="correctAnswer === option.label ? 'border-emerald-500' : 'border-slate-300 hover:border-slate-400'"
-                  @click="correctAnswer = option.label"
-                  title="Mark as correct answer"
-                >
-                  <div v-if="correctAnswer === option.label" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                  <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{{ bank?.title }}</h2>
+                  <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                    {{ bank?.description || 'No description provided for this question repository.' }}
+                  </p>
                 </div>
               </div>
 
-              <!-- Rich Text Editor for Option -->
-              <div class="flex-1">
-                <RichTextEditor v-model="option.text" :placeholder="`Enter content for Option ${option.label}...`" minHeight="80px" />
-              </div>
-
-              <!-- Remove Option Button -->
-              <button @click="removeOption(index)" class="w-8 h-8 text-rose-400 hover:bg-rose-100 hover:text-rose-600 rounded-lg flex items-center justify-center mt-2" title="Delete Option">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              <!-- Quick action to proceed to Step 2 -->
+              <button
+                @click="goToStep(2)"
+                class="px-5 py-3 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center gap-2 cursor-pointer self-start shrink-0"
+              >
+                <span>Add / Import Questions</span>
+                <ArrowRight class="w-4 h-4" />
               </button>
             </div>
-          </div>
-          
-          <div class="flex items-center gap-4">
-            <button @click="addOption" class="px-4 py-2 bg-indigo-50 text-[#5138ed] border border-indigo-100 text-xs font-bold rounded-lg hover:bg-indigo-100 transition-colors">+ Add Option</button>
-            <p class="text-[11px] text-slate-500">Max 10 options. Drag handle to reorder.</p>
-          </div>
-        </div>
 
-        <!-- 2. True / False -->
-        <div v-if="questionType === 'True / False'" class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <label class="block text-[12px] font-bold text-slate-800 mb-3">Select Correct Answer <span class="text-rose-500">*</span></label>
-          <div class="flex gap-4 max-w-sm">
-            <label class="flex-1 cursor-pointer" @click="correctAnswer = 'True'">
-              <div :class="['flex items-center justify-center gap-2 p-3 rounded-xl border font-bold text-xs transition-colors', correctAnswer === 'True' ? 'border-[#5138ed] bg-indigo-50/50 text-[#5138ed]' : 'border-slate-200 text-slate-600 hover:bg-slate-50']">True</div>
-            </label>
-            <label class="flex-1 cursor-pointer" @click="correctAnswer = 'False'">
-              <div :class="['flex items-center justify-center gap-2 p-3 rounded-xl border font-bold text-xs transition-colors', correctAnswer === 'False' ? 'border-[#5138ed] bg-indigo-50/50 text-[#5138ed]' : 'border-slate-200 text-slate-600 hover:bg-slate-50']">False</div>
-            </label>
-          </div>
-        </div>
-
-        <!-- 3. Fill in the Blank -->
-        <div v-if="questionType === 'Fill in the Blank'" class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <div class="flex items-center justify-between mb-4">
-            <label class="block text-[12px] font-bold text-slate-800">Accepted Answers <span class="text-rose-500">*</span></label>
-            <label class="flex items-center gap-2 text-[12px] text-slate-700 cursor-pointer">
-              <input type="checkbox" v-model="fibCaseSensitive" class="rounded border-slate-300 text-[#5138ed] focus:ring-[#5138ed]" /> Case Sensitive Evaluation
-            </label>
-          </div>
-          <p class="text-[11px] text-slate-500 mb-4">List all possible correct variations (e.g. "Addis Ababa", "addis ababa").</p>
-          <div class="space-y-3 mb-4">
-            <div v-for="(ans, index) in fibAnswers" :key="ans.id" class="flex items-center gap-3">
-              <input v-model="ans.text" type="text" placeholder="e.g. Addis Ababa" class="w-full max-w-md bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed]" />
-              <button @click="removeFibAnswer(index)" class="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-            </div>
-          </div>
-          <button @click="addFibAnswer" class="text-[12px] font-bold text-[#5138ed] hover:text-indigo-700">+ Add Another Accepted Answer</button>
-        </div>
-
-        <!-- 4. Short Answer -->
-        <div v-if="questionType === 'Short Answer'" class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Expected Answer Keyword(s)</label>
-              <input v-model="saExpectedAnswer" type="text" placeholder="Optional expected answer..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed]" />
-            </div>
-            <div>
-              <label class="block text-[12px] font-bold text-slate-800 mb-2">Maximum Character Length</label>
-              <input v-model="saMaxLength" type="number" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:border-[#5138ed]" />
-            </div>
-          </div>
-        </div>
-
-        <!-- 5. Matching -->
-        <div v-if="questionType === 'Matching'" class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <div class="flex flex-col mb-4 pb-4 border-b border-slate-100">
-            <h3 class="text-sm font-bold text-slate-800">Answer Options</h3>
-            <div class="flex items-center justify-between mt-1">
-              <p class="text-[12px] text-slate-500">Assign the correct matching pairs for automatic grading.</p>
-              <label class="flex items-center gap-2 text-[12px] text-slate-700 cursor-pointer">
-                <input type="checkbox" v-model="matchShuffle" class="rounded border-slate-300 text-[#5138ed] focus:ring-[#5138ed]" /> Shuffle Right Side Automatically
-              </label>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-[1fr_auto] gap-6 mb-2 font-bold text-[11px] text-slate-500 px-2">
-            <div>Column A (Prompt)</div><div>Correct Match</div>
-          </div>
-
-          <div class="space-y-3 mb-4">
-            <template v-for="(_, index) in matchMappings" :key="index">
-              <div v-if="matchPairs[index].left.replace(/<[^>]*>?/gm, '').trim()" class="grid grid-cols-[1fr_auto] gap-6 items-center bg-slate-50/50 p-3 rounded-xl border border-slate-200">
-                <div class="text-[13px] text-slate-700 font-medium truncate flex items-center gap-2">
-                  <span class="font-bold text-slate-400 w-4">{{ index + 1 }}.</span>
-                  {{ matchPairs[index].left.replace(/<[^>]*>?/gm, '').substring(0, 80) }}
+            <!-- Key Metrics Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+              <!-- Metric 1: Total Bank Questions -->
+              <div class="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/70 hover:border-indigo-200 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bank Questions</span>
+                  <div class="w-8 h-8 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center">
+                    <Layers class="w-4 h-4" />
+                  </div>
                 </div>
-                <div class="w-72">
-                  <select v-model="matchMappings[index]" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-[13px] text-slate-700 font-bold focus:outline-none focus:border-[#5138ed] appearance-none cursor-pointer shadow-sm">
-                    <option v-for="(pair, i) in matchPairs" :value="getLetterLabel(i)">
-                      {{ getLetterLabel(i) }} — {{ pair.right.replace(/<[^>]*>?/gm, '').substring(0, 40) || 'Empty' }}
-                    </option>
-                  </select>
+                <p class="text-2xl font-black text-slate-900">{{ bank?.total_questions || 0 }}</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">Published &amp; ready for exams</p>
+              </div>
+
+              <!-- Metric 2: Total Marks -->
+              <div class="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/70 hover:border-indigo-200 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Marks</span>
+                  <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 class="w-4 h-4" />
+                  </div>
+                </div>
+                <p class="text-2xl font-black text-slate-900">{{ bank?.total_marks || 0 }} pts</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">Cumulative points available</p>
+              </div>
+
+              <!-- Metric 3: Active Session Drafts -->
+              <div class="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/70 hover:border-indigo-200 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Current Drafts</span>
+                  <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Edit3 class="w-4 h-4" />
+                  </div>
+                </div>
+                <p class="text-2xl font-black text-amber-600">{{ totalDraftCount }}</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">Pending review in this session</p>
+              </div>
+
+              <!-- Metric 4: Assigned Course -->
+              <div class="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/70 hover:border-indigo-200 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course &amp; Dept</span>
+                  <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <BookOpen class="w-4 h-4" />
+                  </div>
+                </div>
+                <p class="text-sm font-bold text-slate-800 truncate">{{ bank?.course_name }}</p>
+                <p class="text-[11px] text-slate-500 truncate mt-0.5">{{ bank?.department || 'Computer Science' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Question Input Workflows Card -->
+          <div class="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs">
+            <h3 class="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
+              <Sparkles class="w-4 h-4 text-[#5138ed]" />
+              <span>How Would You Like to Add Questions?</span>
+            </h3>
+            <p class="text-xs text-slate-500 mb-6">Choose between manual authoring or bulk file import. You can use both in the same bank.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <!-- Option Card 1: Manual Input -->
+              <div 
+                @click="activeInputMode = 'manual'; goToStep(2)"
+                class="group p-6 rounded-2xl border-2 border-slate-200 hover:border-[#5138ed] bg-slate-50/40 hover:bg-indigo-50/20 transition-all cursor-pointer relative"
+              >
+                <div class="w-12 h-12 rounded-xl bg-indigo-50 text-[#5138ed] group-hover:bg-[#5138ed] group-hover:text-white flex items-center justify-center transition-colors mb-4 shadow-2xs">
+                  <Edit3 class="w-6 h-6" />
+                </div>
+                <h4 class="text-base font-bold text-slate-900 group-hover:text-[#5138ed] transition-colors">
+                  1. Manual Question Entry
+                </h4>
+                <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Design individual questions with rich text, images, formula support, difficulty grading, and interactive letter-matched answer keys.
+                </p>
+                <div class="mt-4 flex items-center gap-2 text-xs font-bold text-[#5138ed]">
+                  <span>Launch Manual Form</span>
+                  <ArrowRight class="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
-            </template>
+
+              <!-- Option Card 2: File Import -->
+              <div 
+                @click="activeInputMode = 'file'; goToStep(2)"
+                class="group p-6 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 bg-slate-50/40 hover:bg-emerald-50/20 transition-all cursor-pointer relative"
+              >
+                <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center transition-colors mb-4 shadow-2xs">
+                  <Upload class="w-6 h-6" />
+                </div>
+                <div class="flex items-center gap-2 mb-1">
+                  <h4 class="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                    2. Import from File
+                  </h4>
+                  <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                    Fast Bulk Upload
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Upload dozens of questions in seconds using Excel (.xlsx), CSV, JSON, or PDF formats with automated schema validation and preview.
+                </p>
+                <div class="mt-4 flex items-center gap-2 text-xs font-bold text-emerald-600">
+                  <span>Open File Importer</span>
+                  <ArrowRight class="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        </template>
 
-        <!-- Global Explanation -->
-        <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm mt-6">
-          <label class="block text-[12px] font-bold text-slate-800 mb-2">Global Explanation (Optional)</label>
-          <RichTextEditor v-model="explanation" placeholder="Provide feedback shown to students after answering..." minHeight="100px" />
-        </div>
+      </div>
 
-            </div> <!-- End Form Content -->
+      <!-- ====================================================================== -->
+      <!-- STEP 2: ADD OR IMPORT QUESTIONS                                         -->
+      <!-- ====================================================================== -->
+      <Teleport to="body" :disabled="!isEditingModalOpen">
+        <div 
+          v-show="currentStep === 2 || isEditingModalOpen" 
+          :class="isEditingModalOpen ? 'fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm' : ''"
+        >
+          <div :class="isEditingModalOpen ? 'bg-[#f8fafc] w-full max-w-[1240px] rounded-3xl shadow-2xl relative my-auto max-h-[92vh] flex flex-col overflow-hidden border border-slate-200' : 'w-full'">
             
-            <!-- Modal Footer -->
-            <div v-if="isEditingModalOpen" class="p-5 sm:p-6 border-t border-slate-200 shrink-0 bg-white flex justify-end gap-3 rounded-b-2xl">
-              <button @click="closeEditModal" class="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
-              <button @click="saveEditModal" class="px-5 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md">Save Changes</button>
+            <!-- Modal Header (Only shown when editing an existing draft from Step 3) -->
+            <div v-if="isEditingModalOpen" class="flex items-center justify-between p-5 sm:p-6 border-b border-slate-200 shrink-0 bg-white">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center">
+                  <Edit3 class="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 class="text-base font-bold text-slate-900">Edit Question Draft</h2>
+                  <p class="text-xs text-slate-500">Update question content, marks, or options</p>
+                </div>
+              </div>
+              <button @click="closeEditModal" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+
+            <!-- Content Area -->
+            <div :class="isEditingModalOpen ? 'p-5 sm:p-6 overflow-y-auto space-y-6 flex-1' : 'space-y-6 w-full'">
+
+              <!-- Modern Source Selector Bar (Manual vs File Import) - Hidden during Edit Modal -->
+              <div v-if="!isEditingModalOpen" class="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-100">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center font-black">
+                      2
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-bold text-slate-900">Select Question Creation Method</h3>
+                      <p class="text-xs text-slate-500">Choose manual input or import existing question documents.</p>
+                    </div>
+                  </div>
+
+                  <!-- Quick draft count & jump button -->
+                  <div class="flex items-center gap-2 self-start sm:self-auto">
+                    <span class="px-3 py-1 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold rounded-xl flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                      {{ totalDraftCount }} Drafts in Session
+                    </span>
+
+                    <button
+                      v-if="totalDraftCount > 0"
+                      @click="goToStep(3)"
+                      class="px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <Eye class="w-3.5 h-3.5 text-slate-400" />
+                      <span>Review Drafts →</span>
+                    </button>
+
+                    <button
+                      @click="toggleFullscreen"
+                      class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                      :title="isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'"
+                    >
+                      <Maximize2 v-if="!isFullscreen" class="w-4 h-4" />
+                      <Minimize2 v-else class="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Two Source Tabs: [ Manual Entry ] vs [ Import from File ] -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <!-- Tab 1: Manual Entry -->
+                  <button
+                    type="button"
+                    @click="activeInputMode = 'manual'"
+                    :class="[
+                      'flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left cursor-pointer group',
+                      activeInputMode === 'manual'
+                        ? 'border-[#5138ed] bg-indigo-50/30 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    ]"
+                  >
+                    <div 
+                      :class="activeInputMode === 'manual' ? 'bg-[#5138ed] text-white shadow-xs' : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-50 group-hover:text-[#5138ed]'"
+                      class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                    >
+                      <Edit3 class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between">
+                        <p class="text-sm font-bold text-slate-900">1. Manual Question Entry</p>
+                        <span v-if="activeInputMode === 'manual'" class="text-[10px] font-black uppercase bg-[#5138ed] text-white px-2 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      </div>
+                      <p class="text-xs text-slate-500 truncate mt-0.5">Author questions with rich-text editor and choices</p>
+                    </div>
+                  </button>
+
+                  <!-- Tab 2: Import from File -->
+                  <button
+                    type="button"
+                    @click="activeInputMode = 'file'"
+                    :class="[
+                      'flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left cursor-pointer group',
+                      activeInputMode === 'file'
+                        ? 'border-emerald-500 bg-emerald-50/30 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    ]"
+                  >
+                    <div 
+                      :class="activeInputMode === 'file' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 group-hover:bg-emerald-50 group-hover:text-emerald-600'"
+                      class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                    >
+                      <Upload class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                          <p class="text-sm font-bold text-slate-900">2. Import from File</p>
+                          <span class="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">New</span>
+                        </div>
+                        <span v-if="activeInputMode === 'file'" class="text-[10px] font-black uppercase bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      </div>
+                      <p class="text-xs text-slate-500 truncate mt-0.5">Excel (.xlsx), CSV, JSON, or PDF documents</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- ========================================================== -->
+              <!-- SUB-SECTION A: MANUAL QUESTION INPUT                       -->
+              <!-- ========================================================== -->
+              <div v-show="activeInputMode === 'manual' || isEditingModalOpen" class="space-y-6">
+                <!-- Base Details Card -->
+                <div class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <div class="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
+                    <div class="flex items-center gap-2.5">
+                      <span class="w-2.5 h-2.5 rounded-full bg-[#5138ed]"></span>
+                      <h3 class="text-sm font-bold text-slate-900">Dynamic Question Details</h3>
+                    </div>
+                    <span class="text-[11px] font-semibold text-slate-400">Configure grading, chapter, and question type</span>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+                    <!-- Question Type -->
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1.5">Question Type <span class="text-rose-500">*</span></label>
+                      <select v-model="questionType" class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] appearance-none cursor-pointer shadow-2xs">
+                        <option>Multiple Choice (MCQ)</option>
+                        <option>True / False</option>
+                        <option>Fill in the Blank</option>
+                        <option>Short Answer</option>
+                        <option>Matching</option>
+                      </select>
+                    </div>
+
+                    <!-- Difficulty -->
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1.5">Difficulty</label>
+                      <select v-model="difficulty" class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] appearance-none cursor-pointer shadow-2xs">
+                        <option>Easy</option>
+                        <option>Medium</option>
+                        <option>Hard</option>
+                      </select>
+                    </div>
+
+                    <!-- Score Marks -->
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                        Score Marks <span class="text-rose-500">*</span>
+                      </label>
+                      <input v-model="score" type="number" min="1" class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] shadow-2xs" />
+                    </div>
+
+                    <!-- Chapter -->
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1.5">Chapter <span class="text-rose-500">*</span></label>
+                      <div class="flex items-center">
+                        <span class="px-3 py-2.5 bg-slate-100 border border-slate-200 border-r-0 rounded-l-xl text-xs text-slate-500 font-semibold whitespace-nowrap">
+                          Chapter
+                        </span>
+                        <input v-model="chapter" type="number" min="1" class="w-full bg-white border border-slate-200 rounded-r-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] shadow-2xs" placeholder="1" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Instruction & Question Content -->
+                <div class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1.5">Instructor Instruction <span class="text-rose-500">*</span></label>
+                      <input 
+                        type="text" 
+                        v-model="title" 
+                        list="instruction-options" 
+                        placeholder="e.g., Choose the correct answer for each question" 
+                        class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] shadow-2xs transition-colors" 
+                      />
+                      <datalist id="instruction-options">
+                        <option v-for="inst in instructionOptions" :key="inst" :value="inst"></option>
+                      </datalist>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1.5">Question Description (Optional)</label>
+                      <input v-model="description" type="text" placeholder="Additional hints or context for students..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] shadow-2xs" />
+                    </div>
+                  </div>
+
+                  <!-- Question Text (Single Editor for non-matching) -->
+                  <div v-if="questionType !== 'Matching'">
+                    <label class="block text-xs font-bold text-slate-700 mb-2">Question Text <span class="text-rose-500">*</span></label>
+                    <RichTextEditor v-model="questionText" placeholder="Type or paste your question content here..." minHeight="180px" />
+                  </div>
+
+                  <!-- Matching Editor (Dual Column) -->
+                  <div v-else>
+                    <div class="mb-4">
+                      <h4 class="text-sm font-bold text-slate-900">Matching Pairs Setup</h4>
+                      <p class="text-xs text-slate-500">Configure Column A prompts and Column B items to be matched.</p>
+                    </div>
+
+                    <!-- Shared Active Cell Editor -->
+                    <div v-if="activeMatchingCell" class="mb-5 bg-indigo-50/40 border border-indigo-200 rounded-2xl p-4 pt-6 relative">
+                      <div class="absolute -top-3 left-4 px-2.5 py-0.5 bg-[#5138ed] text-white text-[10px] font-bold uppercase rounded-md shadow-xs">
+                        Editing: Column {{ activeMatchingCell.col === 'left' ? 'A' : 'B' }} • Row {{ activeMatchingCell.rowIndex + 1 }}
+                      </div>
+                      <RichTextEditor v-model="sharedEditorContent" placeholder="Type statement content..." minHeight="110px" />
+                    </div>
+
+                    <div class="space-y-3">
+                      <div class="grid grid-cols-[1fr_1fr_auto] gap-4 font-bold text-[11px] text-slate-400 uppercase tracking-wider px-2">
+                        <div>Column A (Prompts) <span class="text-rose-500">*</span></div>
+                        <div>Column B (Choices) <span class="text-rose-500">*</span></div>
+                        <div class="w-8"></div>
+                      </div>
+
+                      <div v-for="(pair, index) in matchPairs" :key="pair.id" class="grid grid-cols-[1fr_1fr_auto] gap-4 items-center">
+                        <!-- Column A cell -->
+                        <div class="flex items-start gap-2.5">
+                          <span class="w-6 shrink-0 mt-3 font-bold text-slate-400 text-xs text-right">{{ index + 1 }}.</span>
+                          <div 
+                            @click="activeMatchingCell = { rowIndex: index, col: 'left' }"
+                            :class="[
+                              'w-full min-h-[56px] max-h-[110px] overflow-y-auto bg-white border rounded-xl p-3 text-xs text-slate-700 cursor-pointer transition-all prose prose-sm',
+                              activeMatchingCell?.rowIndex === index && activeMatchingCell?.col === 'left' 
+                                ? 'border-[#5138ed] ring-2 ring-indigo-100 shadow-xs' 
+                                : 'border-slate-200 hover:border-slate-300'
+                            ]"
+                          >
+                            <div v-if="pair.left" v-html="pair.left"></div>
+                            <div v-else class="text-slate-400 italic">Click to edit Column A...</div>
+                          </div>
+                        </div>
+
+                        <!-- Column B cell -->
+                        <div class="flex items-start gap-2.5">
+                          <span class="w-6 shrink-0 mt-3 font-bold text-slate-400 text-xs text-right">{{ getLetterLabel(index) }}.</span>
+                          <div 
+                            @click="activeMatchingCell = { rowIndex: index, col: 'right' }"
+                            :class="[
+                              'w-full min-h-[56px] max-h-[110px] overflow-y-auto bg-white border rounded-xl p-3 text-xs text-slate-700 cursor-pointer transition-all prose prose-sm',
+                              activeMatchingCell?.rowIndex === index && activeMatchingCell?.col === 'right' 
+                                ? 'border-[#5138ed] ring-2 ring-indigo-100 shadow-xs' 
+                                : 'border-slate-200 hover:border-slate-300'
+                            ]"
+                          >
+                            <div v-if="pair.right" v-html="pair.right"></div>
+                            <div v-else class="text-slate-400 italic">Click to edit Column B...</div>
+                          </div>
+                        </div>
+
+                        <!-- Delete Pair -->
+                        <button 
+                          @click="removeMatchPair(index)" 
+                          class="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer self-start mt-2"
+                          title="Remove row"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <button 
+                      @click="addMatchPair" 
+                      class="mt-4 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-[#5138ed] border border-indigo-200 text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Plus class="w-3.5 h-3.5" />
+                      <span>Add Matching Row</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Question Type Specific Content -->
+                <!-- 1. MCQ -->
+                <div v-if="questionType === 'Multiple Choice (MCQ)'" class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <div class="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
+                    <label class="text-sm font-bold text-slate-900">Answer Options <span class="text-rose-500">*</span></label>
+                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                      <input type="checkbox" v-model="shuffleChoices" class="rounded border-slate-300 text-[#5138ed] focus:ring-[#5138ed]" /> 
+                      Shuffle Choices Automatically
+                    </label>
+                  </div>
+
+                  <div class="space-y-3.5 mb-4">
+                    <div 
+                      v-for="(option, index) in options" 
+                      :key="option.id"
+                      class="flex items-start gap-3.5 p-3.5 sm:p-4 rounded-2xl border transition-all"
+                      :class="correctAnswer === option.label ? 'border-emerald-400 bg-emerald-50/20 ring-1 ring-emerald-300' : 'border-slate-200 bg-slate-50/50'"
+                      draggable="true"
+                      @dragstart="onDragStart($event, index)"
+                      @dragover.prevent
+                      @drop="onDrop($event, index)"
+                    >
+                      <div class="cursor-grab hover:text-slate-700 text-slate-400 mt-2 shrink-0" title="Drag to reorder">
+                        <GripVertical class="w-4 h-4" />
+                      </div>
+
+                      <div class="flex flex-col items-center gap-2 mt-1 shrink-0">
+                        <div class="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-xs font-black text-slate-700 shadow-2xs">
+                          {{ option.label }}
+                        </div>
+                        <div 
+                          class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
+                          :class="correctAnswer === option.label ? 'border-emerald-500' : 'border-slate-300 hover:border-slate-400'"
+                          @click="correctAnswer = option.label"
+                          title="Mark as correct answer"
+                        >
+                          <div v-if="correctAnswer === option.label" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                        </div>
+                      </div>
+
+                      <div class="flex-1 min-w-0">
+                        <RichTextEditor v-model="option.text" :placeholder="`Enter Option ${option.label} content...`" minHeight="70px" />
+                      </div>
+
+                      <button 
+                        @click="removeOption(index)" 
+                        class="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors shrink-0 cursor-pointer mt-1"
+                        title="Delete option"
+                      >
+                        <Trash2 class="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-3">
+                    <button @click="addOption" class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-[#5138ed] border border-indigo-200 text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5">
+                      <Plus class="w-3.5 h-3.5" />
+                      <span>Add Option</span>
+                    </button>
+                    <span class="text-[11px] text-slate-400">Up to 10 options allowed.</span>
+                  </div>
+                </div>
+
+                <!-- 2. True / False -->
+                <div v-if="questionType === 'True / False'" class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <label class="block text-xs font-bold text-slate-800 mb-3">Select Correct Answer <span class="text-rose-500">*</span></label>
+                  <div class="grid grid-cols-2 gap-4 max-w-md">
+                    <button 
+                      type="button" 
+                      @click="correctAnswer = 'True'" 
+                      :class="[
+                        'p-4 rounded-2xl border-2 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer',
+                        correctAnswer === 'True' 
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs' 
+                          : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      ]"
+                    >
+                      <CheckCircle2 v-if="correctAnswer === 'True'" class="w-4 h-4 text-emerald-600" />
+                      <span>True</span>
+                    </button>
+                    <button 
+                      type="button" 
+                      @click="correctAnswer = 'False'" 
+                      :class="[
+                        'p-4 rounded-2xl border-2 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer',
+                        correctAnswer === 'False' 
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs' 
+                          : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      ]"
+                    >
+                      <CheckCircle2 v-if="correctAnswer === 'False'" class="w-4 h-4 text-emerald-600" />
+                      <span>False</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 3. Fill in the Blank -->
+                <div v-if="questionType === 'Fill in the Blank'" class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <div class="flex items-center justify-between mb-3">
+                    <label class="text-xs font-bold text-slate-800">Accepted Answers <span class="text-rose-500">*</span></label>
+                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                      <input type="checkbox" v-model="fibCaseSensitive" class="rounded border-slate-300 text-[#5138ed] focus:ring-[#5138ed]" /> Case Sensitive
+                    </label>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mb-3">List all acceptable variations (e.g., "Addis Ababa", "addis ababa").</p>
+                  <div class="space-y-2.5 mb-4">
+                    <div v-for="(ans, index) in fibAnswers" :key="ans.id" class="flex items-center gap-2.5">
+                      <input v-model="ans.text" type="text" placeholder="e.g. Addis Ababa" class="w-full max-w-md bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 focus:outline-none focus:border-[#5138ed]" />
+                      <button @click="removeFibAnswer(index)" class="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"><Trash2 class="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                  <button @click="addFibAnswer" class="text-xs font-bold text-[#5138ed] hover:text-indigo-700 cursor-pointer inline-flex items-center gap-1">
+                    <Plus class="w-3.5 h-3.5" />
+                    <span>Add Accepted Answer</span>
+                  </button>
+                </div>
+
+                <!-- 4. Short Answer -->
+                <div v-if="questionType === 'Short Answer'" class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label class="block text-xs font-bold text-slate-800 mb-1.5">Expected Answer Keywords (Optional)</label>
+                      <input v-model="saExpectedAnswer" type="text" placeholder="Expected phrase or keywords..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 focus:outline-none focus:border-[#5138ed]" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-800 mb-1.5">Maximum Character Limit</label>
+                      <input v-model="saMaxLength" type="number" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 focus:outline-none focus:border-[#5138ed]" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 5. Matching Answer Keys -->
+                <div v-if="questionType === 'Matching'" class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <div class="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
+                    <div>
+                      <h4 class="text-sm font-bold text-slate-900">Answer Key Mapping</h4>
+                      <p class="text-xs text-slate-500">Pair each Column A statement with its correct Column B answer.</p>
+                    </div>
+                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                      <input type="checkbox" v-model="matchShuffle" class="rounded border-slate-300 text-[#5138ed] focus:ring-[#5138ed]" />
+                      Shuffle Column B during Exam
+                    </label>
+                  </div>
+
+                  <div class="grid grid-cols-[1fr_auto] gap-4 mb-2 font-bold text-[11px] text-slate-400 uppercase tracking-wider px-2">
+                    <div>Column A Prompt</div>
+                    <div>Target Choice</div>
+                  </div>
+
+                  <div class="space-y-2.5">
+                    <template v-for="(_, index) in matchMappings" :key="index">
+                      <div v-if="matchPairs[index]?.left.replace(/<[^>]*>?/gm, '').trim()" class="grid grid-cols-[1fr_auto] gap-4 items-center bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
+                        <div class="text-xs text-slate-700 font-medium truncate flex items-center gap-2">
+                          <span class="font-bold text-slate-400 w-5">{{ index + 1 }}.</span>
+                          <span class="truncate">{{ matchPairs[index].left.replace(/<[^>]*>?/gm, '').substring(0, 80) }}</span>
+                        </div>
+                        <div class="w-64 sm:w-80">
+                          <select v-model="matchMappings[index]" class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-700 font-bold focus:outline-none focus:border-[#5138ed] cursor-pointer shadow-2xs">
+                            <option v-for="(pair, i) in matchPairs" :key="i" :value="getLetterLabel(i)">
+                              {{ getLetterLabel(i) }} — {{ pair.right.replace(/<[^>]*>?/gm, '').substring(0, 40) || 'Empty' }}
+                            </option>
+                          </select>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Explanation -->
+                <div class="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
+                  <label class="block text-xs font-bold text-slate-800 mb-2">Global Explanation / Feedback (Optional)</label>
+                  <RichTextEditor v-model="explanation" placeholder="Provide feedback or rationales shown after grading..." minHeight="100px" />
+                </div>
+              </div>
+
+              <!-- ========================================================== -->
+              <!-- SUB-SECTION B: IMPORT QUESTIONS FROM FILE                  -->
+              <!-- ========================================================== -->
+              <div v-show="activeInputMode === 'file' && !isEditingModalOpen">
+                <ImportQuestionsFile
+                  ref="importQuestionsRef"
+                  mode="bank"
+                  targetName="Question Bank"
+                  :bankId="bankId"
+                  :importHandler="saveImportedQuestionsToBank"
+                  @import-questions="saveImportedQuestionsToBank"
+                  @imported="onFileImported"
+                  @next="goToStep(3)"
+                  @switch-to-manual="activeInputMode = 'manual'"
+                />
+              </div>
+
+            </div> <!-- End Content Area -->
+
+            <!-- Edit Modal Footer -->
+            <div v-if="isEditingModalOpen" class="p-5 sm:p-6 border-t border-slate-200 shrink-0 bg-white flex justify-end gap-3 rounded-b-3xl">
+              <button @click="closeEditModal" class="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
+                Cancel
+              </button>
+              <button @click="saveEditModal" class="px-5 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 cursor-pointer">
+                Save Changes
+              </button>
             </div>
 
           </div>
         </div>
       </Teleport>
 
-      <!-- ==================== STEP 3: REVIEW & PUBLISH ==================== -->
+      <!-- ====================================================================== -->
+      <!-- STEP 3: REVIEW & PUBLISH DRAFTS                                        -->
+      <!-- ====================================================================== -->
       <div v-if="currentStep === 3" class="space-y-6">
-        <div class="flex items-center justify-between bg-white p-6 rounded-2xl border border-slate-100 shadow-xs">
-          <div>
-            <h2 class="text-lg font-bold text-slate-900">Step 3: Review Draft Questions</h2>
-            <p class="text-xs text-slate-500">Review all grouped draft questions created in this session before publishing.</p>
-          </div>
-          <span class="px-3 py-1 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold rounded-full uppercase">
-            {{ totalDraftCount }} Drafts Ready
-          </span>
-        </div>
 
-        <div v-if="totalDraftCount === 0" class="p-16 text-center bg-white rounded-2xl border border-slate-100">
-          <p class="text-sm font-bold text-slate-700 mb-2">No draft questions created yet.</p>
-          <button @click="goToStep(2)" class="px-4 py-2 bg-[#5138ed] text-white text-xs font-bold rounded-xl mt-2">Go to Step 2: Add Questions</button>
-        </div>
-
-        <div v-else class="space-y-10">
-          <!-- Iterate over Question Type Groups -->
-          <div v-for="typeGroup in draftQuestions" :key="typeGroup.questionType">
-            <div class="mb-4 border-b-2 border-slate-200 pb-3">
-              <h3 class="text-base font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                <span class="w-2 h-5 bg-[#5138ed] rounded-full inline-block"></span>
-                {{ typeGroup.questionType }}
-              </h3>
+        <!-- Top Summary Bar -->
+        <div class="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                  Ready for Review
+                </span>
+              </div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Review Draft Questions</h2>
+              <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+                Inspect and refine draft questions before publishing them into {{ bank?.title }}.
+              </p>
             </div>
 
-            <!-- Iterate over Instruction Groups -->
-            <div class="space-y-8 pl-4 border-l-[3px] border-slate-100 ml-1">
-              <div v-for="(instGroup, instIdx) in typeGroup.instructionGroups" :key="instIdx">
-                <div class="mb-4 relative">
-                  <div class="absolute -left-[18px] top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-[3px] border-indigo-400 rounded-full"></div>
-                  <div v-if="instGroup.instruction">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Instructor Instruction:</span>
-                    <p class="text-[13px] font-bold text-slate-800 italic">"{{ instGroup.instruction }}"</p>
-                  </div>
-                  <div v-else>
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Instructor Instruction:</span>
-                    <p class="text-[13px] font-bold text-slate-400 italic">No specific instruction provided.</p>
-                  </div>
+            <!-- Publish & Add More Buttons -->
+            <div class="flex items-center gap-3 shrink-0 self-start md:self-auto">
+              <button
+                @click="goToStep(2)"
+                class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                <Plus class="w-4 h-4 text-[#5138ed]" />
+                <span>Add More Questions</span>
+              </button>
+
+              <button
+                @click="handlePublishQuestions"
+                :disabled="totalDraftCount === 0 || isPublishing"
+                class="px-5 py-2.5 bg-[#5138ed] hover:bg-indigo-600 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-indigo-200 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              >
+                <Send v-if="!isPublishing" class="w-4 h-4" />
+                <span v-else class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <span>{{ isPublishing ? 'Publishing...' : `Publish ${totalDraftCount} Question(s)` }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Metrics Strip -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+            <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/60">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Drafts</p>
+              <p class="text-xl font-black text-slate-900">{{ totalDraftCount }} Questions</p>
+            </div>
+            <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/60">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Marks</p>
+              <p class="text-xl font-black text-[#5138ed]">{{ totalDraftMarks }} Points</p>
+            </div>
+            <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/60">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target Course</p>
+              <p class="text-sm font-bold text-slate-800 truncate">{{ bank?.course_code || 'General' }}</p>
+            </div>
+            <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/60">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Bank Status</p>
+              <p class="text-sm font-bold text-emerald-600">Active Repository</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-if="totalDraftCount === 0" class="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs">
+          <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-[#5138ed] mx-auto flex items-center justify-center mb-4">
+            <FileText class="w-8 h-8" />
+          </div>
+          <h3 class="text-base font-bold text-slate-900 mb-1">No draft questions in this session yet</h3>
+          <p class="text-xs text-slate-500 max-w-sm mx-auto mb-5">
+            Add questions manually or import an Excel, CSV, JSON, or PDF file from Step 2.
+          </p>
+          <button 
+            @click="goToStep(2)" 
+            class="px-5 py-2.5 bg-[#5138ed] hover:bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 transition-colors inline-flex items-center gap-2 cursor-pointer"
+          >
+            <Plus class="w-4 h-4" />
+            <span>Go to Step 2: Add Questions</span>
+          </button>
+        </div>
+
+        <!-- Drafts List Grouped by Type -->
+        <div v-else class="space-y-8">
+          <div 
+            v-for="typeGroup in draftQuestions" 
+            :key="typeGroup.questionType"
+            class="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs"
+          >
+            <!-- Type Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+              <div class="flex items-center gap-3">
+                <span class="w-3 h-6 bg-[#5138ed] rounded-full inline-block"></span>
+                <h3 class="text-sm font-black text-slate-900 uppercase tracking-widest">
+                  {{ typeGroup.questionType }}
+                </h3>
+              </div>
+              <span class="px-3 py-1 bg-indigo-50 text-[#5138ed] text-xs font-bold rounded-full">
+                {{ draftsByType[typeGroup.questionType] || 0 }} Questions
+              </span>
+            </div>
+
+            <!-- Iterate Instruction Groups -->
+            <div class="space-y-6">
+              <div 
+                v-for="(instGroup, instIdx) in typeGroup.instructionGroups" 
+                :key="instIdx"
+                class="space-y-4"
+              >
+                <!-- Instruction Header -->
+                <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/60 flex items-center gap-2.5">
+                  <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Instruction:</span>
+                  <p class="text-xs font-bold text-slate-800 italic">
+                    {{ instGroup.instruction || 'Default Instruction' }}
+                  </p>
                 </div>
 
-                <!-- Questions -->
-                <div class="space-y-4 pl-4">
-                  <div v-for="(q, qIdx) in instGroup.questions" :key="q.id" class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm hover:border-indigo-200 transition-all">
-                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
-                      <div class="flex items-center gap-3">
-                        <span class="w-7 h-7 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center text-xs font-extrabold">{{ Number(qIdx) + 1 }}</span>
-                        <span :class="getDifficultyClass(q.difficulty)" class="px-2.5 py-1 text-[11px] font-bold rounded-md border">{{ q.difficulty || 'Medium' }}</span>
-                        <span class="px-2.5 py-1 text-[11px] font-bold rounded-md bg-slate-100 text-slate-600">{{ q.marks || 1 }} Mark{{ (q.marks || 1) > 1 ? 's' : '' }}</span>
-                        <span class="px-2.5 py-1 text-[11px] font-bold rounded-md bg-slate-100 text-slate-600">{{ q.chapter || 'Chapter 1' }}</span>
+                <!-- Questions in Instruction Group -->
+                <div class="space-y-4 pl-2 sm:pl-4 border-l-2 border-indigo-100">
+                  <div 
+                    v-for="(q, qIdx) in instGroup.questions" 
+                    :key="q.id"
+                    class="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs hover:border-indigo-200 hover:shadow-xs transition-all"
+                  >
+                    <!-- Question Card Header -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="w-6 h-6 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center text-xs font-black">
+                          {{ Number(qIdx) + 1 }}
+                        </span>
+                        <span :class="getDifficultyClass(q.difficulty)" class="px-2 py-0.5 text-[11px] font-bold rounded-md border">
+                          {{ q.difficulty || 'Medium' }}
+                        </span>
+                        <span class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-slate-100 text-slate-700">
+                          {{ q.marks || 1 }} pt{{ (q.marks || 1) > 1 ? 's' : '' }}
+                        </span>
+                        <span class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-slate-100 text-slate-600">
+                          {{ q.chapter || 'Chapter 1' }}
+                        </span>
                       </div>
-                      <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-full uppercase">Draft</span>
-                        <button @click="handleEditDraft(q)" class="p-2 text-slate-400 hover:text-indigo-600 rounded-lg"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
-                        <button @click="handleDeleteDraft(q.id)" class="p-2 text-slate-400 hover:text-rose-600 rounded-lg"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+
+                      <div class="flex items-center gap-1.5">
+                        <button 
+                          @click="handleEditDraft(q)" 
+                          class="p-2 text-slate-400 hover:text-[#5138ed] hover:bg-indigo-50 rounded-xl transition-colors cursor-pointer"
+                          title="Edit question"
+                        >
+                          <Edit3 class="w-4 h-4" />
+                        </button>
+                        <button 
+                          @click="handleDeleteDraft(q.id)" 
+                          class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                          title="Delete draft"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
-                    <p class="text-sm text-slate-800 leading-relaxed mb-3" v-html="q.text"></p>
+                    <!-- Question Text -->
+                    <div class="text-xs sm:text-sm text-slate-800 leading-relaxed mb-4 prose prose-sm max-w-none" v-html="q.text"></div>
 
-                    <!-- Options for MCQ / True-False -->
-                    <div v-if="q.options && q.options.length" class="space-y-1.5 mb-4">
-                      <div v-for="(opt, oIdx) in q.options" :key="oIdx" class="flex items-start gap-2 text-xs">
-                        <span class="w-5 h-5 shrink-0 rounded bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center border border-slate-200 mt-0.5">{{ opt.label || String.fromCharCode(65 + Number(oIdx)) }}</span>
-                        <span class="pt-0.5 [&>p]:m-0 [&>p]:inline" v-html="opt.text || opt"></span>
+                    <!-- Options for Multiple Choice -->
+                    <div v-if="q.options && q.options.length" class="space-y-2 mb-4">
+                      <div 
+                        v-for="(opt, oIdx) in q.options" 
+                        :key="oIdx"
+                        :class="[
+                          'flex items-start gap-2.5 p-2 rounded-xl text-xs border transition-colors',
+                          q.correct_answer === (opt.label || String.fromCharCode(65 + Number(oIdx)))
+                            ? 'bg-emerald-50/50 border-emerald-300 text-emerald-900 font-semibold'
+                            : 'bg-slate-50/60 border-slate-200/70 text-slate-700'
+                        ]"
+                      >
+                        <span 
+                          :class="q.correct_answer === (opt.label || String.fromCharCode(65 + Number(oIdx))) ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-700'"
+                          class="w-5 h-5 shrink-0 rounded-md text-[10px] font-black flex items-center justify-center mt-0.5"
+                        >
+                          {{ opt.label || String.fromCharCode(65 + Number(oIdx)) }}
+                        </span>
+                        <span class="pt-0.5" v-html="opt.text || opt"></span>
                       </div>
                     </div>
 
                     <!-- Display for Matching -->
-                    <div v-if="q.type === 'matching' && q.question_data?.column_a" class="grid grid-cols-2 gap-4 mb-4">
-                      <!-- Column A -->
-                      <div class="space-y-1.5">
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase">Column A</h4>
-                        <div v-for="(colA, idx) in q.question_data.column_a" :key="'A'+idx" class="flex items-start gap-2 text-xs">
-                          <span class="w-5 h-5 shrink-0 rounded bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center border border-slate-200 mt-0.5">{{ Number(idx) + 1 }}</span>
+                    <div v-if="q.type === 'matching'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/60 space-y-1.5">
+                        <span class="text-[10px] font-black uppercase text-slate-400">Column A (Prompts)</span>
+                        <div v-for="(colA, idx) in (q.question_data?.column_a || q.column_a || [])" :key="'A'+idx" class="flex items-start gap-2 text-xs">
+                          <span class="w-5 h-5 rounded bg-white text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0 border border-slate-200 mt-0.5">{{ Number(idx) + 1 }}</span>
                           <span class="pt-0.5" v-html="colA"></span>
                         </div>
                       </div>
-                      <!-- Column B -->
-                      <div class="space-y-1.5">
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase">Column B</h4>
-                        <div v-for="(colB, idx) in q.question_data.column_b" :key="'B'+idx" class="flex items-start gap-2 text-xs">
-                          <span class="w-5 h-5 shrink-0 rounded bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center border border-slate-200 mt-0.5">{{ colB.label }}</span>
-                          <span class="pt-0.5" v-html="colB.text"></span>
+
+                      <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/60 space-y-1.5">
+                        <span class="text-[10px] font-black uppercase text-slate-400">Column B (Choices)</span>
+                        <div v-for="(colB, idx) in (q.question_data?.column_b || q.column_b || [])" :key="'B'+idx" class="flex items-start gap-2 text-xs">
+                          <span class="w-5 h-5 rounded bg-white text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0 border border-slate-200 mt-0.5">{{ typeof colB === 'object' ? colB.label : String.fromCharCode(65 + Number(idx)) }}</span>
+                          <span class="pt-0.5" v-html="typeof colB === 'object' ? colB.text : colB"></span>
                         </div>
                       </div>
                     </div>
 
-                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
-                      <span class="font-bold text-slate-600">Answer:</span>
-                      <span v-if="q.type === 'multiple_choice' || q.type === 'true_false'" class="ml-2 text-[#5138ed] font-medium">{{ q.correct_answer }}</span>
-                      <span v-else-if="q.type === 'fill_in_blank'" class="ml-2 text-[#5138ed] font-medium">{{ q.question_data?.answers?.join(', ') }}</span>
-                      <span v-else-if="q.type === 'short_answer'" class="ml-2 text-[#5138ed] font-medium">{{ q.question_data?.expected_answer }}</span>
-                      <span v-else-if="q.type === 'matching'" class="ml-2 text-[#5138ed] font-medium">
-                        <span v-for="(ans, key) in (q.question_data?.correct_answers || {})" :key="key" class="inline-block mr-3">{{ key }} → {{ ans }}</span>
+                    <!-- Correct Answer Badge Strip -->
+                    <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70 flex items-center gap-2 text-xs">
+                      <span class="font-bold text-slate-500">Correct Answer:</span>
+                      <span v-if="q.type === 'multiple_choice' || q.type === 'true_false'" class="font-bold text-emerald-700 bg-emerald-100/60 px-2.5 py-0.5 rounded-md">
+                        {{ q.correct_answer }}
+                      </span>
+                      <span v-else-if="q.type === 'fill_in_blank' || q.type === 'fill_blank'" class="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                        {{ q.question_data?.answers?.join(', ') || q.correct_answer }}
+                      </span>
+                      <span v-else-if="q.type === 'short_answer'" class="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                        {{ q.question_data?.expected_answer || q.correct_answer || 'Manual Review' }}
+                      </span>
+                      <span v-else-if="q.type === 'matching'" class="flex flex-wrap gap-1.5">
+                        <template v-if="q.question_data?.correct_answers && Object.keys(q.question_data.correct_answers).length > 0">
+                          <span 
+                            v-for="(ans, key) in q.question_data.correct_answers" 
+                            :key="key" 
+                            class="font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-md text-[11px]"
+                          >
+                            {{ key }} → {{ ans }}
+                          </span>
+                        </template>
+                        <span v-else-if="q.correct_answer" class="font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-md text-[11px]">
+                          {{ q.correct_answer }}
+                        </span>
                       </span>
                     </div>
+
                   </div>
                 </div>
               </div>
@@ -1197,41 +1988,98 @@ const getDifficultyClass = (diff: string) => {
 
     </div>
 
-    <!-- STICKY ACTION FOOTER -->
-    <div class="fixed bottom-0 left-0 lg:left-56 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 sm:px-8 py-3 sm:py-4 z-40 flex items-center justify-between gap-3 shadow-lg">
+    <!-- STICKY BOTTOM NAVIGATION BAR -->
+    <div class="fixed bottom-0 left-0 lg:left-56 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-4 sm:px-8 py-3.5 z-40 flex items-center justify-between gap-3 shadow-lg">
+      <!-- Step 1 Actions -->
       <template v-if="currentStep === 1">
-        <button @click="handleCancel" class="px-4 sm:px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors min-h-[44px]">Cancel</button>
-        <button @click="goToStep(2)" class="px-5 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 shadow-md shadow-indigo-200 min-h-[44px]"><span>Next → Add Questions</span></button>
+        <button 
+          @click="handleCancel" 
+          class="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors min-h-[42px] cursor-pointer"
+        >
+          Cancel &amp; Return
+        </button>
+        <button 
+          @click="goToStep(2)" 
+          class="px-6 py-2.5 rounded-xl bg-[#5138ed] hover:bg-indigo-600 text-white text-xs font-bold transition-all shadow-md shadow-indigo-200 flex items-center gap-2 min-h-[42px] cursor-pointer"
+        >
+          <span>Next: Add Questions</span>
+          <ArrowRight class="w-4 h-4" />
+        </button>
       </template>
 
+      <!-- Step 2 Actions -->
       <template v-else-if="currentStep === 2">
-        <button @click="goToStep(1)" class="px-3.5 sm:px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><span>← Previous</span></button>
+        <button 
+          @click="goToStep(1)" 
+          class="px-4 sm:px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 min-h-[42px] cursor-pointer"
+        >
+          <ArrowLeft class="w-4 h-4" />
+          <span>Bank Info</span>
+        </button>
+
         <div class="flex items-center gap-2 sm:gap-3">
-          <button @click="handleAddAnother" class="px-3 sm:px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><svg class="w-4 h-4 text-[#5138ed] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg><span class="hidden sm:inline">Save & Add Another</span><span class="sm:hidden">Add Another</span></button>
-          <button @click="handleReviewAndPublish" class="px-4 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><span>Review & Publish →</span></button>
+          <button 
+            v-if="activeInputMode === 'manual'"
+            @click="handleAddAnother" 
+            class="px-4 sm:px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 min-h-[42px] cursor-pointer"
+          >
+            <Plus class="w-4 h-4 text-[#5138ed]" />
+            <span class="hidden sm:inline">Save &amp; Add Another</span>
+            <span class="sm:hidden">Add Another</span>
+          </button>
+
+          <button 
+            @click="handleReviewAndPublish" 
+            :disabled="isImportingFile"
+            class="px-5 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-indigo-200 flex items-center gap-1.5 min-h-[42px] cursor-pointer"
+          >
+            <span v-if="isImportingFile" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            <span>Review &amp; Publish ({{ totalDraftCount > 0 ? totalDraftCount : (activeInputMode === 'file' && importQuestionsRef?.selectedCount ? importQuestionsRef.selectedCount : 0) }})</span>
+            <ArrowRight v-if="!isImportingFile" class="w-4 h-4" />
+          </button>
         </div>
       </template>
 
+      <!-- Step 3 Actions -->
       <template v-else-if="currentStep === 3">
-        <button @click="goToStep(2)" class="px-3.5 sm:px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[44px]"><span>← Previous</span></button>
-        <button @click="handlePublishQuestions" :disabled="isPublishing || totalDraftCount === 0" class="px-4 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] text-white text-xs font-bold hover:bg-indigo-600 transition-colors shadow-md shadow-indigo-200 flex items-center gap-2 min-h-[44px]"><svg v-if="!isPublishing" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>{{ isPublishing ? 'Publishing...' : 'Publish Questions' }}</span></button>
+        <button 
+          @click="goToStep(2)" 
+          class="px-4 sm:px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 min-h-[42px] cursor-pointer"
+        >
+          <ArrowLeft class="w-4 h-4" />
+          <span>Back to Add Questions</span>
+        </button>
+
+        <button 
+          @click="handlePublishQuestions" 
+          :disabled="isPublishing || totalDraftCount === 0" 
+          class="px-5 sm:px-6 py-2.5 rounded-xl bg-[#5138ed] hover:bg-indigo-600 disabled:opacity-40 text-white text-xs font-bold transition-all shadow-md shadow-indigo-200 flex items-center gap-2 min-h-[42px] cursor-pointer disabled:cursor-not-allowed"
+        >
+          <Send v-if="!isPublishing" class="w-4 h-4" />
+          <span v-else class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          <span>{{ isPublishing ? 'Publishing...' : `Publish ${totalDraftCount} Question(s)` }}</span>
+        </button>
       </template>
     </div>
 
     <!-- Delete Confirmation Modal -->
     <Teleport to="body" :disabled="!isDeleteModalOpen">
       <div v-if="isDeleteModalOpen" class="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border border-slate-200">
           <div class="p-6 text-center">
-            <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-500 mx-auto flex items-center justify-center mb-4">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 mx-auto flex items-center justify-center mb-4">
+              <Trash2 class="w-6 h-6" />
             </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-2">Delete Draft Question?</h3>
-            <p class="text-sm text-slate-500">Are you sure you want to delete this question? This action cannot be undone.</p>
+            <h3 class="text-base font-bold text-slate-900 mb-1">Delete Draft Question?</h3>
+            <p class="text-xs text-slate-500">This question draft will be removed from your current editing session.</p>
           </div>
           <div class="flex items-center border-t border-slate-100 bg-slate-50">
-            <button @click="closeDeleteModal" class="flex-1 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors border-r border-slate-100">Cancel</button>
-            <button @click="confirmDeleteDraft" class="flex-1 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-100 transition-colors">Delete</button>
+            <button @click="closeDeleteModal" class="flex-1 px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors border-r border-slate-100 cursor-pointer">
+              Cancel
+            </button>
+            <button @click="confirmDeleteDraft" class="flex-1 px-4 py-3 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer">
+              Delete
+            </button>
           </div>
         </div>
       </div>
@@ -1240,18 +2088,22 @@ const getDifficultyClass = (diff: string) => {
     <!-- Publish Confirmation Modal -->
     <Teleport to="body" :disabled="!isPublishModalOpen">
       <div v-if="isPublishModalOpen" class="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border border-slate-200">
           <div class="p-6 text-center">
-            <div class="w-12 h-12 rounded-full bg-indigo-100 text-[#5138ed] mx-auto flex items-center justify-center mb-4">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7M5 13l4-4M19 7l-4 4"></path></svg>
+            <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-[#5138ed] mx-auto flex items-center justify-center mb-4">
+              <Send class="w-6 h-6" />
             </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-2">Publish Questions?</h3>
-            <p class="text-sm text-slate-500">Are you sure you want to publish {{ totalDraftCount }} question(s)? They will become active in this Question Bank.</p>
+            <h3 class="text-base font-bold text-slate-900 mb-1">Publish All Draft Questions?</h3>
+            <p class="text-xs text-slate-500">
+              Publish {{ totalDraftCount }} draft question(s) directly to <strong>{{ bank?.title }}</strong>. They will become available for instructors to add to exams.
+            </p>
           </div>
           <div class="flex items-center border-t border-slate-100 bg-slate-50">
-            <button @click="closePublishModal" class="flex-1 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors border-r border-slate-100">Cancel</button>
-            <button @click="confirmPublishQuestions" :disabled="isPublishing" class="flex-1 px-4 py-3 text-sm font-bold text-[#5138ed] hover:bg-indigo-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-              <svg v-if="isPublishing" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <button @click="closePublishModal" class="flex-1 px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors border-r border-slate-100 cursor-pointer">
+              Cancel
+            </button>
+            <button @click="confirmPublishQuestions" :disabled="isPublishing" class="flex-1 px-4 py-3 text-xs font-bold text-[#5138ed] hover:bg-indigo-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer">
+              <span v-if="isPublishing" class="w-4 h-4 border-2 border-[#5138ed] border-t-transparent rounded-full animate-spin"></span>
               <span>{{ isPublishing ? 'Publishing...' : 'Publish' }}</span>
             </button>
           </div>
