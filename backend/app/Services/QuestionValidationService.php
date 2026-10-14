@@ -28,7 +28,7 @@ class QuestionValidationService
         }
 
         $s = strtolower(trim($raw));
-        $s = str_replace(['_', '-', ' '], '', $s);
+        $s = str_replace(['_', '-', ' ', '/'], '', $s);
 
         if (in_array($s, ['multiplechoice', 'mcq', 'choice'])) {
             return 'multiple_choice';
@@ -36,7 +36,7 @@ class QuestionValidationService
         if (in_array($s, ['truefalse', 'tf', 'trueorfalse'])) {
             return 'true_false';
         }
-        if (in_array($s, ['fillblank', 'fillintheblank', 'fib', 'blank'])) {
+        if (in_array($s, ['fillblank', 'fillintheblank', 'fillinblank', 'fib', 'blank'])) {
             return 'fill_blank';
         }
         if (in_array($s, ['shortanswer', 'sa', 'essay', 'short'])) {
@@ -317,12 +317,12 @@ class QuestionValidationService
         }
 
         $extension = strtolower($file->getClientOriginalExtension());
-        $supportedExtensions = ['xlsx', 'xls', 'csv', 'json'];
+        $supportedExtensions = ['xlsx', 'xls', 'csv', 'json', 'pdf'];
 
         if (!in_array($extension, $supportedExtensions)) {
             return [
                 'success' => false,
-                'message' => "Unsupported file format '.{$extension}'. Only Excel (.xlsx, .xls), CSV (.csv), and JSON (.json) files are accepted.",
+                'message' => "Unsupported file format '.{$extension}'. Only Excel (.xlsx, .xls), CSV (.csv), JSON (.json), and PDF (.pdf) files are accepted.",
                 'errors'  => ['file' => ["Unsupported file extension '.{$extension}'."]]
             ];
         }
@@ -438,6 +438,34 @@ class QuestionValidationService
                 'skipped_rows'  => 0,
                 'questions'     => $batchResult['results'],
             ];
+        }
+
+        if ($extension === 'pdf') {
+            $handle = fopen($filePath, 'rb');
+            $headerBytes = fread($handle, 8);
+            fclose($handle);
+
+            if (!str_starts_with($headerBytes, '%PDF-')) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid file format: The uploaded file is not a valid PDF document.',
+                    'errors'  => ['file' => ['File does not contain valid PDF headers.']]
+                ];
+            }
+
+            try {
+                $parser = new \Smalot\PdfParser\Parser();
+                $pdf = $parser->parseFile($filePath);
+                $text = $pdf->getText();
+            } catch (\Throwable $e) {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to read PDF document: ' . $e->getMessage(),
+                    'errors'  => ['file' => ['Unable to extract text from PDF document.']]
+                ];
+            }
+
+            return $this->parsePdfDocument($text, $file->getClientOriginalName());
         }
 
         return [
@@ -820,5 +848,253 @@ class QuestionValidationService
             'correct_answer'  => $normalizedAnswer,
             'marks_per_item'  => $marksPerItem,
         ];
+    }
+
+    /**
+     * Parse text extracted from an uploaded PDF file, extract question records, and validate them.
+     */
+    public function parsePdfDocument(string $text, string $fileName): array
+    {
+        // 1. Remove Page headers/footers
+        $lines = explode("\n", $text);
+        $filteredLines = [];
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if (preg_match('/^Page\s+\d+(\s+of\s+\d+)?$/i', $trimmed)) {
+                continue;
+            }
+            $filteredLines[] = $line;
+        }
+        $cleanText = implode("\n", $filteredLines);
+
+        // 2. Identify question boundaries
+        // Matches 'Question 1 — True / False (2 marks)' or 'Question 1: ...' or 'Q1. ...'
+        $headerPattern = '/(?:^|\n)\s*(?:Question|Q\.?)\s*(\d+)\s*(?:[—–\-:]|\.|\))\s*([^\n(]+?)(?:\s*[\(\[](\d+(?:\.\d+)?)\s*(?:marks?|pts?|points?)[\)\]])?(?=\n|$)/iu';
+
+        if (!preg_match_all($headerPattern, $cleanText, $matches, PREG_OFFSET_CAPTURE)) {
+            return [
+                'success' => false,
+                'message' => 'Invalid question file format: No questions matching the exam question format were detected in the uploaded PDF. Expected question blocks such as "Question 1 — Multiple Choice (5 marks)" with Question, Options, and Correct Answer fields.',
+                'errors'  => ['file' => ['No question blocks detected in the uploaded PDF file.']]
+            ];
+        }
+
+        $rawQuestions = [];
+        $totalQuestions = count($matches[0]);
+
+        for ($i = 0; $i < $totalQuestions; $i++) {
+            $qNum = $matches[1][$i][0];
+            $rawType = trim($matches[2][$i][0]);
+            $marks = isset($matches[3][$i][0]) && $matches[3][$i][0] !== '' ? (float)$matches[3][$i][0] : null;
+
+            $contentStart = $matches[0][$i][1] + strlen($matches[0][$i][0]);
+            $contentEnd = ($i + 1 < $totalQuestions) ? $matches[0][$i + 1][1] : strlen($cleanText);
+            $block = trim(substr($cleanText, $contentStart, $contentEnd - $contentStart));
+
+            // Marks fallback if not in header line
+            if ($marks === null && preg_match('/(?:Marks?|Points?|Score)\s*:\s*(\d+(?:\.\d+)?)/i', $block, $mMark)) {
+                $marks = (float)$mMark[1];
+            }
+            if ($marks === null || $marks <= 0) {
+                $marks = 1.0;
+            }
+
+            // Difficulty
+            $difficulty = 'Medium';
+            if (preg_match('/Difficulty\s*:\s*([A-Za-z]+)/i', $block, $mDiff)) {
+                $difficulty = ucfirst(strtolower(trim($mDiff[1])));
+            }
+
+            // Instruction
+            $instruction = '';
+            if (preg_match('/(?:Instructor\s+instruction|Instructions?)\s*:\s*(.*?)(?=\n\s*(?:Difficulty:|Chapter:|Topic:|\Z))/is', $block, $mInst)) {
+                $instruction = trim(preg_replace('/\s+/', ' ', $mInst[1]));
+            }
+
+            // Correct Answer
+            $correctAnswer = '';
+            if (preg_match('/(?:Correct\s+answer(?:\s*\/\s*marking\s*guide)?|Expected\s+answer|Answer|Key)\s*:\s*(.*?)(?=\n\s*(?:Instructor\s+instruction|Instructions?|Difficulty:|Student\s+response)|\Z)/is', $block, $mAns)) {
+                $correctAnswer = trim($mAns[1]);
+            }
+
+            // Question Text
+            $qText = '';
+            if (preg_match('/(?:Question|Prompt)\s*:\s*(.*?)(?=\n\s*(?:[A-D][\.\)]|\bColumn\s+A\b|Correct\s+answer|Answer:|Instructor\s+instruction|Instruction:|Difficulty:)|\Z)/is', $block, $mText)) {
+                $qText = trim(preg_replace('/\s+/', ' ', $mText[1]));
+            } else {
+                $firstLine = strtok($block, "\n");
+                $qText = trim($firstLine ?: 'Question ' . $qNum);
+            }
+
+            // Options (for Multiple Choice)
+            $options = [];
+            $lowerType = strtolower($rawType);
+            $isMcq = str_contains($lowerType, 'choice') || str_contains($lowerType, 'mcq');
+            $isMatching = str_contains($lowerType, 'match') || str_contains($block, 'Column A');
+
+            if ($isMcq || preg_match('/(?:^|\n)\s*[A-D][\.\)]\s+/', $block)) {
+                if (preg_match('/(?:^|\n)\s*([A-D][\.\)]\s+.*?)(?=\n\s*(?:Correct\s+answer|Answer:|Instructor\s+instruction|Difficulty:)|\Z)/is', $block, $mOptBlock)) {
+                    $optBlock = trim($mOptBlock[1]);
+                    $parts = preg_split('/(?=\b[A-D][\.\)]\s*)/', $optBlock);
+                    foreach ($parts as $p) {
+                        $p = trim($p);
+                        if (preg_match('/^[A-D][\.\)]\s*(.+)$/s', $p, $pm)) {
+                            $options[] = trim(preg_replace('/\s+/', ' ', $pm[1]));
+                        }
+                    }
+                }
+            }
+
+            // Matching (Column A & Column B)
+            $columnA = [];
+            $columnB = [];
+            if ($isMatching) {
+                $blockLines = explode("\n", $block);
+                foreach ($blockLines as $bLine) {
+                    $bLine = trim($bLine);
+                    if (preg_match('/^(\d+)[\.\)]\s*(.*?)(?:\t+|\s{2,})([A-Za-z])[\.\)]\s*(.+)$/u', $bLine, $pairMatch)) {
+                        $colAItem = trim($pairMatch[2]);
+                        $colBLabel = strtoupper(trim($pairMatch[3]));
+                        $colBText = trim($pairMatch[4]);
+
+                        $columnA[] = $colAItem;
+                        $columnB[] = ['label' => $colBLabel, 'text' => $colBText];
+                    }
+                }
+            }
+
+            $rawQuestions[] = [
+                'type'           => $rawType,
+                'text'           => $qText,
+                'marks'          => $marks,
+                'options'        => $options,
+                'column_a'       => $columnA,
+                'column_b'       => $columnB,
+                'correct_answer' => $correctAnswer,
+                'instruction'    => $instruction,
+                'difficulty'     => $difficulty,
+            ];
+        }
+
+        if (empty($rawQuestions)) {
+            return [
+                'success' => false,
+                'message' => 'Invalid question file format: No readable questions were parsed from the PDF document.',
+                'errors'  => ['file' => ['Failed to extract valid question blocks.']]
+            ];
+        }
+
+        $batchResult = $this->validateQuestionsBatch($rawQuestions);
+
+        return [
+            'success'       => true,
+            'file_name'     => $fileName,
+            'total_rows'    => count($rawQuestions),
+            'valid_count'   => $batchResult['valid_count'],
+            'invalid_count' => $batchResult['invalid_count'],
+            'skipped_rows'  => 0,
+            'questions'     => $batchResult['results'],
+        ];
+    }
+
+    /**
+     * Generate a downloadable sample exam question template in PDF format using Dompdf.
+     */
+    public function generatePdfTemplate(): string
+    {
+        $options = new \Dompdf\Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+
+        $html = <<<'HTML'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Exam Questions Template</title>
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; line-height: 1.4; color: #1e293b; margin: 30px; }
+        h1 { font-size: 18pt; color: #1e293b; margin-bottom: 5px; }
+        .subtitle { font-size: 10pt; color: #64748b; margin-bottom: 25px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .q-block { margin-bottom: 22px; padding-bottom: 15px; border-bottom: 1px dashed #cbd5e1; }
+        .q-header { font-weight: bold; font-size: 12pt; color: #0f172a; margin-bottom: 6px; }
+        .q-field { margin-bottom: 4px; }
+        .q-label { font-weight: bold; color: #475569; }
+        .q-ans { font-weight: bold; color: #047857; }
+        .meta { color: #64748b; font-size: 9.5pt; margin-top: 4px; }
+        table.matching { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10.5pt; }
+        table.matching th, table.matching td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; }
+        table.matching th { background-color: #f1f5f9; font-weight: bold; color: #334155; }
+    </style>
+</head>
+<body>
+    <h1>Wollo University - Exam Question PDF Template</h1>
+    <div class="subtitle">Standardized format for bulk importing exam questions. Follow this structure for True/False, Multiple Choice, Matching, Fill in the Blank, and Short Answer questions.</div>
+
+    <div class="q-block">
+        <div class="q-header">Question 1 — True / False (2 marks)</div>
+        <div class="q-field"><span class="q-label">Question:</span> In a relational database, a primary key uniquely identifies each record in a table.</div>
+        <div class="q-field"><span class="q-label">Correct answer:</span> <span class="q-ans">True</span></div>
+        <div class="q-field"><span class="q-label">Instructor instruction:</span> Mark True if the statement is correct; otherwise mark False.</div>
+        <div class="meta"><span class="q-label">Difficulty:</span> Easy | <span class="q-label">Chapter:</span> Chapter 1 - Database Fundamentals</div>
+    </div>
+
+    <div class="q-block">
+        <div class="q-header">Question 2 — Matching (4 marks)</div>
+        <div class="q-field"><span class="q-label">Question:</span> Match each database term in Column A with its correct definition in Column B.</div>
+        <table class="matching">
+            <thead>
+                <tr>
+                    <th style="width: 45%;">Column A — Terms</th>
+                    <th style="width: 55%;">Column B — Options</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1. Primary Key</td><td>A. A command used to sort query results</td></tr>
+                <tr><td>2. Foreign Key</td><td>B. A field that uniquely identifies a record</td></tr>
+                <tr><td>3. Query</td><td>C. A request to retrieve or manipulate data</td></tr>
+                <tr><td>4. Sort</td><td>D. A field that references a key in another table</td></tr>
+            </tbody>
+        </table>
+        <div class="q-field"><span class="q-label">Correct answer:</span> <span class="q-ans">1-B; 2-D; 3-C; 4-A</span></div>
+        <div class="q-field"><span class="q-label">Instructor instruction:</span> Match every term in Column A with one definition in Column B.</div>
+        <div class="meta"><span class="q-label">Difficulty:</span> Medium</div>
+    </div>
+
+    <div class="q-block">
+        <div class="q-header">Question 3 — Multiple Choice (3 marks)</div>
+        <div class="q-field"><span class="q-label">Question:</span> Which SQL clause is used to filter rows before grouping results?</div>
+        <div class="q-field">A. ORDER BY &nbsp;&nbsp;&nbsp; B. WHERE &nbsp;&nbsp;&nbsp; C. SELECT &nbsp;&nbsp;&nbsp; D. INSERT</div>
+        <div class="q-field"><span class="q-label">Correct answer:</span> <span class="q-ans">B</span></div>
+        <div class="q-field"><span class="q-label">Instructor instruction:</span> Choose one correct option (A, B, C, or D).</div>
+        <div class="meta"><span class="q-label">Difficulty:</span> Easy | <span class="q-label">Chapter:</span> Chapter 2 - SQL Queries</div>
+    </div>
+
+    <div class="q-block">
+        <div class="q-header">Question 4 — Fill in the Blank (2 marks)</div>
+        <div class="q-field"><span class="q-label">Question:</span> In HTTP, the status code commonly used for a successful request is ____.</div>
+        <div class="q-field"><span class="q-label">Correct answer:</span> <span class="q-ans">200</span></div>
+        <div class="q-field"><span class="q-label">Instructor instruction:</span> Enter the missing number or term in the blank.</div>
+        <div class="meta"><span class="q-label">Difficulty:</span> Easy</div>
+    </div>
+
+    <div class="q-block">
+        <div class="q-header">Question 5 — Short Answer (4 marks)</div>
+        <div class="q-field"><span class="q-label">Question:</span> Explain the primary function of an operating system kernel.</div>
+        <div class="q-field"><span class="q-label">Correct answer:</span> <span class="q-ans">The kernel acts as the core interface between computer hardware and user applications, managing CPU scheduling, memory allocation, and peripheral access.</span></div>
+        <div class="q-field"><span class="q-label">Instructor instruction:</span> Provide a concise explanation covering resource management and hardware abstraction.</div>
+        <div class="meta"><span class="q-label">Difficulty:</span> Hard</div>
+    </div>
+</body>
+</html>
+HTML;
+
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return (string)$dompdf->output();
     }
 }

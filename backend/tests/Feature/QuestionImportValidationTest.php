@@ -480,4 +480,93 @@ class QuestionImportValidationTest extends TestCase
         $this->assertEquals('Query', $questionData['column_a'][2]);
         $this->assertEquals('Sort', $questionData['column_a'][3]);
     }
+
+    /**
+     * 18. Valid PDF template import passes validation.
+     */
+    public function test_valid_pdf_template_import_passes_validation(): void
+    {
+        $service = app(\App\Services\QuestionValidationService::class);
+        $pdfContent = $service->generatePdfTemplate();
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'test_pdf_');
+        file_put_contents($tempPath, $pdfContent);
+        $file = new UploadedFile($tempPath, 'template_questions.pdf', 'application/pdf', null, true);
+
+        $response = $this->actingAs($this->instructor)
+            ->postJson('/api/v1/instructor/exams/validate-import', [
+                'file' => $file,
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.success', true)
+            ->assertJsonPath('data.valid_count', 5)
+            ->assertJsonPath('data.invalid_count', 0);
+    }
+
+    /**
+     * 19. User sample PDF containing all 10 questions passes validation.
+     */
+    public function test_user_pdf_import_all_types_passes_validation(): void
+    {
+        $userPdfPath = 'C:\\Users\\hp\\Downloads\\student_exam_import_test_all_types_clear_matching (1).pdf';
+        if (!file_exists($userPdfPath)) {
+            $this->markTestSkipped('User sample PDF not found in Downloads directory.');
+        }
+
+        $file = new UploadedFile($userPdfPath, 'exam_all_types.pdf', 'application/pdf', null, true);
+
+        $response = $this->actingAs($this->instructor)
+            ->postJson('/api/v1/instructor/exams/validate-import', [
+                'file' => $file,
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.success', true)
+            ->assertJsonPath('data.valid_count', 10)
+            ->assertJsonPath('data.invalid_count', 0);
+
+        $questions = $response->json('data.questions');
+        $this->assertCount(10, $questions);
+    }
+
+    /**
+     * 20. An unstructured / arbitrary PDF is rejected with descriptive error.
+     */
+    public function test_arbitrary_unstructured_pdf_is_rejected(): void
+    {
+        $options = new \Dompdf\Options();
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml('<html><body><h1>Campus News</h1><p>The library will be closed this weekend for maintenance.</p></body></html>');
+        $dompdf->render();
+        $pdfContent = (string)$dompdf->output();
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'test_plain_pdf_');
+        file_put_contents($tempPath, $pdfContent);
+        $file = new UploadedFile($tempPath, 'news.pdf', 'application/pdf', null, true);
+
+        $response = $this->actingAs($this->instructor)
+            ->postJson('/api/v1/instructor/exams/validate-import', [
+                'file' => $file,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonFragment([
+                'message' => 'Invalid question file format: No questions matching the exam question format were detected in the uploaded PDF. Expected question blocks such as "Question 1 — Multiple Choice (5 marks)" with Question, Options, and Correct Answer fields.'
+            ]);
+    }
+
+    /**
+     * 21. Instructor can download PDF question template.
+     */
+    public function test_instructor_can_download_pdf_template(): void
+    {
+        $response = $this->actingAs($this->instructor)
+            ->get('/api/v1/instructor/exams/download-pdf-template');
+
+        $response->assertStatus(200);
+        $this->assertEquals('application/pdf', $response->headers->get('content-type'));
+        $this->assertStringContainsString('exam_questions_template.pdf', $response->headers->get('content-disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+    }
 }

@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import apiClient from '../../../core/api/apiClient'
 
 export interface ParsedQuestionRow {
   id: string
@@ -35,7 +36,7 @@ export interface FileValidationResult {
   detectedHeaders?: string[]
 }
 
-export const SUPPORTED_EXTENSIONS = ['.xlsx', '.xls', '.csv', '.json']
+export const SUPPORTED_EXTENSIONS = ['.xlsx', '.xls', '.csv', '.json', '.pdf']
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
 
 /**
@@ -55,7 +56,7 @@ export const formatBytes = (bytes: number): string => {
  */
 export const normalizeQuestionType = (raw: string): string | null => {
   if (!raw) return null
-  const s = raw.toLowerCase().replace(/[\s_-]/g, '').trim()
+  const s = raw.toLowerCase().replace(/[\s_\-\/]/g, '').trim()
 
   if (s === 'multiplechoice' || s === 'mcq' || s === 'choice') {
     return 'multiple_choice'
@@ -63,7 +64,7 @@ export const normalizeQuestionType = (raw: string): string | null => {
   if (s === 'truefalse' || s === 'tf' || s === 'trueorfalse') {
     return 'true_false'
   }
-  if (s === 'fillblank' || s === 'fillintheblank' || s === 'fib' || s === 'blank') {
+  if (s === 'fillblank' || s === 'fillintheblank' || s === 'fillinblank' || s === 'fib' || s === 'blank') {
     return 'fill_blank'
   }
   if (s === 'shortanswer' || s === 'sa' || s === 'essay' || s === 'short') {
@@ -861,9 +862,131 @@ export const parseAndValidateJson = async (file: File): Promise<FileValidationRe
 }
 
 /**
- * Download sample template for Excel (.xlsx), CSV (.csv), or JSON (.json).
+ * Parse and validate exam questions from a PDF file (.pdf) by delegating to backend PDF parsing.
  */
-export const downloadQuestionTemplate = (format: 'xlsx' | 'csv' | 'json') => {
+export const parseAndValidatePdf = async (file: File): Promise<FileValidationResult> => {
+  const fileName = file.name
+  const fileSize = formatBytes(file.size)
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return {
+      success: false,
+      message: 'File size exceeds maximum limit of 10 MB.',
+      fileName,
+      fileSize,
+      totalRows: 0,
+      validCount: 0,
+      invalidCount: 0,
+      skippedRows: 0,
+      questions: []
+    }
+  }
+
+  // Quick binary check for %PDF-
+  try {
+    const buffer = await file.slice(0, 8).arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    const isPdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d
+    if (!isPdf) {
+      return {
+        success: false,
+        message: 'Invalid file format: The selected file does not contain valid PDF headers (%PDF-).',
+        fileName,
+        fileSize,
+        totalRows: 0,
+        validCount: 0,
+        invalidCount: 0,
+        skippedRows: 0,
+        questions: []
+      }
+    }
+  } catch (readErr) {
+    // If slice fails, proceed to backend validation
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const response = await apiClient.post('/instructor/exams/validate-import', formData)
+    const data = response.data?.data || {}
+    const backendQuestions = data.questions || []
+
+    const questions: ParsedQuestionRow[] = backendQuestions.map((item: any, idx: number) => {
+      const q = item.question || item
+      const status: 'valid' | 'error' = (item.valid || item.status === 'valid') ? 'valid' : 'error'
+      return {
+        id: `pdf-q-${idx + 1}-${Date.now()}`,
+        rawIndex: item.index || idx + 1,
+        type: q.type || 'multiple_choice',
+        instruction: q.instruction || '',
+        text: q.text || '',
+        difficulty: q.difficulty || 'Medium',
+        marks: Number(q.marks) || 1,
+        options: Array.isArray(q.options) ? q.options : [],
+        correct_answer: q.correct_answer || '',
+        description: q.description || '',
+        status,
+        statusMessage: item.status_message || (status === 'valid' ? 'Valid question ready for import' : (Array.isArray(item.errors) ? item.errors.join('; ') : 'Validation error')),
+        errors: Array.isArray(item.errors) ? item.errors : [],
+        column_a: q.column_a,
+        column_b: q.column_b,
+        correct_answers: q.correct_answers,
+        pairs: q.pairs,
+        marks_per_item: q.marks_per_item
+      }
+    })
+
+    return {
+      success: true,
+      fileName,
+      fileSize,
+      totalRows: data.total_rows || questions.length,
+      validCount: data.valid_count ?? questions.filter(q => q.status === 'valid').length,
+      invalidCount: data.invalid_count ?? questions.filter(q => q.status === 'error').length,
+      skippedRows: data.skipped_rows || 0,
+      questions
+    }
+  } catch (err: any) {
+    const backendMsg = err.response?.data?.message || err.message || 'Failed to parse PDF document.'
+    const fileErrors = err.response?.data?.errors?.file
+    const message = (fileErrors && fileErrors.length > 0) ? fileErrors[0] : backendMsg
+
+    return {
+      success: false,
+      message,
+      fileName,
+      fileSize,
+      totalRows: 0,
+      validCount: 0,
+      invalidCount: 0,
+      skippedRows: 0,
+      questions: []
+    }
+  }
+}
+
+/**
+ * Download sample template for Excel (.xlsx), CSV (.csv), JSON (.json), or PDF (.pdf).
+ */
+export const downloadQuestionTemplate = async (format: 'xlsx' | 'csv' | 'json' | 'pdf') => {
+  if (format === 'pdf') {
+    try {
+      const response = await apiClient.get('/instructor/exams/download-pdf-template', {
+        responseType: 'blob'
+      })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'exam_questions_template.pdf'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      console.error('Failed to download PDF template:', e)
+    }
+    return
+  }
   const sampleHeaders = [
     'Type',
     'Question Text',

@@ -4,6 +4,7 @@ import { useCreateExamStore } from '../../store/createExamStore'
 import {
   parseAndValidateSpreadsheet,
   parseAndValidateJson,
+  parseAndValidatePdf,
   downloadQuestionTemplate,
   formatBytes,
   type ParsedQuestionRow,
@@ -32,7 +33,7 @@ const invalidCount = ref(0)
 const skippedRows = ref(0)
 
 // Template generation and download
-const downloadTemplate = (format: 'xlsx' | 'csv' | 'json') => {
+const downloadTemplate = (format: 'xlsx' | 'csv' | 'json' | 'pdf') => {
   downloadQuestionTemplate(format)
 }
 
@@ -91,9 +92,10 @@ const processFile = async (file: File) => {
   const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
   const isCsv = lowerName.endsWith('.csv') || file.type === 'text/csv'
   const isJson = lowerName.endsWith('.json') || file.type === 'application/json'
+  const isPdf = lowerName.endsWith('.pdf') || file.type === 'application/pdf'
 
-  if (!isExcel && !isCsv && !isJson) {
-    parseError.value = `Unsupported file format. Please upload an Excel (.xlsx/.xls), CSV (.csv), or JSON (.json) file.`
+  if (!isExcel && !isCsv && !isJson && !isPdf) {
+    parseError.value = `Unsupported file format. Please upload an Excel (.xlsx/.xls), CSV (.csv), JSON (.json), or PDF (.pdf) file.`
     return
   }
 
@@ -102,7 +104,9 @@ const processFile = async (file: File) => {
   try {
     let result: FileValidationResult
 
-    if (isJson) {
+    if (isPdf) {
+      result = await parseAndValidatePdf(file)
+    } else if (isJson) {
       result = await parseAndValidateJson(file)
     } else {
       result = await parseAndValidateSpreadsheet(file)
@@ -124,22 +128,24 @@ const processFile = async (file: File) => {
     // Pre-select ONLY valid questions (invalid questions must never be selectable)
     selectedRowIds.value = result.questions.filter(q => q.status === 'valid').map(q => q.id)
 
-    // Also attempt backend validation verification if available
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      await apiClient.post('/instructor/exams/validate-import', formData)
-    } catch (backendErr: any) {
-      // If backend explicitly rejected the file with a validation error
-      if (backendErr.response?.status === 422) {
-        const backendMsg = backendErr.response?.data?.message
-        const fileErrors = backendErr.response?.data?.errors?.file
-        if (fileErrors && fileErrors.length > 0) {
-          parseError.value = fileErrors[0]
-          parsedQuestions.value = []
-          return
-        } else if (backendMsg) {
-          parseError.value = backendMsg
+    // Also attempt backend validation verification for non-PDF spreadsheets
+    if (!isPdf) {
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        await apiClient.post('/instructor/exams/validate-import', formData)
+      } catch (backendErr: any) {
+        // If backend explicitly rejected the file with a validation error
+        if (backendErr.response?.status === 422) {
+          const backendMsg = backendErr.response?.data?.message
+          const fileErrors = backendErr.response?.data?.errors?.file
+          if (fileErrors && fileErrors.length > 0) {
+            parseError.value = fileErrors[0]
+            parsedQuestions.value = []
+            return
+          } else if (backendMsg) {
+            parseError.value = backendMsg
+          }
         }
       }
     }
@@ -295,7 +301,7 @@ const importSelectedQuestions = () => {
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
             <h3 class="text-[16px] font-bold text-slate-800">Import Questions from File</h3>
           </div>
-          <p class="text-[12px] text-slate-500 mt-1">Upload questions in bulk via Excel spreadsheet (.xlsx), CSV, or JSON format.</p>
+          <p class="text-[12px] text-slate-500 mt-1">Upload questions in bulk via Excel spreadsheet (.xlsx), CSV, JSON, or PDF (.pdf) format.</p>
         </div>
 
         <!-- Template Download Buttons -->
@@ -327,6 +333,15 @@ const importSelectedQuestions = () => {
             <svg class="w-4 h-4 text-[#4F35F3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
             JSON Template (.json)
           </button>
+          <button
+            type="button"
+            @click="downloadTemplate('pdf')"
+            class="inline-flex items-center gap-2 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[12px] font-bold rounded-xl border border-rose-200 transition-colors cursor-pointer shadow-2xs"
+            title="Download PDF format template with all question types"
+          >
+            <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            PDF Template (.pdf)
+          </button>
         </div>
       </div>
 
@@ -334,7 +349,7 @@ const importSelectedQuestions = () => {
       <input
         ref="fileInputRef"
         type="file"
-        accept=".xlsx,.xls,.csv,.json"
+        accept=".xlsx,.xls,.csv,.json,.pdf"
         class="hidden"
         @change="onFileSelected"
       />
@@ -357,7 +372,7 @@ const importSelectedQuestions = () => {
           </svg>
         </div>
         <p class="text-[14px] font-bold text-slate-800 mb-1">Click to upload or drag &amp; drop question file</p>
-        <p class="text-[12px] text-slate-400 max-w-sm mx-auto mb-3">Accepts Excel (.xlsx, .xls), CSV (.csv), or JSON format according to the exam question format</p>
+        <p class="text-[12px] text-slate-400 max-w-sm mx-auto mb-3">Accepts Excel (.xlsx, .xls), CSV (.csv), JSON (.json), or PDF (.pdf) format according to the exam question format</p>
         <div class="inline-flex items-center gap-2 px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600">
           <span>Supported types: MCQ, True/False, Fill in Blank, Short Answer, Matching</span>
           <span>•</span>
@@ -427,13 +442,21 @@ const importSelectedQuestions = () => {
         <div class="flex-1">
           <p class="font-bold text-rose-900">File Validation Failed</p>
           <p class="text-rose-700 mt-0.5 leading-relaxed">{{ parseError }}</p>
-          <div class="mt-2.5 flex items-center gap-2">
+          <div class="mt-2.5 flex flex-wrap items-center gap-2">
             <button
               type="button"
               @click="downloadTemplate('xlsx')"
               class="text-[11.5px] font-bold text-[#4F35F3] hover:underline cursor-pointer"
             >
               Download Example Excel Template →
+            </button>
+            <span class="text-rose-300">•</span>
+            <button
+              type="button"
+              @click="downloadTemplate('pdf')"
+              class="text-[11.5px] font-bold text-rose-700 hover:underline cursor-pointer"
+            >
+              Download Example PDF Template →
             </button>
             <span class="text-rose-300">•</span>
             <button

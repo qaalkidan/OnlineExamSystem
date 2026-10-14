@@ -197,6 +197,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::get('/upcoming-exams',  [InstructorDashboardController::class, 'upcomingExams']);
 
         // Exam Management
+        Route::get('exams/download-pdf-template', [InstructorExamController::class, 'downloadPdfTemplate']);
         Route::post('exams/validate-import', [InstructorExamController::class, 'validateImport']);
         Route::apiResource('exams', InstructorExamController::class);
 

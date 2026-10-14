@@ -100,7 +100,20 @@ class InstructorExamController extends Controller
     }
 
     /**
-     * Validate an uploaded question file (.xlsx, .csv, .json) before import.
+     * Download a sample question import template in PDF format.
+     */
+    public function downloadPdfTemplate(): \Illuminate\Http\Response
+    {
+        $content = $this->questionValidationService->generatePdfTemplate();
+
+        return response($content, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="exam_questions_template.pdf"',
+        ]);
+    }
+
+    /**
+     * Validate an uploaded question file (.xlsx, .csv, .json, .pdf) before import.
      */
     public function validateImport(Request $request): JsonResponse
     {
