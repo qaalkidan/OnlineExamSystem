@@ -56,10 +56,16 @@ const availableCourses = computed(() => {
 // Helper to check if exam is scheduled for today
 const isExamToday = (e: UpcomingExam) => {
   if (!e.scheduledAt && !e.scheduledDate) return true
-  const rawDate = e.scheduledAt || e.scheduledDate
-  const examDate = new Date(rawDate).toDateString()
-  const todayDate = new Date().toDateString()
-  return examDate === todayDate
+  const raw = String(e.scheduledAt || e.scheduledDate).trim()
+  if (!raw) return true
+  let d: Date
+  if (raw.length === 10 && raw.includes('-')) {
+    d = new Date(`${raw}T00:00:00`)
+  } else {
+    d = new Date(raw)
+  }
+  if (isNaN(d.getTime())) return true
+  return d.toDateString() === new Date().toDateString()
 }
 
 const matchesSearch = (item: any) => {
@@ -144,7 +150,112 @@ const summaryStats = computed(() => ({
   total: upcomingExams.value.length + results.value.length,
 }))
 
-// Countdown timer for ongoing exam
+// Central Reactive Clock (ticks every 1s for real-time countdowns & status transitions)
+const currentTime = ref(Date.now())
+let clockInterval: ReturnType<typeof setInterval> | null = null
+
+// Helper to extract exact exam start timestamp in milliseconds
+const getExamStartMs = (exam: UpcomingExam): number | null => {
+  if (!exam) return null
+  const raw = exam.scheduledAt || exam.scheduledDate
+  if (!raw) return null
+
+  const str = String(raw).trim()
+
+  // Full ISO datetime with T or with time component
+  if (str.includes('T')) {
+    const d = new Date(str)
+    if (!isNaN(d.getTime())) return d.getTime()
+  }
+
+  // Date-only string (e.g. "2026-10-14") combined with startTime (e.g. "10:25 AM")
+  if (exam.startTime && exam.startTime !== 'TBD' && exam.startTime !== 'Scheduled Time') {
+    const datePart = str.split('T')[0]
+    const combined = new Date(`${datePart} ${exam.startTime}`)
+    if (!isNaN(combined.getTime())) return combined.getTime()
+  }
+
+  const d = new Date(str)
+  return isNaN(d.getTime()) ? null : d.getTime()
+}
+
+// Helper to extract exam end timestamp in milliseconds
+const getExamEndMs = (exam: UpcomingExam): number | null => {
+  const startMs = getExamStartMs(exam)
+  if (!startMs) return null
+  const duration = Number(exam.durationMinutes) || 60
+  return startMs + (duration * 60 * 1000)
+}
+
+// Check if exam has reached start time
+const hasExamStarted = (exam: UpcomingExam): boolean => {
+  if (exam.attemptStatus === 'in_progress') return true
+  const startMs = getExamStartMs(exam)
+  // If no scheduled start time, consider it immediately available
+  if (startMs === null) return true
+  return currentTime.value >= startMs
+}
+
+// Check if exam duration has ended without attempt
+const hasExamEnded = (exam: UpcomingExam): boolean => {
+  if (exam.attemptStatus === 'in_progress') return false
+  const endMs = getExamEndMs(exam)
+  if (endMs === null) return false
+  return currentTime.value >= endMs
+}
+
+// Formatted countdown until exam start time
+const getExamCountdownParts = (exam: UpcomingExam) => {
+  const now = currentTime.value
+  const startMs = getExamStartMs(exam)
+  if (!startMs || now >= startMs) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, formatted: '00:00', totalSeconds: 0 }
+  }
+
+  const diffSec = Math.max(0, Math.floor((startMs - now) / 1000))
+  const days = Math.floor(diffSec / 86400)
+  const hours = Math.floor((diffSec % 86400) / 3600)
+  const minutes = Math.floor((diffSec % 3600) / 60)
+  const seconds = diffSec % 60
+
+  const hh = String(hours).padStart(2, '0')
+  const mm = String(minutes).padStart(2, '0')
+  const ss = String(seconds).padStart(2, '0')
+
+  let formatted = `${mm}:${ss}`
+  if (days > 0) {
+    formatted = `${days}d ${hh}:${mm}:${ss}`
+  } else if (hours > 0) {
+    formatted = `${hh}:${mm}:${ss}`
+  }
+
+  return { days, hours, minutes, seconds, formatted, totalSeconds: diffSec }
+}
+
+const getExamEndTimeFormatted = (exam: UpcomingExam): string => {
+  const endMs = getExamEndMs(exam)
+  if (!endMs) return 'Scheduled End'
+  return new Date(endMs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+}
+
+// Formatted remaining time for ongoing exams
+const getOngoingExamRemaining = (exam: any): string => {
+  const startedAt = exam.attemptStartedAt || exam.started_at
+  const duration = Number(exam.durationMinutes) || 60
+  let endMs: number
+  if (startedAt) {
+    endMs = new Date(startedAt).getTime() + (duration * 60 * 1000)
+  } else {
+    const startMs = getExamStartMs(exam)
+    endMs = startMs ? startMs + (duration * 60 * 1000) : currentTime.value + (duration * 60 * 1000)
+  }
+  const diffSec = Math.max(0, Math.floor((endMs - currentTime.value) / 1000))
+  const m = Math.floor(diffSec / 60).toString().padStart(2, '0')
+  const s = (diffSec % 60).toString().padStart(2, '0')
+  return `${m}:${s}`
+}
+
+// Countdown timer for ongoing exam (legacy fallback)
 const countdown = ref('45:32')
 let timerInterval: ReturnType<typeof setInterval> | null = null
 
@@ -161,6 +272,11 @@ const startCountdown = (endTimeStr: string) => {
 }
 
 onMounted(async () => {
+  // Start 1-second reactive ticker for real-time exam countdown & unlocking
+  clockInterval = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 1000)
+
   await Promise.all([
     fetchProfile(),
     examStore.fetchExams(),
@@ -174,6 +290,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (clockInterval) {
+    clearInterval(clockInterval)
+    clockInterval = null
+  }
   if (timerInterval) {
     clearInterval(timerInterval)
     timerInterval = null
@@ -497,33 +617,99 @@ const quickTips = [
                     <!-- Status -->
                     <div class="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 shrink-0">
                       <span
-                        :class="[
-                          'inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border',
-                          exam.attemptStatus === 'in_progress'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        ]"
+                        v-if="exam.attemptStatus === 'in_progress'"
+                        class="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200"
                       >
-                        <span
-                          :class="[
-                            'w-1.5 h-1.5 rounded-full',
-                            exam.attemptStatus === 'in_progress' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-                          ]"
-                        ></span>
-                        {{ exam.attemptStatus === 'in_progress' ? 'In Progress' : 'Ready' }}
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                        In Progress
+                      </span>
+                      <span
+                        v-else-if="!hasExamStarted(exam)"
+                        class="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border bg-amber-50/80 text-amber-800 border-amber-200"
+                      >
+                        <svg class="w-2.5 h-2.5 text-amber-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Starts at {{ exam.startTime || 'Scheduled Time' }}
+                      </span>
+                      <span
+                        v-else-if="!hasExamEnded(exam)"
+                        class="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200"
+                      >
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Ready to Start
+                      </span>
+                      <span
+                        v-else
+                        class="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-200"
+                      >
+                        Session Closed
                       </span>
                     </div>
                   </div>
 
-                  <!-- Action Button -->
+                  <!-- Action / Countdown Area -->
                   <div class="pt-2.5">
+                    <!-- Case A: In progress -> Continue Exam -->
                     <button
+                      v-if="exam.attemptStatus === 'in_progress'"
                       @click="handleStartExam(exam.id)"
-                      class="w-full min-h-[40px] bg-[#4F35F3] hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-xs py-2 px-4 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      class="w-full min-h-[42px] bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                      <span>{{ exam.attemptStatus === 'in_progress' ? 'Continue Exam' : 'Start Exam' }}</span>
+                      <span>Continue Exam</span>
                     </button>
+
+                    <!-- Case B: Before start time -> Replace Start Button with Countdown Display -->
+                    <div
+                      v-else-if="!hasExamStarted(exam)"
+                      class="w-full rounded-xl bg-gradient-to-r from-[#EEF0FF]/90 via-[#F6F7FE] to-[#EEF0FF]/90 border border-[#D9DDF7] p-3 sm:p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div class="flex items-center gap-2.5 text-xs text-[#17243A]">
+                        <div class="w-8 h-8 rounded-lg bg-[#4F35F3]/10 text-[#4F35F3] flex items-center justify-center shrink-0">
+                          <svg class="w-4 h-4 text-[#4F35F3] animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-1.5">
+                            <span class="font-bold text-[#17243A]">Exam Unlocks In:</span>
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                              Upcoming
+                            </span>
+                          </div>
+                          <p class="text-[11px] text-[#71819B] mt-0.5">
+                            "Start Exam" button unlocks automatically at <strong class="text-[#17243A]">{{ exam.startTime || 'scheduled time' }}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-[#71819B] hidden sm:inline">Countdown:</span>
+                        <div class="inline-flex items-center gap-1.5 bg-white border border-[#4F35F3]/30 px-3.5 py-1.5 rounded-lg shadow-2xs font-mono font-bold text-sm sm:text-base text-[#4F35F3] tracking-widest">
+                          <span class="w-2 h-2 rounded-full bg-[#4F35F3] animate-ping mr-0.5"></span>
+                          <span>{{ getExamCountdownParts(exam).formatted }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Case C: Start time reached and active -> Start Exam button -->
+                    <button
+                      v-else-if="!hasExamEnded(exam)"
+                      @click="handleStartExam(exam.id)"
+                      class="w-full min-h-[42px] bg-[#4F35F3] hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      <span>Start Exam</span>
+                    </button>
+
+                    <!-- Case D: Exam has ended -->
+                    <div
+                      v-else
+                      class="w-full py-2.5 px-4 rounded-lg bg-slate-50 border border-slate-200 text-center text-xs text-slate-500 font-medium"
+                    >
+                      Exam session ended at {{ getExamEndTimeFormatted(exam) }}. Submissions are no longer accepted.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -600,7 +786,7 @@ const quickTips = [
 
                   <div class="text-left sm:text-center shrink-0">
                     <p class="text-[10px] text-[#71819B] font-semibold uppercase tracking-wider">Remaining</p>
-                    <p class="text-lg sm:text-xl font-bold text-[#17243A] font-mono leading-tight mt-0.5">{{ countdown }}</p>
+                    <p class="text-lg sm:text-xl font-bold text-[#17243A] font-mono leading-tight mt-0.5">{{ getOngoingExamRemaining(exam) }}</p>
                   </div>
 
                   <div class="shrink-0">
@@ -771,13 +957,33 @@ const quickTips = [
                     <span class="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
                       Scheduled
                     </span>
-                    <button
-                      @click="handleStartExam(exam.id)"
-                      class="h-[34px] bg-[#4F35F3] hover:bg-indigo-700 text-white text-xs font-semibold px-4 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                      <span>Start Exam</span>
-                    </button>
+                    <!-- Before start time: countdown instead of premature Start button -->
+                    <template v-if="!hasExamStarted(exam)">
+                      <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EEF0FF] border border-[#D9DDF7] text-[11px] font-mono font-bold text-[#4F35F3] shadow-2xs">
+                        <svg class="w-3.5 h-3.5 text-[#4F35F3] shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span>Starts in {{ getExamCountdownParts(exam).formatted }}</span>
+                      </div>
+                    </template>
+
+                    <!-- Started and not ended: Start/Continue button -->
+                    <template v-else-if="!hasExamEnded(exam)">
+                      <button
+                        @click="handleStartExam(exam.id)"
+                        class="h-[34px] bg-[#4F35F3] hover:bg-indigo-700 text-white text-xs font-semibold px-4 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <span>{{ exam.attemptStatus === 'in_progress' ? 'Continue Exam' : 'Start Exam' }}</span>
+                      </button>
+                    </template>
+
+                    <!-- Ended -->
+                    <template v-else>
+                      <span class="text-[11px] font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                        Ended
+                      </span>
+                    </template>
                   </div>
                 </div>
               </div>

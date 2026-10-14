@@ -124,7 +124,7 @@ class StudentExamController extends Controller
 
             $scheduledIso = $exam->scheduled_at ? $exam->scheduled_at->toISOString() : null;
 
-            // Determine status for student UI (Ready if currently in ongoing/ready window or in progress)
+            // Determine status for student UI (Ready if currently in ongoing window or in progress)
             $status = 'Upcoming';
             if ($attemptStatus === 'in_progress') {
                 $status = 'Ready';
@@ -132,7 +132,7 @@ class StudentExamController extends Controller
                 $now = Carbon::now();
                 $examStart = $exam->scheduled_at;
                 $examEnd = $exam->scheduled_at->copy()->addMinutes($exam->duration_minutes);
-                if ($now->gte($examStart->copy()->subMinutes(10)) && $now->lt($examEnd)) {
+                if ($now->gte($examStart) && $now->lt($examEnd)) {
                     $status = 'Ready';
                 }
             } else {
