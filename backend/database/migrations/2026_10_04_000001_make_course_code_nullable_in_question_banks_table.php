@@ -17,7 +17,9 @@ return new class extends Migration
                 $table->string('course_code')->nullable()->default('GENERAL')->change();
             });
         } catch (\Throwable $e) {
-            DB::statement("ALTER TABLE `question_banks` MODIFY `course_code` VARCHAR(255) NULL DEFAULT 'GENERAL'");
+            if (DB::getDriverName() !== 'sqlite') {
+                DB::statement("ALTER TABLE `question_banks` MODIFY `course_code` VARCHAR(255) NULL DEFAULT 'GENERAL'");
+            }
         }
     }
 
@@ -31,7 +33,9 @@ return new class extends Migration
                 $table->string('course_code')->nullable(false)->change();
             });
         } catch (\Throwable $e) {
-            DB::statement("ALTER TABLE `question_banks` MODIFY `course_code` VARCHAR(255) NOT NULL");
+            if (DB::getDriverName() !== 'sqlite') {
+                DB::statement("ALTER TABLE `question_banks` MODIFY `course_code` VARCHAR(255) NOT NULL");
+            }
         }
     }
 };

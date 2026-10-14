@@ -12,6 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement("ALTER TABLE questions MODIFY status VARCHAR(20) NULL DEFAULT 'draft'");
     }
 
@@ -20,6 +23,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement("ALTER TABLE questions MODIFY status TINYINT(1) NULL DEFAULT 1");
     }
 };

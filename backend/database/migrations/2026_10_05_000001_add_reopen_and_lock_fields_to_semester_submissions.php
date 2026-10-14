@@ -13,7 +13,9 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Extend the status enum to include 'reopened'
-        DB::statement("ALTER TABLE semester_submissions MODIFY COLUMN status ENUM('pending', 'submitted', 'under_review', 'approved', 'rejected', 'correction_required', 'reopened') DEFAULT 'pending'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE semester_submissions MODIFY COLUMN status ENUM('pending', 'submitted', 'under_review', 'approved', 'rejected', 'correction_required', 'reopened') DEFAULT 'pending'");
+        }
 
         // 2. Add reopening & locking tracking fields
         Schema::table('semester_submissions', function (Blueprint $table) {
@@ -42,6 +44,8 @@ return new class extends Migration
             $table->dropColumn(['reopened_at', 'reopen_reason', 'locked_at']);
         });
 
-        DB::statement("ALTER TABLE semester_submissions MODIFY COLUMN status ENUM('pending', 'submitted', 'under_review', 'approved', 'rejected', 'correction_required') DEFAULT 'pending'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE semester_submissions MODIFY COLUMN status ENUM('pending', 'submitted', 'under_review', 'approved', 'rejected', 'correction_required') DEFAULT 'pending'");
+        }
     }
 };

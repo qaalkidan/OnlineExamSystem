@@ -12,6 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement("ALTER TABLE exams MODIFY COLUMN status VARCHAR(50) DEFAULT 'draft'");
     }
 
@@ -20,6 +23,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement("ALTER TABLE exams MODIFY COLUMN status ENUM('draft', 'published', 'scheduled', 'completed') DEFAULT 'draft'");
     }
 };

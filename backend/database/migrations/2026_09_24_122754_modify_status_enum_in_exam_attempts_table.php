@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite') {
+            return;
+        }
         // Add 'published' to the ENUM
         \Illuminate\Support\Facades\DB::statement("ALTER TABLE exam_attempts MODIFY COLUMN status ENUM('in_progress', 'submitted', 'graded', 'published') DEFAULT 'in_progress'");
     }
@@ -20,6 +23,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite') {
+            return;
+        }
         // Revert back
         \Illuminate\Support\Facades\DB::statement("ALTER TABLE exam_attempts MODIFY COLUMN status ENUM('in_progress', 'submitted', 'graded') DEFAULT 'in_progress'");
     }

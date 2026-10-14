@@ -4,12 +4,22 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
+use App\Services\QuestionValidationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InstructorExamController extends Controller
 {
+    protected QuestionValidationService $questionValidationService;
+
+    public function __construct(QuestionValidationService $questionValidationService)
+    {
+        $this->questionValidationService = $questionValidationService;
+    }
+
     /**
      * Check for scheduling conflicts with other exams in the same department and year level.
      */
@@ -90,6 +100,30 @@ class InstructorExamController extends Controller
     }
 
     /**
+     * Validate an uploaded question file (.xlsx, .csv, .json) before import.
+     */
+    public function validateImport(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => 'required|file|max:10240', // 10MB
+        ]);
+
+        $result = $this->questionValidationService->validateAndParseFile($request->file('file'));
+
+        if (!$result['success']) {
+            return response()->json([
+                'message' => $result['message'],
+                'errors'  => $result['errors'] ?? ['file' => [$result['message']]],
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'File validated successfully.',
+            'data'    => $result,
+        ]);
+    }
+
+    /**
      * Store a newly created exam in storage.
      */
     public function store(Request $request): JsonResponse
@@ -121,68 +155,53 @@ class InstructorExamController extends Controller
             }
         }
 
-        $exam = Exam::create([
-            'user_id'          => $instructor->id,
-            'course_code'      => $validated['course_code'] ?? $instructor->course_code ?? 'GENERAL',
-            'course_name'      => $validated['course_name'] ?? $instructor->course_name ?? 'General Course',
-            'section'          => $validated['section'] ?? null,
-            'title'            => $validated['title'],
-            'duration_minutes' => $validated['duration_minutes'],
-            'total_marks'      => $validated['total_marks'],
-            'status'           => $validated['status'],
-            'scheduled_at'     => $validated['scheduled_at'] ? Carbon::parse($validated['scheduled_at']) : null,
-            'settings'         => $validated['settings'] ?? null,
-        ]);
+        // Validate questions array if provided
+        $validatedQuestions = [];
+        if ($request->has('questions') && is_array($request->input('questions')) && count($request->input('questions')) > 0) {
+            $batchResult = $this->questionValidationService->validateQuestionsBatch($request->input('questions'));
+            if (!$batchResult['valid']) {
+                return response()->json([
+                    'message' => 'One or more questions failed validation against the question format schema.',
+                    'errors'  => $batchResult['errors'],
+                ], 422);
+            }
+            $validatedQuestions = $batchResult['results'];
+        }
 
-        \Log::info('Exam Creation Payload: ', $request->all());
+        // Use DB Transaction to guarantee atomic creation
+        $exam = DB::transaction(function () use ($instructor, $validated, $validatedQuestions) {
+            $exam = Exam::create([
+                'user_id'          => $instructor->id,
+                'course_code'      => $validated['course_code'] ?? $instructor->course_code ?? 'GENERAL',
+                'course_name'      => $validated['course_name'] ?? $instructor->course_name ?? 'General Course',
+                'section'          => $validated['section'] ?? null,
+                'title'            => $validated['title'],
+                'duration_minutes' => $validated['duration_minutes'],
+                'total_marks'      => $validated['total_marks'],
+                'status'           => $validated['status'],
+                'scheduled_at'     => !empty($validated['scheduled_at']) ? Carbon::parse($validated['scheduled_at']) : null,
+                'settings'         => $validated['settings'] ?? null,
+            ]);
 
-        if ($request->has('questions') && is_array($request->input('questions'))) {
-            \Log::info('Questions array found: ', $request->input('questions'));
-            foreach ($request->input('questions') as $q) {
-                $type = $q['type'] ?? 'multiple_choice';
-                $correctAnswer = $q['correct_answer'] ?? $q['correctAnswer'] ?? null;
-                $questionData = $q['question_data'] ?? null;
-
-                $rawOptions = $q['options'] ?? $q['pairs'] ?? [];
-                $options = collect($rawOptions)->map(function ($opt) { 
-                    return is_string($opt) ? ['text' => $opt] : $opt; 
-                })->toArray();
-
-                if ($type === 'matching') {
-                    if (!$questionData) {
-                        $questionData = [
-                            'column_a'        => $q['column_a'] ?? null,
-                            'column_b'        => $q['column_b'] ?? null,
-                            'correct_answers' => $q['correct_answers'] ?? null,
-                            'pairs'           => $q['pairs'] ?? $options,
-                            'marks_per_item'  => $q['marks_per_item'] ?? null,
-                        ];
-                    }
-                    if (empty($correctAnswer) && !empty($q['correct_answers']) && is_array($q['correct_answers'])) {
-                        $parts = [];
-                        foreach ($q['correct_answers'] as $colA => $colB) {
-                            $parts[] = "{$colA}-{$colB}";
-                        }
-                        $correctAnswer = implode(',', $parts);
-                    }
-                }
-
+            foreach ($validatedQuestions as $item) {
+                $q = $item['question'];
                 $exam->questions()->create([
-                    'type'           => $type,
-                    'instruction'    => $q['instruction'] ?? null,
-                    'text'           => $q['text'] ?? 'Untitled Question',
-                    'options'        => $options,
-                    'correct_answer' => $correctAnswer,
-                    'question_data'  => $questionData,
-                    'marks'          => $q['marks'] ?? 5,
-                    'marks_per_item' => isset($q['marks_per_item']) ? (float)$q['marks_per_item'] : null,
+                    'type'           => $q['type'],
+                    'instruction'    => $q['instruction'] ?: null,
+                    'text'           => $q['text'],
+                    'options'        => $q['options'],
+                    'correct_answer' => $q['correct_answer'],
+                    'question_data'  => $q['question_data'],
+                    'marks'          => $q['marks'],
+                    'marks_per_item' => $q['question_data']['marks_per_item'] ?? null,
                     'difficulty'     => $q['difficulty'] ?? 'Medium',
+                    'description'    => $q['description'] ?: null,
                     'status'         => 1,
                 ]);
             }
-        } else {
-            \Log::warning('No questions array found in request.');
-        }
+
+            return $exam;
+        });
 
         $exam->loadCount(['questions', 'students']);
 
@@ -267,56 +286,45 @@ class InstructorExamController extends Controller
             }
         }
 
-        $exam->update($validated);
-
-        if ($request->has('questions') && is_array($request->input('questions'))) {
-            // Remove existing questions for this exam
-            $exam->questions()->delete();
-            
-            // Insert updated questions
-            foreach ($request->input('questions') as $q) {
-                $type = $q['type'] ?? 'multiple_choice';
-                $correctAnswer = $q['correct_answer'] ?? $q['correctAnswer'] ?? null;
-                $questionData = $q['question_data'] ?? null;
-
-                $rawOptions = $q['options'] ?? $q['pairs'] ?? [];
-                $options = collect($rawOptions)->map(function ($opt) { 
-                    return is_string($opt) ? ['text' => $opt] : $opt; 
-                })->toArray();
-
-                if ($type === 'matching') {
-                    if (!$questionData) {
-                        $questionData = [
-                            'column_a'        => $q['column_a'] ?? null,
-                            'column_b'        => $q['column_b'] ?? null,
-                            'correct_answers' => $q['correct_answers'] ?? null,
-                            'pairs'           => $q['pairs'] ?? $options,
-                            'marks_per_item'  => $q['marks_per_item'] ?? null,
-                        ];
-                    }
-                    if (empty($correctAnswer) && !empty($q['correct_answers']) && is_array($q['correct_answers'])) {
-                        $parts = [];
-                        foreach ($q['correct_answers'] as $colA => $colB) {
-                            $parts[] = "{$colA}-{$colB}";
-                        }
-                        $correctAnswer = implode(',', $parts);
-                    }
-                }
-
-                $exam->questions()->create([
-                    'type'           => $type,
-                    'instruction'    => $q['instruction'] ?? null,
-                    'text'           => $q['text'] ?? 'Untitled Question',
-                    'options'        => $options,
-                    'correct_answer' => $correctAnswer,
-                    'question_data'  => $questionData,
-                    'marks'          => $q['marks'] ?? 5,
-                    'marks_per_item' => isset($q['marks_per_item']) ? (float)$q['marks_per_item'] : null,
-                    'difficulty'     => $q['difficulty'] ?? 'Medium',
-                    'status'         => 1,
-                ]);
+        // Validate questions array if provided
+        $validatedQuestions = [];
+        if ($request->has('questions') && is_array($request->input('questions')) && count($request->input('questions')) > 0) {
+            $batchResult = $this->questionValidationService->validateQuestionsBatch($request->input('questions'));
+            if (!$batchResult['valid']) {
+                return response()->json([
+                    'message' => 'One or more questions failed validation against the question format schema.',
+                    'errors'  => $batchResult['errors'],
+                ], 422);
             }
+            $validatedQuestions = $batchResult['results'];
         }
+
+        DB::transaction(function () use ($exam, $validated, $request, $validatedQuestions) {
+            $exam->update($validated);
+
+            if ($request->has('questions') && is_array($request->input('questions'))) {
+                // Remove existing questions for this exam
+                $exam->questions()->delete();
+
+                // Insert validated questions
+                foreach ($validatedQuestions as $item) {
+                    $q = $item['question'];
+                    $exam->questions()->create([
+                        'type'           => $q['type'],
+                        'instruction'    => $q['instruction'] ?: null,
+                        'text'           => $q['text'],
+                        'options'        => $q['options'],
+                        'correct_answer' => $q['correct_answer'],
+                        'question_data'  => $q['question_data'],
+                        'marks'          => $q['marks'],
+                        'marks_per_item' => $q['question_data']['marks_per_item'] ?? null,
+                        'difficulty'     => $q['difficulty'] ?? 'Medium',
+                        'description'    => $q['description'] ?: null,
+                        'status'         => 1,
+                    ]);
+                }
+            }
+        });
 
         $exam->loadCount(['questions', 'students']);
         $exam->load('questions');
