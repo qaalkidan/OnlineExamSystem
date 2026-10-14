@@ -215,12 +215,34 @@ class QuestionValidationService
 
             $sanitizedCorrectAnswer = $normalizedAnswer;
 
+            $displayPairs = [];
+            $maxLen = max(count($columnA), count($columnB));
+            for ($i = 0; $i < $maxLen; $i++) {
+                $leftText = isset($columnA[$i]) ? (is_array($columnA[$i]) ? ($columnA[$i]['text'] ?? $columnA[$i]['label'] ?? '') : (string)$columnA[$i]) : '';
+                $bItem = $columnB[$i] ?? null;
+                $rightText = '';
+                if ($bItem !== null) {
+                    $rightText = is_array($bItem) ? ($bItem['text'] ?? $bItem['label'] ?? '') : (string)$bItem;
+                }
+                if ($leftText !== '' || $rightText !== '') {
+                    $displayPairs[] = ['left' => $leftText, 'right' => $rightText];
+                }
+            }
+            if (empty($displayPairs)) {
+                $displayPairs = $pairs;
+            }
+
+            $sanitizedOptions = $displayPairs;
+
             $sanitizedQuestionData = [
                 'column_a'        => $columnA,
                 'column_b'        => $columnB,
                 'correct_answers' => $correctAnswers,
-                'pairs'           => $pairs,
+                'pairs'           => $displayPairs,
+                'matched_pairs'   => $pairs,
                 'marks_per_item'  => $marksPerItem,
+                'column_a_title'  => $q['column_a_title'] ?? $q['columnA'] ?? 'Column A',
+                'column_b_title'  => $q['column_b_title'] ?? $q['columnB'] ?? 'Column B',
             ];
 
             if (empty($strippedText)) {

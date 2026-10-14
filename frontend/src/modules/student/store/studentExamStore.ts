@@ -150,13 +150,21 @@ export const useStudentExamStore = defineStore('studentExam', () => {
             const optText = typeof o === 'string' ? o : (o.text || '')
             return removePTags(optText)
           }),
-          pairs: q.pairs ? q.pairs.map((p: any) => ({
-            ...p,
-            left: removePTags(p.left),
-            right: removePTags(p.right)
-          })) : null,
-          columnA: q.columnA || null,
-          columnB: q.columnB || null,
+          pairs: (Array.isArray(q.pairs) && q.pairs.length > 0)
+            ? q.pairs.map((p: any) => ({
+                ...p,
+                left: removePTags(p.left),
+                right: removePTags(p.right)
+              }))
+            : (q.type === 'matching' && Array.isArray(q.options) && q.options.length > 0 && (q.options[0]?.left !== undefined || q.options[0]?.right !== undefined))
+            ? q.options.map((p: any) => ({
+                ...p,
+                left: removePTags(p.left),
+                right: removePTags(p.right)
+              }))
+            : null,
+          columnA: q.columnA || 'Column A',
+          columnB: q.columnB || 'Column B',
           marks: q.marks || 0,
         })),
       }

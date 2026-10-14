@@ -45,7 +45,18 @@ const restoreSavedAnswers = () => {
   const saved = (props.exam as any).savedAnswers
   if (saved && typeof saved === 'object' && Object.keys(saved).length > 0) {
     Object.entries(saved).forEach(([qId, ans]) => {
-      answers.value[Number(qId)] = String(ans)
+      const numId = Number(qId)
+      const strAns = String(ans)
+      answers.value[numId] = strAns
+      if (strAns.includes(':')) {
+        if (!matchingAnswers.value[numId]) matchingAnswers.value[numId] = {}
+        strAns.split(',').forEach(part => {
+          const [idx, val] = part.split(':')
+          if (idx !== undefined && val !== undefined) {
+            matchingAnswers.value[numId][Number(idx)] = val.trim()
+          }
+        })
+      }
     })
   }
 }
@@ -189,6 +200,33 @@ const isCalculatorAllowed = computed(() => {
 })
 
 const activeQuestion = computed(() => questions.value[currentIndex.value])
+
+const activePairs = computed(() => {
+  if (!activeQuestion.value) return []
+  const q = activeQuestion.value as any
+  if (Array.isArray(q.pairs) && q.pairs.length > 0) return q.pairs
+  if (Array.isArray(q.question_data?.pairs) && q.question_data.pairs.length > 0) return q.question_data.pairs
+  if (Array.isArray(q.options) && q.options.length > 0 && (q.options[0]?.left !== undefined || q.options[0]?.right !== undefined)) {
+    return q.options
+  }
+  const colA = q.column_a || q.question_data?.column_a || []
+  const colB = q.column_b || q.question_data?.column_b || []
+  if (Array.isArray(colA) && colA.length > 0) {
+    const maxLen = Math.max(colA.length, Array.isArray(colB) ? colB.length : 0)
+    const result: { left: string; right: string }[] = []
+    for (let i = 0; i < maxLen; i++) {
+      const leftObj = colA[i]
+      const leftText = typeof leftObj === 'object' ? (leftObj?.text || leftObj?.label || '') : String(leftObj || '')
+      const rightObj = Array.isArray(colB) ? colB[i] : null
+      const rightText = typeof rightObj === 'object' ? (rightObj?.text || rightObj?.label || '') : String(rightObj || '')
+      if (leftText || rightText) {
+        result.push({ left: leftText, right: rightText })
+      }
+    }
+    return result
+  }
+  return []
+})
 
 const navigationGroups = computed(() => {
   const groups: { instruction: string; items: { q: Question; globalIndex: number }[] }[] = []
@@ -346,6 +384,74 @@ const formatTime = (secs: number) => {
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
 }
 
+let lastNavTime = 0
+
+const nextQuestion = (e?: Event) => {
+  if (e) {
+    if (e.type === 'pointerup' || e.type === 'touchend') {
+      e.preventDefault()
+    }
+    e.stopPropagation()
+  }
+
+  const now = Date.now()
+  if (now - lastNavTime < 300) return
+  lastNavTime = now
+
+  if (document.activeElement && document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+
+  if (currentIndex.value < questions.value.length - 1) {
+    currentIndex.value++
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+const prevQuestion = (e?: Event) => {
+  if (e) {
+    if (e.type === 'pointerup' || e.type === 'touchend') {
+      e.preventDefault()
+    }
+    e.stopPropagation()
+  }
+
+  const now = Date.now()
+  if (now - lastNavTime < 300) return
+  lastNavTime = now
+
+  if (document.activeElement && document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+
+  if (currentIndex.value > 0) {
+    currentIndex.value--
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+const goToQuestion = (index: number, e?: Event) => {
+  if (e) {
+    if (e.type === 'pointerup' || e.type === 'touchend') {
+      e.preventDefault()
+    }
+    e.stopPropagation()
+  }
+
+  const now = Date.now()
+  if (now - lastNavTime < 300) return
+  lastNavTime = now
+
+  if (document.activeElement && document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+
+  if (index >= 0 && index < questions.value.length) {
+    currentIndex.value = index
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
 const handleSelectOption = (index: number) => {
   answers.value[activeQuestion.value.id] = String.fromCharCode(65 + index)
 }
@@ -358,10 +464,14 @@ const handleMatchingAnswer = (qId: number, pairIndex: number, rightValue: string
   if (!matchingAnswers.value[qId]) matchingAnswers.value[qId] = {}
   matchingAnswers.value[qId][pairIndex] = rightValue
   // Serialize matching answers as "0:RightA,1:RightB,..." for submission
-  const q = questions.value.find(q => q.id === qId)
-  if (q && (q as any).pairs) {
-    answers.value[qId] = (q as any).pairs
+  const pairs = activePairs.value
+  if (pairs && pairs.length > 0) {
+    answers.value[qId] = pairs
       .map((_: any, i: number) => `${i}:${matchingAnswers.value[qId]?.[i] || ''}`)
+      .join(',')
+  } else {
+    answers.value[qId] = Object.entries(matchingAnswers.value[qId])
+      .map(([i, val]) => `${i}:${val}`)
       .join(',')
   }
 }
@@ -372,7 +482,16 @@ const toggleFlag = () => {
 
 const isQuestionAnswered = (qId: number) => {
   const ans = answers.value[qId]
-  return ans !== undefined && ans !== null && String(ans).trim() !== ''
+  if (ans === undefined || ans === null) return false
+  const str = String(ans).trim()
+  if (str === '') return false
+  if (str.includes(':')) {
+    return str.split(',').some(part => {
+      const val = part.split(':')[1]
+      return val !== undefined && val.trim() !== ''
+    })
+  }
+  return true
 }
 
 const triggerAutoSubmit = () => {
@@ -578,13 +697,9 @@ const confirmCancel = () => {
           </div>
 
           <div 
-            class="space-y-5 overflow-y-auto pr-1"
+            class="space-y-5 overflow-y-auto pr-1 hide-scrollbar"
             style="max-height: 140px; scrollbar-width: none; -ms-overflow-style: none;"
           >
-            <!-- Add a style block for webkit hidden scrollbar -->
-            <component :is="'style'">
-              .overflow-y-auto::-webkit-scrollbar { display: none; }
-            </component>
             <div v-for="(group, gIdx) in navigationGroups" :key="gIdx" class="space-y-3">
               <h5 class="text-[9px] font-bold text-indigo-400 uppercase tracking-widest border-b border-slate-800/50 pb-1.5" :title="group.instruction">
                 {{ group.instruction }}
@@ -593,9 +708,11 @@ const confirmCancel = () => {
                 <button
                   v-for="item in group.items"
                   :key="item.q.id"
-                  @click="currentIndex = item.globalIndex"
+                  type="button"
+                  @click="goToQuestion(item.globalIndex, $event)"
+                  @touchend="goToQuestion(item.globalIndex, $event)"
                   :class="[
-                    'relative flex h-10 w-full items-center justify-center rounded-lg border font-mono text-xs font-bold transition-all',
+                    'relative flex h-10 w-full items-center justify-center rounded-lg border font-mono text-xs font-bold transition-all cursor-pointer touch-manipulation select-none',
                     item.globalIndex === currentIndex
                       ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/20 scale-105'
                       : isQuestionAnswered(item.q.id)
@@ -603,9 +720,9 @@ const confirmCancel = () => {
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:border-slate-700'
                   ]"
                 >
-                  {{ item.globalIndex + 1 }}
+                  <span class="pointer-events-none">{{ item.globalIndex + 1 }}</span>
                   <!-- Small flag icon overlay -->
-                  <span v-if="flagged[item.q.id]" class="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span v-if="flagged[item.q.id]" class="absolute -top-1 -right-1 flex h-3 w-3 pointer-events-none">
                     <span class="relative inline-flex h-3 w-3 rounded-full bg-amber-500 text-[8px] items-center justify-center text-slate-950 font-bold">!</span>
                   </span>
                 </button>
@@ -696,53 +813,56 @@ const confirmCancel = () => {
                 <button
                   v-for="(option, index) in activeQuestion.options"
                   :key="index"
+                  type="button"
                   @click="handleSelectOption(index)"
                   :class="[
-                    'flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all text-xs font-medium font-sans',
+                    'flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all text-xs font-medium font-sans cursor-pointer touch-manipulation select-none',
                     answers[activeQuestion.id] === String.fromCharCode(65 + index)
                       ? 'bg-indigo-600/15 border-indigo-500 text-indigo-200'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:border-slate-700'
                   ]"
                 >
                   <span :class="[
-                    'flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold font-mono',
+                    'flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold font-mono pointer-events-none',
                     answers[activeQuestion.id] === String.fromCharCode(65 + index)
                       ? 'bg-indigo-600 border-indigo-400 text-white'
                       : 'bg-slate-950 border-slate-700 text-slate-400'
                   ]">
                     {{ String.fromCharCode(65 + index) }}
                   </span>
-                  <span class="leading-relaxed pt-0.5">{{ typeof option === 'object' ? (option as any).text || (option as any).label : option }}</span>
+                  <span class="leading-relaxed pt-0.5 pointer-events-none">{{ typeof option === 'object' ? (option as any).text || (option as any).label : option }}</span>
                 </button>
               </template>
 
               <!-- ── True / False ── -->
               <template v-else-if="activeQuestion.type === 'true_false'">
                 <button
+                  type="button"
                   @click="handleTrueFalse('A')"
                   :class="[
-                    'flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all text-xs font-bold font-sans',
+                    'flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all text-xs font-bold font-sans cursor-pointer touch-manipulation select-none',
                     answers[activeQuestion.id] === 'A'
                       ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-emerald-700'
                   ]"
                 >
-                  <span :class="['flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold', answers[activeQuestion.id] === 'A' ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-400']">A</span>
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                  True
+                  <span :class="['flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold pointer-events-none', answers[activeQuestion.id] === 'A' ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-400']">A</span>
+                  <svg class="h-4 w-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  <span class="pointer-events-none">True</span>
                 </button>
                 <button
+                  type="button"
                   @click="handleTrueFalse('B')"
                   :class="[
-                    'flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all text-xs font-bold font-sans',
+                    'flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all text-xs font-bold font-sans cursor-pointer touch-manipulation select-none',
                     answers[activeQuestion.id] === 'B'
                       ? 'bg-rose-500/15 border-rose-500 text-rose-300'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-rose-700'
                   ]"
                 >
-                  <span :class="['flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold', answers[activeQuestion.id] === 'B' ? 'bg-rose-600 border-rose-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-400']">B</span>
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  False
+                  <span :class="['flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold pointer-events-none', answers[activeQuestion.id] === 'B' ? 'bg-rose-600 border-rose-400 text-white' : 'bg-slate-950 border-slate-700 text-slate-400']">B</span>
+                  <svg class="h-4 w-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  <span class="pointer-events-none">False</span>
                 </button>
               </template>
 
@@ -761,15 +881,15 @@ const confirmCancel = () => {
               </template>
 
               <!-- ── Matching ── -->
-              <template v-else-if="activeQuestion.type === 'matching' && (activeQuestion as any).pairs">
+              <template v-else-if="activeQuestion.type === 'matching' && activePairs.length > 0">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
                   
                   <!-- Left side: Column A with selection dropdown -->
                   <div class="space-y-4">
-                    <h4 class="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4 pl-8">{{ (activeQuestion as any).columnA || 'Column A' }}</h4>
-                    <template v-for="(pair, pIdx) in (activeQuestion as any).pairs" :key="pIdx">
+                    <h4 class="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4 pl-8">{{ (activeQuestion as any).columnA || (activeQuestion as any).question_data?.column_a_title || 'Column A' }}</h4>
+                    <template v-for="(pair, pIdx) in activePairs" :key="pIdx">
                       <div
-                        v-if="pair.left && pair.left.trim() !== ''"
+                        v-if="pair.left && String(pair.left).trim() !== ''"
                         class="flex items-center gap-3"
                       >
                         <!-- Number Identifier -->
@@ -789,7 +909,7 @@ const confirmCancel = () => {
                               >
                                 <option value="" disabled>-</option>
                                 <option
-                                  v-for="(p, rIdx) in (activeQuestion as any).pairs"
+                                  v-for="(_, rIdx) in activePairs"
                                   :key="'opt-'+rIdx"
                                   :value="String.fromCharCode(65 + Number(rIdx))"
                                 >
@@ -805,10 +925,10 @@ const confirmCancel = () => {
 
                   <!-- Right side: Column B options display -->
                   <div class="space-y-4">
-                    <h4 class="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-4">{{ (activeQuestion as any).columnB || 'Column B' }}</h4>
+                    <h4 class="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-4">{{ (activeQuestion as any).columnB || (activeQuestion as any).question_data?.column_b_title || 'Column B' }}</h4>
                     <div class="flex flex-col gap-4 pt-1">
                       <div
-                        v-for="(pair, rIdx) in (activeQuestion as any).pairs"
+                        v-for="(pair, rIdx) in activePairs"
                         :key="'right-'+rIdx"
                         class="flex items-center gap-4 text-xs bg-slate-900/50 p-2 pr-4 rounded-xl border border-slate-800/50"
                       >
@@ -859,12 +979,14 @@ const confirmCancel = () => {
           <!-- Bottom Question Controls (Moved Inside Card) -->
           <div class="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between gap-2">
             <button
-              @click="currentIndex = Math.max(0, currentIndex - 1)"
+              type="button"
+              @click="prevQuestion"
+              @touchend="prevQuestion"
               :disabled="currentIndex === 0"
-              class="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white hover:border-slate-700 transition-colors disabled:opacity-30 disabled:pointer-events-none min-h-[44px]"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white hover:border-slate-700 active:bg-slate-900 transition-colors disabled:opacity-30 disabled:pointer-events-none min-h-[44px] cursor-pointer touch-manipulation select-none"
             >
-              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-              <span>Back<span class="hidden sm:inline"> Question</span></span>
+              <svg class="h-4 w-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+              <span class="pointer-events-none">Back<span class="hidden sm:inline"> Question</span></span>
             </button>
 
             <span class="text-xs font-bold font-mono text-slate-500 hidden md:inline-block">
@@ -873,19 +995,22 @@ const confirmCancel = () => {
 
             <button
               v-if="currentIndex < questions.length - 1"
-              @click="currentIndex = Math.min(questions.length - 1, currentIndex + 1)"
-              class="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 transition-colors min-h-[44px]"
+              type="button"
+              @click="nextQuestion"
+              @touchend="nextQuestion"
+              class="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors min-h-[44px] cursor-pointer touch-manipulation select-none"
             >
-              <span>Next<span class="hidden sm:inline"> Question</span></span>
-              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+              <span class="pointer-events-none">Next<span class="hidden sm:inline"> Question</span></span>
+              <svg class="h-4 w-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
             </button>
             <button
               v-else
+              type="button"
               @click="showConfirmSubmit = true"
-              class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition-colors min-h-[44px]"
+              class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition-colors min-h-[44px] cursor-pointer touch-manipulation select-none"
             >
               <span>Finish & Submit</span>
-              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+              <svg class="h-4 w-4 shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
             </button>
           </div>
         </div>
@@ -962,5 +1087,8 @@ const confirmCancel = () => {
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 </style>

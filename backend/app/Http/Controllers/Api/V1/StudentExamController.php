@@ -335,17 +335,21 @@ class StudentExamController extends Controller
             }
 
             // Resume existing attempt — return questions again
-            $questions = $exam->questions()->get()->map(fn($q) => [
-                'id'          => $q->id,
-                'instruction' => $q->instruction,
-                'text'        => $q->text,
-                'type'        => $this->mapQuestionType($q->type),
-                'options'     => $q->type !== 'matching' ? ($q->options ?? []) : [],
-                'pairs'       => $q->type === 'matching' ? collect($q->options ?? [])->map(fn($p) => ['left' => $p['left'] ?? '', 'right' => $p['right'] ?? ''])->values()->toArray() : null,
-                'columnA'     => $q->type === 'matching' ? (($q->options[0]['columnA'] ?? null) ?: 'Column A') : null,
-                'columnB'     => $q->type === 'matching' ? (($q->options[0]['columnB'] ?? null) ?: 'Column B') : null,
-                'marks'       => $q->marks,
-            ]);
+            $questions = $exam->questions()->get()->map(function ($q) {
+                $isMatching = $q->type === 'matching' || strtolower((string)$q->type) === 'matching';
+                [$colA, $colB] = $this->extractMatchingColumns($q);
+                return [
+                    'id'          => $q->id,
+                    'instruction' => $q->instruction,
+                    'text'        => $q->text,
+                    'type'        => $this->mapQuestionType($q->type),
+                    'options'     => !$isMatching ? ($q->options ?? []) : [],
+                    'pairs'       => $isMatching ? $this->extractMatchingPairs($q) : null,
+                    'columnA'     => $isMatching ? $colA : null,
+                    'columnB'     => $isMatching ? $colB : null,
+                    'marks'       => $q->marks,
+                ];
+            });
 
             $existingAttempt->last_heartbeat_at = now();
             $existingAttempt->save();
@@ -411,17 +415,21 @@ class StudentExamController extends Controller
         );
 
         // Return questions WITHOUT correct_answer
-        $questions = $exam->questions()->get()->map(fn($q) => [
-            'id'          => $q->id,
-            'instruction' => $q->instruction,
-            'text'        => $q->text,
-            'type'        => $this->mapQuestionType($q->type),
-            'options'     => $q->type !== 'matching' ? ($q->options ?? []) : [],
-            'pairs'       => $q->type === 'matching' ? collect($q->options ?? [])->map(fn($p) => ['left' => $p['left'] ?? '', 'right' => $p['right'] ?? ''])->values()->toArray() : null,
-            'columnA'     => $q->type === 'matching' ? (($q->options[0]['columnA'] ?? null) ?: 'Column A') : null,
-            'columnB'     => $q->type === 'matching' ? (($q->options[0]['columnB'] ?? null) ?: 'Column B') : null,
-            'marks'       => $q->marks,
-        ]);
+        $questions = $exam->questions()->get()->map(function ($q) {
+            $isMatching = $q->type === 'matching' || strtolower((string)$q->type) === 'matching';
+            [$colA, $colB] = $this->extractMatchingColumns($q);
+            return [
+                'id'          => $q->id,
+                'instruction' => $q->instruction,
+                'text'        => $q->text,
+                'type'        => $this->mapQuestionType($q->type),
+                'options'     => !$isMatching ? ($q->options ?? []) : [],
+                'pairs'       => $isMatching ? $this->extractMatchingPairs($q) : null,
+                'columnA'     => $isMatching ? $colA : null,
+                'columnB'     => $isMatching ? $colB : null,
+                'marks'       => $q->marks,
+            ];
+        });
 
         return response()->json([
             'data' => [
@@ -1177,7 +1185,7 @@ class StudentExamController extends Controller
                 $formattedCorrectAnswer = $correctVal;
                 $formattedStudentAnswer = $studentVal;
             } elseif ($typeKey === 'matching') {
-                $pairs = $q->options ?? [];
+                $pairs = $this->extractMatchingPairs($q);
 
                 // Parse correct_answers map
                 $correctAnswers = null;
@@ -1409,5 +1417,81 @@ class StudentExamController extends Controller
             $percentage >= 50 => 'D',
             default           => 'F',
         };
+    }
+
+    /**
+     * Resiliently extract matching pairs from a question object/model.
+     */
+    protected function extractMatchingPairs($q): array
+    {
+        $qData = is_array($q->question_data) ? $q->question_data : (json_decode($q->question_data ?? '', true) ?: []);
+        $rawOpts = is_array($q->options) ? $q->options : (json_decode($q->options ?? '', true) ?: []);
+
+        $colA = $qData['column_a'] ?? $q->column_a ?? [];
+        $colB = $qData['column_b'] ?? $q->column_b ?? [];
+
+        // If column_a and column_b exist, align Column A prompts with Column B options (A, B, C, D)
+        if (!empty($colA) && is_array($colA) && !empty($colB) && is_array($colB)) {
+            $aligned = [];
+            $maxLen = max(count($colA), count($colB));
+            for ($i = 0; $i < $maxLen; $i++) {
+                $leftText = isset($colA[$i]) ? (is_array($colA[$i]) ? ($colA[$i]['text'] ?? $colA[$i]['label'] ?? '') : (string)$colA[$i]) : '';
+                $bItem = $colB[$i] ?? null;
+                $rightText = '';
+                if ($bItem !== null) {
+                    $rightText = is_array($bItem) ? ($bItem['text'] ?? $bItem['label'] ?? '') : (string)$bItem;
+                }
+                if ($leftText !== '' || $rightText !== '') {
+                    $aligned[] = ['left' => $leftText, 'right' => $rightText];
+                }
+            }
+            if (!empty($aligned)) {
+                return $aligned;
+            }
+        }
+
+        // 2. From question_data['pairs']
+        if (!empty($qData['pairs']) && is_array($qData['pairs'])) {
+            return collect($qData['pairs'])->map(fn($p) => [
+                'left'  => is_array($p) ? ($p['left'] ?? '') : (string)$p,
+                'right' => is_array($p) ? ($p['right'] ?? ($p['text'] ?? '')) : '',
+            ])->values()->toArray();
+        }
+
+        // 3. From options array
+        if (!empty($rawOpts) && is_array($rawOpts)) {
+            return collect($rawOpts)->map(fn($p) => [
+                'left'  => is_array($p) ? ($p['left'] ?? '') : (string)$p,
+                'right' => is_array($p) ? ($p['right'] ?? ($p['text'] ?? '')) : '',
+            ])->values()->toArray();
+        }
+
+        return [];
+    }
+
+    /**
+     * Extract Column A title and Column B title.
+     */
+    protected function extractMatchingColumns($q): array
+    {
+        $qData = is_array($q->question_data) ? $q->question_data : (json_decode($q->question_data ?? '', true) ?: []);
+        $rawOpts = is_array($q->options) ? $q->options : (json_decode($q->options ?? '', true) ?: []);
+
+        $colA = 'Column A';
+        $colB = 'Column B';
+
+        if (!empty($rawOpts[0]['columnA'])) {
+            $colA = $rawOpts[0]['columnA'];
+        } elseif (!empty($qData['column_a_title'])) {
+            $colA = $qData['column_a_title'];
+        }
+
+        if (!empty($rawOpts[0]['columnB'])) {
+            $colB = $rawOpts[0]['columnB'];
+        } elseif (!empty($qData['column_b_title'])) {
+            $colB = $qData['column_b_title'];
+        }
+
+        return [$colA, $colB];
     }
 }

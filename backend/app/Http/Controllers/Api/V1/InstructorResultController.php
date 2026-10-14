@@ -459,6 +459,28 @@ class InstructorResultController extends Controller
                 $isMatching  = $q->type === 'matching';
                 $isAuto      = in_array($q->type, ['multiple_choice', 'true_false']);
 
+                if ($isMatching && empty($options)) {
+                    $qData = is_array($q->question_data) ? $q->question_data : (json_decode($q->question_data ?? '', true) ?: []);
+                    $colA = $qData['column_a'] ?? [];
+                    $colB = $qData['column_b'] ?? [];
+                    if (!empty($colA) && !empty($colB)) {
+                        $maxLen = max(count($colA), count($colB));
+                        for ($i = 0; $i < $maxLen; $i++) {
+                            $leftText = isset($colA[$i]) ? (is_array($colA[$i]) ? ($colA[$i]['text'] ?? $colA[$i]['label'] ?? '') : (string)$colA[$i]) : '';
+                            $bItem = $colB[$i] ?? null;
+                            $rightText = '';
+                            if ($bItem !== null) {
+                                $rightText = is_array($bItem) ? ($bItem['text'] ?? $bItem['label'] ?? '') : (string)$bItem;
+                            }
+                            if ($leftText !== '' || $rightText !== '') {
+                                $options[] = ['left' => $leftText, 'right' => $rightText];
+                            }
+                        }
+                    } elseif (!empty($qData['pairs'])) {
+                        $options = $qData['pairs'];
+                    }
+                }
+
                 // ── MCQ / True-False ─────────────────────────────────────────
                 if ($isAuto) {
                     $isCorrect = $studentAns !== null && strtolower($studentAns) === strtolower($correct);
