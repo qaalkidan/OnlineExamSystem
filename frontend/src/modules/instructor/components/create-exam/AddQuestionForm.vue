@@ -14,6 +14,8 @@ const formStore = useCreateExamStore()
 
 // Question Source Tab: 'manual' | 'bank' | 'file'
 const activeSourceTab = ref<'manual' | 'bank' | 'file'>('manual')
+const importFileRef = ref<any>(null)
+const selectBankRef = ref<any>(null)
 
 const onQuestionsAdded = () => {
   validationError.value = ''
@@ -346,7 +348,25 @@ const addQuestionToExam = () => {
 
 
 const handleNext = () => {
-  // Determine if the instructor has started filling the manual question form
+  // 1. If currently on 'file' tab and there are selected valid questions, auto-import them!
+  if (activeSourceTab.value === 'file' && importFileRef.value) {
+    const hasSelected = importFileRef.value.hasSelectedQuestions || 
+      (Array.isArray(importFileRef.value.selectedRowIds) && importFileRef.value.selectedRowIds.length > 0)
+    if (hasSelected && typeof importFileRef.value.importSelectedQuestions === 'function') {
+      importFileRef.value.importSelectedQuestions()
+    }
+  }
+
+  // 2. If currently on 'bank' tab and there are selected questions, auto-add them!
+  if (activeSourceTab.value === 'bank' && selectBankRef.value) {
+    const hasSelected = selectBankRef.value.hasSelectedQuestions || 
+      (Array.isArray(selectBankRef.value.selectedQuestionIds) && selectBankRef.value.selectedQuestionIds.length > 0)
+    if (hasSelected && typeof selectBankRef.value.addSelectedToExam === 'function') {
+      selectBankRef.value.addSelectedToExam()
+    }
+  }
+
+  // 3. Determine if the instructor has started filling the manual question form
   const hasText = activeSourceTab.value === 'manual' && (
     questionType.value === 'Matching'
       ? matchPairs.value.some(p => p.left.replace(/<[^>]*>?/gm, '').trim() || p.right.replace(/<[^>]*>?/gm, '').trim())
@@ -361,9 +381,10 @@ const handleNext = () => {
     // If addQuestionToExam succeeded, the form is reset - now we can navigate
   }
 
-  // Require at least 1 question before advancing
+  // 4. Require at least 1 question before advancing
   if (formStore.questions.length === 0) {
-    validationError.value = 'Please add at least one question before proceeding to Exam Settings.'
+    validationError.value = 'Please add or import at least one question before proceeding to Exam Settings.'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
     return
   }
 
@@ -721,18 +742,14 @@ const getQuestionTypeLabel = (type: string) => {
       </div>
     </div>
 
-    <!-- Inline Validation Error -->
-    <div v-if="validationError" class="flex items-center gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
-      <svg class="w-4 h-4 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-      <span class="text-[13px] font-semibold text-rose-700">{{ validationError }}</span>
-      <button @click="clearError" class="ml-auto p-1 text-rose-400 hover:text-rose-600"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-    </div>
     </div> <!-- END 1. MANUAL QUESTION INPUT SECTION -->
 
     <!-- 2. FROM QUESTION BANK SECTION -->
     <div v-if="activeSourceTab === 'bank'">
       <SelectFromQuestionBank
+        ref="selectBankRef"
         @added="onQuestionsAdded"
+        @next="handleNext"
         @switch-to-manual="activeSourceTab = 'manual'"
         @switch-to-file="activeSourceTab = 'file'"
       />
@@ -741,10 +758,19 @@ const getQuestionTypeLabel = (type: string) => {
     <!-- 3. IMPORT FROM FILE SECTION -->
     <div v-if="activeSourceTab === 'file'">
       <ImportQuestionsFile
+        ref="importFileRef"
         @imported="onQuestionsAdded"
+        @next="handleNext"
         @switch-to-manual="activeSourceTab = 'manual'"
         @switch-to-bank="activeSourceTab = 'bank'"
       />
+    </div>
+
+    <!-- Global Validation Error (Visible across all tabs) -->
+    <div v-if="validationError" class="flex items-center gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl my-3 shadow-2xs">
+      <svg class="w-4 h-4 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <span class="text-[13px] font-semibold text-rose-700">{{ validationError }}</span>
+      <button @click="clearError" class="ml-auto p-1 text-rose-400 hover:text-rose-600 cursor-pointer"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
     </div>
 
     <!-- QUESTIONS CURRENTLY ADDED TO DRAFT -->

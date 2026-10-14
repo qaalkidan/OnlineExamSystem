@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useCreateExamStore } from '../../store/createExamStore'
 import apiClient from '../../../../core/api/apiClient'
 
-const emit = defineEmits(['added', 'switch-to-manual', 'switch-to-file'])
+const emit = defineEmits(['added', 'switch-to-manual', 'switch-to-file', 'next'])
 const formStore = useCreateExamStore()
 
 const isLoadingBanks = ref(false)
@@ -296,12 +296,18 @@ const addSelectedToExam = () => {
     successBanner.value = ''
   }, 6000)
 }
+
+defineExpose({
+  addSelectedToExam,
+  selectedQuestionIds,
+  hasSelectedQuestions: computed(() => selectedQuestionIds.value.length > 0)
+})
 </script>
 
 <template>
   <div class="space-y-6">
     <!-- Success Banner -->
-    <div v-if="successBanner" class="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-emerald-800 shadow-xs animate-in fade-in duration-200">
+    <div v-if="successBanner" class="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-800 shadow-xs animate-in fade-in duration-200">
       <div class="flex items-center gap-3">
         <div class="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
@@ -311,7 +317,17 @@ const addSelectedToExam = () => {
           <p class="text-[11px] text-emerald-600 mt-0.5">Total questions currently in this exam: <strong class="text-emerald-800">{{ formStore.questions.length }}</strong></p>
         </div>
       </div>
-      <button @click="successBanner = ''" class="text-emerald-500 hover:text-emerald-700 font-bold text-sm px-2 py-1">&times;</button>
+      <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+        <button
+          type="button"
+          @click="emit('next')"
+          class="px-4 py-2 bg-[#5138ed] hover:bg-indigo-600 text-white font-bold text-[12px] rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+        >
+          Next: Exam Settings
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+        </button>
+        <button @click="successBanner = ''" class="text-emerald-500 hover:text-emerald-700 font-bold text-sm px-2 py-1 cursor-pointer">&times;</button>
+      </div>
     </div>
 
     <!-- Question Bank Selector Card -->
