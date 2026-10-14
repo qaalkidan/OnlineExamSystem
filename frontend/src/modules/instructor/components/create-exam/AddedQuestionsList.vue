@@ -124,8 +124,20 @@ const getTypeLabel = (type: string) => {
 
           <p class="text-[13px] font-medium text-slate-800 leading-snug line-clamp-2" v-html="q.text"></p>
 
+          <!-- Matching items snippet -->
+          <div v-if="q.type === 'matching' && q.column_a && q.column_a.length > 0" class="flex flex-wrap gap-1 mt-1.5">
+            <span
+              v-for="(itemA, idxA) in q.column_a.slice(0, 3)"
+              :key="idxA"
+              class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50/70 text-indigo-700 border border-indigo-100 truncate max-w-[150px]"
+            >
+              {{ Number(idxA) + 1 }}. {{ itemA }}
+            </span>
+            <span v-if="q.column_a.length > 3" class="text-[10px] text-slate-400 px-1">+{{ q.column_a.length - 3 }} more</span>
+          </div>
+
           <!-- Options snippet -->
-          <div v-if="q.options && q.options.length > 0" class="flex flex-wrap gap-1 mt-1.5">
+          <div v-else-if="q.options && q.options.length > 0" class="flex flex-wrap gap-1 mt-1.5">
             <span
               v-for="(opt, optIdx) in q.options.slice(0, 4)"
               :key="optIdx"
@@ -136,7 +148,7 @@ const getTypeLabel = (type: string) => {
                 'text-[10px] px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[140px]'
               ]"
             >
-              {{ String.fromCharCode(65 + Number(optIdx)) }}: {{ typeof opt === 'string' ? opt : opt.text }}
+              {{ String.fromCharCode(65 + Number(optIdx)) }}: {{ typeof opt === 'string' ? opt : (opt.text || opt.left || '') }}
             </span>
             <span v-if="q.options.length > 4" class="text-[10px] text-slate-400 px-1">+{{ q.options.length - 4 }} more</span>
           </div>

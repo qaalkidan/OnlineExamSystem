@@ -87,6 +87,204 @@ export const isPdfHeader = (buffer: ArrayBuffer): boolean => {
 }
 
 /**
+ * Parse and normalize matching question data from various formats
+ * (e.g., user format 1:Prompt->A:Def A; B:Def B; 2:Prompt 2->..., simple arrow lists, explicit column_a/b).
+ */
+export const parseMatchingQuestionData = (raw: {
+  matching_pairs?: string
+  column_a?: any
+  column_b?: any
+  pairs?: any
+  options?: any[]
+  correct_answer?: string
+  correct_answers?: Record<string, string>
+  marks?: number | string
+}): {
+  column_a: string[]
+  column_b: { label: string; text: string }[]
+  pairs: { left: string; right: string }[]
+  correct_answers: Record<string, string>
+  correct_answer: string
+  marks_per_item?: number
+} => {
+  const ansMap: Record<string, string> = {}
+  if (raw.correct_answers && typeof raw.correct_answers === 'object') {
+    Object.entries(raw.correct_answers).forEach(([k, v]) => {
+      ansMap[String(k).trim()] = String(v).trim().toUpperCase()
+    })
+  } else if (raw.correct_answer) {
+    const parts = String(raw.correct_answer).split(/[;,]/)
+    parts.forEach(p => {
+      const m = p.trim().match(/^(?:^|\s*)(\d+|[A-Za-z])[\s:=—\-]+([A-Za-z0-9]+)/)
+      if (m) {
+        ansMap[m[1]] = m[2].toUpperCase()
+      }
+    })
+  }
+
+  const column_a: string[] = []
+  const column_b: { label: string; text: string }[] = []
+  const pairs: { left: string; right: string }[] = []
+
+  // Check 1: Explicit column_a and column_b
+  if (Array.isArray(raw.column_a) && raw.column_a.length > 0) {
+    raw.column_a.forEach(x => {
+      const s = String(x || '').trim()
+      if (s) column_a.push(s)
+    })
+  } else if (typeof raw.column_a === 'string' && raw.column_a.trim()) {
+    raw.column_a.split(/[;\n|]/).forEach(s => {
+      const v = s.trim()
+      if (v) column_a.push(v)
+    })
+  }
+
+  if (Array.isArray(raw.column_b) && raw.column_b.length > 0) {
+    raw.column_b.forEach((x, i) => {
+      if (typeof x === 'object' && x !== null) {
+        const text = String(x.text || '').trim()
+        if (text) {
+          column_b.push({ label: x.label || String.fromCharCode(65 + i), text })
+        }
+      } else {
+        const text = String(x || '').trim()
+        if (text) {
+          column_b.push({ label: String.fromCharCode(65 + i), text })
+        }
+      }
+    })
+  } else if (typeof raw.column_b === 'string' && raw.column_b.trim()) {
+    const parts = raw.column_b.split(/[;\n|]/).map(s => s.trim()).filter(Boolean)
+    parts.forEach((text, i) => {
+      column_b.push({ label: String.fromCharCode(65 + i), text })
+    })
+  }
+
+  // Check 2: Explicit pairs
+  if (column_a.length === 0 && Array.isArray(raw.pairs) && raw.pairs.length > 0) {
+    raw.pairs.forEach((p, idx) => {
+      if (p && typeof p === 'object' && (p.left || p.right)) {
+        const left = String(p.left || '').trim()
+        const right = String(p.right || '').trim()
+        const label = String.fromCharCode(65 + idx)
+        column_a.push(left)
+        column_b.push({ label, text: right })
+        pairs.push({ left, right })
+        if (!ansMap[(idx + 1).toString()]) {
+          ansMap[(idx + 1).toString()] = label
+        }
+      }
+    })
+  }
+
+  // Check 3: matching_pairs string
+  const rawPairs = String(raw.matching_pairs || '').trim()
+  if (column_a.length === 0 && rawPairs) {
+    const structuredRegex = /(?:^|;|\s+)(\d+)\s*:\s*([^->;]+)->/g
+    let match: RegExpExecArray | null
+    const promptMatches: { num: string; text: string; matchStart: number; contentStart: number; rhs?: string }[] = []
+    while ((match = structuredRegex.exec(rawPairs)) !== null) {
+      promptMatches.push({
+        num: match[1],
+        text: match[2].trim(),
+        matchStart: match.index,
+        contentStart: structuredRegex.lastIndex
+      })
+    }
+
+    if (promptMatches.length > 0) {
+      for (let i = 0; i < promptMatches.length; i++) {
+        const end = (i + 1 < promptMatches.length) ? promptMatches[i + 1].matchStart : rawPairs.length
+        promptMatches[i].rhs = rawPairs.substring(promptMatches[i].contentStart, end).trim()
+      }
+
+      const letterDefs: Record<string, string> = {}
+      promptMatches.forEach(p => {
+        column_a.push(p.text)
+        let m: RegExpExecArray | null
+        const re = /([A-Za-z])\s*:\s*([^;]+)/g
+        while ((m = re.exec(p.rhs || '')) !== null) {
+          const letter = m[1].toUpperCase()
+          const text = m[2].trim()
+          if (ansMap[p.num] === letter) {
+            letterDefs[letter] = text
+          } else if (!letterDefs[letter]) {
+            letterDefs[letter] = text
+          }
+        }
+      })
+
+      const sortedLabels = Object.keys(letterDefs).sort()
+      sortedLabels.forEach(label => {
+        column_b.push({ label, text: letterDefs[label] })
+      })
+
+      column_a.forEach((prompt, idx) => {
+        const numStr = (idx + 1).toString()
+        const matchedLetter = ansMap[numStr] || String.fromCharCode(65 + idx)
+        const matchedText = letterDefs[matchedLetter] || ''
+        pairs.push({ left: prompt, right: matchedText })
+      })
+    } else {
+      // Pattern: Left -> Right; Left -> Right
+      const items = rawPairs.split(/[;\n]/).map(s => s.trim()).filter(Boolean)
+      items.forEach((item, idx) => {
+        const arrowParts = item.split(/->|=>|--/).map(s => s.trim())
+        if (arrowParts.length >= 2) {
+          const left = arrowParts[0].replace(/^\d+[\s:.)-]+/, '').trim()
+          const right = arrowParts[1].replace(/^[A-Za-z][\s:.)-]+/, '').trim()
+          const label = String.fromCharCode(65 + idx)
+          column_a.push(left)
+          column_b.push({ label, text: right })
+          pairs.push({ left, right })
+          if (!ansMap[(idx + 1).toString()]) {
+            ansMap[(idx + 1).toString()] = label
+          }
+        }
+      })
+    }
+  }
+
+  // Check 4: If column_b is still empty but options array exists
+  if (column_b.length === 0 && Array.isArray(raw.options) && raw.options.length > 0) {
+    raw.options.forEach((opt, idx) => {
+      const text = typeof opt === 'object' && opt !== null ? String(opt.text || opt.right || '') : String(opt || '')
+      if (text.trim()) {
+        column_b.push({ label: String.fromCharCode(65 + idx), text: text.trim() })
+      }
+    })
+  }
+
+  // If pairs not formed yet but column_a and column_b exist
+  if (pairs.length === 0 && column_a.length > 0) {
+    column_a.forEach((prompt, idx) => {
+      const numStr = (idx + 1).toString()
+      const matchedLetter = ansMap[numStr] || String.fromCharCode(65 + idx)
+      const bItem = column_b.find(b => b.label.toUpperCase() === matchedLetter.toUpperCase()) || column_b[idx]
+      pairs.push({ left: prompt, right: bItem ? bItem.text : '' })
+    })
+  }
+
+  // Ensure normalized answer string
+  const sortedEntries = Object.entries(ansMap).sort((a, b) => Number(a[0]) - Number(b[0]))
+  const normalizedAnswer = sortedEntries.length > 0
+    ? sortedEntries.map(([k, v]) => `${k}-${v}`).join(', ')
+    : String(raw.correct_answer || '').trim()
+
+  const marks = Number(raw.marks) || 0
+  const marks_per_item = column_a.length > 0 ? Math.round((marks / column_a.length) * 100) / 100 : marks
+
+  return {
+    column_a,
+    column_b,
+    pairs,
+    correct_answers: ansMap,
+    correct_answer: normalizedAnswer,
+    marks_per_item
+  }
+}
+
+/**
  * Validate a question against the application schema.
  */
 export const validateQuestionData = (
@@ -96,13 +294,15 @@ export const validateQuestionData = (
     instruction?: string
     difficulty?: string
     marks?: any
-    options?: string[]
+    options?: any[]
     correct_answer?: string
     description?: string
+    matching_pairs?: string
     column_a?: string[]
     column_b?: any[]
     correct_answers?: any
     pairs?: any[]
+    marks_per_item?: number
   },
   index: number
 ): ParsedQuestionRow => {
@@ -135,6 +335,11 @@ export const validateQuestionData = (
   // 4. Validate Specific Question Types
   let cleanOptions: string[] = []
   let resolvedAnswer = String(raw.correct_answer || '').trim()
+  let colA = raw.column_a || []
+  let colB = raw.column_b || []
+  let correctAnswers = raw.correct_answers
+  let pairs = raw.pairs
+  let marksPerItem = raw.marks_per_item
 
   if (normalizedType === 'multiple_choice') {
     cleanOptions = (raw.options || []).map(o => String(o || '').trim()).filter(Boolean)
@@ -196,12 +401,23 @@ export const validateQuestionData = (
       errors.push('Expected answer or rubric is required for Short Answer questions')
     }
   } else if (normalizedType === 'matching') {
-    const colA = raw.column_a || []
-    const colB = raw.column_b || []
+    // If not already parsed into column_a/b, parse it now
+    if (!colA || colA.length === 0 || !colB || colB.length === 0) {
+      const parsedMatching = parseMatchingQuestionData(raw as any)
+      colA = parsedMatching.column_a
+      colB = parsedMatching.column_b
+      pairs = parsedMatching.pairs
+      correctAnswers = parsedMatching.correct_answers
+      if (parsedMatching.correct_answer) {
+        resolvedAnswer = parsedMatching.correct_answer
+      }
+      marksPerItem = parsedMatching.marks_per_item
+    }
+
     if (colA.length < 1 || colB.length < 1) {
       errors.push('Matching questions require at least one Column A prompt and one Column B matching item')
     }
-    if (!resolvedAnswer && !raw.correct_answers) {
+    if (!resolvedAnswer && !correctAnswers) {
       errors.push('Correct answer mapping is required for Matching questions')
     }
   }
@@ -218,7 +434,7 @@ export const validateQuestionData = (
     id: rowId,
     rawIndex: index,
     type: normalizedType || rawType,
-    instruction: String(raw.instruction || '').trim() || (normalizedType === 'multiple_choice' ? 'Choose the correct answer' : normalizedType === 'true_false' ? 'Select True or False' : 'Answer the question'),
+    instruction: String(raw.instruction || '').trim() || (normalizedType === 'multiple_choice' ? 'Choose the correct answer' : normalizedType === 'true_false' ? 'Select True or False' : normalizedType === 'matching' ? 'Match the items from Column A with Column B' : 'Answer the question'),
     text: normalizedType === 'matching' && !strippedText ? 'Matching Question' : rawText,
     difficulty,
     marks: marksNum > 0 ? marksNum : 0,
@@ -228,10 +444,11 @@ export const validateQuestionData = (
     status: isValid ? 'valid' : 'error',
     statusMessage: isValid ? 'Valid question ready for import' : errors.join('; '),
     errors,
-    column_a: raw.column_a,
-    column_b: raw.column_b,
-    correct_answers: raw.correct_answers,
-    pairs: raw.pairs
+    column_a: colA,
+    column_b: colB,
+    correct_answers: correctAnswers,
+    pairs,
+    marks_per_item: marksPerItem
   }
 }
 
@@ -243,7 +460,11 @@ export const validateSpreadsheetHeaders = (headers: string[]): { valid: boolean;
   const cleanHeaders = headers.map(h => (h || '').toLowerCase().replace(/[^a-z0-9]/g, ''))
 
   const textAliases = ['questiontext', 'question', 'text', 'prompt']
-  const secondaryAliases = ['type', 'questiontype', 'marks', 'mark', 'score', 'points', 'correctanswer', 'answer', 'key', 'optiona', 'choicea']
+  const secondaryAliases = [
+    'type', 'questiontype', 'marks', 'mark', 'score', 'points',
+    'correctanswer', 'answer', 'key', 'optiona', 'choicea',
+    'matchingpairs', 'matching', 'pairs', 'matchpairs'
+  ]
 
   const hasText = cleanHeaders.some(h => textAliases.includes(h))
   const hasSecondary = cleanHeaders.some(h => secondaryAliases.includes(h))
@@ -410,7 +631,7 @@ export const parseAndValidateSpreadsheet = async (file: File): Promise<FileValid
     else if (['type', 'questiontype'].includes(ch)) colMap.type = idx
     else if (['marks', 'mark', 'score', 'points'].includes(ch)) colMap.marks = idx
     else if (['correctanswer', 'answer', 'key'].includes(ch)) colMap.correct_answer = idx
-    else if (['instruction', 'instructions', 'groupinstruction'].includes(ch)) colMap.instruction = idx
+    else if (['instruction', 'instructions', 'groupinstruction', 'instructorinstruction'].includes(ch)) colMap.instruction = idx
     else if (['difficulty', 'level'].includes(ch)) colMap.difficulty = idx
     else if (['explanation', 'description', 'rubric'].includes(ch)) colMap.description = idx
     else if (['optiona', 'choicea', 'a'].includes(ch)) colMap.option_a = idx
@@ -419,6 +640,9 @@ export const parseAndValidateSpreadsheet = async (file: File): Promise<FileValid
     else if (['optiond', 'choiced', 'd'].includes(ch)) colMap.option_d = idx
     else if (['optione', 'choicee', 'e'].includes(ch)) colMap.option_e = idx
     else if (['options', 'choices'].includes(ch)) colMap.options_combined = idx
+    else if (['matchingpairs', 'matching', 'pairs', 'matchpairs'].includes(ch)) colMap.matching_pairs = idx
+    else if (['columna', 'leftcolumn', 'prompts'].includes(ch)) colMap.column_a = idx
+    else if (['columnb', 'rightcolumn', 'matches', 'definitions'].includes(ch)) colMap.column_b = idx
   })
 
   const questions: ParsedQuestionRow[] = []
@@ -463,7 +687,10 @@ export const parseAndValidateSpreadsheet = async (file: File): Promise<FileValid
         marks: getVal('marks'),
         options,
         correct_answer: getVal('correct_answer'),
-        description: getVal('description')
+        description: getVal('description'),
+        matching_pairs: getVal('matching_pairs'),
+        column_a: getVal('column_a') ? getVal('column_a').split(/[;\n|]/).map(s => s.trim()).filter(Boolean) : undefined,
+        column_b: getVal('column_b') ? getVal('column_b').split(/[;\n|]/).map(s => s.trim()).filter(Boolean) : undefined
       },
       questions.length + 1
     )

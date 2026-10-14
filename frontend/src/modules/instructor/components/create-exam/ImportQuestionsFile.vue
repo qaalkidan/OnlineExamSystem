@@ -198,6 +198,45 @@ const importSelectedQuestions = () => {
   let totalImportMarks = 0
 
   questionsToImport.forEach(q => {
+    if (q.type === 'matching') {
+      const colA = q.column_a || []
+      const colB = q.column_b || []
+      const pairs = q.pairs || colA.map((item, idx) => ({
+        left: item,
+        right: (colB[idx] && typeof colB[idx] === 'object') ? colB[idx].text : (colB[idx] || '')
+      }))
+      const correctAnswers = q.correct_answers || {}
+      const perItemMark = q.marks_per_item || (colA.length > 0 ? Math.round((q.marks / colA.length) * 100) / 100 : 1)
+
+      formStore.questions.push({
+        type: 'matching',
+        instruction: q.instruction || 'Match the items from Column A with Column B',
+        text: q.text || 'Matching Question',
+        difficulty: q.difficulty || 'Medium',
+        marks: q.marks,
+        description: q.description || '',
+        column_a: colA,
+        column_b: colB,
+        pairs: pairs,
+        options: pairs,
+        correct_answers: correctAnswers,
+        correct_answer: q.correct_answer,
+        columnA: 'Column A',
+        columnB: 'Column B',
+        marks_per_item: perItemMark,
+        question_data: {
+          column_a: colA,
+          column_b: colB,
+          correct_answers: correctAnswers,
+          pairs: pairs,
+          marks_per_item: perItemMark
+        }
+      })
+      importedCount++
+      totalImportMarks += q.marks
+      return
+    }
+
     let corrAns = q.correct_answer || ''
     if (q.type === 'true_false') {
       const lower = String(corrAns).toLowerCase().trim()
@@ -551,8 +590,8 @@ const importSelectedQuestions = () => {
                   {{ q.instruction }}
                 </p>
 
-                <!-- Multiple Choice Options -->
-                <div v-if="q.options && q.options.length > 0" class="flex flex-wrap gap-1.5 mt-2">
+                <!-- Multiple Choice & True/False Options -->
+                <div v-if="q.type !== 'matching' && q.options && q.options.length > 0" class="flex flex-wrap gap-1.5 mt-2">
                   <span
                     v-for="(opt, oIdx) in q.options"
                     :key="oIdx"
@@ -567,13 +606,72 @@ const importSelectedQuestions = () => {
                     <span>{{ opt }}</span>
                   </span>
                 </div>
+
+                <!-- Matching Question Prompts & Matches Display -->
+                <div
+                  v-if="q.type === 'matching' && ((q.column_a && q.column_a.length > 0) || (q.column_b && q.column_b.length > 0))"
+                  class="mt-2.5 p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/80"
+                >
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[11px]">
+                    <!-- Column A (Prompts) -->
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">
+                        <span>Column A (Prompts)</span>
+                        <span class="text-indigo-600 font-semibold">{{ q.column_a?.length || 0 }} items</span>
+                      </div>
+                      <div
+                        v-for="(itemA, aIdx) in (q.column_a || [])"
+                        :key="aIdx"
+                        class="flex items-start gap-1.5 bg-white px-2 py-1 rounded-lg border border-slate-200/60 shadow-2xs"
+                      >
+                        <span class="w-4 h-4 rounded bg-indigo-50 text-[#4F35F3] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                          {{ Number(aIdx) + 1 }}
+                        </span>
+                        <span class="font-medium text-slate-700 leading-tight">{{ itemA }}</span>
+                      </div>
+                    </div>
+
+                    <!-- Column B (Matches / Definitions) -->
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">
+                        <span>Column B (Matches)</span>
+                        <span class="text-slate-500 font-semibold">{{ q.column_b?.length || 0 }} choices</span>
+                      </div>
+                      <div
+                        v-for="(itemB, bIdx) in (q.column_b || [])"
+                        :key="bIdx"
+                        class="flex items-start gap-1.5 bg-white px-2 py-1 rounded-lg border border-slate-200/60 shadow-2xs"
+                      >
+                        <span class="w-4 h-4 rounded bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                          {{ itemB.label || String.fromCharCode(65 + Number(bIdx)) }}
+                        </span>
+                        <span class="text-slate-600 leading-tight line-clamp-2" :title="itemB.text">
+                          {{ itemB.text }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </td>
 
               <!-- Answer -->
               <td class="py-3 px-4 align-top">
+                <!-- Matching Pairs Badges -->
+                <div v-if="q.type === 'matching' && q.correct_answers && Object.keys(q.correct_answers).length > 0" class="flex flex-wrap gap-1">
+                  <span
+                    v-for="(targetLetter, numKey) in q.correct_answers"
+                    :key="numKey"
+                    class="inline-flex items-center gap-1 text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded shadow-2xs"
+                    :title="`Prompt ${numKey} matches Option ${targetLetter}`"
+                  >
+                    <span>{{ numKey }}</span>
+                    <span class="text-emerald-400 text-[9px]">→</span>
+                    <span>{{ targetLetter }}</span>
+                  </span>
+                </div>
                 <span
-                  v-if="q.correct_answer"
-                  class="font-bold text-[11.5px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md inline-block max-w-[120px] truncate"
+                  v-else-if="q.correct_answer"
+                  class="font-bold text-[11.5px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md inline-block max-w-[130px] truncate"
                   :title="q.correct_answer"
                 >
                   {{ q.correct_answer }}

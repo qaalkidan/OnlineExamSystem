@@ -197,40 +197,30 @@ class QuestionValidationService
                 $sanitizedCorrectAnswer = $ansStr;
             }
         } elseif ($normalizedType === 'matching') {
-            $columnA = $q['column_a'] ?? [];
-            $columnB = $q['column_b'] ?? [];
-            $pairs = $q['pairs'] ?? [];
-
-            if (empty($columnA) && !empty($pairs)) {
-                foreach ($pairs as $p) {
-                    if (!empty($p['left'])) {
-                        $columnA[] = $p['left'];
-                    }
-                    if (!empty($p['right'])) {
-                        $columnB[] = ['label' => chr(ord('A') + count($columnB)), 'text' => $p['right']];
-                    }
-                }
-            }
+            $parsedMatching = $this->parseMatchingQuestionData($q);
+            $columnA = $parsedMatching['column_a'];
+            $columnB = $parsedMatching['column_b'];
+            $pairs = $parsedMatching['pairs'];
+            $correctAnswers = $parsedMatching['correct_answers'];
+            $normalizedAnswer = $parsedMatching['correct_answer'];
+            $marksPerItem = $parsedMatching['marks_per_item'];
 
             if (count($columnA) < 1 || count($columnB) < 1) {
                 $errors[] = 'Matching questions require at least one Column A prompt and one Column B matching item.';
             }
 
-            $rawAns = $q['correct_answer'] ?? $q['correct_answers'] ?? '';
-            if (empty($rawAns)) {
+            if (empty($normalizedAnswer) && empty($correctAnswers)) {
                 $errors[] = 'Correct answer mapping is required for Matching questions.';
             }
 
-            $sanitizedCorrectAnswer = is_array($rawAns)
-                ? collect($rawAns)->map(fn($v, $k) => "{$k}-{$v}")->implode(',')
-                : (string)$rawAns;
+            $sanitizedCorrectAnswer = $normalizedAnswer;
 
             $sanitizedQuestionData = [
                 'column_a'        => $columnA,
                 'column_b'        => $columnB,
-                'correct_answers' => is_array($rawAns) ? $rawAns : null,
+                'correct_answers' => $correctAnswers,
                 'pairs'           => $pairs,
-                'marks_per_item'  => $q['marks_per_item'] ?? ($marks > 0 && count($columnA) > 0 ? round($marks / count($columnA), 2) : 1),
+                'marks_per_item'  => $marksPerItem,
             ];
 
             if (empty($strippedText)) {
@@ -248,7 +238,7 @@ class QuestionValidationService
 
         $sanitized = [
             'type'           => $normalizedType ?? $rawType,
-            'instruction'    => trim((string)($q['instruction'] ?? '')),
+            'instruction'    => trim((string)($q['instruction'] ?? '')) ?: ($normalizedType === 'matching' ? 'Match the items from Column A with Column B' : ''),
             'text'           => $text,
             'difficulty'     => $difficulty,
             'marks'          => $marks,
@@ -256,6 +246,11 @@ class QuestionValidationService
             'correct_answer' => $sanitizedCorrectAnswer,
             'description'    => trim((string)($q['description'] ?? $q['explanation'] ?? '')),
             'question_data'  => $sanitizedQuestionData,
+            'column_a'       => $sanitizedQuestionData['column_a'] ?? null,
+            'column_b'       => $sanitizedQuestionData['column_b'] ?? null,
+            'correct_answers'=> $sanitizedQuestionData['correct_answers'] ?? null,
+            'pairs'          => $sanitizedQuestionData['pairs'] ?? null,
+            'marks_per_item' => $sanitizedQuestionData['marks_per_item'] ?? null,
         ];
 
         return [
@@ -540,7 +535,7 @@ class QuestionValidationService
                 $columnMap['marks'] = $idx;
             } elseif (in_array($ch, $answerAliases)) {
                 $columnMap['correct_answer'] = $idx;
-            } elseif ($ch === 'instruction' || $ch === 'instructions' || $ch === 'groupinstruction') {
+            } elseif ($ch === 'instruction' || $ch === 'instructions' || $ch === 'groupinstruction' || $ch === 'instructorinstruction') {
                 $columnMap['instruction'] = $idx;
             } elseif ($ch === 'difficulty' || $ch === 'level') {
                 $columnMap['difficulty'] = $idx;
@@ -558,6 +553,12 @@ class QuestionValidationService
                 $columnMap['option_e'] = $idx;
             } elseif ($ch === 'options' || $ch === 'choices') {
                 $columnMap['options_combined'] = $idx;
+            } elseif ($ch === 'matchingpairs' || $ch === 'matching' || $ch === 'pairs' || $ch === 'matchpairs') {
+                $columnMap['matching_pairs'] = $idx;
+            } elseif ($ch === 'columna' || $ch === 'leftcolumn' || $ch === 'prompts') {
+                $columnMap['column_a'] = $idx;
+            } elseif ($ch === 'columnb' || $ch === 'rightcolumn' || $ch === 'matches' || $ch === 'definitions') {
+                $columnMap['column_b'] = $idx;
             }
         }
 
@@ -595,6 +596,9 @@ class QuestionValidationService
                 'options'        => $options,
                 'correct_answer' => $getVal('correct_answer'),
                 'description'    => $getVal('explanation'),
+                'matching_pairs' => $getVal('matching_pairs'),
+                'column_a'       => $getVal('column_a'),
+                'column_b'       => $getVal('column_b'),
             ];
 
             $res = $this->validateQuestion($questionData, $rowIdx + 1);
@@ -614,6 +618,207 @@ class QuestionValidationService
             'invalid_count' => $invalidCount,
             'skipped_rows'  => $skippedEmptyCount,
             'questions'     => $results,
+        ];
+    }
+
+    /**
+     * Parse and normalize matching question prompts, definitions, pairs, and answers.
+     */
+    public function parseMatchingQuestionData(array $raw): array
+    {
+        $ansMap = [];
+        if (isset($raw['correct_answers']) && is_array($raw['correct_answers'])) {
+            foreach ($raw['correct_answers'] as $k => $v) {
+                $ansMap[trim((string)$k)] = strtoupper(trim((string)$v));
+            }
+        } elseif (!empty($raw['correct_answer'])) {
+            $parts = preg_split('/[;,]/', (string)$raw['correct_answer']);
+            foreach ($parts as $p) {
+                if (preg_match('/^(?:\s*)(\d+|[A-Za-z])[\s:=—\-]+([A-Za-z0-9]+)/u', trim($p), $m)) {
+                    $ansMap[$m[1]] = strtoupper($m[2]);
+                }
+            }
+        }
+
+        $columnA = [];
+        $columnB = [];
+        $pairs = [];
+
+        // Check 1: Explicit column_a and column_b
+        if (isset($raw['column_a']) && is_array($raw['column_a']) && !empty($raw['column_a'])) {
+            foreach ($raw['column_a'] as $item) {
+                $val = trim((string)$item);
+                if ($val !== '') {
+                    $columnA[] = $val;
+                }
+            }
+        } elseif (!empty($raw['column_a']) && is_string($raw['column_a'])) {
+            $parts = preg_split('/[;\n|]/', $raw['column_a']);
+            foreach ($parts as $p) {
+                $val = trim($p);
+                if ($val !== '') {
+                    $columnA[] = $val;
+                }
+            }
+        }
+
+        if (isset($raw['column_b']) && is_array($raw['column_b']) && !empty($raw['column_b'])) {
+            foreach ($raw['column_b'] as $idx => $item) {
+                $label = is_array($item) ? ($item['label'] ?? chr(ord('A') + $idx)) : chr(ord('A') + $idx);
+                $text = is_array($item) ? ($item['text'] ?? '') : (string)$item;
+                $text = trim($text);
+                if ($text !== '') {
+                    $columnB[] = ['label' => $label, 'text' => $text];
+                }
+            }
+        } elseif (!empty($raw['column_b']) && is_string($raw['column_b'])) {
+            $parts = preg_split('/[;\n|]/', $raw['column_b']);
+            foreach ($parts as $idx => $p) {
+                $val = trim($p);
+                if ($val !== '') {
+                    $columnB[] = ['label' => chr(ord('A') + $idx), 'text' => $val];
+                }
+            }
+        }
+
+        // Check 2: Explicit pairs
+        if (empty($columnA) && isset($raw['pairs']) && is_array($raw['pairs']) && !empty($raw['pairs'])) {
+            foreach ($raw['pairs'] as $idx => $p) {
+                $left = trim((string)($p['left'] ?? ''));
+                $right = trim((string)($p['right'] ?? ''));
+                if ($left !== '' || $right !== '') {
+                    $label = chr(ord('A') + $idx);
+                    $columnA[] = $left;
+                    $columnB[] = ['label' => $label, 'text' => $right];
+                    $pairs[] = ['left' => $left, 'right' => $right];
+                    if (!isset($ansMap[(string)($idx + 1)])) {
+                        $ansMap[(string)($idx + 1)] = $label;
+                    }
+                }
+            }
+        }
+
+        // Check 3: matching_pairs string
+        $rawPairs = trim((string)($raw['matching_pairs'] ?? ''));
+        if (empty($columnA) && $rawPairs !== '') {
+            $structuredRegex = '/(?:^|;|\s+)(\d+)\s*:\s*([^->;]+)->/u';
+            if (preg_match_all($structuredRegex, $rawPairs, $matches, PREG_OFFSET_CAPTURE)) {
+                $promptMatches = [];
+                $numMatches = count($matches[0]);
+                for ($i = 0; $i < $numMatches; $i++) {
+                    $fullMatchStr = $matches[0][$i][0];
+                    $fullMatchOffset = $matches[0][$i][1];
+                    $contentStart = $fullMatchOffset + strlen($fullMatchStr);
+                    $promptMatches[] = [
+                        'num'          => $matches[1][$i][0],
+                        'text'         => trim($matches[2][$i][0]),
+                        'matchStart'   => $fullMatchOffset,
+                        'contentStart' => $contentStart,
+                    ];
+                }
+
+                for ($i = 0; $i < count($promptMatches); $i++) {
+                    $end = ($i + 1 < count($promptMatches)) ? $promptMatches[$i + 1]['matchStart'] : strlen($rawPairs);
+                    $promptMatches[$i]['rhs'] = trim(substr($rawPairs, $promptMatches[$i]['contentStart'], $end - $promptMatches[$i]['contentStart']));
+                }
+
+                $letterDefs = [];
+                foreach ($promptMatches as $p) {
+                    $columnA[] = $p['text'];
+                    if (preg_match_all('/([A-Za-z])\s*:\s*([^;]+)/u', $p['rhs'], $defMatches, PREG_SET_ORDER)) {
+                        foreach ($defMatches as $dm) {
+                            $letter = strtoupper(trim($dm[1]));
+                            $text = trim($dm[2]);
+                            if (isset($ansMap[$p['num']]) && $ansMap[$p['num']] === $letter) {
+                                $letterDefs[$letter] = $text;
+                            } elseif (!isset($letterDefs[$letter])) {
+                                $letterDefs[$letter] = $text;
+                            }
+                        }
+                    }
+                }
+
+                ksort($letterDefs);
+                foreach ($letterDefs as $label => $text) {
+                    $columnB[] = ['label' => $label, 'text' => $text];
+                }
+
+                foreach ($columnA as $idx => $prompt) {
+                    $numStr = (string)($idx + 1);
+                    $matchedLetter = $ansMap[$numStr] ?? chr(ord('A') + $idx);
+                    $matchedText = $letterDefs[$matchedLetter] ?? '';
+                    $pairs[] = ['left' => $prompt, 'right' => $matchedText];
+                }
+            } else {
+                // Pattern: Left -> Right
+                $items = array_values(array_filter(array_map('trim', preg_split('/[;\n]/', $rawPairs))));
+                foreach ($items as $idx => $item) {
+                    $arrowParts = preg_split('/->|=>|--/', $item);
+                    if (count($arrowParts) >= 2) {
+                        $left = trim(preg_replace('/^\d+[\s:.)-]+/', '', trim($arrowParts[0])));
+                        $right = trim(preg_replace('/^[A-Za-z][\s:.)-]+/', '', trim($arrowParts[1])));
+                        $label = chr(ord('A') + $idx);
+                        $columnA[] = $left;
+                        $columnB[] = ['label' => $label, 'text' => $right];
+                        $pairs[] = ['left' => $left, 'right' => $right];
+                        if (!isset($ansMap[(string)($idx + 1)])) {
+                            $ansMap[(string)($idx + 1)] = $label;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check 4: If columnB still empty but options array exists
+        if (empty($columnB) && !empty($raw['options']) && is_array($raw['options'])) {
+            foreach ($raw['options'] as $idx => $opt) {
+                $text = is_array($opt) ? ($opt['text'] ?? $opt['right'] ?? '') : (string)$opt;
+                $text = trim($text);
+                if ($text !== '') {
+                    $columnB[] = ['label' => chr(ord('A') + $idx), 'text' => $text];
+                }
+            }
+        }
+
+        // Pairs fallback
+        if (empty($pairs) && !empty($columnA)) {
+            foreach ($columnA as $idx => $prompt) {
+                $numStr = (string)($idx + 1);
+                $matchedLetter = $ansMap[$numStr] ?? chr(ord('A') + $idx);
+                $bText = '';
+                foreach ($columnB as $bItem) {
+                    if (strcasecmp($bItem['label'], $matchedLetter) === 0) {
+                        $bText = $bItem['text'];
+                        break;
+                    }
+                }
+                if ($bText === '' && isset($columnB[$idx])) {
+                    $bText = $columnB[$idx]['text'];
+                }
+                $pairs[] = ['left' => $prompt, 'right' => $bText];
+            }
+        }
+
+        // Sort answers and normalize string
+        uksort($ansMap, fn($a, $b) => (int)$a <=> (int)$b);
+        $normalizedAnswerParts = [];
+        foreach ($ansMap as $k => $v) {
+            $normalizedAnswerParts[] = "{$k}-{$v}";
+        }
+        $normalizedAnswer = !empty($normalizedAnswerParts)
+            ? implode(', ', $normalizedAnswerParts)
+            : trim((string)($raw['correct_answer'] ?? ''));
+
+        $marks = (float)($raw['marks'] ?? 0);
+        $marksPerItem = count($columnA) > 0 ? round($marks / count($columnA), 2) : $marks;
+
+        return [
+            'column_a'        => $columnA,
+            'column_b'        => $columnB,
+            'pairs'           => $pairs,
+            'correct_answers' => $ansMap,
+            'correct_answer'  => $normalizedAnswer,
+            'marks_per_item'  => $marksPerItem,
         ];
     }
 }

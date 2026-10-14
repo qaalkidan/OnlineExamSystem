@@ -439,4 +439,45 @@ class QuestionImportValidationTest extends TestCase
         $this->assertDatabaseHas('questions', ['text' => 'What is the base of hexadecimal numbers?', 'correct_answer' => 'C']);
         $this->assertDatabaseHas('questions', ['text' => 'A bit can be 0 or 1.', 'correct_answer' => 'A']);
     }
+
+    /**
+     * 17. Matching questions with matching_pairs and correct_answer pass validation.
+     */
+    public function test_matching_questions_in_csv_pass_validation(): void
+    {
+        $rows = [
+            ['question_type', 'question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer', 'matching_pairs', 'marks', 'instructor_instruction', 'difficulty'],
+            [
+                'matching',
+                'Match each database term in Column A with its correct definition in Column B.',
+                '', '', '', '',
+                '1-B; 2-D; 3-A; 4-C',
+                '1:Primary Key->A:An attribute that may contain duplicate values; B:A field that uniquely identifies a record; 2:Foreign Key->C:A command used to sort query results; D:A field that references a key in another table; 3:Query->A:A request to retrieve or manipulate data; 4:Sort->C:Arrange records in a specified order',
+                4,
+                'Match every term in Column A with one definition in Column B.',
+                'Medium'
+            ]
+        ];
+
+        $file = $this->createCsvFile($rows, 'matching_exam.csv');
+
+        $response = $this->actingAs($this->instructor)
+            ->postJson('/api/v1/instructor/exams/validate-import', [
+                'file' => $file,
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.success', true)
+            ->assertJsonPath('data.valid_count', 1)
+            ->assertJsonPath('data.invalid_count', 0);
+
+        $questionData = $response->json('data.questions.0.question');
+        $this->assertEquals('matching', $questionData['type']);
+        $this->assertCount(4, $questionData['column_a']);
+        $this->assertCount(4, $questionData['column_b']);
+        $this->assertEquals('Primary Key', $questionData['column_a'][0]);
+        $this->assertEquals('Foreign Key', $questionData['column_a'][1]);
+        $this->assertEquals('Query', $questionData['column_a'][2]);
+        $this->assertEquals('Sort', $questionData['column_a'][3]);
+    }
 }
