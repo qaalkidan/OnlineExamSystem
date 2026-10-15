@@ -1038,7 +1038,7 @@ onMounted(async () => {
                     <span class="w-2 h-2 rounded-full bg-[#F59E0B]"></span>
                     <span class="font-bold text-amber-900">Milestones</span>
                   </div>
-                  <span class="text-[10px] font-semibold text-amber-600">Class Start, Add/Drop</span>
+                  <span class="text-[10px] font-semibold text-amber-600">Class Duration, Add/Drop</span>
                 </div>
 
                 <div class="flex items-center justify-between p-2 rounded-xl bg-blue-50/60 border border-blue-100">

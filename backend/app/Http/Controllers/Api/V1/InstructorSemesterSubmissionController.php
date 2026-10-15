@@ -28,10 +28,13 @@ class InstructorSemesterSubmissionController extends Controller
 
         // 2. Compute Checklist Statuses
         
-        // Academic Schedule Check (from Admin Academic Calendar "Class Start" event)
-        // Fetch the most recently created "Class Start" event to avoid mismatches 
+        // Academic Schedule Check (from Admin Academic Calendar "Class Duration" or "Class Start" event)
+        // Fetch the most recently created "Class Duration" or "Class Start" event to avoid mismatches 
         // with instructor's semester/academic_year field
-        $classStartEvent = \App\Models\AcademicEvent::where('title', 'Class Start')
+        $classStartEvent = \App\Models\AcademicEvent::where(function ($query) {
+                $query->where('title', 'Class Duration')
+                      ->orWhere('title', 'Class Start');
+            })
             ->orderBy('created_at', 'desc')
             ->first();
             

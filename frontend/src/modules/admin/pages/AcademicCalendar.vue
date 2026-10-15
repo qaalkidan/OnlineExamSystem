@@ -1602,7 +1602,7 @@ onMounted(async () => {
                   class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
                 >
                   <option value="" disabled>Select a standard title or choose Other</option>
-                  <option value="Class Start">Class Start</option>
+                  <option value="Class Duration">Class Duration</option>
                   <option value="Registration Period">Registration Period</option>
                   <option value="Add / Drop Period">Add / Drop Period</option>
                   <option value="Midterm Examination Period">Midterm Examination Period</option>
