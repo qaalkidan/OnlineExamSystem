@@ -222,6 +222,41 @@ const editingEventId = ref<number | null>(null)
 const eventSaveError = ref<string | null>(null)
 const isCustomTitle = ref(false)
 
+const standardEventTitles = [
+  'Class Duration',
+  'Registration Period',
+  'Add / Drop Period',
+  'Midterm Examination Period',
+  'Final Examination Period',
+  'Grade Submission Deadline',
+  'Official Term Break'
+]
+
+function isTitleAlreadyUsed(title: string): boolean {
+  if (!title || !title.trim()) return false
+  const lowerTitle = title.trim().toLowerCase()
+  const formYear = (eventForm.value.academic_year || '').trim().toLowerCase()
+  const formSem = (eventForm.value.semester || '').trim().toLowerCase()
+
+  return calendarStore.events.some(e => {
+    if (isEditingEvent.value && editingEventId.value && e.id === editingEventId.value) return false
+    const eTitleLower = (e.title || '').trim().toLowerCase()
+    const isMatch = eTitleLower === lowerTitle ||
+      (lowerTitle === 'class duration' && eTitleLower === 'class start') ||
+      (lowerTitle === 'class start' && eTitleLower === 'class duration')
+
+    if (!isMatch) return false
+
+    const eYear = (e.academic_year || '').trim().toLowerCase()
+    const eSem = (e.semester || '').trim().toLowerCase()
+
+    const yearMatch = !formYear || !eYear || formYear === eYear
+    const semMatch = !formSem || !eSem || formSem === eSem
+
+    return yearMatch && semMatch
+  })
+}
+
 const eventForm = ref({
   title: '',
   category_id: '' as string | number,
@@ -272,11 +307,14 @@ function openEditEventModal(ev: AcademicEvent) {
   closeDetailsModal()
   isEditingEvent.value = true
   editingEventId.value = ev.id
-  isCustomTitle.value = true
+  const isPreset = standardEventTitles.includes(ev.title) || ev.title === 'Class Start'
+  isCustomTitle.value = !isPreset
   eventSaveError.value = null
 
+  const normalizedTitle = ev.title === 'Class Start' ? 'Class Duration' : ev.title
+
   eventForm.value = {
-    title: ev.title,
+    title: normalizedTitle,
     category_id: ev.category_id || (calendarStore.categories.length > 0 ? calendarStore.categories[0].id : ''),
     academic_year: ev.academic_year || settingsStore.academicYear,
     semester: ev.semester || settingsStore.semester,
@@ -316,6 +354,11 @@ async function handleSaveEvent() {
   }
   if (eventForm.value.start_date > eventForm.value.end_date) {
     eventSaveError.value = 'Start date cannot be after end date.'
+    return
+  }
+
+  if (isTitleAlreadyUsed(eventForm.value.title)) {
+    eventSaveError.value = `The event title "${eventForm.value.title.trim()}" is already scheduled for ${eventForm.value.academic_year} (${eventForm.value.semester}). Each academic event title can only be scheduled once per term.`
     return
   }
 
@@ -1594,7 +1637,10 @@ onMounted(async () => {
 
             <!-- Title -->
             <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1">Event Title <span class="text-rose-500">*</span></label>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[12px] font-bold text-slate-700">Event Title <span class="text-rose-500">*</span></label>
+                <span class="text-[11px] text-slate-400 font-medium">One event per title per term</span>
+              </div>
               <div v-if="!isCustomTitle" class="flex gap-2">
                 <select
                   v-model="eventForm.title"
@@ -1602,30 +1648,41 @@ onMounted(async () => {
                   class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
                 >
                   <option value="" disabled>Select a standard title or choose Other</option>
-                  <option value="Class Duration">Class Duration</option>
-                  <option value="Registration Period">Registration Period</option>
-                  <option value="Add / Drop Period">Add / Drop Period</option>
-                  <option value="Midterm Examination Period">Midterm Examination Period</option>
-                  <option value="Final Examination Period">Final Examination Period</option>
-                  <option value="Grade Submission Deadline">Grade Submission Deadline</option>
-                  <option value="Official Term Break">Official Term Break</option>
+                  <option
+                    v-for="preset in standardEventTitles"
+                    :key="preset"
+                    :value="preset"
+                    :disabled="isTitleAlreadyUsed(preset)"
+                    :class="isTitleAlreadyUsed(preset) ? 'text-slate-400 bg-slate-50' : 'text-slate-800'"
+                  >
+                    {{ preset }}{{ isTitleAlreadyUsed(preset) ? ' (Already Scheduled)' : '' }}
+                  </option>
                   <option value="Other">Other (Custom title...)</option>
                 </select>
               </div>
-              <div v-else class="flex gap-2">
-                <input
-                  v-model="eventForm.title"
-                  type="text"
-                  placeholder="Enter custom event title"
-                  class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
-                />
-                <button
-                  type="button"
-                  @click="isCustomTitle = false; eventForm.title = ''"
-                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[12px] font-bold"
-                >
-                  Preset List
-                </button>
+              <div v-else class="space-y-1.5">
+                <div class="flex gap-2">
+                  <input
+                    v-model="eventForm.title"
+                    type="text"
+                    placeholder="Enter custom event title"
+                    class="flex-1 px-3.5 py-2.5 rounded-xl border text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+                    :class="isTitleAlreadyUsed(eventForm.title) ? 'border-amber-400 bg-amber-50/40 text-amber-900' : 'border-slate-200'"
+                  />
+                  <button
+                    type="button"
+                    @click="isCustomTitle = false; eventForm.title = ''"
+                    class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[12px] font-bold"
+                  >
+                    Preset List
+                  </button>
+                </div>
+                <div v-if="isTitleAlreadyUsed(eventForm.title)" class="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                  </svg>
+                  <span>An event titled <strong>"{{ eventForm.title.trim() }}"</strong> is already scheduled for {{ eventForm.academic_year }} ({{ eventForm.semester }}). Please enter a unique title.</span>
+                </div>
               </div>
             </div>
 

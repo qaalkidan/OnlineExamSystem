@@ -231,6 +231,29 @@ class AdminCalendarController extends Controller
             'is_recurring'  => 'boolean',
         ]);
 
+        // Prevent duplicate academic event title within the same academic year and semester
+        $candidateTitle = trim($validated['title']);
+        $isDuplicate = AcademicEvent::where('academic_year', $validated['academic_year'])
+            ->where('semester', $validated['semester'])
+            ->where(function ($q) use ($candidateTitle) {
+                $q->whereRaw('LOWER(TRIM(title)) = ?', [strtolower($candidateTitle)]);
+                if (strtolower($candidateTitle) === 'class duration') {
+                    $q->orWhereRaw('LOWER(TRIM(title)) = ?', ['class start']);
+                } elseif (strtolower($candidateTitle) === 'class start') {
+                    $q->orWhereRaw('LOWER(TRIM(title)) = ?', ['class duration']);
+                }
+            })
+            ->exists();
+
+        if ($isDuplicate) {
+            return response()->json([
+                'message' => "An academic event titled \"{$validated['title']}\" is already scheduled for {$validated['academic_year']} ({$validated['semester']}). Each event title can only be scheduled once per term.",
+                'errors' => [
+                    'title' => ["An academic event titled \"{$validated['title']}\" is already scheduled for {$validated['academic_year']} ({$validated['semester']}). Each milestone title can only exist once per term."]
+                ]
+            ], 422);
+        }
+
         $event = AcademicEvent::create([
             ...$validated,
             'created_by' => $request->user()?->id,
@@ -284,6 +307,30 @@ class AdminCalendarController extends Controller
             'color'         => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'is_recurring'  => 'boolean',
         ]);
+
+        // Prevent duplicate academic event title within the same academic year and semester excluding this event
+        $candidateTitle = trim($validated['title']);
+        $isDuplicate = AcademicEvent::where('academic_year', $validated['academic_year'])
+            ->where('semester', $validated['semester'])
+            ->where('id', '!=', $id)
+            ->where(function ($q) use ($candidateTitle) {
+                $q->whereRaw('LOWER(TRIM(title)) = ?', [strtolower($candidateTitle)]);
+                if (strtolower($candidateTitle) === 'class duration') {
+                    $q->orWhereRaw('LOWER(TRIM(title)) = ?', ['class start']);
+                } elseif (strtolower($candidateTitle) === 'class start') {
+                    $q->orWhereRaw('LOWER(TRIM(title)) = ?', ['class duration']);
+                }
+            })
+            ->exists();
+
+        if ($isDuplicate) {
+            return response()->json([
+                'message' => "An academic event titled \"{$validated['title']}\" is already scheduled for {$validated['academic_year']} ({$validated['semester']}). Each event title can only be scheduled once per term.",
+                'errors' => [
+                    'title' => ["An academic event titled \"{$validated['title']}\" is already scheduled for {$validated['academic_year']} ({$validated['semester']}). Each milestone title can only exist once per term."]
+                ]
+            ], 422);
+        }
 
         $event->update($validated);
         $event->load('category');
