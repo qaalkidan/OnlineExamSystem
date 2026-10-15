@@ -11,6 +11,11 @@ export const routes: Array<RouteRecordRaw> = [
     name: 'Login',
     component: () => import('../modules/auth/pages/Login.vue')
   },
+  {
+    path: '/maintenance',
+    name: 'SystemMaintenance',
+    component: () => import('../modules/auth/pages/SystemMaintenance.vue')
+  },
 
   // ── Instructor Routes ──
   {

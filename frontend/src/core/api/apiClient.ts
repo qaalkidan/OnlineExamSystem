@@ -103,6 +103,18 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // 2. Handle System Maintenance Mode 503 globally: redirect to dedicated Maintenance Page
+    if (
+      error.response &&
+      error.response.status === 503 &&
+      (error.response.data?.error_type === 'system_maintenance' || error.response.data?.maintenance)
+    ) {
+      if (typeof window !== 'undefined' && window.location.pathname !== '/maintenance') {
+        window.location.href = '/maintenance'
+      }
+      return Promise.reject(error)
+    }
+
     const config = error.config as (InternalAxiosRequestConfig & {
       __retryCount?: number
       __swappedHost?: boolean
