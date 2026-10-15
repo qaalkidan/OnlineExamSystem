@@ -13,9 +13,9 @@ const tabs: ('Calendar View' | 'Event List')[] = ['Calendar View', 'Event List']
 const showSettings = ref(false)
 const settingsTab = ref<'Event Categories' | 'Term Settings'>('Event Categories')
 
-// ── Academic Period Selectors (Real DB Data) ─────────────────────────────────
-const selectedAcademicYear = ref('')
-const selectedSemester = ref('')
+// ── Academic Period (Statically Sourced from Settings -> Academic Configuration) ──
+const selectedAcademicYear = computed(() => settingsStore.academicYear || '')
+const selectedSemester = computed(() => settingsStore.semester || '')
 const selectedCategoryFilter = ref<number | 'all'>('all')
 
 // ── Export & Toast State ─────────────────────────────────────────────────────
@@ -283,12 +283,8 @@ function openAddEventModal(prefilledDate?: string) {
   eventForm.value = {
     title: '',
     category_id: calendarStore.categories.length > 0 ? calendarStore.categories[0].id : '',
-    academic_year: selectedAcademicYear.value && selectedAcademicYear.value !== 'all'
-      ? selectedAcademicYear.value
-      : (settingsStore.academicYear || '2026/2027'),
-    semester: selectedSemester.value && selectedSemester.value !== 'all'
-      ? selectedSemester.value
-      : (settingsStore.semester || 'First Semester'),
+    academic_year: settingsStore.academicYear || '2026/2027',
+    semester: settingsStore.semester || 'First Semester',
     start_date: targetDate,
     end_date: targetDate,
     all_day: true,
@@ -712,8 +708,6 @@ onMounted(async () => {
   ])
   configAcademicYear.value = settingsStore.academicYear
   configSemester.value = settingsStore.semester
-  selectedAcademicYear.value = settingsStore.academicYear
-  selectedSemester.value = settingsStore.semester
 })
 </script>
 
@@ -1054,43 +1048,35 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 2. Academic Term Configuration Tab -->
+      <!-- 2. Academic Term Configuration Notice Tab -->
       <div v-else class="max-w-xl space-y-4">
         <div>
-          <h3 class="text-base font-black text-slate-900">Current Academic Term</h3>
-          <p class="text-[12px] text-slate-500">Update the university-wide active Academic Year and Semester in the database.</p>
+          <h3 class="text-base font-black text-slate-900">Institutional Academic Term</h3>
+          <p class="text-[12px] text-slate-500">Centrally assigned by Super Admin in System Settings &bull; Academic Configuration.</p>
         </div>
 
-        <div class="space-y-3">
-          <div>
-            <label class="block text-[12px] font-bold text-slate-700 mb-1">Active Academic Year</label>
-            <input
-              v-model="configAcademicYear"
-              type="text"
-              placeholder="e.g. 2026/2027"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
-            />
+        <div class="p-5 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Active Institutional Term</span>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200 shadow-2xs">
+              Live Configuration
+            </span>
           </div>
-
-          <div>
-            <label class="block text-[12px] font-bold text-slate-700 mb-1">Active Semester</label>
-            <select
-              v-model="configSemester"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
+          <div class="text-xl font-black text-slate-900 tracking-tight">
+            {{ settingsStore.academicYear || '2026/2027' }} &bull; {{ settingsStore.semester || 'Second Semester' }}
+          </div>
+          <p class="text-[12px] text-slate-600 leading-relaxed">
+            The active academic year and semester are locked on this page to ensure institutional data integrity. To update or re-assign the institutional term, please navigate to the central <strong>Academic Configuration</strong> in the Settings page.
+          </p>
+          <div class="pt-1">
+            <router-link
+              to="/admin/settings"
+              class="inline-flex items-center gap-2 px-4 py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white text-[12px] font-bold rounded-xl shadow-xs transition-colors"
             >
-              <option value="First Semester">First Semester</option>
-              <option value="Second Semester">Second Semester</option>
-              <option value="Summer Term">Summer Term</option>
-            </select>
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>Manage in Settings &rarr; Academic Configuration</span>
+            </router-link>
           </div>
-
-          <button
-            @click="handleSaveTermConfig"
-            :disabled="isSavingTerm"
-            class="px-5 py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white text-[13px] font-bold rounded-xl shadow-xs disabled:opacity-50"
-          >
-            {{ isSavingTerm ? 'Updating Term…' : 'Save Institutional Term' }}
-          </button>
         </div>
       </div>
 
@@ -1115,41 +1101,32 @@ onMounted(async () => {
           </button>
         </div>
 
-        <!-- Academic Period Filtering Dropdowns -->
-        <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Assigned Academic Period (Static Display - Configured in System Settings -> Academic Configuration) -->
+        <div class="flex flex-wrap items-center gap-2">
           
-          <!-- Academic Year Filter -->
-          <div class="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
-            <span>Year:</span>
-            <select
-              v-model="selectedAcademicYear"
-              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:border-[#4338ca]"
-            >
-              <option value="all">All Years</option>
-              <option v-for="yr in calendarStore.eventStats.available_years" :key="yr" :value="yr">{{ yr }}</option>
-            </select>
+          <!-- Static Year Badge -->
+          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-[12px] font-medium text-slate-700 shadow-2xs">
+            <span class="text-slate-400 font-bold text-[11px]">Year:</span>
+            <span class="font-black text-slate-900">{{ settingsStore.academicYear || '2026/2027' }}</span>
           </div>
 
-          <!-- Semester Filter -->
-          <div class="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
-            <span>Semester:</span>
-            <select
-              v-model="selectedSemester"
-              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:border-[#4338ca]"
-            >
-              <option value="all">All Semesters</option>
-              <option v-for="sem in calendarStore.eventStats.available_semesters" :key="sem" :value="sem">{{ sem }}</option>
-            </select>
+          <!-- Static Semester Badge -->
+          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 text-[12px] font-medium text-indigo-700 shadow-2xs">
+            <span class="text-indigo-400 font-bold text-[11px]">Semester:</span>
+            <span class="font-black text-[#4338ca]">{{ settingsStore.semester || 'Second Semester' }}</span>
           </div>
 
-          <!-- Reset Filter -->
-          <button
-            v-if="selectedAcademicYear !== settingsStore.academicYear || selectedSemester !== settingsStore.semester || selectedCategoryFilter !== 'all'"
-            @click="selectedAcademicYear = settingsStore.academicYear; selectedSemester = settingsStore.semester; selectedCategoryFilter = 'all'"
-            class="text-[11px] font-bold text-rose-600 hover:underline ml-1"
+          <!-- Institutional Configuration Indicator Link -->
+          <router-link
+            to="/admin/settings"
+            class="group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 text-[11px] font-bold text-slate-500 hover:text-[#4338ca] transition-colors shadow-2xs"
+            title="Centrally managed by Super Admin in Settings -> Academic Configuration"
           >
-            Reset
-          </button>
+            <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#4338ca]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <span class="hidden sm:inline">Academic Configuration</span>
+          </router-link>
 
         </div>
 
@@ -1804,27 +1781,38 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Academic Year & Semester -->
+            <!-- Academic Year & Semester (Locked to Institutional Configuration) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1">Academic Year</label>
-                <input
-                  v-model="eventForm.academic_year"
-                  type="text"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
-                />
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-[12px] font-bold text-slate-700">Academic Year</label>
+                  <span class="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                    <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    Settings Assigned
+                  </span>
+                </div>
+                <div class="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-bold text-slate-800 flex items-center justify-between">
+                  <span>{{ eventForm.academic_year || settingsStore.academicYear }}</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200/70 text-slate-600">Locked</span>
+                </div>
               </div>
 
               <div>
-                <label class="block text-[12px] font-bold text-slate-700 mb-1">Semester</label>
-                <select
-                  v-model="eventForm.semester"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-[#4338ca]"
-                >
-                  <option value="First Semester">First Semester</option>
-                  <option value="Second Semester">Second Semester</option>
-                  <option value="Summer Term">Summer Term</option>
-                </select>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-[12px] font-bold text-slate-700">Semester</label>
+                  <span class="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                    <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    Settings Assigned
+                  </span>
+                </div>
+                <div class="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-bold text-[#4338ca] flex items-center justify-between">
+                  <span>{{ eventForm.semester || settingsStore.semester }}</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100/70 text-[#4338ca]">Locked</span>
+                </div>
               </div>
             </div>
 
