@@ -11,38 +11,45 @@ class CheckSystemMaintenanceMode
 {
     /**
      * Handle an incoming request.
-     * Restrict non-administrator API requests when System Maintenance Mode is active.
+     * Restrict non-administrator operational API requests when System Maintenance Mode is active.
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // 1. Check if System Maintenance Mode is enabled in settings
+        $isMaintenance = SystemSetting::where('key', 'maintenanceMode')->value('value') === 'true';
+        if (!$isMaintenance) {
+            return $next($request);
+        }
+
         $user = $request->user();
 
-        // If no authenticated user or user is a super admin, allow all requests
-        if (!$user || $user->role === 'admin') {
+        // 2. Administrators are NEVER restricted
+        if ($user && $user->role === 'admin') {
             return $next($request);
         }
 
-        // Always allow logout so users can terminate their sessions cleanly
-        if ($request->is('*logout')) {
+        // 3. Administrative routes are NEVER restricted
+        if ($request->is('*admin/*') || $request->is('*admin')) {
             return $next($request);
         }
 
-        // Allow reading system settings / status
-        if ($request->is('*settings*') && $request->isMethod('GET')) {
+        // 4. Always allow essential auth, session, profile, and settings routes
+        if (
+            $request->is('*logout') ||
+            $request->is('*user/me') ||
+            $request->is('*user/profile*') ||
+            $request->is('*user/activity-logs*') ||
+            $request->is('*settings*') ||
+            $request->is('*system/*')
+        ) {
             return $next($request);
         }
 
-        // Check if System Maintenance Mode is enabled
-        $isMaintenance = SystemSetting::where('key', 'maintenanceMode')->value('value') === 'true';
-
-        if ($isMaintenance) {
-            return response()->json([
-                'message'    => 'System Maintenance Active: The platform is currently restricted for core database operations. Non-administrator access is temporarily paused. Please check back later.',
-                'error_type' => 'system_maintenance',
-                'maintenance'=> true,
-            ], 503);
-        }
-
-        return $next($request);
+        // 5. Restrict academic/exam/student/instructor operations during maintenance
+        return response()->json([
+            'message'    => 'System Maintenance Active: The platform is currently in maintenance mode for core database operations. Non-administrator operations are temporarily paused.',
+            'error_type' => 'system_maintenance',
+            'maintenance'=> true,
+        ], 503);
     }
 }

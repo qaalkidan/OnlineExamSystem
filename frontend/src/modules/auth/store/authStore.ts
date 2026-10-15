@@ -113,7 +113,9 @@ export const useAuthStore = defineStore('auth', () => {
       
     } catch (err: any) {
       const respData = err.response?.data
-      const errorMsg = respData?.message || (Array.isArray(respData?.errors?.login) ? respData.errors.login[0] : 'An unexpected error occurred or invalid credentials.')
+      const errorMsg = (Array.isArray(respData?.errors?.login) ? respData.errors.login[0] : null) || 
+                       respData?.message || 
+                       'An unexpected error occurred or invalid credentials.'
 
       const isNotAssigned = respData?.error_type === 'instructor_not_assigned' ||
                             errorMsg.toLowerCase().includes('not been assigned to any course')
