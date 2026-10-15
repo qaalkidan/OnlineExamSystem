@@ -12,7 +12,7 @@ const authStore = useAuthStore()
 const adminPrefs = useAdminPreferences()
 
 // Active Navigation Tab
-type TabKey = 'all' | 'profile' | 'general' | 'academic' | 'security' | 'notifications' | 'preferences' | 'system' | 'danger'
+type TabKey = 'all' | 'profile' | 'general' | 'academic' | 'security' | 'notifications' | 'preferences' | 'danger'
 const activeTab = ref<TabKey>('all')
 
 // Loading & Toast States
@@ -689,7 +689,7 @@ const navigateToAcademicCalendar = () => {
             Settings & System Administration
           </h1>
           <p class="text-[13px] text-slate-500 font-normal mt-0.5 max-w-2xl">
-            Configure institutional parameters, maintain administrator security policies, synchronize academic calendar cycles, and monitor server runtime health.
+            Configure institutional parameters, maintain administrator security policies, and synchronize academic calendar cycles.
           </p>
         </div>
 
@@ -786,15 +786,6 @@ const navigateToAcademicCalendar = () => {
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span>Preferences</span>
-        </button>
-
-        <button
-          @click="activeTab = 'system'"
-          class="px-3.5 py-1.5 rounded-lg text-[12px] font-bold whitespace-nowrap transition-colors flex items-center gap-1.5"
-          :class="activeTab === 'system' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
-          <span>System Information</span>
         </button>
 
         <button
@@ -1703,64 +1694,7 @@ const navigateToAcademicCalendar = () => {
 
       </div>
 
-      <!-- =====================================================================
-           SECTION 7: SYSTEM INFORMATION (100% REAL RUNTIME DATA)
-           ===================================================================== -->
-      <section v-if="activeTab === 'all' || activeTab === 'system'" class="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
-        <div class="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
-            </div>
-            <div>
-              <h2 class="text-base font-bold text-slate-800">Server Runtime & Architecture Information</h2>
-              <p class="text-[12px] text-slate-500">Live operational telemetry directly queried from the backend server</p>
-            </div>
-          </div>
 
-          <button
-            @click="loadSystemInfo"
-            :disabled="isRefreshingSystemInfo"
-            class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-bold text-slate-700 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
-          >
-            <svg class="w-3.5 h-3.5 text-slate-500" :class="isRefreshingSystemInfo ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            <span>{{ isRefreshingSystemInfo ? 'Testing...' : 'Ping Telemetry' }}</span>
-          </button>
-        </div>
-
-        <div class="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <!-- Card: Framework -->
-          <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Backend Framework</span>
-            <span class="text-sm font-extrabold text-slate-800 mt-1 block">Laravel {{ systemInfo?.laravel_version || '12.x' }}</span>
-            <span class="text-[11px] text-slate-500 mt-0.5 block">PHP {{ systemInfo?.php_version || '8.2' }}</span>
-          </div>
-
-          <!-- Card: Database -->
-          <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Database System</span>
-            <span class="text-sm font-extrabold text-slate-800 mt-1 block">{{ systemInfo?.database_version || 'MariaDB / MySQL' }}</span>
-            <span class="text-[11px] text-emerald-600 font-bold mt-0.5 flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Ping Latency: {{ systemInfo?.database_latency || '8ms' }}
-            </span>
-          </div>
-
-          <!-- Card: Environment -->
-          <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Runtime Environment</span>
-            <span class="text-sm font-extrabold text-slate-800 mt-1 block uppercase">{{ systemInfo?.app_environment || 'Production' }}</span>
-            <span class="text-[11px] text-slate-500 mt-0.5 block">Debug: {{ systemInfo?.app_debug || 'Disabled' }}</span>
-          </div>
-
-          <!-- Card: Storage -->
-          <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Disk File Storage</span>
-            <span class="text-sm font-extrabold text-slate-800 mt-1 block">{{ systemInfo?.storage_writable || 'Writable' }}</span>
-            <span class="text-[11px] text-slate-500 mt-0.5 block">Cache: {{ systemInfo?.cache_driver || 'Database' }} • Mail: {{ systemInfo?.mail_driver || 'Log' }}</span>
-          </div>
-        </div>
-      </section>
 
       <!-- =====================================================================
            SECTION 8: DANGER ZONE
