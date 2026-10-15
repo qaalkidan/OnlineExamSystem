@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../../../core/api/apiClient'
 import { useSettingsStore } from '../../../store/settingsStore'
+import { useAdminPreferences } from '../../../composables/useAdminPreferences'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 
@@ -10,6 +11,7 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
+const adminPrefs = useAdminPreferences()
 
 // ── Search & Filter State ─────────────────────────────────────────────────────
 const search = ref('')
@@ -270,11 +272,7 @@ const fetchInstructors = async (silent = false) => {
         avatar: initials,
         profilePicture: u.profile_picture ? `http://localhost:8000/storage/${u.profile_picture}` : (u.profile_picture_url || null),
         status: u.status || 'active',
-        joined: new Date(u.created_at || Date.now()).toLocaleDateString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          year: 'numeric',
-        }),
+        joined: adminPrefs.formatDate(u.created_at || Date.now()),
         departmentName: u.department?.name || '—',
         employeeId: u.id_no || u.employee_id || `WU-INS-${(u.id || 1).toString().padStart(4, '0')}`,
         phone: u.phone || 'N/A',

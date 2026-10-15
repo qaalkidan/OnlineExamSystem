@@ -55,7 +55,6 @@ const handleAdminLogin = async () => {
       role: 'staff'
     })
     showAdminModal.value = false
-    // AuthStore login will redirect appropriately (e.g., to /admin/dashboard or /admin/settings)
   } catch (err: any) {
     const resp = err.response?.data
     adminError.value = resp?.errors?.login?.[0] || resp?.message || 'Authentication failed. Please verify administrator credentials.'
@@ -74,7 +73,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   checkStatusSilently()
-  statusPollingTimer = setInterval(checkStatusSilently, 10000)
+  statusPollingTimer = setInterval(checkStatusSilently, 8000)
   window.addEventListener('keydown', handleKeydown)
 })
 
@@ -88,22 +87,35 @@ onUnmounted(() => {
   <div class="min-h-screen w-full bg-white flex flex-col justify-between text-slate-800 font-sans select-none antialiased">
     
     <!-- ── TOP HEADER ── -->
-    <header class="w-full px-6 sm:px-12 md:px-16 pt-6 pb-2">
+    <header class="w-full px-6 sm:px-12 md:px-16 pt-7 pb-2">
       <div class="max-w-7xl mx-auto flex items-center justify-between">
         
-        <!-- Left: Logo & Identity -->
+        <!-- Left: Logo & Identity Matching Reference Image -->
         <div class="flex items-center gap-3 sm:gap-3.5 group cursor-pointer" @click="goHome">
-          <!-- Wollo University Logo & Cap Emblem -->
-          <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-blue-50/80 p-0.5 border border-blue-100 flex items-center justify-center shrink-0 shadow-2xs">
-            <img src="@/assets/images/logo.png" alt="Wollo University" class="w-full h-full object-contain rounded-full" />
-          </div>
+          <!-- 3D Isometric Blue Graduation Cap -->
+          <svg class="w-10 h-10 sm:w-11 sm:h-11 shrink-0" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Mortarboard Diamond Top -->
+            <path d="M 22 6 L 40 14.5 L 22 23 L 4 14.5 Z" fill="#2563EB" />
+            <!-- Bottom Edges of Diamond (3D depth) -->
+            <path d="M 4 14.5 L 22 23 L 22 24.5 L 4 16 Z" fill="#1D4ED8" />
+            <path d="M 22 23 L 40 14.5 L 40 16 L 22 24.5 Z" fill="#1E40AF" />
+            <!-- Skullcap (Round Dome) -->
+            <path d="M 12 19 L 12 26 C 12 32.5 32 32.5 32 26 L 32 19 Z" fill="#1E3A8A" />
+            <!-- Skullcap bottom lip -->
+            <ellipse cx="22" cy="26" rx="10" ry="2.5" fill="#172554" />
+            <!-- Center Button & Tassel -->
+            <ellipse cx="22" cy="14.5" rx="2" ry="1.2" fill="#60A5FA" />
+            <!-- Tassel String -->
+            <path d="M 22 14.5 Q 16 16.5 10 24" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" fill="none" />
+            <!-- Hanging Tassel Band -->
+            <path d="M 8.5 24 L 11.5 24 L 12 31.5 L 8 31.5 Z" fill="#60A5FA" />
+            <circle cx="10" cy="24" r="1.5" fill="#3B82F6" />
+          </svg>
           <div class="flex flex-col">
-            <div class="flex items-center gap-2">
-              <span class="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-none">
-                Exam<span class="text-blue-600">Portal</span>
-              </span>
-            </div>
-            <span class="text-[11px] sm:text-xs text-slate-400 font-medium tracking-wide mt-0.5">
+            <span class="text-xl sm:text-22 font-extrabold text-slate-900 tracking-tight leading-none">
+              Exam<span class="text-blue-600">Portal</span>
+            </span>
+            <span class="text-[11px] sm:text-xs text-slate-400 font-medium tracking-wide mt-1">
               Learn &bull; Take Exam &bull; Succeed
             </span>
           </div>
@@ -113,7 +125,7 @@ onUnmounted(() => {
         <button
           type="button"
           @click="goHome"
-          class="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors text-xs sm:text-sm font-medium py-1.5 px-2.5 rounded-lg hover:bg-slate-50 cursor-pointer"
+          class="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors text-xs sm:text-sm font-semibold py-1.5 px-2.5 rounded-lg hover:bg-slate-50 cursor-pointer"
         >
           <!-- Outline House Icon -->
           <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -125,24 +137,24 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <!-- ── CENTER CONTENT (Pure White, No Cards) ── -->
-    <main class="w-full max-w-4xl mx-auto px-4 py-6 sm:py-8 my-auto flex flex-col items-center justify-center text-center">
+    <!-- ── CENTER CONTENT (Pure White, Identical to Reference Image) ── -->
+    <main class="w-full max-w-4xl mx-auto px-4 py-4 sm:py-6 my-auto flex flex-col items-center justify-center text-center">
       
       <!-- ── Vector Illustration Matching Reference ── -->
-      <div class="w-full max-w-[520px] sm:max-w-[560px] aspect-[600/360] relative flex items-center justify-center">
+      <div class="w-full max-w-[620px] sm:max-w-[660px] aspect-[600/360] relative flex items-center justify-center">
         <svg 
           viewBox="0 0 600 360" 
           class="w-full h-full overflow-visible"
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <!-- Hazard stripes pattern for construction barricade -->
-            <pattern id="hazardStripe" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <rect width="8" height="16" fill="#FACC15" />
-              <rect x="8" width="8" height="16" fill="#1E293B" />
+            <!-- Barricade Hazard Stripes Pattern -->
+            <pattern id="hazardStripe" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="9" height="18" fill="#FACC15" />
+              <rect x="9" width="9" height="18" fill="#1E293B" />
             </pattern>
 
-            <!-- Plant leaf gradients -->
+            <!-- Plant Leaf Gradients -->
             <linearGradient id="leafGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stop-color="#4ADE80" />
               <stop offset="100%" stop-color="#16A34A" />
@@ -151,145 +163,139 @@ onUnmounted(() => {
               <stop offset="0%" stop-color="#22C55E" />
               <stop offset="100%" stop-color="#15803D" />
             </linearGradient>
-
-            <!-- Helmet gradient -->
-            <linearGradient id="helmetGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#FDE047" />
-              <stop offset="50%" stop-color="#FACC15" />
-              <stop offset="100%" stop-color="#EAB308" />
-            </linearGradient>
           </defs>
 
           <!-- ── 1. Soft Background Blob ── -->
-          <!-- Ground puddle / soft floor shadow -->
-          <ellipse cx="295" cy="272" rx="205" ry="18" fill="#EEF5FE" />
+          <!-- Ground puddle / floor shadow -->
+          <ellipse cx="295" cy="276" rx="225" ry="18" fill="#EEF5FE" />
 
           <!-- Organic soft cloud shape behind window -->
           <path 
-            d="M 195 210
-               C 170 170, 185 110, 240 95
-               C 275 85, 335 70, 390 90
-               C 435 105, 455 145, 435 195
-               C 475 220, 460 265, 400 270
-               L 205 270
-               C 175 260, 175 225, 195 210 Z"
+            d="M 180 205
+               C 150 155, 175 100, 235 85
+               C 275 75, 345 65, 405 85
+               C 455 102, 475 145, 455 195
+               C 485 225, 470 268, 410 274
+               L 190 274
+               C 155 262, 155 225, 180 205 Z"
             fill="#EEF5FE" 
           />
 
-          <!-- 3x3 Dot Grid (Top-Left) -->
+          <!-- 3x3 Dot Matrix (Top-Left of Cloud) -->
           <g fill="#93C5FD">
-            <circle cx="196" cy="118" r="2.5" />
-            <circle cx="210" cy="118" r="2.5" />
-            <circle cx="224" cy="118" r="2.5" />
-            <circle cx="196" cy="132" r="2.5" />
-            <circle cx="210" cy="132" r="2.5" />
-            <circle cx="224" cy="132" r="2.5" />
-            <circle cx="196" cy="146" r="2.5" />
-            <circle cx="210" cy="146" r="2.5" />
-            <circle cx="224" cy="146" r="2.5" />
+            <circle cx="198" cy="112" r="3" />
+            <circle cx="212" cy="112" r="3" />
+            <circle cx="226" cy="112" r="3" />
+            <circle cx="198" cy="126" r="3" />
+            <circle cx="212" cy="126" r="3" />
+            <circle cx="226" cy="126" r="3" />
+            <circle cx="198" cy="140" r="3" />
+            <circle cx="212" cy="140" r="3" />
+            <circle cx="226" cy="140" r="3" />
           </g>
 
           <!-- Floating Plus Signs (+) -->
-          <g stroke="#60A5FA" stroke-width="2" stroke-linecap="round">
+          <g stroke="#60A5FA" stroke-width="2.5" stroke-linecap="round">
             <!-- Top-right plus -->
-            <line x1="368" y1="88" x2="368" y2="98" />
-            <line x1="363" y1="93" x2="373" y2="93" />
+            <line x1="368" y1="84" x2="368" y2="94" />
+            <line x1="363" y1="89" x2="373" y2="89" />
             <!-- Mid-right plus -->
-            <line x1="418" y1="135" x2="418" y2="145" />
-            <line x1="413" y1="140" x2="423" y2="140" />
+            <line x1="418" y1="130" x2="418" y2="140" />
+            <line x1="413" y1="135" x2="423" y2="135" />
             <!-- Lower-left dot -->
-            <circle cx="186" cy="242" r="1.5" fill="#93C5FD" stroke="none" />
+            <circle cx="186" cy="245" r="2" fill="#93C5FD" stroke="none" />
           </g>
 
           <!-- ── 2. Potted Plant (Behind window right edge) ── -->
           <g id="plant">
-            <!-- Center tall leaf -->
-            <path d="M 400 235 C 395 185, 410 145, 402 120 C 420 150, 418 200, 403 235 Z" fill="url(#leafGrad1)" />
-            <!-- Right large leaf -->
-            <path d="M 404 225 C 418 190, 442 165, 435 155 C 420 175, 415 210, 405 230 Z" fill="url(#leafGrad2)" />
-            <!-- Left broad leaf -->
-            <path d="M 398 225 C 382 195, 368 180, 368 175 C 385 185, 395 210, 399 230 Z" fill="url(#leafGrad2)" />
-            <!-- Small lower right leaf -->
-            <path d="M 405 232 C 418 215, 428 205, 426 200 C 415 212, 410 225, 406 235 Z" fill="url(#leafGrad1)" />
+            <!-- Tall center leaf -->
+            <path d="M 404 235 C 398 175, 416 130, 404 105 C 428 140, 424 195, 408 235 Z" fill="url(#leafGrad1)" />
+            <!-- Big right leaf -->
+            <path d="M 408 222 C 426 182, 454 152, 446 142 C 428 165, 422 205, 410 228 Z" fill="url(#leafGrad2)" />
+            <!-- Left spreading leaf -->
+            <path d="M 398 222 C 378 188, 362 170, 362 165 C 382 178, 395 205, 400 228 Z" fill="url(#leafGrad2)" />
+            <!-- Low accent leaf -->
+            <path d="M 408 230 C 424 210, 436 198, 434 192 C 422 206, 415 220, 410 234 Z" fill="url(#leafGrad1)" />
 
-            <!-- Flower Pot -->
-            <!-- Pot Rim -->
-            <rect x="382" y="235" width="40" height="6" rx="2" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1.5" />
-            <!-- Pot Base (Tapered) -->
-            <path d="M 385 241 L 390 268 C 390 270, 414 270, 414 268 L 419 241 Z" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.5" />
+            <!-- White Flower Pot -->
+            <!-- Top Rim -->
+            <rect x="382" y="235" width="44" height="7" rx="2" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5" />
+            <!-- Pot Body -->
+            <path d="M 385 242 L 390 270 C 390 272, 418 272, 418 270 L 423 242 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5" />
           </g>
 
           <!-- ── 3. Browser Window (Center) ── -->
           <!-- Window Body & Royal Blue Border -->
-          <rect x="224" y="118" width="152" height="136" rx="14" fill="#FFFFFF" stroke="#437EF7" stroke-width="6" />
+          <rect x="224" y="108" width="154" height="144" rx="16" fill="#FFFFFF" stroke="#437EF7" stroke-width="7" />
 
-          <!-- Window Header Bar (Blue top) -->
-          <path d="M 224 132 A 14 14 0 0 1 238 118 L 362 118 A 14 14 0 0 1 376 132 L 376 136 L 224 136 Z" fill="#437EF7" />
+          <!-- Window Header Bar (Solid Blue Top) -->
+          <path d="M 224 124 A 16 16 0 0 1 240 108 L 362 108 A 16 16 0 0 1 378 124 L 378 128 L 224 128 Z" fill="#437EF7" />
 
-          <!-- 3 White Window Control Dots -->
-          <circle cx="236" cy="127" r="3" fill="#FFFFFF" />
-          <circle cx="245" cy="127" r="3" fill="#FFFFFF" />
-          <circle cx="254" cy="127" r="3" fill="#FFFFFF" />
+          <!-- 3 White Header Dots -->
+          <circle cx="238" cy="118" r="3" fill="#FFFFFF" />
+          <circle cx="247" cy="118" r="3" fill="#FFFFFF" />
+          <circle cx="256" cy="118" r="3" fill="#FFFFFF" />
 
           <!-- Center Rotating Gear -->
           <g class="spin-gear">
-            <!-- 8-tooth gear path centered at (300, 168) -->
+            <!-- 8-tooth Royal Blue Gear centered at (301, 158) -->
             <path 
-              d="M 295 145 L 305 145 L 306 150 A 17 17 0 0 1 311 153 L 316 150 L 322 156 L 319 161 A 17 17 0 0 1 321 166 L 326 168 L 326 177 L 321 179 A 17 17 0 0 1 319 184 L 322 189 L 316 195 L 311 192 A 17 17 0 0 1 306 195 L 305 200 L 295 200 L 294 195 A 17 17 0 0 1 289 192 L 284 195 L 278 189 L 281 184 A 17 17 0 0 1 279 179 L 274 177 L 274 168 L 279 166 A 17 17 0 0 1 281 161 L 278 156 L 284 150 L 289 153 A 17 17 0 0 1 294 150 Z"
+              d="M 295 136 L 307 136 L 308 141 A 18 18 0 0 1 314 144 L 319 141 L 326 148 L 323 153 A 18 18 0 0 1 326 159 L 331 161 L 331 171 L 326 173 A 18 18 0 0 1 323 179 L 326 184 L 319 191 L 314 188 A 18 18 0 0 1 308 191 L 307 196 L 295 196 L 294 191 A 18 18 0 0 1 288 188 L 283 191 L 276 184 L 279 179 A 18 18 0 0 1 276 173 L 271 171 L 271 161 L 276 159 A 18 18 0 0 1 279 153 L 276 148 L 283 141 L 288 144 A 18 18 0 0 1 294 141 Z"
               fill="#3B82F6" 
             />
-            <!-- Center hole in gear -->
-            <circle cx="300" cy="172.5" r="7.5" fill="#FFFFFF" />
+            <!-- Hollow Gear Center Circle -->
+            <circle cx="301" cy="166" r="8" fill="#FFFFFF" />
           </g>
 
           <!-- Progress Bar (below gear inside window) -->
           <!-- Track -->
-          <rect x="254" y="206" width="92" height="10" rx="5" fill="#DBEAFE" />
-          <!-- Active Pill with subtle shimmer animation -->
-          <rect x="254" y="206" width="48" height="10" rx="5" fill="#2563EB" class="progress-pill" />
+          <rect x="250" y="202" width="102" height="11" rx="5.5" fill="#DBEAFE" />
+          <!-- Filled Active Portion with smooth shimmer -->
+          <rect x="250" y="202" width="54" height="11" rx="5.5" fill="#2563EB" class="progress-pill" />
 
           <!-- ── 4. Construction Barricade (Left Foreground) ── -->
           <g id="barricade">
-            <!-- Left Leg (A-Frame) -->
-            <path d="M 200 206 L 191 254 L 198 254 L 203 226 L 208 254 L 215 254 L 206 206 Z" fill="#1E293B" />
-            <rect x="194" y="235" width="18" height="4" fill="#1E293B" />
+            <!-- Left A-Frame Leg -->
+            <path d="M 201 198 L 192 258 L 200 258 L 205 224 L 210 258 L 218 258 L 208 198 Z" fill="#1E293B" />
+            <rect x="196" y="234" width="18" height="5" fill="#1E293B" />
 
-            <!-- Right Leg (A-Frame) -->
-            <path d="M 238 206 L 229 254 L 236 254 L 241 226 L 246 254 L 253 254 L 244 206 Z" fill="#1E293B" />
-            <rect x="232" y="235" width="18" height="4" fill="#1E293B" />
+            <!-- Right A-Frame Leg -->
+            <path d="M 241 198 L 232 258 L 240 258 L 245 224 L 250 258 L 258 258 L 248 198 Z" fill="#1E293B" />
+            <rect x="236" y="234" width="18" height="5" fill="#1E293B" />
 
-            <!-- Main Hazard Striped Beam -->
-            <rect x="188" y="212" width="62" height="22" rx="4" fill="url(#hazardStripe)" stroke="#1E293B" stroke-width="1.5" />
+            <!-- Hazard Striped Horizontal Beam -->
+            <rect x="186" y="206" width="68" height="24" rx="4" fill="url(#hazardStripe)" stroke="#1E293B" stroke-width="1.8" />
           </g>
 
-          <!-- ── 5. Yellow Construction Helmet / Hard Hat (Right Foreground) ── -->
+          <!-- ── 5. Construction Hard Hat / Helmet (Right Foreground) ── -->
           <g id="helmet">
-            <!-- Helmet Dome -->
-            <path d="M 338 250 C 336 222, 386 220, 388 250 Z" fill="url(#helmetGrad)" />
-            <!-- Center Ridge -->
-            <path d="M 358 223 C 358 221, 366 221, 366 223 L 364 250 L 360 250 Z" fill="#FEF08A" />
-            <!-- Helmet Brim -->
-            <ellipse cx="363" cy="251" rx="27" ry="5" fill="#EAB308" />
-            <ellipse cx="363" cy="250" rx="26" ry="4" fill="#FACC15" />
+            <!-- Main Rounded Dome -->
+            <path d="M 335 252 C 332 216, 394 214, 396 252 Z" fill="#FACC15" />
+            <path d="M 337 250 C 335 220, 392 218, 394 250 Z" fill="#FDE047" />
+            <!-- Center Top Ridge -->
+            <path d="M 360 218 C 360 216, 370 216, 370 218 L 368 252 L 362 252 Z" fill="#FEF08A" />
+            <!-- Curved Brim -->
+            <path d="M 328 252 C 332 247, 400 247, 404 252 C 398 258, 334 258, 328 252 Z" fill="#EAB308" />
+            <path d="M 330 251 C 334 248, 398 248, 402 251 C 397 255, 335 255, 330 251 Z" fill="#FACC15" />
           </g>
         </svg>
       </div>
 
       <!-- ── Typography matching Reference Image ── -->
       <!-- "Under Maintenance" Heading -->
-      <h1 class="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tight mt-6 sm:mt-8 mb-3">
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight mt-6 sm:mt-8 mb-3">
         Under <span class="text-blue-600">Maintenance</span>
       </h1>
 
       <!-- Subtitle -->
-      <p class="text-slate-500 text-sm sm:text-base md:text-lg font-normal leading-relaxed max-w-md mx-auto">
+      <p class="text-slate-500 text-base sm:text-lg font-normal leading-relaxed max-w-md mx-auto">
         The Exam Portal is currently under maintenance.<br />
         We'll be back soon!
       </p>
 
       <!-- ── Decorative Bottom Divider (── ⚙ ──) ── -->
-      <div class="flex items-center justify-center gap-3 w-44 sm:w-52 mx-auto mt-7 sm:mt-8">
-        <div class="h-[1.5px] flex-1 bg-blue-300/80 rounded-full"></div>
+      <div class="flex items-center justify-center gap-3 w-48 sm:w-56 mx-auto mt-7 sm:mt-8">
+        <div class="h-[1.5px] flex-1 bg-blue-300 rounded-full"></div>
         
         <!-- Discreet administrator trigger gear -->
         <button 
@@ -304,7 +310,7 @@ onUnmounted(() => {
           </svg>
         </button>
 
-        <div class="h-[1.5px] flex-1 bg-blue-300/80 rounded-full"></div>
+        <div class="h-[1.5px] flex-1 bg-blue-300 rounded-full"></div>
       </div>
 
       <!-- Auto recovery toast notification if maintenance mode ends -->
@@ -327,10 +333,8 @@ onUnmounted(() => {
 
     </main>
 
-    <!-- Bottom Spacing / Subtle System Info -->
-    <footer class="w-full py-4 text-center text-xs text-slate-400">
-      <!-- Empty/clean to keep pristine white look like the reference image -->
-    </footer>
+    <!-- Bottom Spacing / Clean look matching reference -->
+    <footer class="w-full h-10"></footer>
 
     <!-- ── MODAL: ADMINISTRATOR LOGIN ── -->
     <Transition
@@ -451,26 +455,26 @@ onUnmounted(() => {
 }
 
 .spin-gear {
-  transform-origin: 300px 172.5px;
-  animation: spin-clockwise 10s linear infinite;
+  transform-origin: 301px 166px;
+  animation: spin-clockwise 9s linear infinite;
 }
 
 @keyframes progress-shimmer {
   0% {
-    width: 28px;
+    width: 32px;
     opacity: 0.9;
   }
   50% {
-    width: 68px;
+    width: 76px;
     opacity: 1;
   }
   100% {
-    width: 28px;
+    width: 32px;
     opacity: 0.9;
   }
 }
 
 .progress-pill {
-  animation: progress-shimmer 3.2s ease-in-out infinite;
+  animation: progress-shimmer 3s ease-in-out infinite;
 }
 </style>

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../../../core/api/apiClient'
 import { useSettingsStore } from '../../../store/settingsStore'
+import { useAdminPreferences } from '../../../composables/useAdminPreferences'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 
@@ -10,6 +11,7 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
+const adminPrefs = useAdminPreferences()
 
 // ── Search & Filter State ─────────────────────────────────────────────────────
 const search = ref('')
@@ -128,23 +130,11 @@ const courseFormTouched = ref<Record<string, boolean>>({})
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const formatDate = (dateStr: string | null | undefined) => {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return dateStr
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return adminPrefs.formatDate(dateStr)
 }
 
 const formatDateTime = (dateStr: string | null | undefined) => {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return dateStr
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return adminPrefs.formatDateTime(dateStr)
 }
 
 const getCourseInstructors = (course: any) => {

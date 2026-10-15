@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../../../core/api/apiClient'
 import { useSettingsStore } from '../../../store/settingsStore'
+import { useAdminPreferences } from '../../../composables/useAdminPreferences'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 
@@ -10,6 +11,7 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
+const adminPrefs = useAdminPreferences()
 
 // ── Search & Filter State ─────────────────────────────────────────────────────
 const search = ref('')
@@ -337,7 +339,7 @@ const fetchStudents = async (silent = false) => {
       section: u.section ? (u.section.startsWith('Section ') ? u.section : `Section ${u.section}`) : 'Section A',
       id_no: u.id_no || `WU/${u.id.toString().padStart(4, '0')}/26`,
       admission_number: u.admission_number || `ADM-${u.id.toString().padStart(5, '0')}`,
-      joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '—',
+      joined: u.created_at ? adminPrefs.formatDate(u.created_at) : '—',
       lastLogin: u.updated_at ? new Date(u.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
     }))
     lastRefreshedAt.value = new Date()

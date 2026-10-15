@@ -3,11 +3,13 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useSettingsStore, type SystemInfo } from '../../../store/settingsStore'
 import { useAuthStore } from '../../auth/store/authStore'
+import { useAdminPreferences, type TableDensity, type DateDisplayFormat, type TimezoneDisplay } from '../../../composables/useAdminPreferences'
 import apiClient from '../../../core/api/apiClient'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
+const adminPrefs = useAdminPreferences()
 
 // Active Navigation Tab
 type TabKey = 'all' | 'profile' | 'general' | 'academic' | 'security' | 'notifications' | 'preferences' | 'system' | 'danger'
@@ -118,11 +120,26 @@ const notifications = ref({
 // 5. USER PREFERENCES STATE
 // -----------------------------------------------------------------------------
 const preferences = ref({
-  date_format: 'MMM DD, YYYY',
-  timezone_display: '(UTC+03:00) Addis Ababa',
-  density: 'comfortable',
+  date_format: (adminPrefs.dateFormat.value || 'MMM DD, YYYY') as DateDisplayFormat,
+  timezone_display: (adminPrefs.timezone.value || '(UTC+03:00) Addis Ababa') as TimezoneDisplay,
+  density: (adminPrefs.density.value || 'comfortable') as TableDensity,
   language: 'English'
 })
+
+const setTableDensityPref = (d: TableDensity) => {
+  preferences.value.density = d
+  adminPrefs.setDensity(d)
+}
+
+const setDateFormatPref = (f: DateDisplayFormat) => {
+  preferences.value.date_format = f
+  adminPrefs.setDateFormat(f)
+}
+
+const setTimezonePref = (tz: TimezoneDisplay) => {
+  preferences.value.timezone_display = tz
+  adminPrefs.setTimezoneDisplay(tz)
+}
 
 // Snapshot for dirty checking & unsaved change detection
 const originalSnapshot = ref<string>('')
@@ -345,6 +362,9 @@ const loadAllSettings = async () => {
           ...preferences.value,
           ...u.preferences
         }
+        if (u.preferences.density) adminPrefs.setDensity(u.preferences.density)
+        if (u.preferences.date_format) adminPrefs.setDateFormat(u.preferences.date_format)
+        if (u.preferences.timezone_display) adminPrefs.setTimezoneDisplay(u.preferences.timezone_display)
       }
     }
 
@@ -1529,11 +1549,18 @@ const navigateToAcademicCalendar = () => {
             </div>
           </div>
 
-          <div class="p-5 sm:p-6 space-y-4">
+          <div class="p-5 sm:p-6 space-y-5">
+            <!-- 1. Date Display Format -->
             <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Date Display Format</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[12px] font-bold text-slate-700">Date Display Format</label>
+                <span class="text-[11px] font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                  Preview: {{ adminPrefs.formatDate(new Date()) }}
+                </span>
+              </div>
               <select
                 v-model="preferences.date_format"
+                @change="setDateFormatPref(preferences.date_format as DateDisplayFormat)"
                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-[13px] text-slate-800 focus:outline-none focus:border-indigo-600 bg-white transition-colors"
               >
                 <option value="MMM DD, YYYY">MMM DD, YYYY (e.g. Oct 07, 2026)</option>
@@ -1542,10 +1569,17 @@ const navigateToAcademicCalendar = () => {
               </select>
             </div>
 
+            <!-- 2. Timezone Labeling -->
             <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Timezone Labeling</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[12px] font-bold text-slate-700">Timezone Labeling</label>
+                <span class="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                  Current: {{ adminPrefs.formatDateTime(new Date()) }}
+                </span>
+              </div>
               <select
                 v-model="preferences.timezone_display"
+                @change="setTimezonePref(preferences.timezone_display as TimezoneDisplay)"
                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-[13px] text-slate-800 focus:outline-none focus:border-indigo-600 bg-white transition-colors"
               >
                 <option value="(UTC+03:00) Addis Ababa">(UTC+03:00) Addis Ababa, East Africa Time</option>
@@ -1553,33 +1587,116 @@ const navigateToAcademicCalendar = () => {
               </select>
             </div>
 
+            <!-- 3. Data Table Row Density -->
             <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Data Table Row Density</label>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[12px] font-bold text-slate-700">Data Table Row Density</label>
+                <span 
+                  class="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                  :class="preferences.density === 'comfortable' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-blue-50 text-blue-700 border border-blue-200'"
+                >
+                  {{ preferences.density === 'comfortable' ? 'Comfortable (14px Padding)' : 'Compact (6px Padding)' }}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 mb-3">
                 <button
                   type="button"
-                  @click="preferences.density = 'comfortable'"
-                  class="p-3 rounded-xl border text-center transition-all cursor-pointer"
-                  :class="preferences.density === 'comfortable' ? 'border-indigo-600 bg-indigo-50/60 text-indigo-700 font-bold' : 'border-slate-200 text-slate-600 hover:bg-slate-50'"
+                  @click="setTableDensityPref('comfortable')"
+                  class="p-3.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden"
+                  :class="preferences.density === 'comfortable' ? 'border-indigo-600 bg-indigo-50/60 text-indigo-700 ring-2 ring-indigo-600/20 shadow-xs' : 'border-slate-200 text-slate-600 hover:bg-slate-50'"
                 >
-                  <span class="text-[13px] block">Comfortable</span>
-                  <span class="text-[11px] text-slate-400 block mt-0.5">Spacious rows with high readability</span>
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-[13px] font-bold block">Comfortable</span>
+                    <span v-if="preferences.density === 'comfortable'" class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                  </div>
+                  <span class="text-[11px] text-slate-500 block leading-relaxed">Spacious rows with high readability</span>
+                  <div class="mt-2 text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                    <span>↕ 14px padding</span>
+                    <span>•</span>
+                    <span>Touch-friendly</span>
+                  </div>
                 </button>
 
                 <button
                   type="button"
-                  @click="preferences.density = 'compact'"
-                  class="p-3 rounded-xl border text-center transition-all cursor-pointer"
-                  :class="preferences.density === 'compact' ? 'border-indigo-600 bg-indigo-50/60 text-indigo-700 font-bold' : 'border-slate-200 text-slate-600 hover:bg-slate-50'"
+                  @click="setTableDensityPref('compact')"
+                  class="p-3.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden"
+                  :class="preferences.density === 'compact' ? 'border-indigo-600 bg-indigo-50/60 text-indigo-700 ring-2 ring-indigo-600/20 shadow-xs' : 'border-slate-200 text-slate-600 hover:bg-slate-50'"
                 >
-                  <span class="text-[13px] block">Compact</span>
-                  <span class="text-[11px] text-slate-400 block mt-0.5">Higher information density per screen</span>
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-[13px] font-bold block">Compact</span>
+                    <span v-if="preferences.density === 'compact'" class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                  </div>
+                  <span class="text-[11px] text-slate-500 block leading-relaxed">Higher information density per screen</span>
+                  <div class="mt-2 text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                    <span>↕ 6px padding</span>
+                    <span>•</span>
+                    <span>+50% more rows</span>
+                  </div>
                 </button>
+              </div>
+
+              <!-- Live Interactive Table Density Preview -->
+              <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                    Live Data Table Preview ({{ preferences.density }})
+                  </span>
+                  <span class="text-[10px] text-slate-400 font-medium">Real-time table rendering</span>
+                </div>
+
+                <div class="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-x-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr class="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                        <th class="px-3">Student Name</th>
+                        <th class="px-3">Department</th>
+                        <th class="px-3">Enrolled</th>
+                        <th class="px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <tr>
+                        <td class="px-3 font-semibold text-slate-800">
+                          <div class="flex items-center gap-2">
+                            <div class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] shrink-0">AK</div>
+                            <span>Abebe Kebede</span>
+                          </div>
+                        </td>
+                        <td class="px-3 text-slate-600">Computer Science</td>
+                        <td class="px-3 text-slate-500 font-mono text-[11px]">{{ adminPrefs.formatDate(new Date()) }}</td>
+                        <td class="px-3">
+                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Active
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="px-3 font-semibold text-slate-800">
+                          <div class="flex items-center gap-2">
+                            <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px] shrink-0">SA</div>
+                            <span>Sara Ahmed</span>
+                          </div>
+                        </td>
+                        <td class="px-3 text-slate-600">Information Technology</td>
+                        <td class="px-3 text-slate-500 font-mono text-[11px]">{{ adminPrefs.formatDate(new Date()) }}</td>
+                        <td class="px-3">
+                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Active
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
-            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[12px] text-slate-500">
-              Preferences are synchronized with your administrator account and retained across browser sessions.
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[12px] text-slate-500 flex items-center gap-2">
+              <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Preferences are automatically applied in real time to all administration tables and synchronized with your administrator account.</span>
             </div>
           </div>
         </section>

@@ -1,10 +1,29 @@
 <script setup lang="ts">
 import AdminSidebar from './components/AdminSidebar.vue'
 import AdminHeader from './components/AdminHeader.vue'
-import { ref, provide, watch } from 'vue'
+import { ref, provide, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAdminPreferences } from '../composables/useAdminPreferences'
+import { useAuthStore } from '../modules/auth/store/authStore'
 
 const route = useRoute()
+const adminPrefs = useAdminPreferences()
+const authStore = useAuthStore()
+
+onMounted(() => {
+  const userPrefs = authStore.user?.preferences
+  if (userPrefs?.density) {
+    adminPrefs.setDensity(userPrefs.density)
+  } else {
+    adminPrefs.applyDensityToDom(adminPrefs.density.value)
+  }
+  if (userPrefs?.date_format) {
+    adminPrefs.setDateFormat(userPrefs.date_format)
+  }
+  if (userPrefs?.timezone_display) {
+    adminPrefs.setTimezoneDisplay(userPrefs.timezone_display)
+  }
+})
 
 // On mobile (< 1024px), sidebar defaults to closed (false).
 // On desktop (>= 1024px), sidebar defaults to open (true).
@@ -24,6 +43,7 @@ watch(() => route.path, () => {
 provide('sidebarOpen', sidebarOpen)
 provide('toggleSidebar', toggleSidebar)
 provide('closeSidebar', closeSidebar)
+provide('adminPreferences', adminPrefs)
 </script>
 
 <template>
