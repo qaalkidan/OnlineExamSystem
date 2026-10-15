@@ -8,6 +8,8 @@ use App\Models\AcademicEvent;
 use App\Models\EventCategory;
 use App\Models\SystemSetting;
 use Carbon\Carbon;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -361,7 +363,7 @@ class AdminCalendarController extends Controller
     }
 
     /**
-     * Export academic events as CSV or Printable HTML/PDF report.
+     * Export academic events as CSV, PDF, or Printable HTML report.
      */
     public function exportEvents(Request $request)
     {
@@ -385,163 +387,238 @@ class AdminCalendarController extends Controller
 
         LogActivity::record('Exported', 'Academic Calendar', "Exported {$events->count()} academic calendar events as {$format}");
 
-        if ($format === 'pdf' || $format === 'html' || $format === 'print') {
-            return $this->generatePrintableCalendar($events);
+        $dateStr = date('Y_m_d_His');
+        $fileName = 'wollo_university_academic_calendar_' . $dateStr;
+
+        if ($format === 'pdf') {
+            return $this->exportEventsPdf($events, $fileName);
         }
 
-        // CSV Export
-        $filename = 'wollo_university_academic_calendar_' . date('Y_m_d_His') . '.csv';
-        $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            'Pragma'              => 'no-cache',
-            'Cache-Control'       => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires'             => '0',
-        ];
-
-        $callback = function () use ($events) {
-            $output = fopen('php://output', 'w');
-            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
-
-            fputcsv($output, [
-                'ID',
-                'Event Title',
-                'Category',
-                'Academic Year',
-                'Semester',
-                'Start Date',
-                'End Date',
-                'All Day',
-                'Start Time',
-                'End Time',
-                'Status',
-                'Description',
-                'Created By'
-            ]);
-
-            foreach ($events as $e) {
-                fputcsv($output, [
-                    $e->id,
-                    $e->title,
-                    $e->category?->name ?? 'General',
-                    $e->academic_year,
-                    $e->semester,
-                    $e->start_date?->toDateString(),
-                    $e->end_date?->toDateString(),
-                    $e->all_day ? 'Yes' : 'No',
-                    $e->start_time ?? '-',
-                    $e->end_time ?? '-',
-                    ucfirst($e->status),
-                    $e->description ?? '-',
-                    $e->creator?->name ?? 'System',
+        if ($format === 'html' || $format === 'print') {
+            $html = $this->renderCalendarHtml($events);
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'status'   => 'success',
+                    'html'     => $html,
+                    'filename' => $fileName . '.html',
                 ]);
             }
+            return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+        }
 
-            fclose($output);
-        };
-
-        return new StreamedResponse($callback, 200, $headers);
+        return $this->exportEventsCsv($events, $fileName);
     }
 
     /**
-     * Generate an official Wollo University printable HTML/PDF Academic Calendar report.
+     * Export academic calendar as CSV with UTF-8 BOM.
      */
-    private function generatePrintableCalendar($events)
+    private function exportEventsCsv($events, string $fileName)
+    {
+        ob_start();
+        $handle = fopen('php://output', 'w');
+        fputs($handle, "\xEF\xBB\xBF"); // UTF-8 BOM for Excel
+
+        fputcsv($handle, [
+            'ID',
+            'Event Title',
+            'Category',
+            'Academic Year',
+            'Semester',
+            'Start Date',
+            'End Date',
+            'Duration (Days)',
+            'All Day',
+            'Start Time',
+            'End Time',
+            'Status',
+            'Description',
+            'Scheduled By'
+        ]);
+
+        foreach ($events as $e) {
+            $startDate = $e->start_date ? Carbon::parse($e->start_date) : null;
+            $endDate = $e->end_date ? Carbon::parse($e->end_date) : null;
+            $days = ($startDate && $endDate) ? ($startDate->diffInDays($endDate) + 1) : 1;
+
+            fputcsv($handle, [
+                $e->id,
+                $e->title,
+                $e->category?->name ?? 'General',
+                $e->academic_year,
+                $e->semester,
+                $e->start_date?->toDateString() ?? '',
+                $e->end_date?->toDateString() ?? '',
+                $days,
+                $e->all_day ? 'Yes' : 'No',
+                $e->start_time ?? '-',
+                $e->end_time ?? '-',
+                ucfirst($e->status ?? 'upcoming'),
+                $e->description ?? '-',
+                $e->creator?->name ?? 'System Administrator',
+            ]);
+        }
+
+        fclose($handle);
+        $csvContent = ob_get_clean();
+
+        return response()->json([
+            'status'   => 'success',
+            'file'     => base64_encode($csvContent),
+            'filename' => $fileName . '.csv'
+        ]);
+    }
+
+    /**
+     * Export academic calendar as official Wollo University PDF.
+     */
+    private function exportEventsPdf($events, string $fileName)
+    {
+        $html = $this->renderCalendarHtml($events);
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isPhpEnabled', false);
+        $options->set('defaultFont', 'DejaVu Sans');
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+
+        return response()->json([
+            'status'   => 'success',
+            'file'     => base64_encode($dompdf->output()),
+            'filename' => $fileName . '.pdf'
+        ]);
+    }
+
+    /**
+     * Render the official Wollo University academic calendar HTML report.
+     */
+    private function renderCalendarHtml($events): string
     {
         $generatedAt = Carbon::now()->format('F j, Y, g:i A');
         $currentYear = SystemSetting::where('key', 'academicYear')->value('value') ?: '2026';
         $currentSemester = SystemSetting::where('key', 'semester')->value('value') ?: 'Second Semester';
 
         $rowsHtml = '';
-        foreach ($events as $e) {
-            $statusColor = match($e->status) {
+        foreach ($events as $index => $e) {
+            $badgeBg = match($e->status) {
+                'upcoming'  => '#e0e7ff',
+                'ongoing'   => '#dcfce7',
+                'completed' => '#f1f5f9',
+                'cancelled' => '#fee2e2',
+                default     => '#f1f5f9',
+            };
+            $badgeColor = match($e->status) {
                 'upcoming'  => '#4338ca',
-                'ongoing'   => '#059669',
-                'completed' => '#64748b',
-                'cancelled' => '#dc2626',
-                default     => '#334155',
+                'ongoing'   => '#15803d',
+                'completed' => '#475569',
+                'cancelled' => '#b91c1c',
+                default     => '#475569',
             };
 
+            $startDate = $e->start_date ? Carbon::parse($e->start_date) : null;
+            $endDate = $e->end_date ? Carbon::parse($e->end_date) : null;
+            $days = ($startDate && $endDate) ? ($startDate->diffInDays($endDate) + 1) : 1;
+            $dateRange = ($startDate && $endDate)
+                ? ($startDate->toDateString() === $endDate->toDateString() ? $startDate->format('M d, Y') : ($startDate->format('M d, Y') . ' — ' . $endDate->format('M d, Y')))
+                : 'TBD';
+
+            $timeStr = $e->all_day ? 'All Day' : (($e->start_time ?: '') . ($e->end_time ? ' - ' . $e->end_time : ''));
             $title = htmlspecialchars($e->title);
             $cat = htmlspecialchars($e->category?->name ?? 'General');
             $yearSem = htmlspecialchars("{$e->academic_year} • {$e->semester}");
-            $dates = htmlspecialchars("{$e->start_date?->toDateString()} to {$e->end_date?->toDateString()}");
-            $desc = htmlspecialchars($e->description ?? '-');
-            $status = htmlspecialchars(ucfirst($e->status));
+            $desc = htmlspecialchars($e->description ?? '—');
+            $status = htmlspecialchars(ucfirst($e->status ?? 'upcoming'));
 
             $rowsHtml .= "
-                <tr style='border-bottom: 1px solid #e2e8f0; font-size: 11px;'>
-                    <td style='padding: 8px 10px; font-weight:700; color:#1e293b;'>{$title}</td>
-                    <td style='padding: 8px 10px; color:#475569;'>{$cat}</td>
-                    <td style='padding: 8px 10px; color:#4338ca; font-weight:600;'>{$yearSem}</td>
-                    <td style='padding: 8px 10px; font-weight:600;'>{$dates}</td>
-                    <td style='padding: 8px 10px; color:{$statusColor}; font-weight:700;'>{$status}</td>
-                    <td style='padding: 8px 10px; color:#64748b;'>{$desc}</td>
+                <tr style='border-bottom: 1px solid #e2e8f0; font-size: 10px;'>
+                    <td style='padding: 7px 8px; text-align: center; color: #64748b;'>" . ($index + 1) . "</td>
+                    <td style='padding: 7px 8px; font-weight: bold; color: #0f172a;'>{$title}</td>
+                    <td style='padding: 7px 8px; color: #475569;'>{$cat}</td>
+                    <td style='padding: 7px 8px; color: #4338ca; font-weight: 600;'>{$yearSem}</td>
+                    <td style='padding: 7px 8px; font-weight: 600; color: #1e293b;'>{$dateRange}</td>
+                    <td style='padding: 7px 8px; color: #64748b; text-align: center;'>{$days} d</td>
+                    <td style='padding: 7px 8px; color: #475569;'>{$timeStr}</td>
+                    <td style='padding: 7px 8px; text-align: center;'>
+                        <span style='background-color: {$badgeBg}; color: {$badgeColor}; padding: 2px 7px; border-radius: 4px; font-weight: bold; font-size: 9px; text-transform: uppercase;'>
+                            {$status}
+                        </span>
+                    </td>
+                    <td style='padding: 7px 8px; color: #64748b;'>{$desc}</td>
                 </tr>
             ";
         }
 
         $totalCount = $events->count();
 
-        $html = "<!DOCTYPE html>
+        return "<!DOCTYPE html>
         <html>
         <head>
             <meta charset='utf-8'>
-            <title>Wollo University - Academic Calendar & Schedule</title>
+            <title>Wollo University - Official Academic Calendar</title>
             <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 0; padding: 24px; background: #fff; }
-                .header { border-bottom: 2px solid #4338ca; padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-                .title { font-size: 20px; font-weight: 800; color: #1e1b4b; text-transform: uppercase; letter-spacing: 0.5px; }
-                .subtitle { font-size: 12px; color: #64748b; margin-top: 4px; font-weight: 600; }
-                .meta { text-align: right; font-size: 11px; color: #475569; }
-                .summary-bar { display: flex; gap: 20px; margin-bottom: 20px; padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; font-weight: 600; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th { background: #f1f5f9; color: #475569; text-align: left; padding: 8px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; border-bottom: 2px solid #cbd5e1; }
+                body { font-family: 'DejaVu Sans', Helvetica, Arial, sans-serif; color: #1e293b; margin: 0; padding: 18px; background: #fff; font-size: 10px; }
+                .header { border-bottom: 2px solid #4338ca; padding-bottom: 12px; margin-bottom: 14px; }
+                .inst-title { font-size: 18px; font-weight: bold; color: #4338ca; text-transform: uppercase; letter-spacing: 0.5px; }
+                .doc-subtitle { font-size: 12px; font-weight: bold; color: #0f172a; margin-top: 3px; }
+                .meta { font-size: 9px; color: #64748b; margin-top: 4px; }
+                .summary-table { width: 100%; margin-bottom: 14px; border-collapse: collapse; }
+                .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; font-size: 10px; font-weight: 600; }
+                table.data-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+                table.data-table th { background: #4338ca; color: #ffffff; text-align: left; padding: 6px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; font-weight: bold; }
+                table.data-table tr:nth-child(even) td { background-color: #f8fafc; }
+                .footer { margin-top: 24px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 8px; color: #94a3b8; text-align: center; }
+                .no-print { margin-bottom: 12px; }
+                .print-btn { background: #4338ca; color: #ffffff; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 11px; cursor: pointer; }
                 @media print {
-                    body { padding: 10px; }
-                    .no-print { display: none; }
+                    .no-print { display: none !important; }
+                    body { padding: 0 !important; }
                 }
             </style>
         </head>
         <body>
-            <div class='no-print' style='margin-bottom: 16px;'>
-                <button onclick='window.print()' style='background: #4338ca; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer;'>🖨️ Print / Save as PDF</button>
+            <div class='no-print'>
+                <button onclick='window.print()' class='print-btn'>🖨️ Print / Save as PDF</button>
             </div>
             <div class='header'>
-                <div>
-                    <div class='title'>Wollo University</div>
-                    <div class='subtitle'>OFFICIAL ACADEMIC CALENDAR &amp; PLANNING SCHEDULE &bull; {$currentYear} {$currentSemester}</div>
-                </div>
-                <div class='meta'>
-                    <div><strong>Generated:</strong> {$generatedAt}</div>
-                    <div><strong>Document:</strong> Official University Schedule</div>
-                </div>
+                <div class='inst-title'>Wollo University</div>
+                <div class='doc-subtitle'>Official University Academic Calendar &amp; Milestone Schedule</div>
+                <div class='meta'>Generated: {$generatedAt} &bull; Academic Term: {$currentYear} {$currentSemester} &bull; Total Scheduled Events: {$totalCount}</div>
             </div>
-            <div class='summary-bar'>
-                <div>Academic Term: <strong style='color:#4338ca;'>{$currentYear} {$currentSemester}</strong></div>
-                <div>Total Scheduled Events: <strong>{$totalCount}</strong></div>
-            </div>
-            <table>
+            <table class='summary-table'>
+                <tr>
+                    <td style='width: 50%; padding-right: 6px;'>
+                        <div class='summary-card'>Active Term: <strong style='color:#4338ca;'>{$currentYear} {$currentSemester}</strong></div>
+                    </td>
+                    <td style='width: 50%; padding-left: 6px;'>
+                        <div class='summary-card'>Scheduled Milestones: <strong>{$totalCount}</strong> Events Recorded</div>
+                    </td>
+                </tr>
+            </table>
+            <table class='data-table'>
                 <thead>
                     <tr>
+                        <th style='text-align: center; width: 25px;'>#</th>
                         <th>Event Title</th>
                         <th>Category</th>
                         <th>Academic Period</th>
-                        <th>Scheduled Dates</th>
-                        <th>Status</th>
-                        <th>Description</th>
+                        <th>Dates</th>
+                        <th style='text-align: center;'>Length</th>
+                        <th>Time</th>
+                        <th style='text-align: center;'>Status</th>
+                        <th>Notes</th>
                     </tr>
                 </thead>
                 <tbody>
                     {$rowsHtml}
                 </tbody>
             </table>
-            <div style='margin-top: 30px; border-top: 1px solid #cbd5e1; padding-top: 12px; font-size: 10px; color: #94a3b8; text-align: center;'>
-                Official academic calendar issued by the Wollo University Office of the Academic Registrar and System Administration.
+            <div class='footer'>
+                Official Academic Calendar issued by Wollo University &bull; Office of the Academic Registrar and System Administration &bull; Confidential
             </div>
         </body>
         </html>";
-
-        return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 }

@@ -560,7 +560,7 @@ async function handleSaveTermConfig() {
 }
 
 // ── Export Handling ─────────────────────────────────────────────────────────
-async function handleExport(format: 'csv' | 'pdf') {
+async function handleExport(format: 'csv' | 'pdf' | 'print') {
   showExportDropdown.value = false
   isExporting.value = true
   try {
@@ -575,28 +575,66 @@ async function handleExport(format: 'csv' | 'pdf') {
       params.category_id = selectedCategoryFilter.value
     }
 
-    if (format === 'csv') {
+    if (format === 'print') {
+      // Print Schedule preview
       const response = await apiClient.get('/admin/calendar/events/export', {
-        params,
-        responseType: 'blob'
+        params: { ...params, format: 'html' }
       })
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `wollo_university_calendar_${new Date().toISOString().slice(0, 10)}.csv`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-      showToast('Academic calendar exported as CSV.')
-    } else {
-      const queryStr = new URLSearchParams(params).toString()
-      const url = `${apiClient.defaults.baseURL || 'http://localhost:8000/api/v1'}/admin/calendar/events/export?${queryStr}`
-      window.open(url, '_blank')
+
+      const htmlContent = response.data?.html || response.data
+      if (typeof htmlContent === 'string' && htmlContent.includes('<html')) {
+        const printWindow = window.open('', '_blank')
+        if (printWindow) {
+          printWindow.document.open()
+          printWindow.document.write(htmlContent)
+          printWindow.document.close()
+          setTimeout(() => {
+            printWindow.focus()
+            printWindow.print()
+          }, 350)
+        }
+      } else {
+        throw new Error('Could not render printable calendar.')
+      }
+      showToast('Printable calendar schedule opened.', 'info')
+      return
     }
-  } catch (err) {
+
+    // PDF or CSV: API returns JSON { file: base64, filename: string }
+    const response = await apiClient.get('/admin/calendar/events/export', { params })
+
+    let blobUrl = ''
+    let filename = ''
+
+    if (response.data && response.data.file) {
+      const binary = atob(response.data.file)
+      const array = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        array[i] = binary.charCodeAt(i)
+      }
+      const mime = format === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8;'
+      const blob = new Blob([array], { type: mime })
+      blobUrl = window.URL.createObjectURL(blob)
+      filename = response.data.filename || `wollo_university_academic_calendar_${new Date().toISOString().slice(0, 10)}.${format}`
+    } else if (response.data instanceof Blob) {
+      blobUrl = window.URL.createObjectURL(response.data)
+      filename = `wollo_university_academic_calendar_${new Date().toISOString().slice(0, 10)}.${format}`
+    } else {
+      throw new Error('Invalid export response format.')
+    }
+
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(blobUrl)
+
+    showToast(`Academic calendar exported successfully as ${format.toUpperCase()}.`, 'success')
+  } catch (err: any) {
     console.error('Export failed:', err)
-    showToast('Failed to export academic calendar.', 'error')
+    showToast(err?.response?.data?.message || 'Failed to export academic calendar. Please try again.', 'error')
   } finally {
     isExporting.value = false
   }
@@ -759,32 +797,77 @@ onMounted(async () => {
 
           <!-- Export Dropdown -->
           <div class="relative">
-            <button
-              @click="showExportDropdown = !showExportDropdown"
-              class="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[12px] font-bold rounded-xl transition-colors shadow-xs"
-            >
-              <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span>Export</span>
-              <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-            </button>
+            <!-- Click-outside backdrop -->
             <div
               v-if="showExportDropdown"
-              class="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-[12px] font-medium animate-in fade-in zoom-in-95"
+              @click="showExportDropdown = false"
+              class="fixed inset-0 z-40"
+            ></div>
+
+            <button
+              @click="showExportDropdown = !showExportDropdown"
+              :disabled="isExporting"
+              class="relative z-50 flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[12px] font-bold rounded-xl transition-colors shadow-xs disabled:opacity-60"
             >
-              <button
-                @click="handleExport('csv')"
-                class="w-full flex items-center gap-2.5 px-4 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-[#4338ca] transition-colors"
-              >
-                <span class="w-6 h-6 rounded bg-emerald-50 text-emerald-600 font-bold text-[10px] flex items-center justify-center">CSV</span>
-                <span>Export as CSV</span>
-              </button>
-              <button
-                @click="handleExport('pdf')"
-                class="w-full flex items-center gap-2.5 px-4 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-[#4338ca] transition-colors"
-              >
-                <span class="w-6 h-6 rounded bg-indigo-50 text-[#4338ca] font-bold text-[10px] flex items-center justify-center">PDF</span>
-                <span>Printable Official Schedule</span>
-              </button>
+              <svg v-if="!isExporting" class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <svg v-else class="w-4 h-4 text-[#4338ca] animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+              <span>{{ isExporting ? 'Exporting...' : 'Export' }}</span>
+              <svg class="w-3 h-3 text-slate-400 transition-transform" :class="{ 'rotate-180': showExportDropdown }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+
+            <div
+              v-if="showExportDropdown"
+              class="absolute right-0 mt-2 w-60 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 text-[12px] font-medium animate-in fade-in zoom-in-95 divide-y divide-slate-100"
+            >
+              <div class="px-3.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Download Academic Calendar
+              </div>
+
+              <div class="py-1">
+                <button
+                  @click="handleExport('pdf')"
+                  :disabled="isExporting"
+                  class="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-[#4338ca] transition-colors group"
+                >
+                  <span class="w-7 h-7 rounded-lg bg-indigo-50 text-[#4338ca] font-black text-[10px] flex items-center justify-center group-hover:bg-[#4338ca] group-hover:text-white transition-colors">
+                    PDF
+                  </span>
+                  <div>
+                    <div class="font-bold text-slate-800 group-hover:text-[#4338ca]">Export as PDF</div>
+                    <div class="text-[10px] text-slate-400">Official printable PDF document</div>
+                  </div>
+                </button>
+
+                <button
+                  @click="handleExport('csv')"
+                  :disabled="isExporting"
+                  class="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors group"
+                >
+                  <span class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 font-black text-[10px] flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    CSV
+                  </span>
+                  <div>
+                    <div class="font-bold text-slate-800 group-hover:text-emerald-600">Export as CSV (Excel)</div>
+                    <div class="text-[10px] text-slate-400">Standard spreadsheet data file</div>
+                  </div>
+                </button>
+              </div>
+
+              <div class="py-1">
+                <button
+                  @click="handleExport('print')"
+                  :disabled="isExporting"
+                  class="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors group"
+                >
+                  <span class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 font-bold text-[11px] flex items-center justify-center group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                    🖨️
+                  </span>
+                  <div>
+                    <div class="font-bold text-slate-800 group-hover:text-slate-900">Print Schedule</div>
+                    <div class="text-[10px] text-slate-400">Open system print preview</div>
+                  </div>
+                </button>
+              </div>
             </div>
           </div>
 
