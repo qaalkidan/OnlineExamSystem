@@ -54,6 +54,28 @@ class AuthController extends Controller
             $effectiveRole = $user->role; // either admin or dept_head
         }
 
+        // System Maintenance Mode: Restrict non-administrator logins during core database operations
+        $isMaintenance = \App\Models\SystemSetting::where('key', 'maintenanceMode')->value('value') === 'true';
+        if ($isMaintenance && $user->role !== 'admin') {
+            \App\Helpers\LogActivity::record(
+                'Login Blocked',
+                'Authentication',
+                "Login blocked for {$user->role} '{$user->email}' due to active System Maintenance Mode",
+                'Failed',
+                $user->department_id,
+                $user
+            );
+
+            return response()->json([
+                'message'    => 'System Maintenance Active: Non-administrator access is temporarily restricted during core database operations. Please check back later.',
+                'error_type' => 'system_maintenance',
+                'maintenance'=> true,
+                'errors'     => [
+                    'login' => ['System Maintenance Active: Non-administrator access is temporarily restricted during core database operations. Please check back later.'],
+                ],
+            ], 403);
+        }
+
         // Revoke old tokens (single-session policy)
         $user->tokens()->delete();
 

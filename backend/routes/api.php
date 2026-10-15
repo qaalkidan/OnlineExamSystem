@@ -24,16 +24,17 @@ use App\Http\Controllers\Api\V1\StudentExamController;
 // ------------------------------------------------------------------
 Route::prefix('v1')->group(function () {
 
-    // Auth
-    Route::post('/login',  [\App\Http\Controllers\Api\V1\AuthController::class, 'login']);
+    // Auth & Public System Info
+    Route::post('/login',  [\App\Http\Controllers\Api\V1\AuthController::class, 'login'])->name('login');
     Route::post('/register', [\App\Http\Controllers\Api\V1\AuthController::class, 'register']);
+    Route::get('/system/public-status', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'publicStatus']);
 
 });
 
 // ------------------------------------------------------------------
-// Protected routes (Sanctum token required)
+// Protected routes (Sanctum token required + Maintenance Mode check)
 // ------------------------------------------------------------------
-Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(function () {
 
     // Current user info
     Route::get('/user', function (Request $request) {

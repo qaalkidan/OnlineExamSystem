@@ -42,6 +42,10 @@ export const useSettingsStore = defineStore('settings', () => {
     return `${academicYear.value} ${semester.value}`
   })
 
+  const isMaintenanceMode = computed(() => {
+    return settings.value.maintenanceMode === 'true'
+  })
+
   async function fetchSettings() {
     try {
       const response = await api.get('/settings')
@@ -132,6 +136,7 @@ export const useSettingsStore = defineStore('settings', () => {
     systemInfo,
     isLoading,
     formattedAcademicTerm,
+    isMaintenanceMode,
     fetchSettings,
     updateTerm,
     updateSettings,

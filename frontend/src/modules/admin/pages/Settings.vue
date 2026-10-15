@@ -1083,17 +1083,39 @@ const navigateToAcademicCalendar = () => {
 
             <!-- Maintenance Mode Toggle -->
             <div class="pt-2">
-              <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/70 cursor-pointer">
-                <div>
-                  <span class="text-[13px] font-bold text-slate-800 block">System Maintenance Mode</span>
-                  <span class="text-[11px] text-slate-500 block">Restricts non-administrator logins during core database operations.</span>
+              <label 
+                class="flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer"
+                :class="general.maintenanceMode === 'true' 
+                  ? 'border-amber-300 bg-amber-50/60 shadow-xs ring-1 ring-amber-300/50' 
+                  : 'border-slate-200 bg-slate-50/70 hover:bg-slate-50'"
+              >
+                <div class="pr-4">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[13px] font-bold text-slate-800 block">System Maintenance Mode</span>
+                    <span 
+                      v-if="general.maintenanceMode === 'true'" 
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/90 text-amber-900 border border-amber-300"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse"></span>
+                      Active (Restricted)
+                    </span>
+                    <span 
+                      v-else 
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 text-slate-600"
+                    >
+                      Inactive
+                    </span>
+                  </div>
+                  <span class="text-[11px] text-slate-500 block mt-0.5">
+                    Restricts non-administrator logins during core database operations. Super Admins retain full access.
+                  </span>
                 </div>
                 <input
                   type="checkbox"
                   v-model="general.maintenanceMode"
                   true-value="true"
                   false-value="false"
-                  class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
                 />
               </label>
             </div>

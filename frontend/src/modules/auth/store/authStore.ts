@@ -20,6 +20,8 @@ export const useAuthStore = defineStore('auth', () => {
     instructor: null,
     message: ''
   })
+  const isMaintenanceActive = ref(false)
+  const maintenanceMessage = ref<string | null>(null)
   const router = useRouter()
 
   const login = async (credentials: any) => {
@@ -116,6 +118,8 @@ export const useAuthStore = defineStore('auth', () => {
       const isNotAssigned = respData?.error_type === 'instructor_not_assigned' ||
                             errorMsg.toLowerCase().includes('not been assigned to any course')
 
+      const isMaintenance = respData?.error_type === 'system_maintenance' || respData?.maintenance === true
+
       if (isNotAssigned) {
         error.value = null // Suppress top error message banner
         notAssignedModal.value = {
@@ -123,12 +127,31 @@ export const useAuthStore = defineStore('auth', () => {
           instructor: respData?.instructor || null,
           message: errorMsg
         }
+      } else if (isMaintenance) {
+        isMaintenanceActive.value = true
+        maintenanceMessage.value = errorMsg
+        error.value = errorMsg
       } else {
         error.value = errorMsg
       }
       throw err
     } finally {
       isLoading.value = false
+    }
+  }
+
+  const checkPublicStatus = async () => {
+    try {
+      const res = await apiClient.get('/system/public-status')
+      if (res.data?.maintenanceMode) {
+        isMaintenanceActive.value = true
+        maintenanceMessage.value = 'System Maintenance Mode is currently active. Non-administrator logins are temporarily restricted during core database operations.'
+      } else {
+        isMaintenanceActive.value = false
+        maintenanceMessage.value = null
+      }
+    } catch (e) {
+      // Non-blocking if endpoint fails
     }
   }
 
@@ -211,7 +234,10 @@ export const useAuthStore = defineStore('auth', () => {
     pendingInstructor,
     selectedContext,
     notAssignedModal,
+    isMaintenanceActive,
+    maintenanceMessage,
     closeNotAssignedModal,
+    checkPublicStatus,
     login,
     completeInstructorSetup,
     fetchCurrentUser,

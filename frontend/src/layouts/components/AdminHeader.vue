@@ -118,8 +118,19 @@ const pageInfo = computed(() => {
       </span>
     </div>
 
-    <!-- Right Side: User Profile & Dropdown (Notification icon removed as requested) -->
-    <div class="flex items-center shrink-0">
+    <!-- Right Side: User Profile & Dropdown -->
+    <div class="flex items-center gap-2 shrink-0">
+      <!-- Maintenance Mode Active Pill -->
+      <router-link
+        v-if="settingsStore.isMaintenanceMode"
+        to="/admin/settings"
+        class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200/90 text-amber-800 text-[11px] font-bold shadow-xs transition-colors"
+        title="System Maintenance Mode is active. Click to view Settings."
+      >
+        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+        <span>Maintenance Mode Active</span>
+      </router-link>
+
       <div class="relative" ref="profileDropdownRef">
         <!-- Trigger Button -->
         <button

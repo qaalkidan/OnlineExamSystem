@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '../store/authStore'
 
 const authStore = useAuthStore()
+
+onMounted(() => {
+  authStore.checkPublicStatus()
+})
 
 const loginField = ref('')
 const password = ref('')
@@ -143,7 +147,25 @@ const cancelStep2 = () => {
             <p class="text-xs text-slate-500">Sign in to continue to your account</p>
           </div>
 
-          <div v-if="authStore.error" class="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-center gap-2">
+          <!-- Active Maintenance Mode Banner -->
+          <div v-if="authStore.isMaintenanceActive" class="mb-5 p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start gap-3 shadow-xs">
+            <div class="p-2 bg-amber-100 rounded-lg text-amber-700 shrink-0 mt-0.5">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h4 class="text-[13px] font-bold text-amber-900">System Maintenance Active</h4>
+                <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-amber-200/80 text-amber-800 rounded">Restricted</span>
+              </div>
+              <p class="text-[11px] text-amber-800/90 mt-0.5 leading-relaxed">
+                Core database operations in progress. Non-administrator logins are temporarily paused. Only system administrators can sign in at this time.
+              </p>
+            </div>
+          </div>
+
+          <div v-if="authStore.error && !authStore.isMaintenanceActive" class="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-center gap-2">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             <span>{{ authStore.error }}</span>
           </div>

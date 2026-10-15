@@ -53,6 +53,20 @@ class SystemSettingController extends Controller
             'maintenanceMode'  => 'sometimes|nullable|string|in:true,false',
         ]);
 
+        if (isset($validated['maintenanceMode'])) {
+            $prevMode = SystemSetting::where('key', 'maintenanceMode')->value('value') ?? 'false';
+            if ($prevMode !== $validated['maintenanceMode']) {
+                $statusDesc = $validated['maintenanceMode'] === 'true'
+                    ? 'ENABLED (Non-administrator access restricted)'
+                    : 'DISABLED (Normal operations resumed)';
+                LogActivity::record(
+                    'System Maintenance',
+                    'System Settings',
+                    "System Maintenance Mode was {$statusDesc}"
+                );
+            }
+        }
+
         foreach ($validated as $key => $value) {
             if ($value !== null) {
                 SystemSetting::updateOrCreate(['key' => $key], ['value' => (string) $value]);
@@ -144,6 +158,29 @@ class SystemSettingController extends Controller
         return response()->json([
             'message'  => 'System settings reset to default successfully',
             'settings' => $dbSettings,
+        ]);
+    }
+
+    /**
+     * Public system status endpoint (accessible without authentication).
+     */
+    public function publicStatus(): JsonResponse
+    {
+        $settings = SystemSetting::whereIn('key', [
+            'universityName',
+            'systemTitle',
+            'institutionCode',
+            'academicYear',
+            'semester',
+            'maintenanceMode',
+        ])->pluck('value', 'key');
+
+        return response()->json([
+            'maintenanceMode' => ($settings['maintenanceMode'] ?? 'false') === 'true',
+            'universityName'  => $settings['universityName'] ?? 'Wollo University',
+            'systemTitle'     => $settings['systemTitle'] ?? 'Online Examination System',
+            'academicYear'    => $settings['academicYear'] ?? '2026',
+            'semester'        => $settings['semester'] ?? 'Second Semester',
         ]);
     }
 }

@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,11 +13,26 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return null;
+            }
+            return '/';
+        });
+
         $middleware->alias([
             'instructor.semester.lock' => \App\Http\Middleware\InstructorSemesterLockMiddleware::class,
+            'check.maintenance'        => \App\Http\Middleware\CheckSystemMaintenanceMode::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
+            if ($request->is('api/*')) {
+                return true;
+            }
+            return $request->expectsJson();
+        });
+
         $exceptions->reportable(function (\Illuminate\Validation\ValidationException $e) {
             \Log::error('Validation failed: ' . json_encode($e->errors()));
         });
