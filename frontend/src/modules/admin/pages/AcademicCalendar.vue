@@ -662,42 +662,6 @@ function getStatusBadge(status: string) {
   }
 }
 
-// ── Real Academic Milestones ────────────────────────────────────────────────
-const realMilestones = computed(() => {
-  const list = calendarStore.events
-  return [
-    {
-      title: 'Current Academic Term',
-      date: `${settingsStore.academicYear} ${settingsStore.semester}`,
-      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-      color: 'bg-indigo-50 text-[#4338ca]'
-    },
-    {
-      title: 'Classes / Teaching Period',
-      date: list.find(e => e.title.toLowerCase().includes('class') || e.title.toLowerCase().includes('teach'))
-        ? `${list.find(e => e.title.toLowerCase().includes('class') || e.title.toLowerCase().includes('teach'))?.start_date} to ${list.find(e => e.title.toLowerCase().includes('class') || e.title.toLowerCase().includes('teach'))?.end_date}`
-        : (calendarStore.eventStats.period_start && calendarStore.eventStats.period_end ? `${calendarStore.eventStats.period_start} to ${calendarStore.eventStats.period_end}` : 'Not scheduled yet'),
-      icon: 'M12 14l9-5-9-5-9 5 9 5z',
-      color: 'bg-emerald-50 text-emerald-600'
-    },
-    {
-      title: 'Examination Periods',
-      date: list.find(e => e.category_name?.toLowerCase().includes('exam') || e.title.toLowerCase().includes('exam'))
-        ? `${list.find(e => e.category_name?.toLowerCase().includes('exam') || e.title.toLowerCase().includes('exam'))?.start_date} to ${list.find(e => e.category_name?.toLowerCase().includes('exam') || e.title.toLowerCase().includes('exam'))?.end_date}`
-        : 'Not scheduled yet',
-      icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
-      color: 'bg-blue-50 text-blue-600'
-    },
-    {
-      title: 'Holidays & University Breaks',
-      date: list.find(e => e.category_name?.toLowerCase().includes('holiday') || e.title.toLowerCase().includes('break'))
-        ? `${list.find(e => e.category_name?.toLowerCase().includes('holiday'))?.start_date}`
-        : 'Not scheduled yet',
-      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-      color: 'bg-purple-50 text-purple-600'
-    }
-  ]
-})
 
 // ── Initial Mount & Lifecycle ───────────────────────────────────────────────
 onMounted(async () => {
@@ -1427,25 +1391,7 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Real Academic Milestones Card -->
-          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
-            <div class="flex items-center justify-between">
-              <h3 class="text-base font-black text-slate-900">Academic Milestones</h3>
-              <span class="text-[11px] font-bold text-[#4338ca] bg-indigo-50 px-2 py-0.5 rounded">{{ settingsStore.academicYear }}</span>
-            </div>
 
-            <div class="space-y-3">
-              <div v-for="(item, i) in realMilestones" :key="i" class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50/60 border border-slate-100">
-                <div :class="[item.color, 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5']">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon"/></svg>
-                </div>
-                <div class="min-w-0">
-                  <p class="text-[12px] font-bold text-slate-800">{{ item.title }}</p>
-                  <p class="text-[11px] text-slate-500 font-medium mt-0.5">{{ item.date }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
 
         </div>
 
