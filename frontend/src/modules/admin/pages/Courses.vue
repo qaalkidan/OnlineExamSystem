@@ -152,8 +152,10 @@ const getCourseInstructors = (course: any) => {
       email: user.email || '',
       role: user.role || 'instructor',
       section: section,
+      phone: user.phone || null,
+      office: user.office || null,
       avatar: user.name ? user.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) : 'IN',
-      profilePicture: user.profile_picture_url || null,
+      profilePicture: user.profile_picture_url || user.profile_picture || null,
     })
   }
 
@@ -198,6 +200,19 @@ const getCourseInstructors = (course: any) => {
 
 const selectedCourseInstructors = computed(() => {
   return getCourseInstructors(selectedCourse.value)
+})
+
+const creatorDisplayName = computed(() => {
+  if (!selectedCourse.value) return 'Super Admin'
+  if (selectedCourse.value.creator?.name) {
+    return selectedCourse.value.creator.name
+  }
+  if (selectedCourse.value.created_by) {
+    const user = allInstructors.value?.find((u: any) => u.id === selectedCourse.value.created_by)
+    if (user?.name) return user.name
+    return `Administrator (ID: ${selectedCourse.value.created_by})`
+  }
+  return 'Super Admin'
 })
 
 const currentInstructorInfo = computed(() => {
@@ -1913,202 +1928,487 @@ const recentCourses = computed(() => {
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <!-- 2. COURSE DETAIL VIEW                                                  -->
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
-    <div v-else-if="showDetailsPage" class="space-y-6 pb-16 min-w-0 w-full">
-      <!-- Breadcrumb Header -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
-          <button
-            @click="closeDetails"
-            class="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors text-slate-600"
-            title="Back to Courses Directory"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          </button>
-          <div>
-            <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-              <span @click="closeDetails" class="hover:text-indigo-600 cursor-pointer">Courses</span>
-              <span>/</span>
-              <span class="text-indigo-600 font-bold">Curriculum Details</span>
-            </div>
-            <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+    <div v-else-if="showDetailsPage" class="space-y-6 pb-16 min-w-0 w-full animate-in fade-in duration-200">
+      
+      <!-- Top Breadcrumbs & Master Control Header -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+        <div class="space-y-3">
+          <!-- Breadcrumb navigation -->
+          <nav class="flex items-center gap-2 text-xs font-semibold text-slate-400">
+            <button @click="closeDetails" class="hover:text-indigo-600 transition-colors flex items-center gap-1.5 group">
+              <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+              <span>Courses</span>
+            </button>
+            <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <span class="text-slate-500 font-medium">Curriculum Details</span>
+            <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <span class="text-slate-900 font-bold font-mono">{{ selectedCourse?.code }}</span>
+          </nav>
+
+          <!-- Course Title & Status Metadata Row -->
+          <div class="flex flex-wrap items-center gap-2.5 sm:gap-3.5">
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               {{ selectedCourse?.name }}
-              <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+            </h1>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- Course Code Pill -->
+              <span class="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-50 text-[#4338ca] border border-indigo-100 shadow-2xs">
                 {{ selectedCourse?.code }}
               </span>
+
+              <!-- Status Badge with Pulsing Live Dot -->
               <span
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize border"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold capitalize shadow-2xs"
                 :class="{
                   'bg-emerald-50 text-emerald-700 border-emerald-200': selectedCourse?.status === 'active',
-                  'bg-slate-100 text-slate-700 border-slate-200': selectedCourse?.status === 'inactive',
+                  'bg-slate-100 text-slate-600 border-slate-200': selectedCourse?.status === 'inactive',
                 }"
               >
-                {{ selectedCourse?.status }}
+                <span
+                  class="w-1.5 h-1.5 rounded-full"
+                  :class="{
+                    'bg-emerald-500 animate-pulse': selectedCourse?.status === 'active',
+                    'bg-slate-400': selectedCourse?.status === 'inactive',
+                  }"
+                ></span>
+                <span>{{ selectedCourse?.status || 'Active' }}</span>
               </span>
-            </h1>
+
+              <!-- Department Pill (if available) -->
+              <span
+                v-if="selectedCourse?.departmentName || selectedCourse?.dept"
+                class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 capitalize truncate max-w-[200px]"
+              >
+                {{ selectedCourse?.departmentName || selectedCourse?.dept }}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <!-- Master View Controls & Actions -->
+        <div class="flex flex-wrap items-center gap-2.5 self-start lg:self-center shrink-0">
+          <!-- Back Button -->
+          <button
+            @click="closeDetails"
+            class="px-3.5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:text-indigo-700 hover:bg-slate-50 font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-2"
+          >
+            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <span>Back to Courses</span>
+          </button>
+
+          <!-- Assign Faculty Button -->
           <button
             @click="openAssign(selectedCourse)"
-            class="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold rounded-xl text-xs hover:bg-emerald-100 transition-colors shadow-xs"
+            class="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-2"
+            title="Assign instructors or department heads to this course"
           >
             <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-            Assign Faculty
+            <span>Assign Faculty</span>
           </button>
+
+          <!-- Edit Course Button -->
           <button
             @click="openEditPage(selectedCourse)"
-            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-indigo-300 text-indigo-700 font-bold rounded-xl text-xs hover:bg-indigo-50 transition-colors shadow-xs"
+            class="px-4 py-2.5 bg-[#4338ca] hover:bg-[#3730a3] text-white font-bold rounded-xl text-xs transition-all shadow-xs flex items-center gap-2"
+            title="Edit curriculum parameters and syllabus details"
           >
-            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-            Edit Course
+            <svg class="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            <span>Edit Course</span>
           </button>
+
+          <!-- Remove Course Button (Destructive) -->
           <button
             @click="confirmDelete(selectedCourse)"
-            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-rose-200 text-rose-600 font-bold rounded-xl text-xs hover:bg-rose-50 transition-colors shadow-xs"
+            class="px-3.5 py-2.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-2"
+            title="Delete this course from academic catalog"
           >
             <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            Remove Course
+            <span>Remove</span>
           </button>
         </div>
       </div>
 
-      <!-- Detail Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+      <!-- Main Detail Grid Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
+        
+        <!-- Left Content Area -->
         <div class="space-y-6 min-w-0">
           
-          <!-- Academic Placement -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-6 sm:p-8 shadow-xs">
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-6 flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
-              Academic Placement & Curriculum
-            </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 text-xs">
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Department</p>
-                <p class="text-sm font-black text-slate-800">{{ selectedCourse?.departmentName }}</p>
+          <!-- 1. ACADEMIC PLACEMENT & CURRICULUM CARD -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 shadow-sm space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-[#4338ca] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Academic Placement & Curriculum</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Core curriculum attributes and institutional structural enrollment parameters</p>
+                </div>
               </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Credit Hours</p>
-                <p class="text-sm font-black text-slate-800">{{ selectedCourse?.credits }} Credits</p>
+
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 self-start sm:self-center">
+                <span>Catalogue Ref:</span>
+                <span class="font-mono text-indigo-700 font-black">{{ selectedCourse?.code }}</span>
+              </span>
+            </div>
+
+            <!-- 6 Parameter Info Tiles -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+              
+              <!-- 1. Department Tile -->
+              <div class="p-4 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 transition-all shadow-2xs group">
+                <div class="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    Department
+                  </span>
+                </div>
+                <p class="text-sm font-black text-slate-900 capitalize truncate group-hover:text-indigo-700 transition-colors">
+                  {{ selectedCourse?.departmentName || selectedCourse?.dept || 'Unassigned' }}
+                </p>
+                <p class="text-[11px] text-slate-400 truncate">
+                  {{ selectedCourse?.department?.college || 'Faculty / Academic Division' }}
+                </p>
               </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Academic Level</p>
-                <p class="text-sm font-black text-slate-800">{{ selectedCourse?.level }}</p>
+
+              <!-- 2. Credit Hours Tile -->
+              <div class="p-4 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 transition-all shadow-2xs group">
+                <div class="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Credit Hours
+                  </span>
+                </div>
+                <p class="text-sm font-black text-slate-900 group-hover:text-indigo-700 transition-colors">
+                  {{ selectedCourse?.credits || 3 }} Credits
+                </p>
+                <p class="text-[11px] text-slate-400">
+                  Lecture load per semester
+                </p>
               </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Semester</p>
-                <p class="text-xs font-bold text-slate-700">{{ selectedCourse?.semester }}</p>
+
+              <!-- 3. Academic Level Tile -->
+              <div class="p-4 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 transition-all shadow-2xs group">
+                <div class="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" /></svg>
+                    Academic Level
+                  </span>
+                </div>
+                <p class="text-sm font-black text-slate-900 group-hover:text-indigo-700 transition-colors">
+                  {{ selectedCourse?.level || '1st Year' }}
+                </p>
+                <p class="text-[11px] text-slate-400">
+                  Target student academic cohort
+                </p>
               </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Assigned Section</p>
-                <p class="text-xs font-bold text-slate-700">{{ selectedCourse?.section || 'Both Sections' }}</p>
+
+              <!-- 4. Semester Tile -->
+              <div class="p-4 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 transition-all shadow-2xs group">
+                <div class="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    Semester
+                  </span>
+                </div>
+                <p class="text-sm font-black text-slate-900 group-hover:text-indigo-700 transition-colors">
+                  {{ selectedCourse?.semester || 'First Semester' }}
+                </p>
+                <p class="text-[11px] text-slate-400">
+                  Scheduled delivery cycle
+                </p>
               </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Enrollment Status</p>
-                <p class="text-xs font-bold text-emerald-700">{{ selectedCourse?.enrollment_status || 'Open for Enrollment' }}</p>
+
+              <!-- 5. Assigned Section Tile -->
+              <div class="p-4 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 transition-all shadow-2xs group">
+                <div class="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                    Assigned Section
+                  </span>
+                </div>
+                <p class="text-sm font-black text-slate-900 group-hover:text-indigo-700 transition-colors">
+                  {{ selectedCourse?.section || 'Both Sections' }}
+                </p>
+                <p class="text-[11px] text-slate-400">
+                  Designated class grouping
+                </p>
               </div>
+
+              <!-- 6. Enrollment Status Tile -->
+              <div class="p-4 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 transition-all shadow-2xs group">
+                <div class="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                    Enrollment Status
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full" :class="selectedCourse?.status === 'inactive' ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse'"></span>
+                  <p class="text-sm font-black" :class="selectedCourse?.status === 'inactive' ? 'text-slate-600' : 'text-emerald-700'">
+                    {{ selectedCourse?.enrollment_status || (selectedCourse?.status === 'inactive' ? 'Closed for Enrollment' : 'Open for Enrollment') }}
+                  </p>
+                </div>
+                <p class="text-[11px] text-slate-400">
+                  Student registration policy
+                </p>
+              </div>
+
             </div>
           </div>
 
-          <!-- Faculty Assignment Card -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-6 sm:p-8 shadow-xs">
-            <div class="flex items-center justify-between mb-6">
-              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
-                Assigned Faculty Members
-              </h3>
+          <!-- 2. ASSIGNED FACULTY MEMBERS CARD -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 shadow-sm space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Assigned Faculty Members</h3>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {{ selectedCourseInstructors.length }} {{ selectedCourseInstructors.length === 1 ? 'Instructor' : 'Instructors' }}
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-400 mt-0.5">Academic staff appointed for lecture delivery, continuous assessment, and exam creation</p>
+                </div>
+              </div>
+
               <button
                 @click="openAssign(selectedCourse)"
-                class="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-[#4338ca] text-xs font-bold rounded-xl transition-colors self-start sm:self-center"
               >
                 <span>Manage Assignments</span>
-                <span>→</span>
+                <span class="text-sm">&rarr;</span>
               </button>
             </div>
 
+            <!-- When Faculty is Assigned -->
             <div v-if="selectedCourseInstructors.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div
                 v-for="inst in selectedCourseInstructors"
                 :key="inst.id"
-                class="flex items-center gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/70"
+                class="flex items-start gap-3.5 p-4 rounded-xl border border-slate-200/80 bg-white hover:border-indigo-200 hover:shadow-xs transition-all relative group"
               >
-                <div class="w-11 h-11 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 uppercase shadow-2xs">
-                  {{ inst.avatar }}
+                <!-- Avatar / Initials -->
+                <div class="relative shrink-0">
+                  <img
+                    v-if="inst.profilePicture"
+                    :src="inst.profilePicture"
+                    :alt="inst.name"
+                    class="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-2xs"
+                  />
+                  <div
+                    v-else
+                    class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-[#4338ca] text-white font-black text-xs flex items-center justify-center shrink-0 uppercase shadow-2xs"
+                  >
+                    {{ inst.avatar }}
+                  </div>
+                  <span
+                    class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-2xs"
+                    title="Active Academic Appointment"
+                  ></span>
                 </div>
-                <div class="min-w-0 flex-1">
+
+                <!-- Instructor Meta Details -->
+                <div class="min-w-0 flex-1 space-y-1">
                   <div class="flex items-center justify-between gap-2">
-                    <p class="text-xs font-bold text-slate-800 truncate">{{ inst.name }}</p>
+                    <p class="text-sm font-bold text-slate-900 truncate group-hover:text-indigo-700 transition-colors capitalize">
+                      {{ inst.name }}
+                    </p>
+                    
+                    <!-- Section Pill -->
                     <span
-                      class="px-2 py-0.5 text-[10px] font-bold rounded-full uppercase"
-                      :class="inst.section === 'Section B' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-blue-100 text-blue-700 border border-blue-200'"
+                      class="px-2 py-0.5 text-[10px] font-bold rounded-md uppercase shrink-0 border"
+                      :class="{
+                        'bg-purple-50 text-purple-700 border-purple-200': inst.section === 'Section B',
+                        'bg-blue-50 text-blue-700 border-blue-200': inst.section === 'Section A',
+                        'bg-slate-100 text-slate-700 border-slate-200': !inst.section || inst.section === 'Both Sections',
+                      }"
                     >
                       {{ inst.section || 'Section A' }}
                     </span>
                   </div>
-                  <p class="text-[11px] text-slate-500 truncate mt-0.5">{{ inst.email || 'No institutional email' }}</p>
-                  <p class="text-[10px] text-slate-400 capitalize mt-0.5">{{ inst.role ? inst.role.replace('_', ' ') : 'Faculty' }}</p>
+
+                  <!-- Role Pill & Institutional Email -->
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200/70">
+                      {{ inst.role ? inst.role.replace('_', ' ') : 'Faculty Instructor' }}
+                    </span>
+                  </div>
+
+                  <p class="text-[11px] text-slate-500 truncate flex items-center gap-1.5 pt-0.5">
+                    <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    <span class="truncate">{{ inst.email || 'No institutional email registered' }}</span>
+                  </p>
+
+                  <p v-if="inst.office" class="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                    <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    <span>Office: {{ inst.office }}</span>
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div v-else class="p-6 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50/50">
-              <p class="text-xs text-slate-500">No instructors are currently assigned to this course.</p>
-              <button @click="openAssign(selectedCourse)" class="mt-2 text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-1">
-                + Assign instructors for Section A and Section B
+            <!-- Empty State for Faculty Assignments -->
+            <div v-else class="p-8 rounded-2xl border border-dashed border-slate-200 text-center bg-slate-50/50 space-y-3">
+              <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 border border-amber-200 flex items-center justify-center mx-auto">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-800">No Faculty Instructors Assigned Yet</p>
+                <p class="text-xs text-slate-400 max-w-sm mx-auto mt-0.5">
+                  This course is currently unassigned. Appoint an instructor to enable classroom examination administration and student assessments.
+                </p>
+              </div>
+              <button
+                @click="openAssign(selectedCourse)"
+                class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-[#4338ca] text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5"
+              >
+                <span>+ Assign Faculty for Section A and Section B</span>
               </button>
             </div>
           </div>
 
-          <!-- Description -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-6 sm:p-8 shadow-xs">
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Course Description & Syllabus Summary</h3>
-            <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
-              {{ selectedCourse?.description || selectedCourse?.short_description || selectedCourse?.full_description || 'No detailed syllabus or course description recorded in system.' }}
-            </p>
+          <!-- 3. COURSE DESCRIPTION & SYLLABUS SUMMARY CARD -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 shadow-sm space-y-4">
+            <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center shrink-0 shadow-2xs">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Course Description & Syllabus Summary</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Academic curriculum overview, learning goals, and course description recorded in system</p>
+              </div>
+            </div>
+
+            <div
+              v-if="selectedCourse?.description || selectedCourse?.short_description || selectedCourse?.full_description"
+              class="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line bg-slate-50/70 p-5 rounded-xl border border-slate-200/80 font-normal"
+            >
+              {{ selectedCourse?.description || selectedCourse?.short_description || selectedCourse?.full_description }}
+            </div>
+
+            <div v-else class="p-6 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50/50">
+              <p class="text-xs text-slate-400">No detailed syllabus or course description recorded in the system.</p>
+              <button
+                @click="openEditPage(selectedCourse)"
+                class="mt-2 text-xs font-bold text-[#4338ca] hover:underline inline-flex items-center gap-1"
+              >
+                <span>Edit Course to Add Description &rarr;</span>
+              </button>
+            </div>
           </div>
 
         </div>
 
-        <!-- Sidebar Details -->
+        <!-- Right Column / Sidebar Details -->
         <div class="space-y-6">
-          <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4">Record Metadata</h4>
-            <div class="space-y-3.5 text-xs">
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Created By</span>
-                <span class="font-bold text-slate-700">{{ selectedCourse?.created_by }}</span>
+          
+          <!-- Record Metadata Card -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+            <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Created Date</span>
-                <span class="font-semibold text-slate-700">{{ formatDateTime(selectedCourse?.created_at) }}</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Last Updated</span>
-                <span class="font-semibold text-slate-700">{{ formatDateTime(selectedCourse?.updated_at) }}</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Visibility</span>
-                <span class="font-bold text-slate-700">{{ selectedCourse?.visibility || 'Visible to Students' }}</span>
+              <div>
+                <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Record Metadata</h4>
+                <p class="text-[11px] text-slate-400">Audit trail & system reference</p>
               </div>
             </div>
 
-            <div class="mt-6 pt-4 border-t border-slate-100 space-y-2">
+            <div class="space-y-4 text-xs">
+              <!-- Created By -->
+              <div class="flex items-start justify-between gap-3">
+                <span class="text-slate-400 flex items-center gap-1.5 shrink-0">
+                  <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  Created By
+                </span>
+                <div class="text-right">
+                  <span class="font-bold text-slate-800 block">{{ creatorDisplayName }}</span>
+                  <span class="text-[10px] text-slate-400 block font-mono">User ID: {{ selectedCourse?.created_by || 7 }}</span>
+                </div>
+              </div>
+
+              <!-- Created Date -->
+              <div class="flex items-start justify-between gap-3">
+                <span class="text-slate-400 flex items-center gap-1.5 shrink-0">
+                  <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  Created Date
+                </span>
+                <span class="font-semibold text-slate-700 text-right">{{ formatDateTime(selectedCourse?.created_at) }}</span>
+              </div>
+
+              <!-- Last Updated -->
+              <div class="flex items-start justify-between gap-3">
+                <span class="text-slate-400 flex items-center gap-1.5 shrink-0">
+                  <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Last Updated
+                </span>
+                <span class="font-semibold text-slate-700 text-right">{{ formatDateTime(selectedCourse?.updated_at) }}</span>
+              </div>
+
+              <!-- Visibility -->
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-slate-400 flex items-center gap-1.5 shrink-0">
+                  <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  Visibility
+                </span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>{{ selectedCourse?.visibility || 'Visible to Students' }}</span>
+                </span>
+              </div>
+
+              <!-- Database Primary ID -->
+              <div class="flex items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                <span class="text-slate-400 flex items-center gap-1.5 shrink-0">
+                  <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                  System ID
+                </span>
+                <span class="font-mono text-xs font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/80">#{{ selectedCourse?.id }}</span>
+              </div>
+            </div>
+
+            <!-- Action Buttons Panel -->
+            <div class="pt-4 border-t border-slate-100 space-y-2.5">
               <button
                 @click="openEditPage(selectedCourse)"
-                class="w-full py-2.5 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2"
+                class="w-full py-2.5 px-4 bg-[#4338ca] hover:bg-[#3730a3] text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-xs"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                Edit Course
+                <svg class="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <span>Edit Course</span>
               </button>
+
+              <button
+                @click="openAssign(selectedCourse)"
+                class="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs"
+              >
+                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                <span>Assign Faculty</span>
+              </button>
+
               <button
                 @click="closeDetails"
-                class="w-full py-2.5 px-4 border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl text-xs transition-colors"
+                class="w-full py-2.5 px-4 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs"
               >
-                Back to Courses
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                <span>Back to Courses</span>
+              </button>
+
+              <button
+                @click="confirmDelete(selectedCourse)"
+                class="w-full py-2 px-4 text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2"
+              >
+                <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                <span>Remove Course</span>
               </button>
             </div>
           </div>
+
         </div>
       </div>
 
