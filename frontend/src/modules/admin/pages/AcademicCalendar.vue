@@ -116,24 +116,42 @@ const calendarCells = computed(() => {
   return cells
 })
 
-// ── Week View Logic ─────────────────────────────────────────────────────────
-const weekStart = ref((() => {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day // Start Monday
-  const mon = new Date(d)
-  mon.setDate(d.getDate() + diff)
-  mon.setHours(0, 0, 0, 0)
-  return mon
-})())
+// ── Week & List View Logic ──────────────────────────────────────────────────
+function getSundayOfWeek(d: Date): Date {
+  const date = new Date(d)
+  const day = date.getDay() // 0 = Sunday
+  date.setDate(date.getDate() - day)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+const weekStart = ref<Date>(getSundayOfWeek(today))
+
+function syncWeekWithCalendar() {
+  if (calendarYear.value === today.getFullYear() && calendarMonth.value === (today.getMonth() + 1)) {
+    weekStart.value = getSundayOfWeek(today)
+  } else {
+    weekStart.value = getSundayOfWeek(new Date(calendarYear.value, calendarMonth.value - 1, 1))
+  }
+}
+
+function setCalendarView(mode: 'month' | 'week' | 'list') {
+  calendarViewMode.value = mode
+  if (mode === 'week') {
+    syncWeekWithCalendar()
+  }
+}
 
 const weekDays = computed(() => {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart.value)
     d.setDate(weekStart.value.getDate() + i)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
     return {
       date: d,
-      dateStr: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      dateStr: `${y}-${m}-${day}`,
       label: d.toLocaleString('en-US', { weekday: 'short' }),
       dayNum: d.getDate()
     }
@@ -141,6 +159,7 @@ const weekDays = computed(() => {
 })
 
 const weekTitle = computed(() => {
+  if (!weekDays.value.length) return ''
   const start = weekDays.value[0].date
   const end = weekDays.value[6].date
   if (start.getMonth() === end.getMonth()) {
@@ -153,22 +172,69 @@ function prevWeek() {
   const d = new Date(weekStart.value)
   d.setDate(d.getDate() - 7)
   weekStart.value = d
+  const mid = new Date(d)
+  mid.setDate(d.getDate() + 3)
+  calendarYear.value = mid.getFullYear()
+  calendarMonth.value = mid.getMonth() + 1
 }
 
 function nextWeek() {
   const d = new Date(weekStart.value)
   d.setDate(d.getDate() + 7)
   weekStart.value = d
+  const mid = new Date(d)
+  mid.setDate(d.getDate() + 3)
+  calendarYear.value = mid.getFullYear()
+  calendarMonth.value = mid.getMonth() + 1
 }
 
 function goTodayWeek() {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const mon = new Date(d)
-  mon.setDate(d.getDate() + diff)
-  mon.setHours(0, 0, 0, 0)
-  weekStart.value = mon
+  goToday()
+  weekStart.value = getSundayOfWeek(today)
+}
+
+function handleCalendarPrev() {
+  if (calendarViewMode.value === 'week') {
+    prevWeek()
+  } else {
+    prevMonth()
+    syncWeekWithCalendar()
+  }
+}
+
+function handleCalendarNext() {
+  if (calendarViewMode.value === 'week') {
+    nextWeek()
+  } else {
+    nextMonth()
+    syncWeekWithCalendar()
+  }
+}
+
+function handleCalendarToday() {
+  goToday()
+  goTodayWeek()
+}
+
+// Date formatting helpers that avoid UTC skew
+function formatEventMonth(dateStr?: string | null): string {
+  if (!dateStr) return '-'
+  const parts = dateStr.split('-')
+  if (parts.length >= 2) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const m = parseInt(parts[1], 10)
+    return months[m - 1] || '-'
+  }
+  return '-'
+}
+
+function formatEventDay(dateStr?: string | null): string {
+  if (!dateStr) return '-'
+  const parts = dateStr.split('-')
+  if (parts.length === 3) {
+    return String(parseInt(parts[2], 10))
+  }
+  return '-'
 }
 
 // ── Filtered Events for Calendar & List Views ───────────────────────────────
@@ -190,15 +256,22 @@ function eventsOnDay(dateStr: string) {
   return displayedEvents.value.filter(e => e.start_date <= dateStr && e.end_date >= dateStr)
 }
 
+const listScope = ref<'month' | 'all'>('month')
+
 const listViewEvents = computed(() => {
   const y = calendarYear.value
   const m = calendarMonth.value
   const pad = (n: number) => String(n).padStart(2, '0')
-  const monthStr = `${y}-${pad(m)}`
-  return displayedEvents.value
-    .filter(e => e.start_date.startsWith(monthStr) || e.end_date.startsWith(monthStr))
-    .slice()
-    .sort((a, b) => a.start_date.localeCompare(b.start_date))
+  const startOfMonth = `${y}-${pad(m)}-01`
+  const lastDay = new Date(y, m, 0).getDate()
+  const endOfMonth = `${y}-${pad(m)}-${pad(lastDay)}`
+
+  let list = displayedEvents.value
+  if (listScope.value === 'month') {
+    list = list.filter(e => e.start_date <= endOfMonth && e.end_date >= startOfMonth)
+  }
+
+  return list.slice().sort((a, b) => a.start_date.localeCompare(b.start_date))
 })
 
 // ── Event Details Modal State ───────────────────────────────────────────────
@@ -1106,19 +1179,21 @@ onMounted(async () => {
             <!-- Calendar Header Toolbar -->
             <div class="flex flex-wrap items-center justify-between gap-3">
               
-              <!-- Month Navigation -->
+              <!-- Month / Week Navigation -->
               <div class="flex items-center gap-2">
                 <div class="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5">
                   <button
-                    @click="calendarViewMode === 'week' ? prevWeek() : prevMonth()"
-                    class="p-1.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-xs transition-all"
+                    type="button"
+                    @click="handleCalendarPrev"
+                    class="p-1.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-xs transition-all cursor-pointer"
                     title="Previous"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                   </button>
                   <button
-                    @click="calendarViewMode === 'week' ? nextWeek() : nextMonth()"
-                    class="p-1.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-xs transition-all"
+                    type="button"
+                    @click="handleCalendarNext"
+                    class="p-1.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-xs transition-all cursor-pointer"
                     title="Next"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -1126,8 +1201,9 @@ onMounted(async () => {
                 </div>
 
                 <button
-                  @click="calendarViewMode === 'week' ? goTodayWeek() : goToday()"
-                  class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-700 hover:bg-white hover:shadow-xs transition-all"
+                  type="button"
+                  @click="handleCalendarToday"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-700 hover:bg-white hover:shadow-xs transition-all cursor-pointer"
                 >
                   Today
                 </button>
@@ -1135,28 +1211,31 @@ onMounted(async () => {
 
               <!-- Month / Week Title -->
               <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                {{ calendarViewMode === 'week' ? weekTitle : calendarTitle }}
+                {{ calendarViewMode === 'week' ? weekTitle : (calendarViewMode === 'list' && listScope === 'all' ? (selectedAcademicYear + ' ' + selectedSemester + ' Events') : calendarTitle) }}
               </h2>
 
-              <!-- View Switcher -->
+              <!-- View Switcher (Month | Week | List) -->
               <div class="flex bg-slate-100 border border-slate-200 rounded-xl p-0.5 text-[11px] font-bold">
                 <button
-                  @click="calendarViewMode = 'month'"
-                  class="px-3 py-1 rounded-lg transition-all"
+                  type="button"
+                  @click="setCalendarView('month')"
+                  class="px-3 py-1 rounded-lg transition-all cursor-pointer"
                   :class="calendarViewMode === 'month' ? 'bg-white text-[#4338ca] shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                 >
                   Month
                 </button>
                 <button
-                  @click="calendarViewMode === 'week'"
-                  class="px-3 py-1 rounded-lg transition-all"
+                  type="button"
+                  @click="setCalendarView('week')"
+                  class="px-3 py-1 rounded-lg transition-all cursor-pointer"
                   :class="calendarViewMode === 'week' ? 'bg-white text-[#4338ca] shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                 >
                   Week
                 </button>
                 <button
-                  @click="calendarViewMode === 'list'"
-                  class="px-3 py-1 rounded-lg transition-all"
+                  type="button"
+                  @click="setCalendarView('list')"
+                  class="px-3 py-1 rounded-lg transition-all cursor-pointer"
                   :class="calendarViewMode === 'list' ? 'bg-white text-[#4338ca] shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                 >
                   List
@@ -1206,14 +1285,14 @@ onMounted(async () => {
                       :key="ev.id"
                       class="px-1.5 py-1 text-[10px] font-bold rounded-md truncate cursor-pointer transition-transform hover:scale-[1.02] shadow-2xs border"
                       :style="{
-                        backgroundColor: ev.color + '18',
-                        color: ev.color,
-                        borderColor: ev.color + '33'
+                        backgroundColor: (ev.color || '#4338ca') + '18',
+                        color: ev.color || '#4338ca',
+                        borderColor: (ev.color || '#4338ca') + '33'
                       }"
                       @click.stop="openDetailsModal(ev)"
                       :title="ev.title + ' (' + ev.status + ')'"
                     >
-                      <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" :style="{ backgroundColor: ev.color }"></span>
+                      <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" :style="{ backgroundColor: ev.color || '#4338ca' }"></span>
                       <span class="align-middle">{{ ev.title }}</span>
                     </div>
                   </div>
@@ -1226,38 +1305,47 @@ onMounted(async () => {
             <!-- 2. WEEK VIEW GRID -->
             <div v-else-if="calendarViewMode === 'week'" class="overflow-x-auto min-w-0">
               <div class="min-w-[580px] grid grid-cols-7 gap-2">
-                <div v-for="wd in weekDays" :key="wd.dateStr" class="flex flex-col">
+                <div v-for="wd in weekDays" :key="wd.dateStr" class="flex flex-col group">
                   
                   <!-- Day Header -->
                   <div
-                    class="text-center py-2 rounded-t-xl text-[11px] font-bold uppercase tracking-wide border border-b-0"
-                    :class="wd.dateStr === todayStr ? 'bg-[#4338ca] text-white border-[#4338ca]' : 'bg-slate-50 text-slate-500 border-slate-200'"
+                    class="text-center py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-wide border border-b-0 transition-colors"
+                    :class="wd.dateStr === todayStr ? 'bg-[#4338ca] text-white border-[#4338ca]' : 'bg-slate-50 text-slate-600 border-slate-200'"
                   >
-                    <div>{{ wd.label }}</div>
+                    <div class="text-[10px] opacity-80">{{ wd.label }}</div>
                     <div class="text-sm font-black mt-0.5">{{ wd.dayNum }}</div>
                   </div>
 
-                  <!-- Events column -->
+                  <!-- Events column / Clickable day slot -->
                   <div
-                    class="min-h-[160px] border border-slate-200 rounded-b-xl p-1.5 space-y-1 bg-white flex-1"
-                    :class="wd.dateStr === todayStr ? 'border-[#4338ca]/30 bg-indigo-50/5' : ''"
+                    class="min-h-[190px] border border-slate-200 rounded-b-xl p-1.5 space-y-1.5 bg-white flex-1 hover:bg-slate-50/70 transition-colors cursor-pointer relative flex flex-col"
+                    :class="wd.dateStr === todayStr ? 'border-[#4338ca]/30 bg-indigo-50/5 ring-1 ring-inset ring-[#4338ca]/20' : ''"
+                    @click="openAddEventModal(wd.dateStr)"
+                    title="Click to schedule an event on this day"
                   >
                     <div
                       v-for="ev in eventsOnDay(wd.dateStr)"
                       :key="ev.id"
-                      class="p-1.5 text-[10px] font-bold rounded-lg cursor-pointer truncate border shadow-2xs"
+                      class="p-1.5 text-[10px] font-bold rounded-lg cursor-pointer truncate border shadow-2xs transition-transform hover:scale-[1.02]"
                       :style="{
-                        backgroundColor: ev.color + '18',
-                        color: ev.color,
-                        borderColor: ev.color + '33'
+                        backgroundColor: (ev.color || '#4338ca') + '18',
+                        color: ev.color || '#4338ca',
+                        borderColor: (ev.color || '#4338ca') + '33'
                       }"
-                      @click="openDetailsModal(ev)"
+                      @click.stop="openDetailsModal(ev)"
+                      :title="ev.title + ' (' + ev.status + ')'"
                     >
-                      <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :style="{ backgroundColor: ev.color }"></span>
-                      {{ ev.title }}
+                      <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :style="{ backgroundColor: ev.color || '#4338ca' }"></span>
+                      <span>{{ ev.title }}</span>
                     </div>
-                    <div v-if="eventsOnDay(wd.dateStr).length === 0" class="h-full flex items-center justify-center">
-                      <span class="text-[11px] text-slate-300 font-bold">—</span>
+
+                    <!-- Empty state slot with subtle add prompt on hover -->
+                    <div
+                      v-if="eventsOnDay(wd.dateStr).length === 0"
+                      class="h-full flex-1 min-h-[130px] flex flex-col items-center justify-center text-slate-300 group-hover:text-indigo-500 transition-colors"
+                    >
+                      <span class="text-xl font-light leading-none">+</span>
+                      <span class="text-[10px] font-bold mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Add</span>
                     </div>
                   </div>
 
@@ -1266,34 +1354,103 @@ onMounted(async () => {
             </div>
 
             <!-- 3. LIST / AGENDA VIEW -->
-            <div v-else-if="calendarViewMode === 'list'" class="space-y-3">
-              <div v-if="listViewEvents.length === 0" class="py-12 text-center text-slate-400 text-[13px] font-medium">
-                No events scheduled for {{ calendarTitle }}.
+            <div v-else-if="calendarViewMode === 'list'" class="space-y-4">
+              
+              <!-- List Controls Subheader -->
+              <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50/70 rounded-xl border border-slate-200">
+                <div class="flex items-center gap-2">
+                  <span class="text-[12px] font-bold text-slate-700">Scope:</span>
+                  <div class="flex bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      @click="listScope = 'month'"
+                      class="px-2.5 py-1 rounded-md transition-all cursor-pointer"
+                      :class="listScope === 'month' ? 'bg-indigo-50 text-[#4338ca]' : 'text-slate-500 hover:text-slate-800'"
+                    >
+                      This Month
+                    </button>
+                    <button
+                      type="button"
+                      @click="listScope = 'all'"
+                      class="px-2.5 py-1 rounded-md transition-all cursor-pointer"
+                      :class="listScope === 'all' ? 'bg-indigo-50 text-[#4338ca]' : 'text-slate-500 hover:text-slate-800'"
+                    >
+                      All Term Events ({{ displayedEvents.length }})
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    @click="openAddEventModal()"
+                    class="px-3 py-1.5 bg-[#4338ca] hover:bg-[#3730a3] text-white rounded-lg text-[11px] font-bold transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <span>Add Event</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="activeTab = 'Event List'"
+                    class="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline px-2 cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Full Table</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                  </button>
+                </div>
               </div>
 
-              <div v-else class="space-y-2">
+              <!-- Empty state -->
+              <div v-if="listViewEvents.length === 0" class="py-12 text-center space-y-3 bg-slate-50/40 rounded-xl border border-dashed border-slate-200">
+                <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </div>
+                <p class="text-slate-600 font-bold text-[13px]">
+                  No events found {{ listScope === 'month' ? 'for ' + calendarTitle : 'in this academic term' }}.
+                </p>
+                <div class="flex items-center justify-center gap-2 pt-1">
+                  <button
+                    v-if="listScope === 'month' && displayedEvents.length > 0"
+                    type="button"
+                    @click="listScope = 'all'"
+                    class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-slate-100 cursor-pointer"
+                  >
+                    Show All Term Events ({{ displayedEvents.length }})
+                  </button>
+                  <button
+                    type="button"
+                    @click="openAddEventModal()"
+                    class="px-3 py-1.5 rounded-lg bg-[#4338ca] text-white text-[11px] font-bold hover:bg-[#3730a3] cursor-pointer"
+                  >
+                    + Schedule Event
+                  </button>
+                </div>
+              </div>
+
+              <!-- List of event cards -->
+              <div v-else class="space-y-2.5">
                 <div
                   v-for="ev in listViewEvents"
                   :key="ev.id"
-                  class="flex items-start justify-between gap-4 p-3.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/60 transition-colors cursor-pointer"
+                  class="flex items-center justify-between gap-4 p-3.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/70 hover:border-slate-300 transition-all cursor-pointer shadow-2xs group"
                   @click="openDetailsModal(ev)"
                 >
-                  <div class="flex items-start gap-3 min-w-0">
+                  <div class="flex items-start gap-3.5 min-w-0">
                     <!-- Date badge -->
-                    <div class="shrink-0 w-12 text-center bg-slate-50 border border-slate-200 rounded-xl py-1">
-                      <div class="text-[10px] font-bold text-slate-400 uppercase">
-                        {{ new Date(ev.start_date + 'T00:00:00').toLocaleString('en-US', { month: 'short' }) }}
+                    <div class="shrink-0 w-12 text-center bg-slate-50 border border-slate-200 rounded-xl py-1.5 shadow-2xs">
+                      <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        {{ formatEventMonth(ev.start_date) }}
                       </div>
-                      <div class="text-base font-black text-slate-800 leading-none">
-                        {{ new Date(ev.start_date + 'T00:00:00').getDate() }}
+                      <div class="text-base font-black text-slate-800 leading-none mt-0.5">
+                        {{ formatEventDay(ev.start_date) }}
                       </div>
                     </div>
 
                     <!-- Content -->
                     <div class="min-w-0">
                       <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-[13px] font-bold text-slate-900">{{ ev.title }}</span>
-                        <span v-if="ev.category_name" class="px-2 py-0.5 rounded text-[10px] font-bold" :style="{ backgroundColor: ev.color + '18', color: ev.color }">
+                        <span class="text-[13px] font-bold text-slate-900 group-hover:text-[#4338ca] transition-colors">{{ ev.title }}</span>
+                        <span v-if="ev.category_name" class="px-2 py-0.5 rounded text-[10px] font-bold" :style="{ backgroundColor: (ev.color || '#4338ca') + '18', color: ev.color || '#4338ca' }">
                           {{ ev.category_name }}
                         </span>
                         <span :class="getStatusBadge(ev.status)" class="px-2 py-0.5 rounded text-[10px] font-bold border capitalize">
@@ -1302,16 +1459,32 @@ onMounted(async () => {
                       </div>
                       <p v-if="ev.description" class="text-[12px] text-slate-500 mt-0.5 truncate">{{ ev.description }}</p>
                       <p class="text-[11px] text-slate-400 font-medium mt-1">
-                        {{ ev.start_date }} &rarr; {{ ev.end_date }} &bull; {{ ev.academic_year }} ({{ ev.semester }})
+                        {{ ev.start_date }} <span v-if="ev.end_date !== ev.start_date">&rarr; {{ ev.end_date }}</span> &bull; {{ ev.academic_year }} ({{ ev.semester }})
                       </p>
                     </div>
                   </div>
 
-                  <!-- Relative days badge -->
-                  <div class="shrink-0">
+                  <!-- Relative days badge & Quick Actions -->
+                  <div class="flex items-center gap-2 shrink-0">
                     <span :class="daysUntilBadgeColor(ev.start_date)" class="px-2.5 py-1 rounded-lg text-[11px]">
                       {{ daysUntil(ev.start_date) }}
                     </span>
+                    <button
+                      type="button"
+                      @click.stop="openEditEventModal(ev)"
+                      class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                      title="Edit event"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button
+                      type="button"
+                      @click.stop="confirmDeleteEvent(ev)"
+                      class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Delete event"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
                   </div>
                 </div>
               </div>
