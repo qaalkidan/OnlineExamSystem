@@ -37,7 +37,8 @@ const showDeleteModal = ref(false)
 const showStatusConfirmModal = ref(false)
 const showListAssignHeadModal = ref(false)
 
-const showDetailView = ref(false)
+const showDetailModal = ref(false)
+const showDetailView = showDetailModal
 const viewingDept = ref<any>(null)
 const detailActiveTab = ref('info')
 const detailData = ref<any>(null)
@@ -280,8 +281,7 @@ const fetchDepartments = async (silent = false) => {
 const viewDeptDetail = async (dept: any) => {
   viewingDept.value = dept
   detailActiveTab.value = 'info'
-  showDetailView.value = true
-  showAddForm.value = false
+  showDetailModal.value = true
   isDetailLoading.value = true
   try {
     const res = await apiClient.get(`/admin/departments/${dept.id}`)
@@ -307,14 +307,19 @@ const viewDeptDetail = async (dept: any) => {
   }
 }
 
-const backToDepartments = () => {
-  showDetailView.value = false
+const closeDetailModal = () => {
+  showDetailModal.value = false
   viewingDept.value = null
   detailData.value = null
 }
 
+const backToDepartments = () => {
+  closeDetailModal()
+}
+
 // ── Relationship Navigation ─────────────────────────────────────────────────
 const navigateToModule = (route: string, deptId: number, deptName: string) => {
+  closeDetailModal()
   if (route === 'students') {
     router.push({ path: '/admin/students', query: { department_id: String(deptId), department: deptName } })
   } else if (route === 'instructors') {
@@ -613,13 +618,31 @@ const handleExport = async (format: 'csv' | 'pdf') => {
   }
 }
 
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    if (showListAssignHeadModal.value) {
+      showListAssignHeadModal.value = false
+    } else if (showEditModal.value) {
+      showEditModal.value = false
+    } else if (showStatusConfirmModal.value) {
+      showStatusConfirmModal.value = false
+    } else if (showDeleteModal.value) {
+      showDeleteModal.value = false
+    } else if (showDetailModal.value) {
+      closeDetailModal()
+    }
+  }
+}
+
 onMounted(() => {
   fetchDepartments()
   document.addEventListener('click', closeDropdowns)
+  window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', closeDropdowns)
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -629,7 +652,7 @@ onUnmounted(() => {
     <!-- ────────────────────────────────────────────────────────────────────────
          VIEW 1: DEPARTMENT LIST (MAIN ERP TABLE VIEW)
     ──────────────────────────────────────────────────────────────────────── -->
-    <div v-if="!showAddForm && !showDetailView" class="space-y-6 min-w-0 w-full animate-in fade-in duration-200">
+    <div v-if="!showAddForm" class="space-y-6 min-w-0 w-full animate-in fade-in duration-200">
 
       <!-- Institutional Header & Actions -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -1163,7 +1186,7 @@ onUnmounted(() => {
     <!-- ────────────────────────────────────────────────────────────────────────
          VIEW 2: ADD DEPARTMENT FORM (MODERN ENTERPRISE FORM)
     ──────────────────────────────────────────────────────────────────────── -->
-    <div v-if="showAddForm && !showDetailView" class="space-y-6 pb-12 min-w-0 w-full animate-in fade-in duration-200">
+    <div v-if="showAddForm" class="space-y-6 pb-12 min-w-0 w-full animate-in fade-in duration-200">
       
       <!-- Institutional Breadcrumbs & Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -1304,453 +1327,508 @@ onUnmounted(() => {
     </div>
 
     <!-- ────────────────────────────────────────────────────────────────────────
-         VIEW 3: REAL DEPARTMENT DETAILS & RELATIONSHIPS VIEW
-    ──────────────────────────────────────────────────────────────────────── -->
-    <div v-if="showDetailView && viewingDept" class="space-y-6 pb-12 min-w-0 w-full animate-in fade-in duration-200">
-      
-      <!-- Institutional Breadcrumbs & Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-            <span @click="backToDepartments" class="hover:text-indigo-600 cursor-pointer">Departments</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            <span class="text-slate-700 font-bold">{{ viewingDept.name }}</span>
-          </div>
-          <div class="flex flex-wrap items-center gap-3">
-            <h1 class="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{{ viewingDept.name }}</h1>
-            <span
-              class="text-xs font-bold px-2.5 py-0.5 rounded-full border capitalize"
-              :class="viewingDept.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'"
-            >
-              {{ viewingDept.status }}
-            </span>
-            <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-50 text-[#4338ca] border border-indigo-100">
-              {{ viewingDept.code }}
-            </span>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2.5">
-          <button
-            @click="openEditModal(viewingDept)"
-            class="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-50 border border-indigo-200 text-[#4338ca] font-bold rounded-xl text-xs hover:bg-indigo-100 transition-colors shadow-sm"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-            <span>Edit Department</span>
-          </button>
-          <button
-            @click="backToDepartments"
-            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors shadow-sm"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            <span>Back to List</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Top Summary Profile Card & Real Metrics -->
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
-        <div class="flex flex-col lg:flex-row items-start justify-between gap-6">
-          <div class="flex items-start gap-4">
-            <div class="w-16 h-16 rounded-2xl bg-indigo-50 border-2 border-indigo-100 text-[#4338ca] flex items-center justify-center font-black text-xl shrink-0">
-              {{ (viewingDept.code || viewingDept.name || 'DP').slice(0, 2).toUpperCase() }}
-            </div>
-            <div>
-              <h2 class="text-lg font-bold text-slate-800">{{ viewingDept.name }}</h2>
-              <p class="text-xs font-semibold text-slate-500 mt-0.5">{{ viewingDept.college || viewingDept.subLabel }}</p>
-              <div class="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-600">
-                <span class="flex items-center gap-1.5">
-                  <span class="text-slate-400">Head:</span>
-                  <strong class="text-slate-800">{{ viewingDept.head }}</strong>
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="text-slate-400">Established:</span>
-                  <strong class="text-slate-800">{{ viewingDept.established !== 'N/A' ? viewingDept.established : 'N/A' }}</strong>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 4 Real Relationship KPI Badges -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto shrink-0">
-            <div
-              @click="detailActiveTab = 'students'"
-              class="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-indigo-50/50 cursor-pointer transition-colors text-center"
-            >
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Students</span>
-              <p class="text-xl font-black text-slate-800 mt-0.5">{{ detailData?.students?.length ?? viewingDept.students }}</p>
-              <span class="text-[10px] text-indigo-600 font-semibold">Enrolled</span>
-            </div>
-
-            <div
-              @click="detailActiveTab = 'instructors'"
-              class="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-indigo-50/50 cursor-pointer transition-colors text-center"
-            >
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Faculty</span>
-              <p class="text-xl font-black text-slate-800 mt-0.5">{{ detailData?.instructors?.length ?? viewingDept.instructors }}</p>
-              <span class="text-[10px] text-indigo-600 font-semibold">Instructors</span>
-            </div>
-
-            <div
-              @click="detailActiveTab = 'courses'"
-              class="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-indigo-50/50 cursor-pointer transition-colors text-center"
-            >
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Courses</span>
-              <p class="text-xl font-black text-slate-800 mt-0.5">{{ detailData?.courses?.length ?? viewingDept.courses }}</p>
-              <span class="text-[10px] text-indigo-600 font-semibold">Active</span>
-            </div>
-
-            <div
-              @click="detailActiveTab = 'exams'"
-              class="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-indigo-50/50 cursor-pointer transition-colors text-center"
-            >
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Exams</span>
-              <p class="text-xl font-black text-slate-800 mt-0.5">{{ detailData?.exams?.length ?? viewingDept.exams }}</p>
-              <span class="text-[10px] text-indigo-600 font-semibold">Scheduled</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tabbed Navigation and Dynamic Views -->
-      <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
-        
-        <!-- Sidebar Tabs -->
-        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-2.5 space-y-1">
-          <button
-            v-for="tab in detailTabs"
-            :key="tab.key"
-            @click="detailActiveTab = tab.key"
-            class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors text-left"
-            :class="detailActiveTab === tab.key ? 'bg-indigo-50 text-[#4338ca]' : 'text-slate-600 hover:bg-slate-50'"
-          >
-            <svg class="w-4 h-4 shrink-0" :class="detailActiveTab === tab.key ? 'text-[#4338ca]' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
-            </svg>
-            <span>{{ tab.label }}</span>
-          </button>
-        </div>
-
-        <!-- Main Tab Content Area -->
-        <div class="space-y-6">
-
-          <!-- 1. Overview Tab -->
-          <div v-if="detailActiveTab === 'info'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
-            <h3 class="text-sm font-bold text-slate-800 pb-2 border-b border-slate-100">Academic Structure & Specifications</h3>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div class="p-3 bg-slate-50/60 rounded-xl">
-                <span class="text-slate-400 block mb-0.5">Department Name</span>
-                <strong class="text-slate-800 text-sm">{{ viewingDept.name }}</strong>
-              </div>
-              <div class="p-3 bg-slate-50/60 rounded-xl">
-                <span class="text-slate-400 block mb-0.5">Department Code</span>
-                <strong class="text-[#4338ca] font-mono text-sm">{{ viewingDept.code }}</strong>
-              </div>
-              <div class="p-3 bg-slate-50/60 rounded-xl">
-                <span class="text-slate-400 block mb-0.5">College / School</span>
-                <strong class="text-slate-800">{{ viewingDept.college || viewingDept.faculty }}</strong>
-              </div>
-              <div class="p-3 bg-slate-50/60 rounded-xl">
-                <span class="text-slate-400 block mb-0.5">Established Year</span>
-                <strong class="text-slate-800">{{ viewingDept.established !== 'N/A' ? viewingDept.established : 'N/A' }}</strong>
-              </div>
-              <div class="p-3 bg-slate-50/60 rounded-xl">
-                <span class="text-slate-400 block mb-0.5">Head of Department</span>
-                <strong class="text-slate-800">{{ detailData?.department?.head?.name || viewingDept.head }}</strong>
-              </div>
-              <div class="p-3 bg-slate-50/60 rounded-xl">
-                <span class="text-slate-400 block mb-0.5">Status</span>
-                <strong class="capitalize" :class="viewingDept.status === 'active' ? 'text-emerald-700' : 'text-slate-600'">{{ viewingDept.status }}</strong>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. Leadership & Department Head Tab -->
-          <div v-if="detailActiveTab === 'head'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 class="text-sm font-bold text-slate-800">Department Head Leadership</h3>
-                <p class="text-xs text-slate-400 mt-0.5">Designated academic leader supervising this department</p>
-              </div>
-              <button
-                @click="openAssignHeadFromList(viewingDept)"
-                class="px-4 py-2 bg-indigo-50 border border-indigo-200 text-[#4338ca] text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors"
-              >
-                {{ detailData?.department?.head ? 'Change Department Head' : 'Appoint Department Head' }}
-              </button>
-            </div>
-
-            <!-- Current Head Card -->
-            <div v-if="detailData?.department?.head" class="p-5 border border-slate-100 rounded-xl bg-slate-50/50 flex items-center gap-4">
-              <div class="w-14 h-14 rounded-2xl bg-indigo-100 text-[#4338ca] flex items-center justify-center font-bold text-lg shrink-0">
-                {{ detailData.department.head.name.slice(0, 2).toUpperCase() }}
-              </div>
-              <div class="space-y-1">
-                <h4 class="text-sm font-bold text-slate-800">{{ detailData.department.head.name }}</h4>
-                <p class="text-xs text-slate-500">{{ detailData.department.head.email }}</p>
-                <p v-if="detailData.department.head.phone" class="text-xs text-slate-400">Phone: {{ detailData.department.head.phone }}</p>
-                <span class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                  Head of Department
-                </span>
-              </div>
-            </div>
-
-            <div v-else class="text-center py-10 border border-dashed border-slate-200 rounded-xl space-y-2">
-              <div class="w-10 h-10 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              </div>
-              <p class="text-xs font-bold text-slate-700">No Department Head Appointed</p>
-              <p class="text-[11px] text-slate-400 max-w-sm mx-auto">Appoint an instructor belonging to this department to assume the Department Head role.</p>
-            </div>
-          </div>
-
-          <!-- 3. Instructors Tab -->
-          <div v-if="detailActiveTab === 'instructors'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 class="text-sm font-bold text-slate-800">Faculty & Instructors</h3>
-                <p class="text-xs text-slate-400 mt-0.5">Faculty members assigned to {{ viewingDept.name }}</p>
-              </div>
-              <button
-                @click="navigateToModule('instructors', viewingDept.id, viewingDept.name)"
-                class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
-              >
-                Open in Instructor Center →
-              </button>
-            </div>
-
-            <div v-if="!detailData?.instructors?.length" class="text-center py-12 text-xs text-slate-400">
-              No faculty or instructors assigned to this department yet.
-            </div>
-
-            <div v-else class="overflow-x-auto">
-              <table class="w-full text-left whitespace-nowrap text-xs">
-                <thead>
-                  <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    <th class="py-2.5 px-3">Instructor</th>
-                    <th class="py-2.5 px-3">Email</th>
-                    <th class="py-2.5 px-3">Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="inst in detailData.instructors" :key="inst.id" class="border-b border-slate-50 hover:bg-slate-50/60">
-                    <td class="py-3 px-3 font-semibold text-slate-800">{{ inst.name }}</td>
-                    <td class="py-3 px-3 text-slate-500">{{ inst.email }}</td>
-                    <td class="py-3 px-3 capitalize">
-                      <span :class="inst.role === 'dept_head' ? 'font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded' : 'text-slate-600'">
-                        {{ inst.role === 'dept_head' ? 'Department Head' : 'Instructor' }}
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- 4. Courses Tab -->
-          <div v-if="detailActiveTab === 'courses'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 class="text-sm font-bold text-slate-800">Academic Courses</h3>
-                <p class="text-xs text-slate-400 mt-0.5">Course offerings registered under {{ viewingDept.name }}</p>
-              </div>
-              <button
-                @click="navigateToModule('courses', viewingDept.id, viewingDept.name)"
-                class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
-              >
-                Open in Course Center →
-              </button>
-            </div>
-
-            <div v-if="!detailData?.courses?.length" class="text-center py-12 text-xs text-slate-400">
-              No courses registered under this department yet.
-            </div>
-
-            <div v-else class="overflow-x-auto">
-              <table class="w-full text-left whitespace-nowrap text-xs">
-                <thead>
-                  <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    <th class="py-2.5 px-3">Code</th>
-                    <th class="py-2.5 px-3">Course Title</th>
-                    <th class="py-2.5 px-3 text-center">Credits</th>
-                    <th class="py-2.5 px-3">Instructor</th>
-                    <th class="py-2.5 px-3 text-center">Semester</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="c in detailData.courses" :key="c.id" class="border-b border-slate-50 hover:bg-slate-50/60">
-                    <td class="py-3 px-3 font-mono font-bold text-indigo-600">{{ c.code }}</td>
-                    <td class="py-3 px-3 font-semibold text-slate-800">{{ c.title }}</td>
-                    <td class="py-3 px-3 text-center font-bold text-slate-700">{{ c.credits }} CR</td>
-                    <td class="py-3 px-3 text-slate-600">{{ c.instructor?.name || 'Unassigned' }}</td>
-                    <td class="py-3 px-3 text-center text-slate-500">{{ c.semester || 'Semester 1' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- 5. Students Tab -->
-          <div v-if="detailActiveTab === 'students'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 class="text-sm font-bold text-slate-800">Enrolled Students</h3>
-                <p class="text-xs text-slate-400 mt-0.5">Undergraduate and graduate students registered in {{ viewingDept.name }}</p>
-              </div>
-              <button
-                @click="navigateToModule('students', viewingDept.id, viewingDept.name)"
-                class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
-              >
-                Open in Student Center →
-              </button>
-            </div>
-
-            <div v-if="!detailData?.students?.length" class="text-center py-12 text-xs text-slate-400">
-              No students enrolled in this department yet.
-            </div>
-
-            <div v-else class="overflow-x-auto">
-              <table class="w-full text-left whitespace-nowrap text-xs">
-                <thead>
-                  <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    <th class="py-2.5 px-3">Student Name</th>
-                    <th class="py-2.5 px-3">Email</th>
-                    <th class="py-2.5 px-3">Joined Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="st in detailData.students" :key="st.id" class="border-b border-slate-50 hover:bg-slate-50/60">
-                    <td class="py-3 px-3 font-semibold text-slate-800">{{ st.name }}</td>
-                    <td class="py-3 px-3 text-slate-500">{{ st.email }}</td>
-                    <td class="py-3 px-3 text-slate-400">{{ new Date(st.created_at).toLocaleDateString() }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- 6. Exams Tab -->
-          <div v-if="detailActiveTab === 'exams'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 class="text-sm font-bold text-slate-800">Department Examinations</h3>
-                <p class="text-xs text-slate-400 mt-0.5">Exams scheduled for courses under {{ viewingDept.name }}</p>
-              </div>
-              <button
-                @click="navigateToModule('exams', viewingDept.id, viewingDept.name)"
-                class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
-              >
-                Open in Exam Center →
-              </button>
-            </div>
-
-            <div v-if="!detailData?.exams?.length" class="text-center py-12 text-xs text-slate-400">
-              No examinations scheduled for this department yet.
-            </div>
-
-            <div v-else class="overflow-x-auto">
-              <table class="w-full text-left whitespace-nowrap text-xs">
-                <thead>
-                  <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    <th class="py-2.5 px-3">Exam Title</th>
-                    <th class="py-2.5 px-3">Course</th>
-                    <th class="py-2.5 px-3 text-center">Duration</th>
-                    <th class="py-2.5 px-3 text-center">Marks</th>
-                    <th class="py-2.5 px-3 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="ex in detailData.exams" :key="ex.id" class="border-b border-slate-50 hover:bg-slate-50/60">
-                    <td class="py-3 px-3 font-semibold text-slate-800">{{ ex.title }}</td>
-                    <td class="py-3 px-3 text-slate-600">{{ ex.course?.title || ex.course_code }}</td>
-                    <td class="py-3 px-3 text-center">{{ ex.duration_minutes }}m</td>
-                    <td class="py-3 px-3 text-center font-bold">{{ ex.total_marks }}</td>
-                    <td class="py-3 px-3 text-center capitalize">
-                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                        {{ ex.status }}
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- 7. Settings Tab -->
-          <div v-if="detailActiveTab === 'settings'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
-            <h3 class="text-sm font-bold text-slate-800 pb-2 border-b border-slate-100">Department Lifecycle & Status</h3>
-            
-            <div class="space-y-4">
-              <div class="flex items-center justify-between p-4 border border-slate-100 rounded-xl bg-slate-50/40">
-                <div>
-                  <p class="text-xs font-bold text-slate-800">Operational Status</p>
-                  <p class="text-[11px] text-slate-400 mt-0.5">Toggle department state between active and dormant</p>
-                </div>
-                <button
-                  @click="promptToggleStatus(viewingDept)"
-                  class="px-4 py-2 text-xs font-bold rounded-xl border transition-colors"
-                  :class="viewingDept.status === 'active' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'"
-                >
-                  {{ viewingDept.status === 'active' ? 'Deactivate Department' : 'Activate Department' }}
-                </button>
-              </div>
-
-              <!-- Danger Zone -->
-              <div class="p-4 border border-rose-100 rounded-xl bg-rose-50/30 flex items-center justify-between">
-                <div>
-                  <p class="text-xs font-bold text-rose-800">Danger Zone</p>
-                  <p class="text-[11px] text-rose-500 mt-0.5">Permanently remove this department from the registry</p>
-                </div>
-                <button
-                  @click="confirmDelete(viewingDept)"
-                  class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-sm"
-                >
-                  Delete Department
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 8. Activity Log Tab -->
-          <div v-if="detailActiveTab === 'activity'" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <h3 class="text-sm font-bold text-slate-800 pb-2 border-b border-slate-100">Audit Trail & Administrative History</h3>
-            
-            <div v-if="!detailData?.activities?.length" class="text-center py-12 text-xs text-slate-400">
-              No activity logs recorded for this department yet.
-            </div>
-
-            <div v-else class="space-y-3">
-              <div
-                v-for="log in detailData.activities"
-                :key="log.id"
-                class="p-3.5 border border-slate-100 rounded-xl bg-slate-50/40 flex items-start gap-3"
-              >
-                <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center shrink-0">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </div>
-                <div class="flex-1 text-xs">
-                  <p class="font-bold text-slate-800">{{ log.action }}</p>
-                  <p class="text-slate-500 mt-0.5">{{ log.description || log.action }}</p>
-                  <p class="text-[10px] text-slate-400 mt-1">Logged by {{ log.user?.name || 'Administrator' }} • {{ new Date(log.created_at).toLocaleString() }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-    <!-- ────────────────────────────────────────────────────────────────────────
          MODALS & DIALOGS
     ──────────────────────────────────────────────────────────────────────── -->
 
+    <!-- 0. Department Detail Popup Modal (Modern Popup Display Structure) -->
+    <Teleport to="body">
+      <div
+        v-if="showDetailModal && viewingDept"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-5 md:p-6 transition-all duration-200"
+        @click.self="closeDetailModal"
+      >
+        <div
+          class="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          @click.stop
+        >
+          <!-- 1. Modal Header -->
+          <div class="px-6 py-5 border-b border-slate-100 bg-white flex items-center justify-between gap-4 shrink-0">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md flex items-center justify-center font-black text-base shrink-0 tracking-wider">
+                {{ (viewingDept.code || viewingDept.name || 'DP').slice(0, 2).toUpperCase() }}
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h2 class="text-base sm:text-lg font-black text-slate-800 tracking-tight truncate">{{ viewingDept.name }}</h2>
+                  <span class="font-mono text-[11px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 text-[#4338ca] border border-indigo-100 shrink-0">
+                    {{ viewingDept.code }}
+                  </span>
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize shrink-0"
+                    :class="viewingDept.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'"
+                  >
+                    {{ viewingDept.status }}
+                  </span>
+                </div>
+                <p class="text-xs font-semibold text-slate-400 mt-0.5 truncate">
+                  {{ viewingDept.college || viewingDept.faculty || viewingDept.subLabel || 'Wollo University' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Header Action Controls -->
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                @click="openEditModal(viewingDept)"
+                class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-[#4338ca] border border-indigo-200 font-bold rounded-xl text-xs transition-colors shadow-xs"
+                title="Edit Department"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <span>Edit</span>
+              </button>
+              <button
+                @click="closeDetailModal"
+                class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors"
+                title="Close (Esc)"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Interactive KPI Quick Ribbon -->
+          <div class="px-6 py-3.5 bg-slate-50/70 border-b border-slate-100 shrink-0">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div
+                @click="detailActiveTab = 'students'"
+                class="p-2.5 rounded-xl border transition-all cursor-pointer text-center bg-white"
+                :class="detailActiveTab === 'students' ? 'border-[#4338ca] ring-2 ring-indigo-100 bg-indigo-50/30' : 'border-slate-200/80 hover:border-indigo-200 hover:bg-indigo-50/20'"
+              >
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Students</span>
+                <p class="text-base sm:text-lg font-black text-slate-800 leading-tight mt-0.5">{{ detailData?.students?.length ?? viewingDept.students }}</p>
+                <span class="text-[10px] text-indigo-600 font-semibold">Enrolled</span>
+              </div>
+
+              <div
+                @click="detailActiveTab = 'instructors'"
+                class="p-2.5 rounded-xl border transition-all cursor-pointer text-center bg-white"
+                :class="detailActiveTab === 'instructors' ? 'border-[#4338ca] ring-2 ring-indigo-100 bg-indigo-50/30' : 'border-slate-200/80 hover:border-indigo-200 hover:bg-indigo-50/20'"
+              >
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Faculty</span>
+                <p class="text-base sm:text-lg font-black text-slate-800 leading-tight mt-0.5">{{ detailData?.instructors?.length ?? viewingDept.instructors }}</p>
+                <span class="text-[10px] text-indigo-600 font-semibold">Instructors</span>
+              </div>
+
+              <div
+                @click="detailActiveTab = 'courses'"
+                class="p-2.5 rounded-xl border transition-all cursor-pointer text-center bg-white"
+                :class="detailActiveTab === 'courses' ? 'border-[#4338ca] ring-2 ring-indigo-100 bg-indigo-50/30' : 'border-slate-200/80 hover:border-indigo-200 hover:bg-indigo-50/20'"
+              >
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Courses</span>
+                <p class="text-base sm:text-lg font-black text-slate-800 leading-tight mt-0.5">{{ detailData?.courses?.length ?? viewingDept.courses }}</p>
+                <span class="text-[10px] text-indigo-600 font-semibold">Active</span>
+              </div>
+
+              <div
+                @click="detailActiveTab = 'exams'"
+                class="p-2.5 rounded-xl border transition-all cursor-pointer text-center bg-white"
+                :class="detailActiveTab === 'exams' ? 'border-[#4338ca] ring-2 ring-indigo-100 bg-indigo-50/30' : 'border-slate-200/80 hover:border-indigo-200 hover:bg-indigo-50/20'"
+              >
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Exams</span>
+                <p class="text-base sm:text-lg font-black text-slate-800 leading-tight mt-0.5">{{ detailData?.exams?.length ?? viewingDept.exams }}</p>
+                <span class="text-[10px] text-indigo-600 font-semibold">Scheduled</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Navigation Tabs Bar -->
+          <div class="px-6 border-b border-slate-200 bg-white shrink-0 overflow-x-auto scrollbar-hide">
+            <div class="flex items-center gap-1.5 min-w-max py-2">
+              <button
+                v-for="tab in detailTabs"
+                :key="tab.key"
+                @click="detailActiveTab = tab.key"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+                :class="detailActiveTab === tab.key ? 'bg-indigo-50 text-[#4338ca] shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
+              >
+                <svg class="w-3.5 h-3.5 shrink-0" :class="detailActiveTab === tab.key ? 'text-[#4338ca]' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
+                </svg>
+                <span>{{ tab.label }}</span>
+                <span
+                  v-if="tab.key === 'instructors' && (detailData?.instructors?.length ?? viewingDept.instructors)"
+                  class="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+                  :class="detailActiveTab === tab.key ? 'bg-indigo-100 text-[#4338ca]' : 'bg-slate-100 text-slate-600'"
+                >
+                  {{ detailData?.instructors?.length ?? viewingDept.instructors }}
+                </span>
+                <span
+                  v-else-if="tab.key === 'courses' && (detailData?.courses?.length ?? viewingDept.courses)"
+                  class="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+                  :class="detailActiveTab === tab.key ? 'bg-indigo-100 text-[#4338ca]' : 'bg-slate-100 text-slate-600'"
+                >
+                  {{ detailData?.courses?.length ?? viewingDept.courses }}
+                </span>
+                <span
+                  v-else-if="tab.key === 'students' && (detailData?.students?.length ?? viewingDept.students)"
+                  class="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+                  :class="detailActiveTab === tab.key ? 'bg-indigo-100 text-[#4338ca]' : 'bg-slate-100 text-slate-600'"
+                >
+                  {{ detailData?.students?.length ?? viewingDept.students }}
+                </span>
+                <span
+                  v-else-if="tab.key === 'exams' && (detailData?.exams?.length ?? viewingDept.exams)"
+                  class="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+                  :class="detailActiveTab === tab.key ? 'bg-indigo-100 text-[#4338ca]' : 'bg-slate-100 text-slate-600'"
+                >
+                  {{ detailData?.exams?.length ?? viewingDept.exams }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 4. Scrollable Modal Body -->
+          <div class="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-[#fafbfd]">
+            <!-- Loading State -->
+            <div v-if="isDetailLoading" class="py-16 flex flex-col items-center justify-center text-center">
+              <div class="w-10 h-10 border-3 border-indigo-100 border-t-[#4338ca] rounded-full animate-spin mb-3"></div>
+              <p class="text-xs font-bold text-slate-700">Loading department information...</p>
+              <p class="text-[11px] text-slate-400 mt-1">Retrieving students, faculty, courses, and exam allocations</p>
+            </div>
+
+            <!-- Tab Content when loaded -->
+            <div v-else class="space-y-5 animate-in fade-in duration-150">
+              <!-- 1. Overview Tab -->
+              <div v-if="detailActiveTab === 'info'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-6">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 class="text-sm font-bold text-slate-800">Academic Structure & Specifications</h3>
+                  <span class="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                    CODE: {{ viewingDept.code }}
+                  </span>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div class="p-3.5 bg-slate-50/70 border border-slate-100 rounded-xl">
+                    <span class="text-slate-400 font-semibold block mb-1">Department Name</span>
+                    <strong class="text-slate-800 text-sm font-bold">{{ viewingDept.name }}</strong>
+                  </div>
+                  <div class="p-3.5 bg-slate-50/70 border border-slate-100 rounded-xl">
+                    <span class="text-slate-400 font-semibold block mb-1">Department Code</span>
+                    <strong class="text-[#4338ca] font-mono text-sm font-bold">{{ viewingDept.code }}</strong>
+                  </div>
+                  <div class="p-3.5 bg-slate-50/70 border border-slate-100 rounded-xl">
+                    <span class="text-slate-400 font-semibold block mb-1">College / School</span>
+                    <strong class="text-slate-800">{{ viewingDept.college || viewingDept.faculty || 'College of Computing and Informatics' }}</strong>
+                  </div>
+                  <div class="p-3.5 bg-slate-50/70 border border-slate-100 rounded-xl">
+                    <span class="text-slate-400 font-semibold block mb-1">Established Year</span>
+                    <strong class="text-slate-800">{{ viewingDept.established !== 'N/A' ? viewingDept.established : 'N/A' }}</strong>
+                  </div>
+                  <div class="p-3.5 bg-slate-50/70 border border-slate-100 rounded-xl">
+                    <span class="text-slate-400 font-semibold block mb-1">Head of Department</span>
+                    <strong class="text-slate-800">{{ detailData?.department?.head?.name || viewingDept.head }}</strong>
+                  </div>
+                  <div class="p-3.5 bg-slate-50/70 border border-slate-100 rounded-xl">
+                    <span class="text-slate-400 font-semibold block mb-1">Operational Status</span>
+                    <strong class="capitalize" :class="viewingDept.status === 'active' ? 'text-emerald-700' : 'text-slate-600'">{{ viewingDept.status }}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Leadership & Department Head Tab -->
+              <div v-if="detailActiveTab === 'head'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-6">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">Department Head Leadership</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Designated academic leader supervising this department</p>
+                  </div>
+                  <button
+                    @click="openAssignHeadFromList(viewingDept)"
+                    class="px-3.5 py-1.5 bg-indigo-50 border border-indigo-200 text-[#4338ca] text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors"
+                  >
+                    {{ detailData?.department?.head ? 'Change Department Head' : 'Appoint Department Head' }}
+                  </button>
+                </div>
+
+                <!-- Current Head Card -->
+                <div v-if="detailData?.department?.head" class="p-5 border border-indigo-100 rounded-2xl bg-indigo-50/30 flex items-center gap-4">
+                  <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+                    {{ detailData.department.head.name.slice(0, 2).toUpperCase() }}
+                  </div>
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                      <h4 class="text-sm font-bold text-slate-800">{{ detailData.department.head.name }}</h4>
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                        Head of Department
+                      </span>
+                    </div>
+                    <p class="text-xs text-slate-500">{{ detailData.department.head.email }}</p>
+                    <p v-if="detailData.department.head.phone" class="text-xs text-slate-400">Phone: {{ detailData.department.head.phone }}</p>
+                  </div>
+                </div>
+
+                <div v-else class="text-center py-10 border border-dashed border-slate-200 rounded-xl space-y-2">
+                  <div class="w-10 h-10 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  </div>
+                  <p class="text-xs font-bold text-slate-700">No Department Head Appointed</p>
+                  <p class="text-[11px] text-slate-400 max-w-sm mx-auto">Appoint an instructor belonging to this department to assume the Department Head role.</p>
+                </div>
+              </div>
+
+              <!-- 3. Instructors Tab -->
+              <div v-if="detailActiveTab === 'instructors'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">Faculty & Instructors</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Faculty members assigned to {{ viewingDept.name }}</p>
+                  </div>
+                  <button
+                    @click="navigateToModule('instructors', viewingDept.id, viewingDept.name)"
+                    class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    Open in Instructor Center →
+                  </button>
+                </div>
+
+                <div v-if="!detailData?.instructors?.length" class="text-center py-10 text-xs text-slate-400">
+                  No faculty or instructors assigned to this department yet.
+                </div>
+
+                <div v-else class="overflow-x-auto">
+                  <table class="w-full text-left whitespace-nowrap text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        <th class="py-2.5 px-3">Instructor</th>
+                        <th class="py-2.5 px-3">Email</th>
+                        <th class="py-2.5 px-3">Role</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="inst in detailData.instructors" :key="inst.id" class="border-b border-slate-50 hover:bg-slate-50/60">
+                        <td class="py-3 px-3 font-semibold text-slate-800">{{ inst.name }}</td>
+                        <td class="py-3 px-3 text-slate-500">{{ inst.email }}</td>
+                        <td class="py-3 px-3 capitalize">
+                          <span :class="inst.role === 'dept_head' ? 'font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded' : 'text-slate-600'">
+                            {{ inst.role === 'dept_head' ? 'Department Head' : 'Instructor' }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- 4. Courses Tab -->
+              <div v-if="detailActiveTab === 'courses'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">Academic Courses</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Course offerings registered under {{ viewingDept.name }}</p>
+                  </div>
+                  <button
+                    @click="navigateToModule('courses', viewingDept.id, viewingDept.name)"
+                    class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    Open in Course Center →
+                  </button>
+                </div>
+
+                <div v-if="!detailData?.courses?.length" class="text-center py-10 text-xs text-slate-400">
+                  No courses registered under this department yet.
+                </div>
+
+                <div v-else class="overflow-x-auto">
+                  <table class="w-full text-left whitespace-nowrap text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        <th class="py-2.5 px-3">Code</th>
+                        <th class="py-2.5 px-3">Course Title</th>
+                        <th class="py-2.5 px-3 text-center">Credits</th>
+                        <th class="py-2.5 px-3">Instructor</th>
+                        <th class="py-2.5 px-3 text-center">Semester</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="c in detailData.courses" :key="c.id" class="border-b border-slate-50 hover:bg-slate-50/60">
+                        <td class="py-3 px-3 font-mono font-bold text-indigo-600">{{ c.code }}</td>
+                        <td class="py-3 px-3 font-semibold text-slate-800">{{ c.title }}</td>
+                        <td class="py-3 px-3 text-center font-bold text-slate-700">{{ c.credits }} CR</td>
+                        <td class="py-3 px-3 text-slate-600">{{ c.instructor?.name || 'Unassigned' }}</td>
+                        <td class="py-3 px-3 text-center text-slate-500">{{ c.semester || 'Semester 1' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- 5. Students Tab -->
+              <div v-if="detailActiveTab === 'students'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">Enrolled Students</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Undergraduate and graduate students registered in {{ viewingDept.name }}</p>
+                  </div>
+                  <button
+                    @click="navigateToModule('students', viewingDept.id, viewingDept.name)"
+                    class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    Open in Student Center →
+                  </button>
+                </div>
+
+                <div v-if="!detailData?.students?.length" class="text-center py-10 text-xs text-slate-400">
+                  No students enrolled in this department yet.
+                </div>
+
+                <div v-else class="overflow-x-auto">
+                  <table class="w-full text-left whitespace-nowrap text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        <th class="py-2.5 px-3">Student Name</th>
+                        <th class="py-2.5 px-3">Email</th>
+                        <th class="py-2.5 px-3">Joined Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="st in detailData.students" :key="st.id" class="border-b border-slate-50 hover:bg-slate-50/60">
+                        <td class="py-3 px-3 font-semibold text-slate-800">{{ st.name }}</td>
+                        <td class="py-3 px-3 text-slate-500">{{ st.email }}</td>
+                        <td class="py-3 px-3 text-slate-400">{{ new Date(st.created_at).toLocaleDateString() }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- 6. Exams Tab -->
+              <div v-if="detailActiveTab === 'exams'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">Department Examinations</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Exams scheduled for courses under {{ viewingDept.name }}</p>
+                  </div>
+                  <button
+                    @click="navigateToModule('exams', viewingDept.id, viewingDept.name)"
+                    class="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    Open in Exam Center →
+                  </button>
+                </div>
+
+                <div v-if="!detailData?.exams?.length" class="text-center py-10 text-xs text-slate-400">
+                  No examinations scheduled for this department yet.
+                </div>
+
+                <div v-else class="overflow-x-auto">
+                  <table class="w-full text-left whitespace-nowrap text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        <th class="py-2.5 px-3">Exam Title</th>
+                        <th class="py-2.5 px-3">Course</th>
+                        <th class="py-2.5 px-3 text-center">Duration</th>
+                        <th class="py-2.5 px-3 text-center">Marks</th>
+                        <th class="py-2.5 px-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="ex in detailData.exams" :key="ex.id" class="border-b border-slate-50 hover:bg-slate-50/60">
+                        <td class="py-3 px-3 font-semibold text-slate-800">{{ ex.title }}</td>
+                        <td class="py-3 px-3 text-slate-600">{{ ex.course?.title || ex.course_code }}</td>
+                        <td class="py-3 px-3 text-center">{{ ex.duration_minutes }}m</td>
+                        <td class="py-3 px-3 text-center font-bold">{{ ex.total_marks }}</td>
+                        <td class="py-3 px-3 text-center capitalize">
+                          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                            {{ ex.status }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- 7. Settings Tab -->
+              <div v-if="detailActiveTab === 'settings'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-6">
+                <h3 class="text-sm font-bold text-slate-800 pb-2 border-b border-slate-100">Department Lifecycle & Status</h3>
+                
+                <div class="space-y-4">
+                  <div class="flex items-center justify-between p-4 border border-slate-100 rounded-xl bg-slate-50/40">
+                    <div>
+                      <p class="text-xs font-bold text-slate-800">Operational Status</p>
+                      <p class="text-[11px] text-slate-400 mt-0.5">Toggle department state between active and dormant</p>
+                    </div>
+                    <button
+                      @click="promptToggleStatus(viewingDept)"
+                      class="px-4 py-2 text-xs font-bold rounded-xl border transition-colors"
+                      :class="viewingDept.status === 'active' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'"
+                    >
+                      {{ viewingDept.status === 'active' ? 'Deactivate Department' : 'Activate Department' }}
+                    </button>
+                  </div>
+
+                  <!-- Danger Zone -->
+                  <div class="p-4 border border-rose-100 rounded-xl bg-rose-50/30 flex items-center justify-between">
+                    <div>
+                      <p class="text-xs font-bold text-rose-800">Danger Zone</p>
+                      <p class="text-[11px] text-rose-500 mt-0.5">Permanently remove this department from the registry</p>
+                    </div>
+                    <button
+                      @click="confirmDelete(viewingDept)"
+                      class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-sm"
+                    >
+                      Delete Department
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 8. Activity Log Tab -->
+              <div v-if="detailActiveTab === 'activity'" class="bg-white border border-slate-200 rounded-2xl shadow-xs p-6 space-y-4">
+                <h3 class="text-sm font-bold text-slate-800 pb-2 border-b border-slate-100">Audit Trail & Administrative History</h3>
+                
+                <div v-if="!detailData?.activities?.length" class="text-center py-10 text-xs text-slate-400">
+                  No activity logs recorded for this department yet.
+                </div>
+
+                <div v-else class="space-y-3">
+                  <div
+                    v-for="log in detailData.activities"
+                    :key="log.id"
+                    class="p-3.5 border border-slate-100 rounded-xl bg-slate-50/40 flex items-start gap-3"
+                  >
+                    <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center shrink-0">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div class="flex-1 text-xs">
+                      <p class="font-bold text-slate-800">{{ log.action }}</p>
+                      <p class="text-slate-500 mt-0.5">{{ log.description || log.action }}</p>
+                      <p class="text-[10px] text-slate-400 mt-1">Logged by {{ log.user?.name || 'Administrator' }} • {{ new Date(log.created_at).toLocaleString() }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Modal Footer -->
+          <div class="px-6 py-4 bg-white border-t border-slate-100 flex items-center justify-between gap-4 shrink-0">
+            <div class="text-xs text-slate-400 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full" :class="viewingDept.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+              <span>Department ID: #{{ viewingDept.id }}</span>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <button
+                @click="openAssignHeadFromList(viewingDept)"
+                class="px-3.5 py-2 text-xs font-bold text-[#4338ca] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-colors"
+              >
+                {{ detailData?.department?.head ? 'Change Head' : 'Assign Head' }}
+              </button>
+              <button
+                @click="closeDetailModal"
+                class="px-5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shadow-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 1. Edit Department Modal -->
     <Teleport to="body">
-      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div v-if="showEditModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           <div class="p-6 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -1836,7 +1914,7 @@ onUnmounted(() => {
 
     <!-- 2. Assign Head Modal -->
     <Teleport to="body">
-      <div v-if="showListAssignHeadModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div v-if="showListAssignHeadModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
             <div>
@@ -1928,7 +2006,7 @@ onUnmounted(() => {
 
     <!-- 3. Toggle Status Confirmation Modal -->
     <Teleport to="body">
-      <div v-if="showStatusConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div v-if="showStatusConfirmModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           <div class="p-6 text-center space-y-3">
             <div class="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto" :class="targetStatus === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">
@@ -1961,7 +2039,7 @@ onUnmounted(() => {
 
     <!-- 4. Delete Department Confirmation Modal -->
     <Teleport to="body">
-      <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div v-if="showDeleteModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           <div class="p-6 text-center">
             <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-rose-500">
@@ -1986,7 +2064,7 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="toast.show"
-        class="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl text-xs font-bold transition-all border animate-in slide-in-from-bottom duration-200"
+        class="fixed bottom-6 right-6 z-[70] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl text-xs font-bold transition-all border animate-in slide-in-from-bottom duration-200"
         :class="{
           'bg-emerald-600 text-white border-emerald-700': toast.type === 'success',
           'bg-rose-600 text-white border-rose-700': toast.type === 'error',
