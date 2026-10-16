@@ -26,15 +26,46 @@ class AdminExamControlController extends Controller
         }
 
         if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+            if ($request->status === 'admin_override') {
+                $query->whereNotNull('override_by');
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
-        $requests = $query->latest()->paginate(20);
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('student', function ($sq) use ($search) {
+                    $sq->where('name', 'LIKE', "%{$search}%")
+                       ->orWhere('email', 'LIKE', "%{$search}%")
+                       ->orWhere('id_no', 'LIKE', "%{$search}%")
+                       ->orWhere('username', 'LIKE', "%{$search}%");
+                })->orWhereHas('exam', function ($eq) use ($search) {
+                    $eq->where('title', 'LIKE', "%{$search}%")
+                       ->orWhere('course_code', 'LIKE', "%{$search}%")
+                       ->orWhere('course_name', 'LIKE', "%{$search}%");
+                });
+            });
+        }
+
+        $perPage = min(max((int) $request->input('per_page', 15), 5), 100);
+        $requests = $query->latest()->paginate($perPage);
+
+        $stats = [
+            'total'            => ExamRecoveryRequest::count(),
+            'pending_approval' => ExamRecoveryRequest::where('status', 'pending_approval')->count(),
+            'approved'         => ExamRecoveryRequest::where('status', 'approved')->count(),
+            'admin_override'   => ExamRecoveryRequest::whereNotNull('override_by')->count(),
+            'rejected'         => ExamRecoveryRequest::where('status', 'rejected')->count(),
+            'total_interruption_seconds' => (int) ExamRecoveryRequest::sum('interruption_seconds'),
+        ];
 
         return response()->json([
             'data' => collect($requests->items())->map(function ($r) {
                 return $this->formatRecoveryRequest($r);
             }),
+            'stats' => $stats,
             'pagination' => [
                 'total'        => $requests->total(),
                 'per_page'     => $requests->perPage(),
@@ -52,7 +83,7 @@ class AdminExamControlController extends Controller
     {
         $admin = $request->user();
 
-        if ($admin->role !== 'admin') {
+        if (!$admin || !in_array($admin->role, ['admin', 'super_admin', 'dept_head'])) {
             return response()->json(['message' => 'Unauthorized. Administrator access required.'], 403);
         }
 
@@ -114,7 +145,7 @@ class AdminExamControlController extends Controller
     {
         $admin = $request->user();
 
-        if ($admin->role !== 'admin') {
+        if (!$admin || !in_array($admin->role, ['admin', 'super_admin', 'dept_head'])) {
             return response()->json(['message' => 'Unauthorized. Only administrators can cancel examinations.'], 403);
         }
 
@@ -169,7 +200,7 @@ class AdminExamControlController extends Controller
     {
         $admin = $request->user();
 
-        if ($admin->role !== 'admin') {
+        if (!$admin || !in_array($admin->role, ['admin', 'super_admin', 'dept_head'])) {
             return response()->json(['message' => 'Unauthorized. Administrator access required.'], 403);
         }
 
@@ -217,7 +248,7 @@ class AdminExamControlController extends Controller
     {
         $admin = $request->user();
 
-        if ($admin->role !== 'admin') {
+        if (!$admin || !in_array($admin->role, ['admin', 'super_admin', 'dept_head'])) {
             return response()->json(['message' => 'Unauthorized. Administrator access required.'], 403);
         }
 
@@ -255,7 +286,7 @@ class AdminExamControlController extends Controller
     {
         $admin = $request->user();
 
-        if ($admin->role !== 'admin') {
+        if (!$admin || !in_array($admin->role, ['admin', 'super_admin', 'dept_head'])) {
             return response()->json(['message' => 'Unauthorized. Administrator access required.'], 403);
         }
 
@@ -334,6 +365,7 @@ class AdminExamControlController extends Controller
             'adjusted_deadline_formatted' => $attempt?->getAdjustedDeadline()?->format('M d, Y h:i A') ?? 'N/A',
             'extra_time_seconds'        => $attempt->extra_time_seconds ?? 0,
             'status'                    => $r->status,
+            'is_admin_override'         => $r->override_by !== null,
             'reviewed_by_name'          => $r->reviewer->name ?? null,
             'reviewed_at'               => $r->reviewed_at?->format('M d, Y h:i A') ?? null,
             'review_notes'              => $r->review_notes,
