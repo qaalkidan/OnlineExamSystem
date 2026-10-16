@@ -510,7 +510,7 @@ const questionTypeSummary = computed(() => {
     short_answer: { count: 0, marks: 0 },
   }
   
-  allExamQuestions.value.forEach(q => {
+  allExamQuestions.value.forEach((q: any) => {
     const marks = Number(q.marks || 0)
     summary.all.marks += marks
     if (summary[q.normalizedType]) {
@@ -524,7 +524,7 @@ const questionTypeSummary = computed(() => {
 
 // Filtered questions based on active type tab and search query
 const filteredQuestionsList = computed(() => {
-  return allExamQuestions.value.filter(q => {
+  return allExamQuestions.value.filter((q: any) => {
     // 1. Type Filter
     if (questionTypeFilter.value !== 'all' && q.normalizedType !== questionTypeFilter.value) {
       return false
@@ -579,7 +579,7 @@ const organizedExamSections = computed(() => {
   const sections: any[] = []
 
   typesToRender.forEach(typeKey => {
-    const questionsInType = filteredQuestionsList.value.filter(q => q.normalizedType === typeKey)
+    const questionsInType = filteredQuestionsList.value.filter((q: any) => q.normalizedType === typeKey)
     if (questionsInType.length > 0) {
       const cfg = typeConfig[typeKey] || {
         part: 'PART',
@@ -587,7 +587,7 @@ const organizedExamSections = computed(() => {
         defaultInstruction: 'Answer all questions in this section.',
       }
       
-      const totalMarks = questionsInType.reduce((acc, q) => acc + Number(q.marks || 0), 0)
+      const totalMarks = questionsInType.reduce((acc: number, q: any) => acc + Number(q.marks || 0), 0)
       
       // Determine common instruction
       const firstInst = questionsInType[0]?.instruction
@@ -608,8 +608,309 @@ const organizedExamSections = computed(() => {
   return sections
 })
 
+const showPaperExportDropdown = ref(false)
+
 const printOfficialPaper = () => {
   window.print()
+}
+
+const stripHtml = (html: string): string => {
+  if (!html) return ''
+  const tmp = document.createElement('DIV')
+  tmp.innerHTML = html
+  return (tmp.textContent || tmp.innerText || '').trim()
+}
+
+// ── Export Exam Paper For Hard-Copy & Paper System ─────────────────────────────
+const generateHardCopyExamDocumentHtml = () => {
+  if (!selectedExam.value) return ''
+  const exam = selectedExam.value
+  const course = exam.course || exam.courseName || 'Course'
+  const dept = exam.department || 'Information Technology'
+  const instructor = exam.instructor || 'Administrator'
+  const duration = exam.duration || `${exam.duration_minutes || 60}m`
+  const maxMarks = exam.totalMarks || exam.total_marks || questionTypeSummary.value.all.marks || 100
+
+  let doc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${exam.title} - Official Examination Paper</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.4; color: #111; margin: 0; padding: 0; }
+    .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+    .univ-name { font-size: 16pt; font-weight: bold; text-align: center; text-transform: uppercase; margin: 0; }
+    .office-name { font-size: 11pt; font-weight: bold; text-align: center; text-transform: uppercase; margin: 3px 0 6px 0; }
+    .exam-title { font-size: 13pt; font-weight: bold; text-align: center; margin: 4px 0; }
+    .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10pt; }
+    .meta-table td { border: 1px solid #999; padding: 4px 8px; }
+    .student-slip { width: 100%; border-collapse: collapse; margin-bottom: 14px; border: 2px solid #000; font-size: 10pt; }
+    .student-slip td { border: 1px solid #ccc; padding: 5px 8px; }
+    .slip-header { background-color: #f2f2f2; font-weight: bold; text-transform: uppercase; font-size: 9pt; }
+    .instructions-box { border: 1px solid #888; background-color: #fbfbfb; padding: 8px 12px; margin-bottom: 16px; font-size: 9.5pt; }
+    .section-title { font-size: 12pt; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #444; padding-bottom: 3px; margin-top: 18px; margin-bottom: 6px; }
+    .section-direction { font-style: italic; font-size: 9.5pt; margin-bottom: 10px; color: #333; }
+    .question-block { margin-bottom: 14px; page-break-inside: avoid; break-inside: avoid; }
+    .q-head { font-weight: bold; }
+    .q-marks { float: right; font-weight: bold; font-size: 9.5pt; }
+    .options-grid { width: 100%; margin-top: 5px; margin-left: 12px; }
+    .options-grid td { padding: 3px 6px; width: 50%; vertical-align: top; }
+    .matching-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10pt; }
+    .matching-tbl th, .matching-tbl td { border: 1px solid #777; padding: 6px 8px; vertical-align: top; }
+    .matching-tbl th { background-color: #f0f0f0; text-align: left; }
+    .answer-line { display: inline-block; border-bottom: 1px solid #000; min-width: 150px; height: 16px; }
+    .ruled-space { border-bottom: 1px dotted #888; height: 22px; margin-top: 6px; }
+    .invigilator-sign { width: 100%; margin-top: 30px; border-top: 1px solid #000; padding-top: 8px; font-size: 10pt; }
+  </style>
+</head>
+<body>
+  <div class="header-table">
+    <div class="univ-name">Wollo University</div>
+    <div class="office-name">Office of the Examination Controller & Academic Quality Directorate</div>
+    <div class="exam-title">${exam.title}</div>
+  </div>
+
+  <table class="meta-table">
+    <tr>
+      <td style="width: 50%;"><strong>Course:</strong> ${course} (${exam.courseCode || exam.course_code || 'N/A'})</td>
+      <td style="width: 50%;"><strong>Department:</strong> ${dept}</td>
+    </tr>
+    <tr>
+      <td><strong>Instructor / Examiner:</strong> ${instructor}</td>
+      <td><strong>Academic Year:</strong> ${exam.year || '1st Year'} • ${exam.semester || 'Semester 1'}</td>
+    </tr>
+    <tr>
+      <td><strong>Time Allowed:</strong> ${duration}</td>
+      <td><strong>Maximum Score:</strong> ${maxMarks} Marks</td>
+    </tr>
+  </table>
+
+  <table class="student-slip">
+    <tr class="slip-header">
+      <td colspan="2">Candidate Identification Slip (To be filled in blue or black ink)</td>
+    </tr>
+    <tr>
+      <td style="width: 50%;">Student Full Name: _____________________________________________</td>
+      <td style="width: 50%;">Student ID Number: _______________________</td>
+    </tr>
+    <tr>
+      <td>Section / Class: _________________________________________________</td>
+      <td>Desk / Seat Number: ______________________</td>
+    </tr>
+  </table>
+
+  <div class="instructions-box">
+    <strong>GENERAL EXAMINATION INSTRUCTIONS:</strong>
+    <ol style="margin: 4px 0 0 18px; padding: 0;">
+      <li>Ensure that you write your Full Name and Student ID accurately on the slip above.</li>
+      <li>Carefully read the specific directions for each examination section before proceeding.</li>
+      <li>All cellphones, unauthorized books, notes, or smart accessories are strictly forbidden.</li>
+      <li>Raise your hand quietly if you encounter any typographical error on this question paper.</li>
+    </ol>
+  </div>
+`
+
+  organizedExamSections.value.forEach(section => {
+    doc += `
+      <div class="section-title">
+        ${section.partLabel}: ${section.title} (${section.totalQuestions} Questions • ${section.totalMarks} Marks)
+      </div>
+      <div class="section-direction">
+        <strong>Direction:</strong> ${section.instruction}
+      </div>
+    `
+
+    section.questions.forEach((q: any) => {
+      doc += `
+        <div class="question-block">
+          <div>
+            <span class="q-head">${q.globalIndex}.</span>
+            <span>${stripHtml(q.text)}</span>
+            <span class="q-marks">[${q.marks} Marks]</span>
+          </div>
+      `
+
+      if (q.normalizedType === 'true_false') {
+        doc += `
+          <div style="margin-left: 20px; margin-top: 5px;">
+            <span style="display: inline-block; width: 140px;">( &nbsp; ) &nbsp; <strong>A.</strong> True</span>
+            <span style="display: inline-block; width: 140px;">( &nbsp; ) &nbsp; <strong>B.</strong> False</span>
+          </div>
+        `
+      } else if (q.normalizedType === 'multiple_choice') {
+        const opts = parseMultipleChoiceOptions(q)
+        doc += `<table class="options-grid"><tr>`
+        opts.forEach((opt: any, oIdx: number) => {
+          if (oIdx > 0 && oIdx % 2 === 0) doc += `</tr><tr>`
+          doc += `<td>( &nbsp; ) &nbsp; <strong>${opt.label}.</strong> ${stripHtml(opt.text)}</td>`
+        })
+        doc += `</tr></table>`
+      } else if (q.normalizedType === 'matching') {
+        const mData = parseMatchingData(q)
+        doc += `
+          <table class="matching-tbl">
+            <thead>
+              <tr>
+                <th style="width: 50%;">${mData.columnATitle}</th>
+                <th style="width: 50%;">${mData.columnBTitle}</th>
+              </tr>
+            </thead>
+            <tbody>
+        `
+        const maxRows = Math.max(mData.columnA.length, mData.columnB.length)
+        for (let i = 0; i < maxRows; i++) {
+          const a = mData.columnA[i]
+          const b = mData.columnB[i]
+          doc += `
+            <tr>
+              <td>${a ? `<strong>${a.id}.</strong> ${stripHtml(a.text)}` : ''}</td>
+              <td>${b ? `<strong>${b.label}.</strong> ${stripHtml(b.text)}` : ''}</td>
+            </tr>
+          `
+        }
+        doc += `
+            </tbody>
+          </table>
+          <div style="margin-top: 6px; font-size: 9.5pt;">
+            <strong>Write Your Matches Here:</strong> &nbsp;
+            ${mData.columnA.map((a: any) => `<strong>${a.id}</strong>: [ &nbsp; &nbsp; ]`).join(' &nbsp; &nbsp; ')}
+          </div>
+        `
+      } else if (q.normalizedType === 'fill_in_the_blank') {
+        doc += `
+          <div style="margin-left: 20px; margin-top: 6px;">
+            <strong>Your Answer:</strong> <span class="answer-line" style="min-width: 250px;"></span>
+          </div>
+        `
+      } else if (q.normalizedType === 'short_answer') {
+        doc += `
+          <div style="margin-left: 10px; margin-top: 6px;">
+            <div class="ruled-space"></div>
+            <div class="ruled-space"></div>
+            <div class="ruled-space"></div>
+          </div>
+        `
+      }
+
+      doc += `</div>`
+    })
+  })
+
+  doc += `
+    <table class="invigilator-sign">
+      <tr>
+        <td style="width: 50%;">Invigilator / Proctor Signature: _______________________</td>
+        <td style="width: 50%; text-align: right;">Date & Time: _______________________</td>
+      </tr>
+    </table>
+  </body>
+  </html>`
+
+  return doc
+}
+
+const exportExamPaperAsWord = () => {
+  if (!selectedExam.value) return
+  const docHtml = generateHardCopyExamDocumentHtml()
+  const exam = selectedExam.value
+  const code = exam.code || exam.examCode || `EXM-${exam.id}`
+  const cleanTitle = (exam.title || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_')
+
+  const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${code}_${cleanTitle}_Exam_Paper.doc`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  showToast('Examination paper exported successfully as Word Document (.doc).', 'success')
+}
+
+const exportExamPaperAsHtml = () => {
+  if (!selectedExam.value) return
+  const docHtml = generateHardCopyExamDocumentHtml()
+  const exam = selectedExam.value
+  const code = exam.code || exam.examCode || `EXM-${exam.id}`
+  const cleanTitle = (exam.title || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_')
+
+  const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${code}_${cleanTitle}_Exam_Paper.html`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  showToast('Offline examination paper exported successfully (.html).', 'success')
+}
+
+const exportExamPaperAsText = () => {
+  if (!selectedExam.value) return
+  const exam = selectedExam.value
+  const code = exam.code || exam.examCode || `EXM-${exam.id}`
+  const cleanTitle = (exam.title || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_')
+
+  let txt = `========================================================================\n`
+  txt += `WOLLO UNIVERSITY - OFFICIAL EXAMINATION PAPER\n`
+  txt += `========================================================================\n`
+  txt += `Title: ${exam.title}\n`
+  txt += `Course: ${exam.course || exam.courseName} (${exam.courseCode || exam.course_code})\n`
+  txt += `Department: ${exam.department || 'Information Technology'}\n`
+  txt += `Instructor: ${exam.instructor}\n`
+  txt += `Time Allowed: ${exam.duration} | Maximum Marks: ${exam.totalMarks || exam.total_marks}\n`
+  txt += `------------------------------------------------------------------------\n`
+  txt += `CANDIDATE SLIP:\n`
+  txt += `Student Name: __________________________  ID: ____________  Section: ___\n`
+  txt += `========================================================================\n\n`
+
+  organizedExamSections.value.forEach(section => {
+    txt += `------------------------------------------------------------------------\n`
+    txt += `${section.partLabel}: ${section.title.toUpperCase()} (${section.totalQuestions} Questions - ${section.totalMarks} Marks)\n`
+    txt += `Direction: ${section.instruction}\n`
+    txt += `------------------------------------------------------------------------\n\n`
+
+    section.questions.forEach((q: any) => {
+      txt += `${q.globalIndex}. ${stripHtml(q.text)} [${q.marks} Marks]\n`
+      if (q.normalizedType === 'true_false') {
+        txt += `   ( ) A. True\n   ( ) B. False\n\n`
+      } else if (q.normalizedType === 'multiple_choice') {
+        const opts = parseMultipleChoiceOptions(q)
+        opts.forEach((opt: any) => {
+          txt += `   ( ) ${opt.label}. ${stripHtml(opt.text)}\n`
+        })
+        txt += `\n`
+      } else if (q.normalizedType === 'matching') {
+        const mData = parseMatchingData(q)
+        txt += `   Column A:                          Column B:\n`
+        const maxR = Math.max(mData.columnA.length, mData.columnB.length)
+        for (let i = 0; i < maxR; i++) {
+          const a = mData.columnA[i] ? `${mData.columnA[i].id}. ${stripHtml(mData.columnA[i].text)}` : ''
+          const b = mData.columnB[i] ? `${mData.columnB[i].label}. ${stripHtml(mData.columnB[i].text)}` : ''
+          txt += `   ${a.padEnd(35)} ${b}\n`
+        }
+        txt += `\n`
+      } else if (q.normalizedType === 'fill_in_the_blank') {
+        txt += `   Answer: ___________________________________\n\n`
+      } else if (q.normalizedType === 'short_answer') {
+        txt += `   Response space:\n   ___________________________________________________________\n   ___________________________________________________________\n\n`
+      }
+    })
+  })
+
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${code}_${cleanTitle}_Questions.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  showToast('Examination questions exported as Plain Text (.txt).', 'success')
 }
 
 // ── Dropdown Controls ────────────────────────────────────────────────────────
@@ -626,6 +927,7 @@ const closeDropdowns = () => {
   activeActionDropdown.value = null
   showExportDropdown.value = false
   showColumnDropdown.value = false
+  showPaperExportDropdown.value = false
 }
 
 // ── Backend API Actions ───────────────────────────────────────────────────────
@@ -2044,7 +2346,7 @@ onUnmounted(() => {
     <div v-if="showAllQuestions" class="space-y-6 pb-16 min-w-0 w-full animate-in fade-in duration-200">
       
       <!-- Top Breadcrumbs & Control Header -->
-      <div class="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+      <div class="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5 print:hidden">
         <div class="space-y-2">
           <!-- Breadcrumb navigation -->
           <nav class="flex items-center gap-2 text-xs font-semibold text-slate-400">
@@ -2078,14 +2380,121 @@ onUnmounted(() => {
         <!-- Master View Controls & Actions -->
         <div class="flex flex-wrap items-center gap-2.5 self-start lg:self-center shrink-0">
           
-          <!-- Print / PDF Button -->
+          <!-- Export Paper Dropdown -->
+          <div class="relative">
+            <button
+              @click.stop="showPaperExportDropdown = !showPaperExportDropdown"
+              class="px-4 py-2.5 bg-[#4338ca] hover:bg-[#3730a3] text-white font-bold rounded-xl text-xs transition-all shadow-sm flex items-center gap-2 group"
+              title="Export examination paper for hard copy duplication and physical testing"
+            >
+              <svg class="w-4 h-4 text-indigo-200 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Export Paper</span>
+              <svg class="w-3.5 h-3.5 text-indigo-300 transition-transform duration-200" :class="{ 'rotate-180': showPaperExportDropdown }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div
+              v-if="showPaperExportDropdown"
+              @click.stop
+              class="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in zoom-in-95 duration-150"
+            >
+              <div class="px-3 py-2 border-b border-slate-100">
+                <p class="text-[11px] font-black uppercase tracking-wider text-slate-400">Hard-Copy Paper Export</p>
+                <p class="text-xs text-slate-500 font-medium">Ready for physical examination & printing</p>
+              </div>
+
+              <div class="py-1 space-y-0.5">
+                <!-- 1. Microsoft Word (.doc) -->
+                <button
+                  @click="showPaperExportDropdown = false; exportExamPaperAsWord()"
+                  class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-900 transition-colors flex items-start gap-3 group"
+                >
+                  <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5 border border-blue-100">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 18H7l2.2-8h1.7l1.3 4.8 1.3-4.8h1.7l2.2 8h-1.5l-1.3-5-1.3 5h-1.5l-1.3-5-1.3 5z"/>
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold text-slate-800 group-hover:text-indigo-900 flex items-center justify-between">
+                      <span>Word Document</span>
+                      <span class="text-[10px] font-mono px-1.5 py-0.2 bg-blue-100/60 text-blue-700 rounded font-semibold">.doc</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Includes candidate slip, instructions & answer spaces for university duplicating press.</p>
+                  </div>
+                </button>
+
+                <!-- 2. Print / Save as PDF -->
+                <button
+                  @click="showPaperExportDropdown = false; printOfficialPaper()"
+                  class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-900 transition-colors flex items-start gap-3 group"
+                >
+                  <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 mt-0.5 border border-rose-100">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold text-slate-800 group-hover:text-indigo-900 flex items-center justify-between">
+                      <span>Print / PDF Document</span>
+                      <span class="text-[10px] font-mono px-1.5 py-0.2 bg-rose-100/60 text-rose-700 rounded font-semibold">PDF</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Print-ready A4 hard copy with candidate slip and zero answers revealed.</p>
+                  </div>
+                </button>
+
+                <!-- 3. Standalone Offline HTML -->
+                <button
+                  @click="showPaperExportDropdown = false; exportExamPaperAsHtml()"
+                  class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-900 transition-colors flex items-start gap-3 group"
+                >
+                  <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-100">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold text-slate-800 group-hover:text-indigo-900 flex items-center justify-between">
+                      <span>Standalone Offline HTML</span>
+                      <span class="text-[10px] font-mono px-1.5 py-0.2 bg-emerald-100/60 text-emerald-700 rounded font-semibold">.html</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Single self-contained file readable & printable on any browser offline.</p>
+                  </div>
+                </button>
+
+                <!-- 4. Plain Text File (.txt) -->
+                <button
+                  @click="showPaperExportDropdown = false; exportExamPaperAsText()"
+                  class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-900 transition-colors flex items-start gap-3 group"
+                >
+                  <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 mt-0.5 border border-slate-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold text-slate-800 group-hover:text-indigo-900 flex items-center justify-between">
+                      <span>Plain Text Document</span>
+                      <span class="text-[10px] font-mono px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded font-semibold">.txt</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Plain text format for archiving and standard text printing.</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Direct Print Action Button -->
           <button
             @click="printOfficialPaper"
             class="px-3.5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors shadow-2xs flex items-center gap-1.5"
-            title="Print or export examination paper"
+            title="Print examination paper directly via browser"
           >
             <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-            <span>Print Paper</span>
+            <span>Print</span>
           </button>
 
           <!-- Back to Exam Details -->
@@ -2100,7 +2509,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Filter Tabs & Search Bar -->
-      <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 print:hidden">
         <!-- Question Type Segmented Pills -->
         <div class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none text-xs">
           <button
@@ -2194,8 +2603,53 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Print-Only Publication Slip for Hard-Copy Examination -->
+      <div class="hidden print:block border-2 border-black p-5 mb-6 text-black bg-white">
+        <div class="text-center border-b-2 border-black pb-3 mb-4">
+          <h2 class="text-xl font-bold uppercase tracking-wider">Wollo University</h2>
+          <h3 class="text-xs font-semibold uppercase tracking-wide">Office of the Examination Controller & Directorate of Academic Quality</h3>
+          <p class="text-base font-bold mt-1 text-slate-900">{{ selectedExam?.title }}</p>
+        </div>
+
+        <table class="w-full text-xs border-collapse mb-4">
+          <tr>
+            <td class="border border-slate-500 p-2 font-bold w-1/2">Course: {{ selectedExam?.course || selectedExam?.courseName }} ({{ selectedExam?.courseCode || selectedExam?.course_code || 'N/A' }})</td>
+            <td class="border border-slate-500 p-2 font-bold w-1/2">Department: {{ selectedExam?.department || 'Information Technology' }}</td>
+          </tr>
+          <tr>
+            <td class="border border-slate-500 p-2">Instructor / Examiner: {{ selectedExam?.instructor }}</td>
+            <td class="border border-slate-500 p-2">Academic Year: {{ selectedExam?.year }} • {{ selectedExam?.section || 'Section A' }}</td>
+          </tr>
+          <tr>
+            <td class="border border-slate-500 p-2">Time Allowed: {{ selectedExam?.duration }}</td>
+            <td class="border border-slate-500 p-2 font-bold">Maximum Score: {{ selectedExam?.totalMarks || selectedExam?.total_marks || questionTypeSummary.all.marks }} Marks</td>
+          </tr>
+        </table>
+
+        <!-- Candidate Identification Slip -->
+        <div class="border-2 border-black p-3 bg-slate-50 mb-4 text-xs">
+          <p class="font-bold uppercase tracking-wider mb-2 border-b border-black pb-1">Candidate Identification Slip (To be filled in blue or black ink):</p>
+          <div class="grid grid-cols-2 gap-y-3 gap-x-4">
+            <div>Student Full Name: _____________________________________________</div>
+            <div>Student ID Number: ________________________</div>
+            <div>Section / Class: _________________________________________________</div>
+            <div>Desk / Seat Number: _______________________</div>
+          </div>
+        </div>
+
+        <div class="border border-slate-400 p-2.5 text-[11px] leading-relaxed">
+          <strong>GENERAL EXAMINATION INSTRUCTIONS:</strong>
+          <ol class="list-decimal list-inside mt-1 space-y-0.5">
+            <li>Ensure your Student ID and Full Name are written legibly on the identification slip above.</li>
+            <li>Carefully review instructions for each specific question section before writing your responses.</li>
+            <li>All unauthorized books, notes, smart devices, and phones are strictly prohibited.</li>
+            <li>Raise your hand quietly if you notice any printing defect or illegible question.</li>
+          </ol>
+        </div>
+      </div>
+
       <!-- Official Academic Paper Header Banner -->
-      <div class="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-2xl p-6 sm:p-7 text-white shadow-md relative overflow-hidden">
+      <div class="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-2xl p-6 sm:p-7 text-white shadow-md relative overflow-hidden print:hidden">
         <div class="relative z-10 space-y-4">
           <!-- Institutional Header -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
@@ -2482,6 +2936,20 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Print-Only Invigilator Certification Slip -->
+      <div class="hidden print:block border-t-2 border-black pt-5 mt-10 text-xs text-black bg-white break-inside-avoid">
+        <div class="flex justify-between items-end">
+          <div class="space-y-2">
+            <p>Senior Invigilator / Proctor Name: _________________________________________</p>
+            <p>Signature: ________________________________  Date & Time: __________________</p>
+          </div>
+          <div class="text-right border border-black p-3 rounded text-[10px]">
+            <p class="font-bold uppercase tracking-wider">Official Examination Seal</p>
+            <p class="text-slate-500 mt-1">Wollo University Registrar / Faculty</p>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ────────────────────────────────────────────────────────────────────────
@@ -2749,3 +3217,58 @@ onUnmounted(() => {
 
   </div>
 </template>
+
+<style>
+@media print {
+  /* Hide Admin Header, Admin Sidebar, navigation, buttons, inputs, modals, and toasts */
+  header,
+  aside,
+  nav,
+  button,
+  input,
+  select,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset layout for full-width crisp paper printing */
+  body, html {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    line-height: 1.4 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Remove screen shadows and adapt borders for crisp duplication press output */
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl,
+  .shadow-xs,
+  .shadow-2xs {
+    box-shadow: none !important;
+  }
+
+  .border,
+  .border-slate-200,
+  .border-slate-300 {
+    border-color: #555555 !important;
+  }
+
+  /* Prevent questions and section headers from splitting across pages */
+  .break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+</style>

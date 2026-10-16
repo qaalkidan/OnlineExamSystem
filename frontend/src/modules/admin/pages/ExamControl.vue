@@ -1249,10 +1249,9 @@ const filterRecoveryByExam = (examTitle: string) => {
                   :class="{
                     'bg-emerald-500 animate-pulse': exam.is_live || (exam.status === 'live' && !exam.is_paused && !exam.is_cancelled),
                     'bg-amber-500': exam.is_paused || exam.status === 'paused',
-                    'bg-slate-400': exam.is_completed || exam.status === 'completed',
+                    'bg-slate-400': exam.is_completed || exam.status === 'completed' || exam.status === 'draft',
                     'bg-sky-500': exam.is_upcoming || exam.status === 'scheduled',
                     'bg-rose-500': exam.is_cancelled || exam.status === 'cancelled',
-                    'bg-slate-400': exam.status === 'draft',
                   }"
                   class="w-1.5 h-1.5 rounded-full"
                 ></span>
