@@ -323,6 +323,10 @@ const getAvatarBg = (name?: string): string => {
 
 // ── Override Handlers ──────────────────────────────────────────────────────────
 const openOverride = (req: any) => {
+  if (req.is_submitted || (req.can_override === false && req.attempt_status !== 'in_progress')) {
+    showToast('Cannot override: This exam attempt has already been submitted and concluded.', 'info')
+    return
+  }
   overrideRequest.value = req
   overrideSeconds.value = req.suggested_seconds ?? req.interruption_seconds ?? 0
   overrideReason.value = ''
@@ -901,8 +905,9 @@ const filterRecoveryByExam = (examTitle: string) => {
                         </svg>
                       </button>
 
-                      <!-- Override Action Button -->
+                      <!-- Override Action Button (Available only when attempt is eligible / in-progress) -->
                       <button
+                        v-if="req.can_override || (!req.is_submitted && req.attempt_status === 'in_progress')"
                         @click="openOverride(req)"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs hover:shadow transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
                       >
@@ -911,6 +916,18 @@ const filterRecoveryByExam = (examTitle: string) => {
                         </svg>
                         <span>Override</span>
                       </button>
+
+                      <!-- Attempt Finalized Indicator (When student already submitted/finished) -->
+                      <span
+                        v-else
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-500 border border-slate-200/80 text-[11px] font-semibold cursor-default"
+                        :title="'Attempt was already submitted on ' + (req.submitted_at_formatted || 'an earlier date') + '. Extra time overrides can only be applied to active, unsubmitted attempts.'"
+                      >
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span>Finalized</span>
+                      </span>
                     </div>
                   </td>
 
@@ -929,6 +946,14 @@ const filterRecoveryByExam = (examTitle: string) => {
                           </span>
                         </div>
                         <span class="text-xs font-mono text-slate-400">Request Record #{{ req.id }}</span>
+                      </div>
+
+                      <!-- Attempt Finalized Notice if already submitted -->
+                      <div v-if="req.is_submitted || req.submitted_at_formatted" class="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700 flex items-start gap-2.5">
+                        <svg class="w-4 h-4 text-slate-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <div>
+                          <span class="font-bold text-slate-800">Attempt Already Concluded</span>: This student attempt was submitted and finalized on <span class="font-semibold text-slate-900">{{ req.submitted_at_formatted || 'an earlier date' }}</span>. In online examination management, extra time compensation applies strictly to active, in-progress attempts experiencing real-time network interruptions.
+                        </div>
                       </div>
 
                       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">

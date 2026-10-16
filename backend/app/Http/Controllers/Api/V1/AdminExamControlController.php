@@ -94,6 +94,23 @@ class AdminExamControlController extends Controller
             return response()->json(['message' => 'Associated exam attempt not found.'], 404);
         }
 
+        // Prevent overriding already submitted/finalized attempts
+        if ($attempt->submitted_at !== null || in_array($attempt->status, ['submitted', 'graded', 'published'])) {
+            $submittedDate = $attempt->submitted_at ? $attempt->submitted_at->format('M d, Y h:i A') : 'an earlier date';
+            return response()->json([
+                'status'  => 'error',
+                'message' => "Cannot apply extra time override: This student examination attempt has already been submitted and finalized ({$submittedDate}). Extra time compensation can only be applied to active, unsubmitted examination sessions.",
+            ], 422);
+        }
+
+        // Prevent overriding cancelled exams
+        if ($recovery->exam?->isCancelled()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Cannot apply extra time override: This examination has been cancelled by an administrator.',
+            ], 422);
+        }
+
         $validated = $request->validate([
             'approved_seconds' => 'required|integer|min:0',
             'override_reason'  => 'required|string|min:4|max:500',
@@ -338,6 +355,10 @@ class AdminExamControlController extends Controller
             return sprintf('%02d:%02d', $m, $s);
         };
 
+        $isSubmitted = $attempt && (in_array($attempt->status, ['submitted', 'graded', 'published']) || $attempt->submitted_at !== null);
+        $isCancelled = $exam && $exam->isCancelled();
+        $canOverride = $attempt && !$isSubmitted && !$isCancelled;
+
         return [
             'id'                        => $r->id,
             'exam_id'                   => $r->exam_id,
@@ -345,6 +366,13 @@ class AdminExamControlController extends Controller
             'instructor_name'           => $exam->instructor->name ?? 'Instructor',
             'attempt_id'                => $r->exam_attempt_id,
             'attempt_status'            => $attempt->status ?? 'unknown',
+            'is_submitted'              => $isSubmitted,
+            'submitted_at'              => $attempt?->submitted_at?->toIso8601String(),
+            'submitted_at_formatted'    => $attempt?->submitted_at?->format('M d, Y h:i A'),
+            'can_override'              => $canOverride,
+            'override_disabled_reason'  => $isSubmitted
+                ? 'Exam attempt has already been submitted and concluded'
+                : ($isCancelled ? 'Examination is cancelled' : null),
             'student_id'                => $student->id_no ?: ('STU-' . ($student->id ?? '0')),
             'student_name'              => $student->name ?? 'Student',
             'student_email'             => $student->email ?? '',
