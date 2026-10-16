@@ -216,18 +216,41 @@ const creatorDisplayName = computed(() => {
 })
 
 const currentInstructorInfo = computed(() => {
-  if (!courseToAssign.value?.instructor) return null
-  const name = courseToAssign.value.instructor?.name || (typeof courseToAssign.value.instructor === 'string' ? courseToAssign.value.instructor : null)
+  if (!courseToAssign.value) return null
+  let name = null
+  if (courseToAssign.value.instructor && typeof courseToAssign.value.instructor === 'object') {
+    name = courseToAssign.value.instructor.name
+  } else if (typeof courseToAssign.value.instructor === 'string' && courseToAssign.value.instructor !== 'Unassigned') {
+    name = courseToAssign.value.instructor
+  } else if (courseToAssign.value.instructor_id) {
+    const found = allInstructors.value.find(i => String(i.id) === String(courseToAssign.value.instructor_id))
+    if (found?.name) name = found.name
+  } else {
+    const list = getCourseInstructors(courseToAssign.value)
+    if (list.length > 0) name = list[0].name
+  }
   if (!name || name === 'Unassigned') return null
-  return `${name} is currently assigned (Section A)`
+  const sec = courseToAssign.value.section === 'Section B' ? 'Section B' : 'Section A'
+  return `${name} is currently assigned (${sec})`
 })
 
 const currentCoInstructorInfo = computed(() => {
-  const coId = courseToAssign.value?.co_instructor_id || courseToAssign.value?.coInstructor?.id || courseToAssign.value?.co_instructor?.id
-  if (!coId) return null
-  const coInst = allInstructors.value.find(i => i.id === coId) || courseToAssign.value?.coInstructor || courseToAssign.value?.co_instructor
-  if (!coInst) return null
-  return `${coInst.name} is currently assigned (Section B)`
+  if (!courseToAssign.value) return null
+  const coId = courseToAssign.value.co_instructor_id || courseToAssign.value.coInstructor?.id || courseToAssign.value.co_instructor?.id
+  let name = null
+  if (courseToAssign.value.coInstructor && typeof courseToAssign.value.coInstructor === 'object') {
+    name = courseToAssign.value.coInstructor.name
+  } else if (courseToAssign.value.co_instructor && typeof courseToAssign.value.co_instructor === 'object') {
+    name = courseToAssign.value.co_instructor.name
+  } else if (coId) {
+    const found = allInstructors.value.find(i => String(i.id) === String(coId))
+    if (found?.name) name = found.name
+  } else {
+    const list = getCourseInstructors(courseToAssign.value)
+    if (list.length > 1) name = list[1].name
+  }
+  if (!name) return null
+  return `${name} is currently assigned (Section B)`
 })
 
 // ── Fetch Data ────────────────────────────────────────────────────────────────
@@ -810,8 +833,21 @@ const formAvailableInstructors = computed(() => {
 })
 
 const instructorsForAssign = computed(() => {
-  if (!courseToAssign.value?.department_id) return allInstructors.value
-  return allInstructors.value.filter(i => String(i.department_id) === String(courseToAssign.value.department_id))
+  if (!courseToAssign.value) return allInstructors.value
+  const deptId = courseToAssign.value.department_id
+  if (!deptId) return allInstructors.value
+
+  const currentPrimaryId = String(assignInstructorId.value || '')
+  const currentCoId = String(assignCoInstructorId.value || '')
+
+  const filtered = allInstructors.value.filter(i => {
+    if (String(i.department_id) === String(deptId)) return true
+    if (currentPrimaryId && String(i.id) === currentPrimaryId) return true
+    if (currentCoId && String(i.id) === currentCoId) return true
+    return false
+  })
+
+  return filtered.length > 0 ? filtered : allInstructors.value
 })
 
 const availableInstructors = computed(() => {
@@ -825,8 +861,22 @@ const availableCoInstructors = computed(() => {
 const openAssign = (course: any) => {
   courseToAssign.value = course
   assignSection.value = course.section || 'Both Sections'
-  assignInstructorId.value = course.instructor_id ? String(course.instructor_id) : (course.instructor?.id ? String(course.instructor.id) : '')
-  assignCoInstructorId.value = course.co_instructor_id ? String(course.co_instructor_id) : (course.coInstructor?.id ? String(course.coInstructor.id) : '')
+
+  let primaryId = course.instructor_id ? String(course.instructor_id) : (course.instructor?.id ? String(course.instructor.id) : '')
+  let coId = course.co_instructor_id ? String(course.co_instructor_id) : (course.coInstructor?.id ? String(course.coInstructor.id) : '')
+
+  if (!primaryId) {
+    const list = getCourseInstructors(course)
+    if (list.length > 0) {
+      primaryId = String(list[0].id)
+      if (list.length > 1 && !coId) {
+        coId = String(list[1].id)
+      }
+    }
+  }
+
+  assignInstructorId.value = primaryId
+  assignCoInstructorId.value = coId
   showAssignModal.value = true
 }
 
@@ -2745,54 +2795,155 @@ const recentCourses = computed(() => {
       </div>
 
       <!-- Assign Instructors Modal -->
-      <div v-if="showAssignModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 border border-slate-100">
-          <div class="p-6">
-            <div class="flex items-center gap-3 mb-4">
-              <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+      <div v-if="showAssignModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4 sm:p-6 overflow-y-auto" @click.self="showAssignModal = false">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 border border-slate-200/90 transform transition-all">
+          <!-- Modal Header -->
+          <div class="px-6 py-5 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-slate-50/80 to-white">
+            <div class="flex items-center gap-3.5">
+              <div class="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
               </div>
               <div>
-                <h3 class="text-sm font-bold text-slate-900">Assign Course Faculty</h3>
-                <p class="text-xs text-slate-500">{{ courseToAssign?.name }} ({{ courseToAssign?.code }})</p>
+                <h3 class="text-base font-bold text-slate-900 tracking-tight">Assign Course Faculty</h3>
+                <div class="flex items-center flex-wrap gap-2 mt-1">
+                  <span class="text-xs font-semibold text-slate-700">{{ courseToAssign?.name || courseToAssign?.title }}</span>
+                  <span v-if="courseToAssign?.code" class="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200/80">{{ courseToAssign?.code }}</span>
+                  <span v-if="courseToAssign?.department?.name || courseToAssign?.dept || courseToAssign?.departmentName" class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100/80">{{ courseToAssign?.department?.name || courseToAssign?.dept || courseToAssign?.departmentName }}</span>
+                </div>
               </div>
             </div>
+            <button
+              type="button"
+              @click="showAssignModal = false"
+              class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors focus:outline-none"
+              title="Close modal"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
-            <div class="space-y-4 text-xs">
-              <div>
-                <label class="block font-bold text-slate-700 mb-1.5">Section Cohort</label>
-                <select v-model="assignSection" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:border-indigo-600 bg-white">
+          <!-- Modal Body -->
+          <div class="p-6 space-y-4.5 text-xs">
+            <!-- Field 1: Section Cohort -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-xs font-bold text-slate-700">Section Cohort</label>
+                <span class="text-[11px] font-medium text-indigo-600">{{ assignSection }}</span>
+              </div>
+              <div class="relative">
+                <select v-model="assignSection" class="w-full appearance-none bg-slate-50/60 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs pr-10">
                   <option v-for="sec in sectionOptions" :key="sec" :value="sec">{{ sec }}</option>
                 </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
               </div>
+              <p class="mt-1.5 text-[11px] text-slate-500 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span v-if="assignSection === 'Both Sections'">Assigned faculty will oversee evaluations for both Section A &amp; Section B cohorts.</span>
+                <span v-else-if="assignSection === 'Section A'">Primary assignment applies specifically to the Section A student cohort.</span>
+                <span v-else-if="assignSection === 'Section B'">Primary assignment applies specifically to the Section B student cohort.</span>
+                <span v-else>Select the student cohort allocation for this course offering.</span>
+              </p>
+            </div>
 
-              <div>
-                <label class="block font-bold text-slate-700 mb-1.5">Primary Course Instructor</label>
-                <select v-model="assignInstructorId" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:border-indigo-600 bg-white">
+            <!-- Field 2: Primary Course Instructor -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-xs font-bold text-slate-700">Primary Course Instructor</label>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Lead Faculty</span>
+              </div>
+              <div class="relative">
+                <select v-model="assignInstructorId" class="w-full appearance-none bg-slate-50/60 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs pr-10">
                   <option value="">Unassigned</option>
-                  <option v-for="inst in availableInstructors" :key="inst.id" :value="String(inst.id)">{{ inst.name }} ({{ inst.department?.name || 'Faculty' }})</option>
+                  <option v-for="inst in availableInstructors" :key="inst.id" :value="String(inst.id)">
+                    {{ inst.name }} {{ inst.department?.name ? `(${inst.department.name})` : '' }}
+                  </option>
                 </select>
-                <p v-if="currentInstructorInfo" class="mt-1 text-[11px] text-slate-400 italic">{{ currentInstructorInfo }}</p>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
               </div>
+              <div v-if="currentInstructorInfo" class="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50/90 px-3 py-1.5 rounded-lg border border-emerald-200/80 font-medium">
+                <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>{{ currentInstructorInfo }}</span>
+              </div>
+              <p v-else class="mt-1.5 text-[11px] text-slate-400 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>No primary instructor currently assigned to this course.</span>
+              </p>
+            </div>
 
-              <div>
-                <label class="block font-bold text-slate-700 mb-1.5">Co-Instructor (Section B / Optional)</label>
-                <select v-model="assignCoInstructorId" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:border-indigo-600 bg-white">
+            <!-- Field 3: Co-Instructor (Section B / Optional) -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-xs font-bold text-slate-700">Co-Instructor (Section B / Optional)</label>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">Secondary</span>
+              </div>
+              <div class="relative">
+                <select v-model="assignCoInstructorId" class="w-full appearance-none bg-slate-50/60 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs pr-10">
                   <option value="">None / Single Instructor</option>
-                  <option v-for="inst in availableCoInstructors" :key="inst.id" :value="String(inst.id)">{{ inst.name }}</option>
+                  <option v-for="inst in availableCoInstructors" :key="inst.id" :value="String(inst.id)">
+                    {{ inst.name }} {{ inst.department?.name ? `(${inst.department.name})` : '' }}
+                  </option>
                 </select>
-                <p v-if="currentCoInstructorInfo" class="mt-1 text-[11px] text-slate-400 italic">{{ currentCoInstructorInfo }}</p>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
+              <div v-if="currentCoInstructorInfo" class="mt-1.5 flex items-center gap-1.5 text-xs text-indigo-800 bg-indigo-50/90 px-3 py-1.5 rounded-lg border border-indigo-200/80 font-medium">
+                <svg class="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>{{ currentCoInstructorInfo }}</span>
+              </div>
+              <p v-else class="mt-1.5 text-[11px] text-slate-400 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Optional co-instructor for parallel section delivery or collaborative assessment.</span>
+              </p>
+            </div>
+
+            <!-- Allocation Policy Notice -->
+            <div class="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600">
+              <svg class="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div class="leading-relaxed">
+                <span class="font-bold text-slate-700">Assignment Policy:</span>
+                Assigned faculty must be active instructors or department heads belonging to the course's academic department. The primary instructor and co-instructor cannot be the same individual.
               </div>
             </div>
           </div>
 
-          <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-            <button @click="showAssignModal = false" class="px-5 py-2 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-              Cancel
-            </button>
-            <button @click="assignInstructor" :disabled="isLoading" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-xs disabled:opacity-50">
-              {{ isLoading ? 'Assigning...' : 'Save Assignments' }}
-            </button>
+          <!-- Modal Footer -->
+          <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
+            <div class="flex items-center gap-2 text-[11px] text-slate-500">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span class="font-medium">{{ instructorsForAssign.length }} eligible faculty members</span>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <button
+                type="button"
+                @click="showAssignModal = false"
+                class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl transition shadow-2xs focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                @click="assignInstructor"
+                :disabled="isLoading"
+                class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl transition shadow-xs disabled:opacity-50 inline-flex items-center gap-2 focus:outline-none"
+              >
+                <svg v-if="isLoading" class="w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <span>{{ isLoading ? 'Saving Assignments...' : 'Save Assignments' }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
