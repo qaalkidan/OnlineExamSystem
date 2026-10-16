@@ -195,14 +195,18 @@ const filteredExams = computed(() => {
       (exam.examCode ?? '').toLowerCase().includes(q)
 
     let matchesStatus = true
-    if (examStatusFilter.value === 'published') {
-      matchesStatus = exam.status === 'published' && !exam.is_paused && !exam.is_cancelled
+    if (examStatusFilter.value === 'live' || examStatusFilter.value === 'published') {
+      matchesStatus = exam.is_live || exam.computed_status === 'live' || (exam.status === 'live' && !exam.is_paused && !exam.is_cancelled && !exam.is_completed)
+    } else if (examStatusFilter.value === 'completed') {
+      matchesStatus = exam.is_completed || exam.computed_status === 'completed' || exam.status === 'completed'
+    } else if (examStatusFilter.value === 'scheduled') {
+      matchesStatus = exam.is_upcoming || exam.computed_status === 'scheduled' || exam.status === 'scheduled'
     } else if (examStatusFilter.value === 'paused') {
-      matchesStatus = exam.status === 'paused' || exam.is_paused === true
+      matchesStatus = exam.status === 'paused' || exam.is_paused === true || exam.computed_status === 'paused'
     } else if (examStatusFilter.value === 'cancelled') {
-      matchesStatus = exam.status === 'cancelled' || exam.is_cancelled === true
+      matchesStatus = exam.status === 'cancelled' || exam.is_cancelled === true || exam.computed_status === 'cancelled'
     } else if (examStatusFilter.value !== 'all') {
-      matchesStatus = exam.status === examStatusFilter.value
+      matchesStatus = (exam.computed_status === examStatusFilter.value) || (exam.status === examStatusFilter.value)
     }
 
     return matchesSearch && matchesStatus
@@ -210,15 +214,19 @@ const filteredExams = computed(() => {
 })
 
 const liveExamsCount = computed(() => {
-  return allExams.value.filter(e => e.status === 'published' && !e.is_paused && !e.is_cancelled).length
+  return allExams.value.filter(e => e.is_live || e.computed_status === 'live' || (e.status === 'live' && !e.is_paused && !e.is_cancelled && !e.is_completed)).length
 })
 
 const pausedExamsCount = computed(() => {
-  return allExams.value.filter(e => e.status === 'paused' || e.is_paused).length
+  return allExams.value.filter(e => e.is_paused || e.status === 'paused' || e.computed_status === 'paused').length
 })
 
 const cancelledExamsCount = computed(() => {
-  return allExams.value.filter(e => e.status === 'cancelled' || e.is_cancelled).length
+  return allExams.value.filter(e => e.is_cancelled || e.status === 'cancelled' || e.computed_status === 'cancelled').length
+})
+
+const completedExamsCount = computed(() => {
+  return allExams.value.filter(e => e.is_completed || e.status === 'completed' || e.computed_status === 'completed').length
 })
 
 // ── Helpers & Formatters ───────────────────────────────────────────────────────
@@ -373,6 +381,10 @@ const submitOverride = async () => {
 
 // ── Exam Control Actions ───────────────────────────────────────────────────────
 const openCancelExam = (exam: any) => {
+  if (exam.is_completed || exam.computed_status === 'completed' || exam.status === 'completed') {
+    showToast('Cannot cancel: This examination has already concluded and all attempts are finalized.', 'info')
+    return
+  }
   cancelExam.value = exam
   cancelReason.value = ''
   cancelError.value = null
@@ -403,6 +415,14 @@ const submitCancelExam = async () => {
 }
 
 const openPauseExam = (exam: any) => {
+  if (exam.is_completed || exam.computed_status === 'completed' || exam.status === 'completed') {
+    showToast('Cannot pause: This examination has already concluded and all attempts are finalized.', 'info')
+    return
+  }
+  if (exam.is_upcoming || exam.computed_status === 'scheduled' || exam.status === 'scheduled') {
+    showToast('Cannot pause: Examination has not started yet. Pausing applies only to live, running sessions.', 'info')
+    return
+  }
   pauseExam.value = exam
   pauseError.value = null
   showPauseModal.value = true
@@ -1076,7 +1096,7 @@ const filterRecoveryByExam = (examTitle: string) => {
     <template v-if="activeTab === 'control'">
 
       <!-- ── Exam Control KPI Cards ─────────────────────────────────────────── -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
           <div class="flex items-center justify-between">
@@ -1091,7 +1111,7 @@ const filterRecoveryByExam = (examTitle: string) => {
 
         <div class="bg-white rounded-2xl border border-emerald-200/80 p-5 shadow-sm bg-gradient-to-br from-white to-emerald-50/20">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Live & Published</span>
+            <span class="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Live & Ongoing</span>
             <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
               <span class="relative flex h-2.5 w-2.5">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1100,7 +1120,7 @@ const filterRecoveryByExam = (examTitle: string) => {
             </div>
           </div>
           <div class="mt-3 text-2xl font-bold text-emerald-600">{{ liveExamsCount }}</div>
-          <div class="mt-2 text-xs text-slate-500">Currently active for students</div>
+          <div class="mt-2 text-xs text-slate-500">Currently taking place</div>
         </div>
 
         <div class="bg-white rounded-2xl border border-amber-200/80 p-5 shadow-sm bg-gradient-to-br from-white to-amber-50/20">
@@ -1112,6 +1132,17 @@ const filterRecoveryByExam = (examTitle: string) => {
           </div>
           <div class="mt-3 text-2xl font-bold text-amber-600">{{ pausedExamsCount }}</div>
           <div class="mt-2 text-xs text-slate-500">Timers frozen platform-wide</div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm bg-gradient-to-br from-white to-slate-50/30">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Concluded Exams</span>
+            <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+          </div>
+          <div class="mt-3 text-2xl font-bold text-slate-800">{{ completedExamsCount }}</div>
+          <div class="mt-2 text-xs text-slate-500">Finalized examination sessions</div>
         </div>
 
         <div class="bg-white rounded-2xl border border-rose-200/80 p-5 shadow-sm bg-gradient-to-br from-white to-rose-50/20">
@@ -1155,11 +1186,12 @@ const filterRecoveryByExam = (examTitle: string) => {
             class="w-full sm:w-auto px-3.5 py-2 text-sm bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 transition-all"
           >
             <option value="all">All Exam Statuses</option>
-            <option value="published">Live / Published</option>
-            <option value="paused">Paused</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="completed">Completed</option>
-            <option value="draft">Draft</option>
+            <option value="live">Live & Ongoing</option>
+            <option value="completed">Concluded / Completed</option>
+            <option value="scheduled">Upcoming / Scheduled</option>
+            <option value="paused">Paused Sessions</option>
+            <option value="cancelled">Cancelled Exams</option>
+            <option value="draft">Drafts</option>
           </select>
         </div>
 
@@ -1204,24 +1236,40 @@ const filterRecoveryByExam = (examTitle: string) => {
             <div class="flex items-center justify-between gap-2 mb-3">
               <span
                 :class="{
-                  'bg-emerald-50 text-emerald-700 border-emerald-200/80': exam.status === 'published' && !exam.is_paused && !exam.is_cancelled,
-                  'bg-amber-50 text-amber-700 border-amber-200/80': exam.status === 'paused' || exam.is_paused,
-                  'bg-rose-50 text-rose-700 border-rose-200/80': exam.status === 'cancelled' || exam.is_cancelled,
-                  'bg-slate-100 text-slate-700 border-slate-200': !['published','paused','cancelled'].includes(exam.status),
+                  'bg-emerald-50 text-emerald-700 border-emerald-200/80': exam.is_live || (exam.status === 'live' && !exam.is_paused && !exam.is_cancelled),
+                  'bg-amber-50 text-amber-700 border-amber-200/80': exam.is_paused || exam.status === 'paused',
+                  'bg-slate-100 text-slate-700 border-slate-200/80': exam.is_completed || exam.status === 'completed',
+                  'bg-sky-50 text-sky-700 border-sky-200/80': exam.is_upcoming || exam.status === 'scheduled',
+                  'bg-rose-50 text-rose-700 border-rose-200/80': exam.is_cancelled || exam.status === 'cancelled',
+                  'bg-slate-100 text-slate-600 border-slate-200': exam.status === 'draft',
                 }"
                 class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold"
               >
                 <span
                   :class="{
-                    'bg-emerald-500': exam.status === 'published' && !exam.is_paused && !exam.is_cancelled,
-                    'bg-amber-500': exam.status === 'paused' || exam.is_paused,
-                    'bg-rose-500': exam.status === 'cancelled' || exam.is_cancelled,
-                    'bg-slate-500': !['published','paused','cancelled'].includes(exam.status),
+                    'bg-emerald-500 animate-pulse': exam.is_live || (exam.status === 'live' && !exam.is_paused && !exam.is_cancelled),
+                    'bg-amber-500': exam.is_paused || exam.status === 'paused',
+                    'bg-slate-400': exam.is_completed || exam.status === 'completed',
+                    'bg-sky-500': exam.is_upcoming || exam.status === 'scheduled',
+                    'bg-rose-500': exam.is_cancelled || exam.status === 'cancelled',
+                    'bg-slate-400': exam.status === 'draft',
                   }"
                   class="w-1.5 h-1.5 rounded-full"
                 ></span>
                 <span class="capitalize">
-                  {{ exam.is_cancelled ? 'Cancelled' : exam.is_paused ? 'Paused' : exam.status }}
+                  {{
+                    exam.is_cancelled || exam.status === 'cancelled'
+                      ? 'Cancelled'
+                      : exam.is_paused || exam.status === 'paused'
+                        ? 'Paused'
+                        : exam.is_completed || exam.status === 'completed'
+                          ? 'Concluded'
+                          : exam.is_live || exam.status === 'live'
+                            ? 'Live'
+                            : exam.is_upcoming || exam.status === 'scheduled'
+                              ? 'Scheduled'
+                              : (exam.status || 'Draft')
+                  }}
                 </span>
               </span>
 
@@ -1288,9 +1336,19 @@ const filterRecoveryByExam = (examTitle: string) => {
             </button>
 
             <div class="flex items-center gap-2">
+              <!-- Completed / Concluded Indicator -->
+              <span
+                v-if="exam.is_completed || exam.status === 'completed'"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 border border-slate-200/80 text-xs font-semibold cursor-default"
+                :title="'Examination concluded. All student attempts are finalized.'"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>Concluded</span>
+              </span>
+
               <!-- Pause / Resume Controls -->
               <button
-                v-if="exam.status === 'published' && !exam.is_paused && !exam.is_cancelled"
+                v-else-if="exam.can_pause || (exam.is_live && !exam.is_paused && !exam.is_cancelled)"
                 @click="openPauseExam(exam)"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
@@ -1299,7 +1357,7 @@ const filterRecoveryByExam = (examTitle: string) => {
               </button>
 
               <button
-                v-if="exam.status === 'paused' || exam.is_paused"
+                v-else-if="exam.can_resume || exam.is_paused || exam.status === 'paused'"
                 @click="resumeExam(exam)"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
@@ -1309,7 +1367,7 @@ const filterRecoveryByExam = (examTitle: string) => {
 
               <!-- Cancel / Reinstate Controls -->
               <button
-                v-if="!exam.is_cancelled && exam.status !== 'cancelled'"
+                v-if="exam.can_cancel && !exam.is_completed && exam.status !== 'completed'"
                 @click="openCancelExam(exam)"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-colors cursor-pointer"
               >

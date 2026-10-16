@@ -177,6 +177,13 @@ class AdminExamControlController extends Controller
             return response()->json(['message' => 'This examination is already cancelled.'], 422);
         }
 
+        if ($exam->isCompleted()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Cannot cancel examination: This examination has already concluded and all attempts are finalized. Cancellation applies strictly to scheduled or ongoing examinations.',
+            ], 422);
+        }
+
         $exam->status = 'cancelled';
         $exam->cancelled_at = Carbon::now();
         $exam->cancelled_by = $admin->id;
@@ -271,6 +278,21 @@ class AdminExamControlController extends Controller
 
         if ($exam->isCancelled()) {
             return response()->json(['message' => 'Cannot pause a cancelled examination.'], 422);
+        }
+
+        if ($exam->isCompleted()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Cannot pause examination: This examination has already concluded and all attempts are finalized. Pausing is only applicable to live, in-progress sessions.',
+            ], 422);
+        }
+
+        if ($exam->isUpcoming()) {
+            $schedFormatted = $exam->scheduled_at ? $exam->scheduled_at->format('M d, Y h:i A') : 'a scheduled time';
+            return response()->json([
+                'status'  => 'error',
+                'message' => "Cannot pause examination: This examination has not started yet (scheduled for {$schedFormatted}). Pausing is only applicable to live, in-progress sessions.",
+            ], 422);
         }
 
         $exam->status = 'paused';

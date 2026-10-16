@@ -141,60 +141,109 @@ class AdminExamController extends Controller
             $yearLevel   = $exam->settings['year_level'] ?? $exam->course?->level ?? $exam->instructor?->year_level ?? 'Year 3';
             $examType    = $this->determineExamType($exam);
             $examCode    = $this->formatExamCode($exam);
+            
             $isCancelled = $exam->isCancelled();
-            $status      = $isCancelled ? 'cancelled' : strtolower($exam->status ?? 'draft');
+            $isPaused    = $exam->isPaused();
+            $isCompleted = $exam->isCompleted();
+            $isLive      = $exam->isLive();
+            $isUpcoming  = $exam->isUpcoming();
+            $computed    = $exam->computed_status;
 
             return [
-                'id'                  => $exam->id,
-                'title'               => $exam->title,
-                'code'                => $examCode,
-                'examCode'            => $examCode,
-                'course'              => $courseTitle,
-                'courseName'          => $courseTitle,
-                'courseCode'          => $courseCode,
-                'course_code'         => $courseCode,
-                'course_name'         => $courseTitle,
-                'department'          => $deptName,
-                'department_id'       => $exam->course?->department_id ?? $exam->instructor?->department_id,
-                'year'                => $yearLevel,
-                'year_level'          => $yearLevel,
-                'semester'            => $semester,
-                'section'             => $exam->section ?: 'Both',
-                'instructor'          => $exam->instructor?->name ?: 'Administrator',
-                'instructor_id'       => $exam->user_id,
-                'instructorEmail'     => $exam->instructor?->email ?: '',
-                'type'                => $examType,
-                'exam_type'           => $examType,
-                'totalMarks'          => $exam->total_marks ?? 100,
-                'total_marks'         => $exam->total_marks ?? 100,
-                'duration'            => $this->formatDuration($exam->duration_minutes),
-                'duration_minutes'    => $exam->duration_minutes ?? 60,
-                'status'              => $status,
-                'is_cancelled'        => $isCancelled,
-                'cancellation_reason' => $exam->cancellation_reason,
-                'cancelled_at'        => $exam->cancelled_at?->toISOString(),
-                'is_paused'           => $exam->paused_at !== null,
-                'scheduled_at'        => $exam->scheduled_at?->toISOString(),
-                'examDate'            => $exam->scheduled_at ? $exam->scheduled_at->format('M d, Y') : 'TBD',
-                'examTime'            => $exam->scheduled_at ? $exam->scheduled_at->format('h:i A') : 'TBD',
-                'questions_count'     => $exam->questions_count ?? 0,
-                'attempts_count'      => $exam->attempts_count ?? 0,
-                'students_count'      => $exam->students_count ?? 0,
-                'settings'            => $exam->settings ?? [],
-                'createdAt'           => $exam->created_at?->toISOString(),
+                'id'                    => $exam->id,
+                'title'                 => $exam->title,
+                'code'                  => $examCode,
+                'examCode'              => $examCode,
+                'course'                => $courseTitle,
+                'courseName'            => $courseTitle,
+                'courseCode'            => $courseCode,
+                'course_code'           => $courseCode,
+                'course_name'           => $courseTitle,
+                'department'            => $deptName,
+                'department_id'         => $exam->course?->department_id ?? $exam->instructor?->department_id,
+                'year'                  => $yearLevel,
+                'year_level'            => $yearLevel,
+                'semester'              => $semester,
+                'section'               => $exam->section ?: 'Both',
+                'instructor'            => $exam->instructor?->name ?: 'Administrator',
+                'instructor_id'         => $exam->user_id,
+                'instructorEmail'       => $exam->instructor?->email ?: '',
+                'type'                  => $examType,
+                'exam_type'             => $examType,
+                'totalMarks'            => $exam->total_marks ?? 100,
+                'total_marks'           => $exam->total_marks ?? 100,
+                'duration'              => $this->formatDuration($exam->duration_minutes),
+                'duration_minutes'      => $exam->duration_minutes ?? 60,
+                'status'                => $computed,
+                'raw_status'            => strtolower($exam->status ?? 'draft'),
+                'computed_status'       => $computed,
+                'is_live'               => $isLive,
+                'is_completed'          => $isCompleted,
+                'is_upcoming'           => $isUpcoming,
+                'is_cancelled'          => $isCancelled,
+                'is_paused'             => $isPaused,
+                'can_pause'             => $exam->canPause(),
+                'can_resume'            => $exam->canResume(),
+                'can_cancel'            => $exam->canCancel(),
+                'can_reinstate'         => $exam->canReinstate(),
+                'cancellation_reason'   => $exam->cancellation_reason,
+                'cancelled_at'          => $exam->cancelled_at?->toISOString(),
+                'paused_at'             => $exam->paused_at?->toISOString(),
+                'scheduled_at'          => $exam->scheduled_at?->toISOString(),
+                'examDate'              => $exam->scheduled_at ? $exam->scheduled_at->format('M d, Y') : 'TBD',
+                'examTime'              => $exam->scheduled_at ? $exam->scheduled_at->format('h:i A') : 'TBD',
+                'questions_count'       => $exam->questions_count ?? 0,
+                'attempts_count'        => $exam->attempts_count ?? 0,
+                'students_count'        => $exam->students_count ?? 0,
+                'active_attempts_count' => $exam->attempts()->where('status', 'in_progress')->count(),
+                'settings'              => $exam->settings ?? [],
+                'createdAt'             => $exam->created_at?->toISOString(),
             ];
         });
 
-        // 100% Real Database Statistics
+        // If client requested specific computed status filtering
+        if ($request->filled('status') && $request->status !== 'all') {
+            $reqStatus = strtolower($request->status);
+            if (in_array($reqStatus, ['completed', 'live', 'published', 'paused', 'cancelled', 'scheduled', 'draft'])) {
+                $formatted = $formatted->filter(function ($item) use ($reqStatus) {
+                    if ($reqStatus === 'live' || $reqStatus === 'published') {
+                        return $item['is_live'];
+                    }
+                    if ($reqStatus === 'completed') {
+                        return $item['is_completed'];
+                    }
+                    if ($reqStatus === 'paused') {
+                        return $item['is_paused'];
+                    }
+                    if ($reqStatus === 'cancelled') {
+                        return $item['is_cancelled'];
+                    }
+                    if ($reqStatus === 'scheduled') {
+                        return $item['is_upcoming'];
+                    }
+                    return $item['status'] === $reqStatus;
+                });
+            }
+        }
+
+        // Authoritative Real-Time Statistics
+        $totalExamsCollection = Exam::with(['attempts'])->get();
+        $liveCount = $totalExamsCollection->filter(fn($e) => $e->isLive())->count();
+        $completedCount = $totalExamsCollection->filter(fn($e) => $e->isCompleted())->count();
+        $pausedCount = $totalExamsCollection->filter(fn($e) => $e->isPaused())->count();
+        $cancelledCount = $totalExamsCollection->filter(fn($e) => $e->isCancelled())->count();
+        $scheduledCount = $totalExamsCollection->filter(fn($e) => $e->isUpcoming())->count();
+        $draftCount = $totalExamsCollection->filter(fn($e) => strtolower($e->status ?? '') === 'draft' && !$e->isCancelled())->count();
+
         $stats = [
-            'total'           => Exam::count(),
-            'published'       => Exam::where('status', 'published')->whereNull('cancelled_at')->count(),
-            'draft'           => Exam::where('status', 'draft')->whereNull('cancelled_at')->count(),
-            'scheduled'       => Exam::where('status', 'scheduled')->whereNull('cancelled_at')->count(),
-            'completed'       => Exam::where('status', 'completed')->count(),
-            'cancelled'       => Exam::where(function ($q) {
-                $q->where('status', 'cancelled')->orWhereNotNull('cancelled_at');
-            })->count(),
+            'total'           => $totalExamsCollection->count(),
+            'live'            => $liveCount,
+            'published'       => $liveCount, // backward-compatibility alias
+            'completed'       => $completedCount,
+            'paused'          => $pausedCount,
+            'cancelled'       => $cancelledCount,
+            'scheduled'       => $scheduledCount,
+            'draft'           => $draftCount,
             'total_questions' => Question::count(),
             'total_attempts'  => ExamAttempt::count(),
         ];

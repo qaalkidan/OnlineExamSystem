@@ -122,4 +122,131 @@ class Exam extends Model
     {
         return $this->status === 'paused' || $this->paused_at !== null;
     }
+
+    /**
+     * Check if exam is concluded/completed.
+     */
+    public function isCompleted(): bool
+    {
+        if ($this->isCancelled()) {
+            return false;
+        }
+
+        if (strtolower($this->status ?? '') === 'completed') {
+            return true;
+        }
+
+        // If scheduled date exists and scheduled duration has elapsed
+        if ($this->scheduled_at) {
+            $endAt = $this->scheduled_at->copy()->addMinutes($this->duration_minutes ?? 60);
+            if (\Illuminate\Support\Carbon::now()->gt($endAt)) {
+                // If there are no active in_progress attempts, it is concluded
+                $hasActiveAttempts = $this->attempts()->where('status', 'in_progress')->exists();
+                return !$hasActiveAttempts;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if exam is currently live/ongoing.
+     */
+    public function isLive(): bool
+    {
+        if ($this->isCancelled() || $this->isPaused() || $this->isCompleted()) {
+            return false;
+        }
+
+        if (strtolower($this->status ?? '') === 'draft') {
+            return false;
+        }
+
+        // Active if student attempts are currently ongoing
+        if ($this->attempts()->where('status', 'in_progress')->exists()) {
+            return true;
+        }
+
+        if ($this->scheduled_at) {
+            $now = \Illuminate\Support\Carbon::now();
+            $endAt = $this->scheduled_at->copy()->addMinutes($this->duration_minutes ?? 60);
+            return $now->between($this->scheduled_at, $endAt);
+        }
+
+        return strtolower($this->status ?? '') === 'published';
+    }
+
+    /**
+     * Check if exam is scheduled for the future.
+     */
+    public function isUpcoming(): bool
+    {
+        if ($this->isCancelled() || $this->isPaused() || $this->isCompleted()) {
+            return false;
+        }
+
+        if ($this->scheduled_at && \Illuminate\Support\Carbon::now()->lt($this->scheduled_at)) {
+            return true;
+        }
+
+        return strtolower($this->status ?? '') === 'scheduled';
+    }
+
+    /**
+     * Determine if exam can be paused by an admin.
+     * Can only pause live, running examination sessions.
+     */
+    public function canPause(): bool
+    {
+        return $this->isLive() && !$this->isPaused() && !$this->isCancelled() && !$this->isCompleted();
+    }
+
+    /**
+     * Determine if exam can be resumed.
+     */
+    public function canResume(): bool
+    {
+        return $this->isPaused() && !$this->isCancelled();
+    }
+
+    /**
+     * Determine if exam can be cancelled.
+     * Only upcoming or live/ongoing examinations can be cancelled. Concluded exams cannot be cancelled.
+     */
+    public function canCancel(): bool
+    {
+        return !$this->isCancelled() && !$this->isCompleted();
+    }
+
+    /**
+     * Determine if exam can be reinstated.
+     */
+    public function canReinstate(): bool
+    {
+        return $this->isCancelled();
+    }
+
+    /**
+     * Authoritative computed status.
+     */
+    public function getComputedStatusAttribute(): string
+    {
+        if ($this->isCancelled()) {
+            return 'cancelled';
+        }
+        if ($this->isPaused()) {
+            return 'paused';
+        }
+        if ($this->isCompleted()) {
+            return 'completed';
+        }
+        if ($this->isLive()) {
+            return 'live';
+        }
+        if ($this->isUpcoming()) {
+            return 'scheduled';
+        }
+        return strtolower($this->status ?? 'draft');
+    }
 }
+
