@@ -296,12 +296,12 @@ class AdminExamController extends Controller
         $questionsList = $exam->questions->values()->map(function ($q, $index) {
             $rawType = $q->type ?: 'multiple_choice';
             $displayType = match($rawType) {
-                'multiple_choice'                    => 'Multiple Choice',
-                'true_false'                         => 'True/False',
-                'short_answer'                       => 'Short Answer',
-                'matching'                           => 'Matching',
-                'fill_in_the_blank', 'fill_in_blank' => 'Fill in the Blanks',
-                default                              => ucfirst(str_replace('_', ' ', $rawType)),
+                'multiple_choice'                                   => 'Multiple Choice',
+                'true_false'                                        => 'True/False',
+                'short_answer'                                      => 'Short Answer',
+                'matching'                                          => 'Matching',
+                'fill_in_the_blank', 'fill_in_blank', 'fill_blank'  => 'Fill in the Blanks',
+                default                                             => ucfirst(str_replace('_', ' ', $rawType)),
             };
 
             return [
@@ -310,11 +310,17 @@ class AdminExamController extends Controller
                 'type'            => $displayType,
                 'raw_type'        => $rawType,
                 'text'            => $q->text ?: ($q->title ?: 'Question #' . ($index + 1)),
-                'instruction'     => $q->instruction ?: ($rawType === 'multiple_choice' ? 'Choose the most appropriate answer from the options given below.' : ($rawType === 'true_false' ? 'Determine whether the statement is True or False.' : 'Write your answer in the space provided.')),
+                'instruction'     => $q->instruction ?: ($rawType === 'multiple_choice' ? 'Choose the most appropriate answer from the options given below.' : ($rawType === 'true_false' ? 'Determine whether the statement is True or False.' : ($rawType === 'matching' ? 'Match each item in Column A with the correct option in Column B.' : 'Write your answer in the space provided.'))),
                 'marks'           => $q->marks ?? 5,
+                'marks_per_item'  => $q->marks_per_item,
                 'options'         => $q->options ?? [],
                 'correct_answer'  => $q->correct_answer,
                 'expected_answer' => $q->correct_answer ?: '',
+                'explanation'     => $q->explanation,
+                'difficulty'      => $q->difficulty,
+                'chapter'         => $q->chapter,
+                'topic'           => $q->topic,
+                'question_data'   => $q->question_data,
             ];
         });
 

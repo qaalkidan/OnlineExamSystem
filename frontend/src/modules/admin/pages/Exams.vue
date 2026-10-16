@@ -325,22 +325,292 @@ const upcomingExams = computed(() => {
     .slice(0, 4)
 })
 
-// Grouped questions for the selected exam
-const groupedQuestions = computed(() => {
-  if (!selectedExam.value?.questions || !Array.isArray(selectedExam.value.questions)) return []
+// ── Question Paper Management & Advanced Question Normalization ───────────────────
+const answerKeyVisible = ref(true)
+const questionTypeFilter = ref('all')
+const searchQuestionQuery = ref('')
+
+const normalizeQuestionType = (rawType: string): 'true_false' | 'matching' | 'multiple_choice' | 'fill_in_the_blank' | 'short_answer' => {
+  const t = (rawType || '').toLowerCase().trim()
+  if (t === 'true_false' || t === 'true/false' || t.includes('true') || t.includes('false')) {
+    return 'true_false'
+  }
+  if (t === 'matching' || t.includes('match')) {
+    return 'matching'
+  }
+  if (t === 'fill_blank' || t === 'fill_in_blank' || t === 'fill_in_the_blank' || t.includes('blank') || t.includes('fill')) {
+    return 'fill_in_the_blank'
+  }
+  if (t === 'short_answer' || t === 'essay' || t.includes('short') || t.includes('essay')) {
+    return 'short_answer'
+  }
+  return 'multiple_choice'
+}
+
+const getLetterLabel = (index: number): string => {
+  let label = ''
+  let num = index
+  while (num >= 0) {
+    label = String.fromCharCode(65 + (num % 26)) + label
+    num = Math.floor(num / 26) - 1
+  }
+  return label
+}
+
+const parseMatchingData = (q: any) => {
+  const qData = q.question_data || {}
+  let columnA: { id: number; text: string }[] = []
+  let columnB: { label: string; text: string }[] = []
   
-  const groups: Record<string, any[]> = {}
-  selectedExam.value.questions.forEach((q: any) => {
-    const inst = q.instruction || 'Section Questions'
-    if (!groups[inst]) groups[inst] = []
-    groups[inst].push(q)
+  if (Array.isArray(qData.column_a) && qData.column_a.length > 0) {
+    columnA = qData.column_a.map((item: any, idx: number) => ({
+      id: idx + 1,
+      text: typeof item === 'object' && item !== null ? (item.text || item.title || JSON.stringify(item)) : String(item)
+    }))
+  }
+  
+  if (Array.isArray(qData.column_b) && qData.column_b.length > 0) {
+    columnB = qData.column_b.map((item: any, idx: number) => ({
+      label: item.label || getLetterLabel(idx),
+      text: typeof item === 'object' && item !== null ? (item.text || item.description || JSON.stringify(item)) : String(item)
+    }))
+  }
+  
+  // Fallback to options if column_a or column_b not populated
+  if ((columnA.length === 0 || columnB.length === 0) && Array.isArray(q.options) && q.options.length > 0) {
+    columnA = q.options.map((opt: any, idx: number) => ({
+      id: idx + 1,
+      text: opt.left || opt.premise || opt.term || `Item ${idx + 1}`
+    }))
+    columnB = q.options.map((opt: any, idx: number) => ({
+      label: getLetterLabel(idx),
+      text: opt.right || opt.response || opt.definition || `Option ${getLetterLabel(idx)}`
+    }))
+  }
+  
+  // Extract matches
+  const matches: { aNum: number; aText: string; bLabel: string; bText: string }[] = []
+  
+  if (Array.isArray(qData.matched_pairs) && qData.matched_pairs.length > 0) {
+    qData.matched_pairs.forEach((pair: any, idx: number) => {
+      const matchedB = columnB.find(b => b.text.trim().toLowerCase() === String(pair.right || '').trim().toLowerCase())
+      matches.push({
+        aNum: idx + 1,
+        aText: pair.left || '',
+        bLabel: matchedB?.label || getLetterLabel(idx),
+        bText: pair.right || ''
+      })
+    })
+  } else if (qData.correct_answers && typeof qData.correct_answers === 'object') {
+    Object.entries(qData.correct_answers).forEach(([aKey, bVal]) => {
+      const aNum = Number(aKey)
+      const aItem = columnA.find(a => a.id === aNum)
+      const bLabel = String(bVal).trim().toUpperCase()
+      const bItem = columnB.find(b => b.label.toUpperCase() === bLabel)
+      if (aItem) {
+        matches.push({
+          aNum: aItem.id,
+          aText: aItem.text,
+          bLabel: bLabel,
+          bText: bItem?.text || ''
+        })
+      }
+    })
+  } else if (typeof q.correct_answer === 'string' && q.correct_answer.includes('-')) {
+    const pairs = q.correct_answer.split(',').map((s: string) => s.trim())
+    pairs.forEach((p: string) => {
+      const parts = p.split('-').map(s => s.trim())
+      const aNum = parseInt(parts[0], 10)
+      const bLabel = parts[1] ? parts[1].toUpperCase() : ''
+      const aItem = columnA.find(a => a.id === aNum)
+      const bItem = columnB.find(b => b.label.toUpperCase() === bLabel)
+      if (aItem) {
+        matches.push({
+          aNum: aItem.id,
+          aText: aItem.text,
+          bLabel: bLabel,
+          bText: bItem?.text || ''
+        })
+      }
+    })
+  }
+  
+  const marksPerItem = q.marks_per_item || qData.marks_per_item || (columnA.length > 0 ? (Number(q.marks || 0) / columnA.length).toFixed(1) : 1)
+  
+  return {
+    columnA,
+    columnB,
+    matches,
+    marksPerItem,
+    columnATitle: qData.column_a_title || 'Column A (Premises / Terms)',
+    columnBTitle: qData.column_b_title || 'Column B (Responses / Definitions)',
+  }
+}
+
+const parseMultipleChoiceOptions = (q: any) => {
+  if (!Array.isArray(q.options)) return []
+  const rawCorrect = String(q.correct_answer || '').trim()
+  
+  return q.options.map((opt: any, idx: number) => {
+    const label = getLetterLabel(idx)
+    const text = typeof opt === 'object' && opt !== null ? (opt.text || opt.label || JSON.stringify(opt)) : String(opt)
+    const isExplicitCorrect = typeof opt === 'object' && Boolean(opt.is_correct || opt.isCorrect)
+    const isMatchingLetter = rawCorrect.toUpperCase() === label
+    const isMatchingText = rawCorrect.trim().toLowerCase() === text.trim().toLowerCase()
+    
+    return {
+      label,
+      text,
+      isCorrect: Boolean(isExplicitCorrect || isMatchingLetter || isMatchingText)
+    }
+  })
+}
+
+const parseTrueFalse = (q: any) => {
+  const rawCorrect = String(q.correct_answer || '').trim().toLowerCase()
+  const isACorrect = rawCorrect === 'a' || rawCorrect === 'true' || rawCorrect === 't' || rawCorrect === '1'
+  const isBCorrect = rawCorrect === 'b' || rawCorrect === 'false' || rawCorrect === 'f' || rawCorrect === '0'
+  
+  return [
+    { label: 'A', text: 'True', isCorrect: isACorrect },
+    { label: 'B', text: 'False', isCorrect: isBCorrect },
+  ]
+}
+
+const renderFillInBlankHtml = (text: string) => {
+  if (!text) return ''
+  const blankPattern = /_{2,}|\{blank\}/gi
+  if (!blankPattern.test(text)) {
+    return text
+  }
+  return text.replace(blankPattern, `<span class="inline-block border-b-2 border-dashed border-slate-400 min-w-[80px] text-center font-mono text-slate-400 text-xs mx-1 pb-0.5">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</span>`)
+}
+
+// Master list of all questions with global continuous sequential index (1 to N)
+const allExamQuestions = computed(() => {
+  if (!selectedExam.value?.questions || !Array.isArray(selectedExam.value.questions)) return []
+  return selectedExam.value.questions.map((q: any, idx: number) => {
+    const normType = normalizeQuestionType(q.raw_type || q.type)
+    return {
+      ...q,
+      globalIndex: idx + 1,
+      normalizedType: normType,
+    }
+  })
+})
+
+// Counts and marks breakdown by question type
+const questionTypeSummary = computed(() => {
+  const summary: Record<string, { count: number; marks: number }> = {
+    all: { count: allExamQuestions.value.length, marks: 0 },
+    true_false: { count: 0, marks: 0 },
+    matching: { count: 0, marks: 0 },
+    multiple_choice: { count: 0, marks: 0 },
+    fill_in_the_blank: { count: 0, marks: 0 },
+    short_answer: { count: 0, marks: 0 },
+  }
+  
+  allExamQuestions.value.forEach(q => {
+    const marks = Number(q.marks || 0)
+    summary.all.marks += marks
+    if (summary[q.normalizedType]) {
+      summary[q.normalizedType].count++
+      summary[q.normalizedType].marks += marks
+    }
   })
   
-  return Object.keys(groups).map(inst => ({
-    instruction: inst,
-    questions: groups[inst]
-  }))
+  return summary
 })
+
+// Filtered questions based on active type tab and search query
+const filteredQuestionsList = computed(() => {
+  return allExamQuestions.value.filter(q => {
+    // 1. Type Filter
+    if (questionTypeFilter.value !== 'all' && q.normalizedType !== questionTypeFilter.value) {
+      return false
+    }
+    // 2. Search Query
+    if (searchQuestionQuery.value.trim()) {
+      const query = searchQuestionQuery.value.toLowerCase().trim()
+      const matchText = (q.text || '').toLowerCase().includes(query)
+      const matchInst = (q.instruction || '').toLowerCase().includes(query)
+      const matchAns = String(q.correct_answer || '').toLowerCase().includes(query)
+      if (!matchText && !matchInst && !matchAns) return false
+    }
+    return true
+  })
+})
+
+// Sections grouped for academic university exam paper layout
+const organizedExamSections = computed(() => {
+  const typeConfig: Record<string, { part: string; title: string; defaultInstruction: string }> = {
+    true_false: {
+      part: 'PART I',
+      title: 'True or False Questions',
+      defaultInstruction: 'Read each statement carefully and select True if the statement is correct; otherwise select False.',
+    },
+    matching: {
+      part: 'PART II',
+      title: 'Matching Questions',
+      defaultInstruction: 'Match each item in Column A with its corresponding definition or counterpart in Column B.',
+    },
+    multiple_choice: {
+      part: 'PART III',
+      title: 'Multiple Choice Questions',
+      defaultInstruction: 'Choose the single best answer for each question from the given alternatives (A, B, C, or D).',
+    },
+    fill_in_the_blank: {
+      part: 'PART IV',
+      title: 'Fill in the Blank Questions',
+      defaultInstruction: 'Complete each sentence by writing the correct term, code, or value in the designated blank space.',
+    },
+    short_answer: {
+      part: 'PART V',
+      title: 'Short Answer & Descriptive Questions',
+      defaultInstruction: 'Provide clear, concise, and structured written responses according to the allocated marks.',
+    },
+  }
+
+  // If a single type is selected in tabs, only show that section
+  const typesToRender = questionTypeFilter.value === 'all'
+    ? ['true_false', 'matching', 'multiple_choice', 'fill_in_the_blank', 'short_answer']
+    : [questionTypeFilter.value]
+
+  const sections: any[] = []
+
+  typesToRender.forEach(typeKey => {
+    const questionsInType = filteredQuestionsList.value.filter(q => q.normalizedType === typeKey)
+    if (questionsInType.length > 0) {
+      const cfg = typeConfig[typeKey] || {
+        part: 'PART',
+        title: `${typeKey.toUpperCase()} QUESTIONS`,
+        defaultInstruction: 'Answer all questions in this section.',
+      }
+      
+      const totalMarks = questionsInType.reduce((acc, q) => acc + Number(q.marks || 0), 0)
+      
+      // Determine common instruction
+      const firstInst = questionsInType[0]?.instruction
+      const sectionInstruction = firstInst || cfg.defaultInstruction
+
+      sections.push({
+        typeKey,
+        partLabel: cfg.part,
+        title: cfg.title,
+        instruction: sectionInstruction,
+        totalQuestions: questionsInType.length,
+        totalMarks,
+        questions: questionsInType,
+      })
+    }
+  })
+
+  return sections
+})
+
+const printOfficialPaper = () => {
+  window.print()
+}
 
 // ── Dropdown Controls ────────────────────────────────────────────────────────
 const toggleActionDropdown = (id: number) => {
@@ -1357,46 +1627,93 @@ onUnmounted(() => {
     </div>
 
     <!-- ────────────────────────────────────────────────────────────────────────
-         VIEW 2: REAL EXAM DETAILS VIEW
+         VIEW 2: MODERNIZED EXECUTIVE EXAM DETAILS VIEW
     ──────────────────────────────────────────────────────────────────────── -->
     <div v-if="showDetailsPage && !showAllQuestions" class="space-y-6 pb-12 min-w-0 w-full animate-in fade-in duration-200">
-      <!-- Breadcrumbs & Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-            <span @click="showDetailsPage = false" class="hover:text-indigo-600 cursor-pointer">Examinations</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            <span @click="showDetailsPage = false" class="hover:text-indigo-600 cursor-pointer">Exam Management Center</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            <span class="text-slate-700 font-bold">{{ selectedExam?.title }}</span>
-          </div>
-          <div class="flex flex-wrap items-center gap-3">
-            <h1 class="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{{ selectedExam?.title }}</h1>
+      
+      <!-- Top Breadcrumbs & Header Bar -->
+      <div class="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+        <div class="space-y-2">
+          <!-- Breadcrumb navigation -->
+          <nav class="flex items-center gap-2 text-xs font-semibold text-slate-400">
+            <button @click="showDetailsPage = false" class="hover:text-indigo-600 transition-colors flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+              <span>Examinations</span>
+            </button>
+            <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <button @click="showDetailsPage = false" class="hover:text-indigo-600 transition-colors">Exam Management Center</button>
+            <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <span class="text-slate-800 font-bold truncate max-w-[200px] sm:max-w-xs">{{ selectedExam?.title }}</span>
+          </nav>
+
+          <!-- Exam Title & Badges -->
+          <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{{ selectedExam?.title }}</h1>
+            
+            <!-- Real Status Badge -->
             <span
-              class="text-xs font-bold px-2.5 py-1 rounded-full border"
-              :class="statusConfig[selectedExam?.status]?.badge || 'bg-slate-100 text-slate-700'"
+              class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border shadow-2xs"
+              :class="statusConfig[selectedExam?.status]?.badge || 'bg-slate-100 text-slate-700 border-slate-200'"
             >
-              {{ statusConfig[selectedExam?.status]?.label || selectedExam?.status }}
+              <span class="w-1.5 h-1.5 rounded-full" :class="statusConfig[selectedExam?.status]?.dot || 'bg-slate-400'"></span>
+              <span>{{ statusConfig[selectedExam?.status]?.label || selectedExam?.status }}</span>
             </span>
-            <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-50 text-[#4338ca] border border-indigo-100">
+
+            <!-- Official Exam Code Badge -->
+            <span class="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-50/80 text-[#4338ca] border border-indigo-100/80 shadow-2xs">
               {{ selectedExam?.code || selectedExam?.examCode }}
+            </span>
+
+            <!-- Course Code -->
+            <span v-if="selectedExam?.courseCode || selectedExam?.course_code" class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
+              {{ selectedExam?.courseCode || selectedExam?.course_code }}
+            </span>
+
+            <!-- Exam Type Pill -->
+            <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200/60">
+              {{ selectedExam?.type || selectedExam?.exam_type || 'Examination' }}
             </span>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2.5 self-start lg:self-center shrink-0">
+          <!-- Questions View Button -->
           <button
             @click="openQuestionsPage(selectedExam)"
-            class="px-3.5 py-2.5 bg-indigo-50 border border-indigo-200 text-[#4338ca] font-bold rounded-xl text-xs hover:bg-indigo-100 transition-colors shadow-sm flex items-center gap-1.5"
+            class="px-4 py-2.5 bg-[#4338ca] hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm hover:shadow flex items-center gap-2"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            <svg class="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             <span>Questions ({{ selectedExam?.questions?.length || selectedExam?.questions_count || 0 }})</span>
           </button>
+
+          <!-- Cancel / Reinstate Exam Buttons -->
+          <button
+            v-if="!selectedExam?.is_cancelled && selectedExam?.status !== 'cancelled'"
+            @click="promptCancelModal(selectedExam)"
+            class="px-3.5 py-2.5 bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-1.5"
+            title="Cancel or suspend this examination"
+          >
+            <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            <span>Cancel Exam</span>
+          </button>
+          
+          <button
+            v-else
+            @click="executeReinstateExam(selectedExam)"
+            class="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+            title="Reinstate this examination"
+          >
+            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            <span>Reinstate Exam</span>
+          </button>
+
+          <!-- Back Button -->
           <button
             @click="showDetailsPage = false"
-            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors shadow-sm"
+            class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors shadow-2xs flex items-center gap-2"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             <span>Back to Exam List</span>
           </button>
         </div>
@@ -1405,77 +1722,157 @@ onUnmounted(() => {
       <!-- Cancellation Warning Banner (if cancelled) -->
       <div
         v-if="selectedExam?.is_cancelled || selectedExam?.status === 'cancelled'"
-        class="bg-rose-50 border border-rose-200 rounded-2xl p-4 sm:p-5 flex items-start gap-4 text-rose-800"
+        class="bg-rose-50/90 border border-rose-200 rounded-2xl p-5 flex items-start gap-4 text-rose-800 shadow-sm"
       >
         <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
         </div>
         <div class="flex-1">
-          <h3 class="text-sm font-bold text-rose-900">This Examination Has Been Cancelled</h3>
-          <p class="text-xs text-rose-700 mt-0.5">
-            Cancellation Reason: <span class="font-semibold">{{ selectedExam?.cancellation_reason || 'Administrative revocation' }}</span>
+          <div class="flex items-center gap-2">
+            <h3 class="text-sm font-bold text-rose-900">This Examination Has Been Cancelled by Administration</h3>
+            <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-rose-200 text-rose-800">Inactive</span>
+          </div>
+          <p class="text-xs text-rose-700 mt-1">
+            Official Reason: <span class="font-semibold text-rose-900">{{ selectedExam?.cancellation_reason || 'Administrative revocation' }}</span>
           </p>
-          <p v-if="selectedExam?.cancelled_by_name" class="text-[11px] text-rose-500 mt-1">
-            Cancelled by {{ selectedExam?.cancelled_by_name }} on {{ selectedExam?.cancelled_at ? new Date(selectedExam?.cancelled_at).toLocaleString() : 'N/A' }}
+          <p v-if="selectedExam?.cancelled_by_name" class="text-[11px] text-rose-600 mt-1">
+            Revoked by <span class="font-semibold">{{ selectedExam?.cancelled_by_name }}</span> on {{ selectedExam?.cancelled_at ? new Date(selectedExam?.cancelled_at).toLocaleString() : 'N/A' }}
           </p>
         </div>
         <button
           @click="executeReinstateExam(selectedExam)"
-          class="px-3.5 py-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-100 text-xs font-bold rounded-xl transition-colors shrink-0"
+          class="px-4 py-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-100 text-xs font-bold rounded-xl transition-colors shrink-0 shadow-2xs"
         >
           Reinstate Exam
         </button>
       </div>
 
-      <!-- Details Grid -->
+      <!-- Executive Overview Summary Metrics (5 Modern Cards) -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <!-- Card 1: Schedule & Timing -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Scheduled Time</span>
+            <div class="w-7 h-7 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+          </div>
+          <div class="text-sm font-black text-slate-800 truncate">{{ selectedExam?.examDate || 'Scheduled' }}</div>
+          <div class="text-[11px] font-medium text-slate-500">{{ selectedExam?.examTime || 'Time TBD' }} • {{ selectedExam?.duration || '60m' }}</div>
+        </div>
+
+        <!-- Card 2: Total Questions -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Exam Questions</span>
+            <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            </div>
+          </div>
+          <div class="text-sm font-black text-slate-800">{{ allExamQuestions.length || selectedExam?.questions_count || 0 }} Questions</div>
+          <div class="text-[11px] font-medium text-slate-500">
+            {{ Object.keys(questionTypeSummary).filter(k => k !== 'all' && questionTypeSummary[k].count > 0).length }} Question Types
+          </div>
+        </div>
+
+        <!-- Card 3: Marks & Weight -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Marks</span>
+            <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+          </div>
+          <div class="text-sm font-black text-slate-800">{{ selectedExam?.totalMarks || selectedExam?.total_marks || questionTypeSummary.all.marks }} Marks</div>
+          <div class="text-[11px] font-medium text-slate-500">Pass mark: ~50% ({{ Math.round((selectedExam?.totalMarks || selectedExam?.total_marks || questionTypeSummary.all.marks || 100) * 0.5) }} pts)</div>
+        </div>
+
+        <!-- Card 4: Candidate Activity -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Submissions</span>
+            <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            </div>
+          </div>
+          <div class="text-sm font-black text-slate-800">{{ selectedExam?.attempts_count || 0 }} Attempts</div>
+          <div class="text-[11px] font-medium text-slate-500">Cohort: {{ selectedExam?.section || 'Section A' }}</div>
+        </div>
+
+        <!-- Card 5: Security Level -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1.5 col-span-2 md:col-span-1">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Security Profile</span>
+            <div class="w-7 h-7 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+            </div>
+          </div>
+          <div class="text-sm font-black text-slate-800 flex items-center gap-1.5">
+            <span>{{ selectedExam?.fullscreen_mode && selectedExam?.tab_monitoring ? 'Enforced Lock' : 'Standard' }}</span>
+          </div>
+          <div class="text-[11px] font-medium text-emerald-600 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Anti-Cheat Active</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Details Specification Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
         <!-- 1. Examination Metadata -->
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3.5">
-          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
-            <svg class="w-4 h-4 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 pb-2.5 border-b border-slate-100">
+            <div class="w-6 h-6 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
             <span>Course & Faculty Specifications</span>
           </h2>
 
           <div class="flex items-center justify-between text-xs border-b border-slate-50 pb-2">
             <span class="text-slate-500">Course</span>
             <div class="text-right">
-              <span class="font-bold text-slate-800">{{ selectedExam?.course || selectedExam?.courseName }}</span>
-              <p class="text-[10px] font-mono text-slate-400">({{ selectedExam?.courseCode || selectedExam?.course_code }})</p>
+              <span class="font-bold text-slate-800">{{ selectedExam?.course || selectedExam?.courseName || 'Not specified' }}</span>
+              <p class="text-[10px] font-mono text-slate-400">({{ selectedExam?.courseCode || selectedExam?.course_code || 'N/A' }})</p>
             </div>
           </div>
 
           <div class="flex items-center justify-between text-xs border-b border-slate-50 pb-2">
             <span class="text-slate-500">Department</span>
-            <span class="font-bold text-slate-800">{{ selectedExam?.department || 'Information Technology' }}</span>
+            <span class="font-bold text-slate-800 capitalize">{{ selectedExam?.department || 'Information Technology' }}</span>
           </div>
 
           <div class="flex items-center justify-between text-xs border-b border-slate-50 pb-2">
             <span class="text-slate-500">Academic Year / Semester</span>
-            <span class="font-bold text-slate-800">{{ selectedExam?.year || 'Year 3' }} • {{ selectedExam?.semester || 'Semester 1' }}</span>
+            <span class="font-bold text-slate-800">{{ selectedExam?.year || '1st Year' }} • {{ selectedExam?.semester || 'First Semester' }}</span>
           </div>
 
           <div class="flex items-center justify-between text-xs border-b border-slate-50 pb-2">
             <span class="text-slate-500">Section Assigned</span>
-            <span class="font-bold text-slate-800">{{ selectedExam?.section || 'Both Sections' }}</span>
+            <span class="font-bold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{{ selectedExam?.section || 'Both Sections' }}</span>
           </div>
 
           <div class="flex items-center justify-between text-xs border-b border-slate-50 pb-2">
             <span class="text-slate-500">Instructor / Proctor</span>
-            <div class="text-right">
-              <span class="font-bold text-slate-800">{{ selectedExam?.instructor }}</span>
-              <p class="text-[10px] text-slate-400">{{ selectedExam?.instructorEmail }}</p>
+            <div class="text-right flex items-center gap-2">
+              <div class="w-6 h-6 rounded-full bg-indigo-100 text-[#4338ca] text-[10px] font-bold flex items-center justify-center shrink-0 uppercase">
+                {{ (selectedExam?.instructor || 'A').slice(0, 1) }}
+              </div>
+              <div>
+                <span class="font-bold text-slate-800 block">{{ selectedExam?.instructor || 'Administrator' }}</span>
+                <p class="text-[10px] text-slate-400">{{ selectedExam?.instructorEmail || 'No email' }}</p>
+              </div>
             </div>
           </div>
 
           <div class="flex items-center justify-between text-xs border-b border-slate-50 pb-2">
-            <span class="text-slate-500">Exam Type</span>
-            <span class="font-bold text-[#4338ca] bg-indigo-50 px-2 py-0.5 rounded">{{ selectedExam?.type }}</span>
+            <span class="text-slate-500">Exam Classification</span>
+            <span class="font-bold text-[#4338ca] bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{{ selectedExam?.type || 'Mid Exam' }}</span>
           </div>
 
           <div class="flex items-center justify-between text-xs border-b border-slate-50 pb-2">
-            <span class="text-slate-500">Duration & Marks</span>
-            <span class="font-bold text-slate-800">{{ selectedExam?.duration }} • {{ selectedExam?.totalMarks }} Marks</span>
+            <span class="text-slate-500">Duration & Weight</span>
+            <span class="font-bold text-slate-800">{{ selectedExam?.duration }} • {{ selectedExam?.totalMarks || selectedExam?.total_marks }} Marks</span>
           </div>
 
           <div class="flex items-center justify-between text-xs">
@@ -1486,43 +1883,45 @@ onUnmounted(() => {
 
         <!-- 2. Exam Behavior Settings -->
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
-            <svg class="w-4 h-4 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 pb-2.5 border-b border-slate-100">
+            <div class="w-6 h-6 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+            </div>
             <span>Exam Behavior Parameters</span>
           </h2>
 
           <div class="space-y-3">
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Randomize Question Sequence</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.shuffle_questions ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.shuffle_questions ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.shuffle_questions ? 'Enabled' : 'Disabled' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Shuffle Answer Options</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.shuffle_options ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.shuffle_options ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.shuffle_options ? 'Enabled' : 'Disabled' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Allow Backtracking</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.allow_backtracking ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.allow_backtracking ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.allow_backtracking ? 'Allowed' : 'Locked' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Question Display Format</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 text-slate-700">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-slate-100 text-slate-700 border border-slate-200">
                 {{ selectedExam?.show_one_question ? 'One by One' : 'All at Once' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Review Screen Before Submit</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.show_review_screen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.show_review_screen ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.show_review_screen ? 'Enabled' : 'Disabled' }}
               </span>
             </div>
@@ -1531,44 +1930,53 @@ onUnmounted(() => {
 
         <!-- 3. Proctoring & Security Matrix -->
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
-            <svg class="w-4 h-4 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 pb-2.5 border-b border-slate-100">
+            <div class="w-6 h-6 rounded-lg bg-indigo-50 text-[#4338ca] flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+            </div>
             <span>Security & Anti-Cheat Controls</span>
           </h2>
 
           <div class="space-y-3">
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Enforce Fullscreen Mode</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.fullscreen_mode ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.fullscreen_mode ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.fullscreen_mode ? 'Enforced' : 'Off' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Browser Tab Switching Lock</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.tab_monitoring ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.tab_monitoring ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.tab_monitoring ? 'Monitored' : 'Off' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Disable Right-Click Context Menu</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.disable_right_click ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.disable_right_click ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.disable_right_click ? 'Disabled' : 'Allowed' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">Clipboard / Copy-Paste Lock</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.disable_copy_paste ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.disable_copy_paste ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.disable_copy_paste ? 'Blocked' : 'Allowed' }}
               </span>
             </div>
 
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 font-semibold">On-Screen Calculator</span>
-              <span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="selectedExam?.allow_calculator ? 'bg-indigo-50 text-[#4338ca]' : 'bg-slate-100 text-slate-500'">
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.allow_calculator ? 'bg-indigo-50 text-[#4338ca] border-indigo-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
                 {{ selectedExam?.allow_calculator ? 'Available' : 'Disabled' }}
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-700 font-semibold">Real-Time Webcam Proctoring</span>
+              <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] border" :class="selectedExam?.webcam_monitoring ? 'bg-indigo-50 text-[#4338ca] border-indigo-200' : 'bg-slate-100 text-slate-500 border-slate-200'">
+                {{ selectedExam?.webcam_monitoring ? 'Active' : 'Disabled' }}
               </span>
             </div>
           </div>
@@ -1576,105 +1984,504 @@ onUnmounted(() => {
 
       </div>
 
+      <!-- Question Composition Breakdown Panel on Details Page -->
+      <div class="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <svg class="w-4 h-4 text-[#4338ca]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+              <span>Question Paper Composition & Structure</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Distribution of question types and mark weights configured for this exam</p>
+          </div>
+          <button
+            @click="openQuestionsPage(selectedExam)"
+            class="px-4 py-2 bg-indigo-50 border border-indigo-200 text-[#4338ca] font-bold rounded-xl text-xs hover:bg-indigo-100 transition-colors shadow-2xs flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <span>Inspect Official Question Paper</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/50 space-y-1">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">True / False</span>
+            <div class="text-base font-black text-slate-800">{{ questionTypeSummary.true_false.count }} Items</div>
+            <div class="text-[11px] font-semibold text-emerald-600">{{ questionTypeSummary.true_false.marks }} Marks</div>
+          </div>
+
+          <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/50 space-y-1">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Matching</span>
+            <div class="text-base font-black text-slate-800">{{ questionTypeSummary.matching.count }} Sets</div>
+            <div class="text-[11px] font-semibold text-emerald-600">{{ questionTypeSummary.matching.marks }} Marks</div>
+          </div>
+
+          <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/50 space-y-1">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Multiple Choice</span>
+            <div class="text-base font-black text-slate-800">{{ questionTypeSummary.multiple_choice.count }} Questions</div>
+            <div class="text-[11px] font-semibold text-emerald-600">{{ questionTypeSummary.multiple_choice.marks }} Marks</div>
+          </div>
+
+          <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/50 space-y-1">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Fill in the Blank</span>
+            <div class="text-base font-black text-slate-800">{{ questionTypeSummary.fill_in_the_blank.count }} Questions</div>
+            <div class="text-[11px] font-semibold text-emerald-600">{{ questionTypeSummary.fill_in_the_blank.marks }} Marks</div>
+          </div>
+
+          <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/50 space-y-1">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Short Answer</span>
+            <div class="text-base font-black text-slate-800">{{ questionTypeSummary.short_answer.count }} Questions</div>
+            <div class="text-[11px] font-semibold text-emerald-600">{{ questionTypeSummary.short_answer.marks }} Marks</div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ────────────────────────────────────────────────────────────────────────
-         VIEW 3: REAL EXAM QUESTIONS VIEW (100% REAL DATABASE QUESTIONS)
+         VIEW 3: MODERNIZED OFFICIAL QUESTION PAPER (PROPER 5-TYPE RENDERING)
     ──────────────────────────────────────────────────────────────────────── -->
-    <div v-if="showAllQuestions" class="space-y-6 pb-12 min-w-0 w-full animate-in fade-in duration-200">
-      <!-- Breadcrumbs & Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-            <span @click="showAllQuestions = false" class="hover:text-indigo-600 cursor-pointer">Examinations</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            <span @click="showAllQuestions = false; showDetailsPage = true" class="hover:text-indigo-600 cursor-pointer">{{ selectedExam?.title }}</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            <span class="text-slate-700 font-bold">Official Question Paper</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <h1 class="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Examination Question Paper</h1>
-            <span class="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-[#4338ca] border border-indigo-100">
-              {{ selectedExam?.questions?.length || 0 }} Questions Attached
+    <div v-if="showAllQuestions" class="space-y-6 pb-16 min-w-0 w-full animate-in fade-in duration-200">
+      
+      <!-- Top Breadcrumbs & Control Header -->
+      <div class="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+        <div class="space-y-2">
+          <!-- Breadcrumb navigation -->
+          <nav class="flex items-center gap-2 text-xs font-semibold text-slate-400">
+            <button @click="showAllQuestions = false; showDetailsPage = false" class="hover:text-indigo-600 transition-colors flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+              <span>Examinations</span>
+            </button>
+            <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <button @click="showAllQuestions = false; showDetailsPage = true" class="hover:text-indigo-600 transition-colors truncate max-w-[160px] sm:max-w-xs">
+              {{ selectedExam?.title }}
+            </button>
+            <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <span class="text-slate-800 font-bold">Official Question Paper</span>
+          </nav>
+
+          <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Examination Question Paper</h1>
+            
+            <span class="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-50 text-[#4338ca] border border-indigo-100 shadow-2xs">
+              {{ allExamQuestions.length }} Questions Attached
+            </span>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {{ selectedExam?.totalMarks || selectedExam?.total_marks || questionTypeSummary.all.marks }} Total Marks
+            </span>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+              {{ selectedExam?.duration }}
             </span>
           </div>
         </div>
 
-        <button
-          @click="showAllQuestions = false; showDetailsPage = true"
-          class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors shadow-sm self-start sm:self-auto"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          <span>Back to Exam Details</span>
-        </button>
+        <!-- Master View Controls & Actions -->
+        <div class="flex flex-wrap items-center gap-2.5 self-start lg:self-center shrink-0">
+          
+          <!-- Print / PDF Button -->
+          <button
+            @click="printOfficialPaper"
+            class="px-3.5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors shadow-2xs flex items-center gap-1.5"
+            title="Print or export examination paper"
+          >
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+            <span>Print Paper</span>
+          </button>
+
+          <!-- Back to Exam Details -->
+          <button
+            @click="showAllQuestions = false; showDetailsPage = true"
+            class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors shadow-2xs flex items-center gap-2"
+          >
+            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <span>Back to Exam Details</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Real Questions Renders -->
-      <div v-if="!selectedExam?.questions || selectedExam?.questions.length === 0" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
+      <!-- Filter Tabs & Search Bar -->
+      <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <!-- Question Type Segmented Pills -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none text-xs">
+          <button
+            @click="questionTypeFilter = 'all'"
+            class="px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5"
+            :class="questionTypeFilter === 'all' ? 'bg-[#4338ca] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          >
+            <span>All Questions</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px]" :class="questionTypeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">
+              {{ questionTypeSummary.all.count }}
+            </span>
+          </button>
+
+          <button
+            v-if="questionTypeSummary.true_false.count > 0"
+            @click="questionTypeFilter = 'true_false'"
+            class="px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5"
+            :class="questionTypeFilter === 'true_false' ? 'bg-[#4338ca] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          >
+            <span>True / False</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px]" :class="questionTypeFilter === 'true_false' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">
+              {{ questionTypeSummary.true_false.count }}
+            </span>
+          </button>
+
+          <button
+            v-if="questionTypeSummary.matching.count > 0"
+            @click="questionTypeFilter = 'matching'"
+            class="px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5"
+            :class="questionTypeFilter === 'matching' ? 'bg-[#4338ca] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          >
+            <span>Matching</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px]" :class="questionTypeFilter === 'matching' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">
+              {{ questionTypeSummary.matching.count }}
+            </span>
+          </button>
+
+          <button
+            v-if="questionTypeSummary.multiple_choice.count > 0"
+            @click="questionTypeFilter = 'multiple_choice'"
+            class="px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5"
+            :class="questionTypeFilter === 'multiple_choice' ? 'bg-[#4338ca] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          >
+            <span>Multiple Choice</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px]" :class="questionTypeFilter === 'multiple_choice' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">
+              {{ questionTypeSummary.multiple_choice.count }}
+            </span>
+          </button>
+
+          <button
+            v-if="questionTypeSummary.fill_in_the_blank.count > 0"
+            @click="questionTypeFilter = 'fill_in_the_blank'"
+            class="px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5"
+            :class="questionTypeFilter === 'fill_in_the_blank' ? 'bg-[#4338ca] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          >
+            <span>Fill in Blank</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px]" :class="questionTypeFilter === 'fill_in_the_blank' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">
+              {{ questionTypeSummary.fill_in_the_blank.count }}
+            </span>
+          </button>
+
+          <button
+            v-if="questionTypeSummary.short_answer.count > 0"
+            @click="questionTypeFilter = 'short_answer'"
+            class="px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5"
+            :class="questionTypeFilter === 'short_answer' ? 'bg-[#4338ca] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          >
+            <span>Short Answer</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px]" :class="questionTypeFilter === 'short_answer' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">
+              {{ questionTypeSummary.short_answer.count }}
+            </span>
+          </button>
+        </div>
+
+        <!-- Search Input -->
+        <div class="relative w-full md:w-64">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input
+            v-model="searchQuestionQuery"
+            type="text"
+            placeholder="Search question text or key..."
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#4338ca] focus:bg-white transition-all"
+          />
+          <button
+            v-if="searchQuestionQuery"
+            @click="searchQuestionQuery = ''"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <!-- Official Academic Paper Header Banner -->
+      <div class="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-2xl p-6 sm:p-7 text-white shadow-md relative overflow-hidden">
+        <div class="relative z-10 space-y-4">
+          <!-- Institutional Header -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                <svg class="w-6 h-6 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" /></svg>
+              </div>
+              <div>
+                <h2 class="text-sm font-black tracking-wider text-amber-200 uppercase">Wollo University • Academic Examination Center</h2>
+                <p class="text-xs text-slate-300">Office of the Examination Controller & Quality Assurance</p>
+              </div>
+            </div>
+
+            <div class="text-left sm:text-right">
+              <span class="inline-block px-2.5 py-1 rounded bg-white/10 border border-white/20 font-mono text-[11px] font-bold text-indigo-200">
+                {{ selectedExam?.code || selectedExam?.examCode }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Exam Course Meta Row -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            <div>
+              <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Course</span>
+              <span class="font-bold text-white text-xs mt-0.5 block truncate">{{ selectedExam?.course || selectedExam?.courseName }} ({{ selectedExam?.courseCode || selectedExam?.course_code }})</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Instructor / Examiner</span>
+              <span class="font-bold text-white text-xs mt-0.5 block truncate">{{ selectedExam?.instructor }}</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Target Cohort</span>
+              <span class="font-bold text-white text-xs mt-0.5 block">{{ selectedExam?.year }} • {{ selectedExam?.section || 'Section A' }}</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Allocated Time & Weight</span>
+              <span class="font-bold text-white text-xs mt-0.5 block">{{ selectedExam?.duration }} • {{ selectedExam?.totalMarks || selectedExam?.total_marks }} Marks</span>
+            </div>
+          </div>
+
+          <!-- General Candidate Instructions -->
+          <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-[11px] text-slate-300 leading-relaxed">
+            <strong class="text-amber-200 uppercase tracking-wider font-bold block mb-1">Standard Examination Protocol:</strong>
+            Candidates must review instructions for each specific section before attempting questions. Ensure all required responses are clearly indicated. Academic dishonesty and parameter tampering are subject to disciplinary measures.
+          </div>
+        </div>
+      </div>
+
+      <!-- Real Questions Renders: Empty State -->
+      <div v-if="!selectedExam?.questions || selectedExam?.questions.length === 0" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3 shadow-sm">
         <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
         </div>
         <p class="text-sm font-bold text-slate-700">No Questions Created Yet</p>
         <p class="text-xs text-slate-400 max-w-md mx-auto">
-          This examination has not yet been populated with questions by the assigned course instructor or department author.
+          This examination has not yet been populated with questions in the database by the assigned course instructor.
         </p>
       </div>
 
-      <!-- Real Questions Grouped by Instruction -->
-      <div v-else class="space-y-6">
-        <div
-          v-for="(group, gIdx) in groupedQuestions"
-          :key="gIdx"
-          class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5"
+      <!-- Filtered Results Empty State -->
+      <div v-else-if="filteredQuestionsList.length === 0" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3 shadow-sm">
+        <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </div>
+        <p class="text-sm font-bold text-slate-800">No Questions Match Filter Criteria</p>
+        <p class="text-xs text-slate-400 max-w-md mx-auto">
+          No questions matched the active search query "{{ searchQuestionQuery }}" or type filter. Clear filters to see all examination questions.
+        </p>
+        <button
+          @click="questionTypeFilter = 'all'; searchQuestionQuery = ''"
+          class="px-4 py-2 bg-indigo-50 text-[#4338ca] hover:bg-indigo-100 font-bold text-xs rounded-xl transition-colors"
         >
-          <!-- Section / Instruction Banner -->
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Examination Instructions</span>
-            <div class="text-xs font-semibold text-slate-700 mt-1 prose prose-sm max-w-none" v-html="group.instruction"></div>
+          Reset Filters
+        </button>
+      </div>
+
+      <!-- Real Questions Grouped by Examination Part/Section -->
+      <div v-else class="space-y-8">
+        <div
+          v-for="section in organizedExamSections"
+          :key="section.typeKey"
+          class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-7 space-y-6"
+        >
+          <!-- Section Banner (Rendered ONCE per section, NEVER repeated per question!) -->
+          <div class="bg-gradient-to-r from-slate-50 to-indigo-50/30 border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-md bg-[#4338ca] text-white text-[11px] font-black uppercase tracking-wider">
+                  {{ section.partLabel }}
+                </span>
+                <h3 class="text-base font-bold text-slate-900">{{ section.title }}</h3>
+              </div>
+              <p class="text-xs text-slate-600 font-medium mt-1.5 leading-relaxed">
+                <span class="text-slate-400 font-bold uppercase text-[10px] tracking-wider block sm:inline sm:mr-1">Section Direction:</span>
+                {{ section.instruction }}
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0 self-start sm:self-center">
+              <span class="text-xs font-bold px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-700 shadow-2xs">
+                {{ section.totalQuestions }} {{ section.totalQuestions === 1 ? 'Item' : 'Items' }}
+              </span>
+              <span class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 shadow-2xs">
+                {{ section.totalMarks }} Marks
+              </span>
+            </div>
           </div>
 
-          <!-- Questions List in this Instruction -->
-          <div class="space-y-4">
+          <!-- Questions List for this Section -->
+          <div class="space-y-6">
             <div
-              v-for="(q, qIdx) in group.questions"
+              v-for="q in section.questions"
               :key="q.id"
-              class="p-4 rounded-xl border border-slate-100 bg-white hover:border-indigo-100 transition-colors shadow-sm space-y-3"
+              class="rounded-xl border border-slate-200/90 bg-white p-5 sm:p-6 hover:border-indigo-200 transition-all shadow-xs space-y-4 relative"
             >
+              <!-- Question Header Row -->
               <div class="flex items-start justify-between gap-4">
-                <div class="flex items-start gap-3">
-                  <span class="w-7 h-7 rounded-lg bg-indigo-50 text-[#4338ca] font-bold text-xs flex items-center justify-center shrink-0">
-                    {{ qIdx + 1 }}
+                <div class="flex items-start gap-3 flex-1 min-w-0">
+                  <!-- Global Continuous Question Number (1 to N) -->
+                  <span class="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-[#4338ca] font-black text-xs sm:text-sm flex items-center justify-center shrink-0 shadow-2xs">
+                    {{ q.globalIndex }}
                   </span>
-                  <div class="text-sm font-medium text-slate-800 leading-snug prose prose-sm max-w-none" v-html="q.text"></div>
+                  
+                  <!-- Question Prompt Text -->
+                  <div class="flex-1 min-w-0">
+                    <!-- If Fill in the Blank, render formatted blanks -->
+                    <div
+                      v-if="q.normalizedType === 'fill_in_the_blank'"
+                      class="text-sm sm:text-[15px] font-medium text-slate-800 leading-relaxed prose prose-sm max-w-none"
+                      v-html="renderFillInBlankHtml(q.text)"
+                    ></div>
+
+                    <!-- Regular Question Text -->
+                    <div
+                      v-else
+                      class="text-sm sm:text-[15px] font-medium text-slate-800 leading-relaxed prose prose-sm max-w-none"
+                      v-html="q.text"
+                    ></div>
+
+                    <!-- Question Specific Note / Direction (only if distinct) -->
+                    <p
+                      v-if="q.instruction && q.instruction !== section.instruction"
+                      class="text-xs text-slate-500 italic mt-1.5 flex items-center gap-1.5"
+                    >
+                      <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span>Guidance Note: {{ q.instruction }}</span>
+                    </p>
+                  </div>
                 </div>
+
+                <!-- Marks & Type Badges -->
                 <div class="flex items-center gap-2 shrink-0">
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 uppercase tracking-wider">
+                  <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 uppercase tracking-wider border border-slate-200">
                     {{ q.type }}
                   </span>
-                  <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                  <span class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md shadow-2xs">
                     {{ q.marks }} Marks
                   </span>
                 </div>
               </div>
 
-              <!-- Question Options (MCQ / True False) -->
-              <div v-if="q.options && q.options.length > 0" class="ml-10 grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <div
-                  v-for="(opt, oIdx) in q.options"
-                  :key="oIdx"
-                  class="p-2.5 rounded-lg border text-xs flex items-center gap-2.5 transition-colors"
-                  :class="opt.is_correct || opt.isCorrect ? 'border-emerald-300 bg-emerald-50/40 text-emerald-800 font-semibold' : 'border-slate-100 bg-slate-50/50 text-slate-700'"
-                >
-                  <span class="w-5 h-5 rounded-full border text-[10px] font-bold flex items-center justify-center shrink-0 bg-white" :class="opt.is_correct || opt.isCorrect ? 'border-emerald-500 text-emerald-700' : 'border-slate-300 text-slate-500'">
-                    {{ String.fromCharCode(65 + Number(oIdx)) }}
-                  </span>
-                  <span v-html="opt.text || opt"></span>
+              <!-- ==========================================================
+                   1. DEDICATED RENDERER: TRUE / FALSE (NO ANSWER DISPLAY)
+              ========================================================== -->
+              <div v-if="q.normalizedType === 'true_false'" class="pt-2">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+                  <div
+                    v-for="opt in parseTrueFalse(q)"
+                    :key="opt.label"
+                    class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 text-xs sm:text-sm font-semibold flex items-center gap-3 transition-all hover:bg-slate-100/70"
+                  >
+                    <span class="w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 border border-slate-300 bg-white text-slate-600">
+                      {{ opt.label }}
+                    </span>
+                    <span>{{ opt.text }}</span>
+                  </div>
                 </div>
               </div>
+
+              <!-- ==========================================================
+                   2. DEDICATED RENDERER: MULTIPLE CHOICE (NO ANSWER DISPLAY)
+              ========================================================== -->
+              <div v-else-if="q.normalizedType === 'multiple_choice'" class="pt-2">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div
+                    v-for="opt in parseMultipleChoiceOptions(q)"
+                    :key="opt.label"
+                    class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 text-slate-700 text-xs sm:text-sm flex items-center gap-3 transition-all hover:bg-slate-100/70"
+                  >
+                    <span class="w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 border border-slate-300 bg-white text-slate-600">
+                      {{ opt.label }}
+                    </span>
+                    <span class="leading-relaxed" v-html="opt.text"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ==========================================================
+                   3. DEDICATED RENDERER: MATCHING (TWO COLUMNS, NO KEY DISPLAY)
+              ========================================================== -->
+              <div v-else-if="q.normalizedType === 'matching'" class="pt-2 space-y-4">
+                <!-- Two Column Matching Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-xl bg-slate-50/50 border border-slate-200/80">
+                  
+                  <!-- Column A: Premises / Terms -->
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+                      <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-[#4338ca]"></span>
+                        <span>{{ parseMatchingData(q).columnATitle }}</span>
+                      </h4>
+                      <span class="text-[10px] font-bold text-slate-400">Premises</span>
+                    </div>
+
+                    <div class="space-y-2">
+                      <div
+                        v-for="item in parseMatchingData(q).columnA"
+                        :key="item.id"
+                        class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2.5 shadow-2xs"
+                      >
+                        <span class="w-5 h-5 rounded-md bg-slate-800 text-white font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                          {{ item.id }}
+                        </span>
+                        <span class="text-xs font-bold text-slate-800 leading-relaxed pt-0.5">{{ item.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Column B: Responses / Definitions -->
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+                      <h4 class="text-xs font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                        <span>{{ parseMatchingData(q).columnBTitle }}</span>
+                      </h4>
+                      <span class="text-[10px] font-bold text-slate-400">Definitions</span>
+                    </div>
+
+                    <div class="space-y-2">
+                      <div
+                        v-for="item in parseMatchingData(q).columnB"
+                        :key="item.label"
+                        class="p-2.5 rounded-lg bg-white border border-indigo-100 flex items-start gap-2.5 shadow-2xs"
+                      >
+                        <span class="w-5 h-5 rounded-md bg-indigo-50 border border-indigo-200 text-[#4338ca] font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                          {{ item.label }}
+                        </span>
+                        <span class="text-xs font-medium text-slate-700 leading-relaxed pt-0.5">{{ item.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ==========================================================
+                   4. DEDICATED RENDERER: FILL IN THE BLANK (NO ANSWER DISPLAY)
+              ========================================================== -->
+              <div v-else-if="q.normalizedType === 'fill_in_the_blank'" class="pt-2">
+                <div class="p-3.5 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs flex items-center justify-between">
+                  <span class="font-mono text-slate-500">[ Complete the missing term in the blank space provided above ]</span>
+                  <span class="font-bold text-slate-500">Weight: {{ q.marks }} Marks</span>
+                </div>
+              </div>
+
+              <!-- ==========================================================
+                   5. DEDICATED RENDERER: SHORT ANSWER (NO ANSWER DISPLAY)
+              ========================================================== -->
+              <div v-else-if="q.normalizedType === 'short_answer'" class="pt-2">
+                <div class="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 space-y-2 text-xs text-slate-400">
+                  <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                    <span>Candidate Written Response Space</span>
+                    <span>Max Marks: {{ q.marks }}</span>
+                  </div>
+                  <div class="space-y-2 py-2">
+                    <div class="border-b border-slate-200 h-4"></div>
+                    <div class="border-b border-slate-200 h-4"></div>
+                    <div class="border-b border-slate-200 h-4"></div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
       </div>
+
     </div>
 
     <!-- ────────────────────────────────────────────────────────────────────────
