@@ -28,6 +28,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/login',  [\App\Http\Controllers\Api\V1\AuthController::class, 'login'])->name('login');
     Route::post('/register', [\App\Http\Controllers\Api\V1\AuthController::class, 'register']);
     Route::get('/system/public-status', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'publicStatus']);
+    Route::get('/settings', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'index']);
 
 });
 
@@ -60,9 +61,6 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(fu
     Route::delete('/user/profile-photo', [\App\Http\Controllers\Api\V1\AuthController::class, 'removeProfilePhoto']);
     Route::get('/user/me', [\App\Http\Controllers\Api\V1\AuthController::class, 'me']);
     Route::get('/user/activity-logs', [\App\Http\Controllers\Api\V1\AuthController::class, 'activityLogs']);
-
-    // Global settings (accessible by all authenticated users)
-    Route::get('/settings', [\App\Http\Controllers\Api\V1\SystemSettingController::class, 'index']);
 
     // ------------------------------------------------------------------
     // Super Admin Routes
