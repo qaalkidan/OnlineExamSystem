@@ -217,12 +217,14 @@ const handleLinkClick = () => {
           <span 
             v-if="sidebarOpen && item.badge && logCount > 0" 
             class="px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-full shadow-xs"
+            :title="'Unread activity logs: ' + logCount"
           >
             {{ logCount > 99 ? '99+' : logCount }}
           </span>
           <div 
             v-else-if="!sidebarOpen && item.badge && logCount > 0" 
             class="absolute top-2 right-2 w-2 h-2 bg-indigo-600 rounded-full border border-white"
+            :title="'Unread activity logs: ' + logCount"
           ></div>
         </router-link>
       </div>

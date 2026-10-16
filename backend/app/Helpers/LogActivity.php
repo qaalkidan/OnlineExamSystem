@@ -17,18 +17,28 @@ class LogActivity
      */
     public static function record(string $action, string $module, string $details = null, string $logStatus = 'Success', $departmentId = null, $user = null)
     {
-        $currentUser = $user ?? (Auth::user() ?: request()->user());
-        if ($currentUser) {
+        try {
+            $currentUser = $user ?? (Auth::user() ?: request()?->user());
+            $ipAddress = request()?->ip() ?: '127.0.0.1';
+
             ActivityLog::create([
-                'user_id'       => $currentUser->id,
-                'department_id' => $departmentId ?? $currentUser->department_id,
-                'actor_role'    => $currentUser->role,
-                'action'        => $details, // 'action' in existing model is the description/details
-                'type'          => $action,  // 'type' in existing model is the verb (Created, Updated)
+                'user_id'       => $currentUser?->id,
+                'department_id' => $departmentId ?? $currentUser?->department_id,
+                'actor_role'    => $currentUser?->role ?? 'system',
+                'action'        => $details ?: $action,
+                'type'          => $action,
                 'module'        => $module,
-                'details'       => $details, // storing in both for backward compatibility and simplicity
-                'ip_address'    => request()->ip() ?: '127.0.0.1',
+                'details'       => $details ?: $action,
+                'ip_address'    => $ipAddress,
                 'log_status'    => $logStatus,
+                'is_read'       => false,
+            ]);
+        } catch (\Throwable $e) {
+            // Log locally if activity log creation fails so original operation is not broken
+            \Illuminate\Support\Facades\Log::error("Failed to record activity log: " . $e->getMessage(), [
+                'action' => $action,
+                'module' => $module,
+                'status' => $logStatus,
             ]);
         }
     }

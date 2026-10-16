@@ -22,6 +22,10 @@ class ActivityLog extends Model
         'is_read',
     ];
 
+    protected $casts = [
+        'is_read' => 'boolean',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -30,5 +34,24 @@ class ActivityLog extends Model
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * Enforce audit log immutability and tamper-resistance.
+     */
+    protected static function booted()
+    {
+        static::updating(function ($log) {
+            // Only 'is_read' may be modified (read receipt state)
+            $dirtyKeys = array_keys($log->getDirty());
+            if (count(array_diff($dirtyKeys, ['is_read', 'updated_at'])) > 0) {
+                throw new \RuntimeException('Institutional audit logs are immutable and cannot be modified.');
+            }
+        });
+
+        static::deleting(function ($log) {
+            // Strictly disallow deleting audit records
+            throw new \RuntimeException('Institutional audit logs are immutable electronic records and cannot be deleted.');
+        });
     }
 }

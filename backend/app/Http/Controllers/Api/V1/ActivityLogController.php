@@ -9,31 +9,59 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-class ActivityLogController extends Controller
+class ActivityLogController extends Controller implements HasMiddleware
 {
+    /**
+     * Institutional Timezone for Wollo University.
+     */
+    protected string $institutionalTimezone = 'Africa/Addis_Ababa';
+
+    /**
+     * Enforce administrator and department head authorization for all audit log center operations.
+     */
+    public static function middleware(): array
+    {
+        return [
+            function ($request, $next) {
+                $user = $request->user();
+                if (!$user || !in_array($user->role, ['admin', 'dept_head'])) {
+                    return response()->json([
+                        'status'  => 'error',
+                        'message' => 'Unauthorized. Only Super Administrators and Department Heads are authorized to access the institutional audit log center.'
+                    ], 403);
+                }
+                return $next($request);
+            }
+        ];
+    }
+
     /**
      * Get paginated activity logs with real statistics and filter options.
      */
     public function index(Request $request): JsonResponse
     {
+        $tz = $this->institutionalTimezone;
+
         // ── Real Global Statistics (Source of Truth) ────────────────────────
         $totalLogs = ActivityLog::count();
-        $todayLogs = ActivityLog::whereDate('created_at', Carbon::today())->count();
+        $todayLogs = ActivityLog::whereDate('created_at', Carbon::today($tz))->count();
         $successfulLogs = ActivityLog::where('log_status', 'Success')->count();
         $failedLogs = ActivityLog::where('log_status', 'Failed')->count();
         $securityLogs = ActivityLog::where(function ($q) {
-            $q->whereIn('module', ['Authentication', 'Exam Recovery'])
-              ->orWhereIn('type', ['Login', 'Login Failed', 'Approved Recovery', 'Connection Restored']);
+            $q->whereIn('module', ['Authentication', 'Exam Recovery', 'Security'])
+              ->orWhereIn('type', ['Login', 'Login Failed', 'Approved Recovery', 'Connection Restored', 'Admin Override', 'Password Changed', 'Security']);
         })->count();
         $authLogs = ActivityLog::where(function ($q) {
             $q->where('module', 'Authentication')
-              ->orWhereIn('type', ['Login', 'Login Failed']);
+              ->orWhereIn('type', ['Login', 'Login Failed', 'Logout']);
         })->count();
         $dataChangesLogs = ActivityLog::whereIn('type', [
             'Created', 'Updated', 'Deleted', 'Assigned', 'Status Changed', 'Exported'
         ])->count();
+        $unreadLogs = ActivityLog::where('is_read', false)->count();
 
         // ── Dynamic Filter Options from Database ─────────────────────────────
         $dbModules = ActivityLog::whereNotNull('module')
@@ -67,7 +95,7 @@ class ActivityLogController extends Controller
         ]);
 
         // ── Server-Side Filters ──────────────────────────────────────────────
-        // 1. Search (user name, email, details, action, module, IP)
+        // 1. Search (user name, email, details, action, module, IP, actor role)
         if ($request->filled('search')) {
             $search = '%' . trim($request->query('search')) . '%';
             $query->where(function ($q) use ($search) {
@@ -76,6 +104,7 @@ class ActivityLogController extends Controller
                   ->orWhere('type', 'like', $search)
                   ->orWhere('module', 'like', $search)
                   ->orWhere('ip_address', 'like', $search)
+                  ->orWhere('actor_role', 'like', $search)
                   ->orWhereHas('user', function ($uq) use ($search) {
                       $uq->where('name', 'like', $search)
                          ->orWhere('email', 'like', $search);
@@ -118,15 +147,15 @@ class ActivityLogController extends Controller
         if ($request->filled('category') && $request->query('category') !== 'all') {
             $cat = $request->query('category');
             if ($cat === 'today') {
-                $query->whereDate('created_at', Carbon::today());
+                $query->whereDate('created_at', Carbon::today($tz));
             } elseif ($cat === 'successful') {
                 $query->where('log_status', 'Success');
             } elseif ($cat === 'failed') {
                 $query->where('log_status', 'Failed');
             } elseif ($cat === 'security') {
                 $query->where(function ($q) {
-                    $q->whereIn('module', ['Authentication', 'Exam Recovery'])
-                      ->orWhereIn('type', ['Login', 'Login Failed', 'Approved Recovery', 'Connection Restored']);
+                    $q->whereIn('module', ['Authentication', 'Exam Recovery', 'Security'])
+                      ->orWhereIn('type', ['Login', 'Login Failed', 'Approved Recovery', 'Connection Restored', 'Admin Override', 'Password Changed', 'Security']);
                 });
             } elseif ($cat === 'data_changes') {
                 $query->whereIn('type', ['Created', 'Updated', 'Deleted', 'Assigned', 'Status Changed', 'Exported']);
@@ -134,16 +163,16 @@ class ActivityLogController extends Controller
         }
 
         // 8. Date Range / Quick Date
-        if ($request->filled('quick_date')) {
+        if ($request->filled('quick_date') && $request->query('quick_date') !== 'all') {
             $qd = $request->query('quick_date');
             if ($qd === 'today') {
-                $query->whereDate('created_at', Carbon::today());
+                $query->whereDate('created_at', Carbon::today($tz));
             } elseif ($qd === 'yesterday') {
-                $query->whereDate('created_at', Carbon::yesterday());
+                $query->whereDate('created_at', Carbon::yesterday($tz));
             } elseif ($qd === '7days') {
-                $query->where('created_at', '>=', Carbon::now()->subDays(7));
+                $query->where('created_at', '>=', Carbon::now($tz)->subDays(7)->startOfDay());
             } elseif ($qd === '30days') {
-                $query->where('created_at', '>=', Carbon::now()->subDays(30));
+                $query->where('created_at', '>=', Carbon::now($tz)->subDays(30)->startOfDay());
             }
         } elseif ($request->filled('date_from') || $request->filled('date_to')) {
             if ($request->filled('date_from')) {
@@ -251,6 +280,7 @@ class ActivityLogController extends Controller
                 'security_events' => $securityLogs,
                 'auth_events'     => $authLogs,
                 'data_changes'    => $dataChangesLogs,
+                'unread'          => $unreadLogs,
             ],
             'filter_options' => [
                 'modules' => $dbModules,
@@ -296,7 +326,7 @@ class ActivityLogController extends Controller
             $severity = 'ERROR';
         } elseif (in_array($log->type, ['Deleted', 'Cancelled', 'Paused'])) {
             $severity = 'WARNING';
-        } elseif (in_array($log->type, ['Approved Recovery', 'Connection Restored'])) {
+        } elseif (in_array($log->type, ['Approved Recovery', 'Connection Restored', 'Admin Override'])) {
             $severity = 'SECURITY';
         } elseif ($log->type === 'Created' || $log->log_status === 'Success') {
             $severity = 'SUCCESS';
@@ -334,6 +364,8 @@ class ActivityLogController extends Controller
      */
     public function export(Request $request)
     {
+        $tz = $this->institutionalTimezone;
+
         $query = ActivityLog::with([
             'user:id,name,email,role,department_id',
             'department:id,name,code'
@@ -348,6 +380,7 @@ class ActivityLogController extends Controller
                   ->orWhere('type', 'like', $search)
                   ->orWhere('module', 'like', $search)
                   ->orWhere('ip_address', 'like', $search)
+                  ->orWhere('actor_role', 'like', $search)
                   ->orWhereHas('user', function ($uq) use ($search) {
                       $uq->where('name', 'like', $search)
                          ->orWhere('email', 'like', $search);
@@ -373,15 +406,50 @@ class ActivityLogController extends Controller
             });
         }
 
+        if ($request->filled('user_id') && $request->query('user_id') !== 'all') {
+            $query->where('user_id', $request->query('user_id'));
+        }
+
         if ($request->filled('status') && $request->query('status') !== 'all') {
             $query->where('log_status', $request->query('status'));
         }
 
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->query('date_from'));
+        if ($request->filled('category') && $request->query('category') !== 'all') {
+            $cat = $request->query('category');
+            if ($cat === 'today') {
+                $query->whereDate('created_at', Carbon::today($tz));
+            } elseif ($cat === 'successful') {
+                $query->where('log_status', 'Success');
+            } elseif ($cat === 'failed') {
+                $query->where('log_status', 'Failed');
+            } elseif ($cat === 'security') {
+                $query->where(function ($q) {
+                    $q->whereIn('module', ['Authentication', 'Exam Recovery', 'Security'])
+                      ->orWhereIn('type', ['Login', 'Login Failed', 'Approved Recovery', 'Connection Restored', 'Admin Override', 'Password Changed', 'Security']);
+                });
+            } elseif ($cat === 'data_changes') {
+                $query->whereIn('type', ['Created', 'Updated', 'Deleted', 'Assigned', 'Status Changed', 'Exported']);
+            }
         }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->query('date_to'));
+
+        if ($request->filled('quick_date') && $request->query('quick_date') !== 'all') {
+            $qd = $request->query('quick_date');
+            if ($qd === 'today') {
+                $query->whereDate('created_at', Carbon::today($tz));
+            } elseif ($qd === 'yesterday') {
+                $query->whereDate('created_at', Carbon::yesterday($tz));
+            } elseif ($qd === '7days') {
+                $query->where('created_at', '>=', Carbon::now($tz)->subDays(7)->startOfDay());
+            } elseif ($qd === '30days') {
+                $query->where('created_at', '>=', Carbon::now($tz)->subDays(30)->startOfDay());
+            }
+        } elseif ($request->filled('date_from') || $request->filled('date_to')) {
+            if ($request->filled('date_from')) {
+                $query->whereDate('created_at', '>=', $request->query('date_from'));
+            }
+            if ($request->filled('date_to')) {
+                $query->whereDate('created_at', '<=', $request->query('date_to'));
+            }
         }
 
         $logs = $query->latest('created_at')->get();
@@ -422,6 +490,15 @@ class ActivityLogController extends Controller
                 'Status'
             ]);
 
+            // Protect against CSV / Spreadsheet formula injection
+            $sanitizeCsv = function ($val) {
+                $str = (string)($val ?? '');
+                if (strlen($str) > 0 && in_array($str[0], ['=', '+', '-', '@', "\t", "\r"])) {
+                    return "'" . $str;
+                }
+                return $str;
+            };
+
             foreach ($logs as $log) {
                 $rawRole = $log->actor_role ?? ($log->user ? $log->user->role : 'system');
                 $roleLabel = match($rawRole) {
@@ -432,7 +509,7 @@ class ActivityLogController extends Controller
                     default     => 'System',
                 };
 
-                fputcsv($output, [
+                fputcsv($output, array_map($sanitizeCsv, [
                     $log->id,
                     $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : '',
                     $log->user ? $log->user->name : 'System',
@@ -443,7 +520,7 @@ class ActivityLogController extends Controller
                     $log->details ?: $log->action,
                     $log->ip_address,
                     $log->log_status,
-                ]);
+                ]));
             }
 
             fclose($output);

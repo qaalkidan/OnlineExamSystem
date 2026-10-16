@@ -41,6 +41,15 @@ class AuthController extends Controller
         }
 
         if (! $user || ! $passwordValid) {
+            \App\Helpers\LogActivity::record(
+                'Login Failed',
+                'Authentication',
+                "Failed login attempt for identifier '{$loginField}'",
+                'Failed',
+                $user?->department_id,
+                $user
+            );
+
             throw ValidationException::withMessages([
                 'login' => ['The provided credentials are incorrect. Please verify your email/username and password.'],
             ]);
@@ -54,6 +63,14 @@ class AuthController extends Controller
             $effectiveRole = 'admin';
         } elseif ($requestedRole === 'student') {
             if ($user->role !== 'student') {
+                \App\Helpers\LogActivity::record(
+                    'Login Failed',
+                    'Authentication',
+                    "User {$user->email} ({$user->role}) attempted to sign in via Student portal",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
                 $roleLabel = ucfirst($user->role);
                 $targetTab = in_array($user->role, ['admin', 'dept_head']) ? 'Staff' : 'Instructor';
                 throw ValidationException::withMessages([
@@ -62,6 +79,14 @@ class AuthController extends Controller
             }
         } elseif ($requestedRole === 'instructor') {
             if (!in_array($user->role, ['instructor', 'dept_head', 'admin'])) {
+                \App\Helpers\LogActivity::record(
+                    'Login Failed',
+                    'Authentication',
+                    "User {$user->email} ({$user->role}) attempted to sign in via Instructor portal",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
                 throw ValidationException::withMessages([
                     'login' => ['This account is registered as a Student. Please select the Student tab to sign in.'],
                 ]);
@@ -69,6 +94,14 @@ class AuthController extends Controller
             $effectiveRole = $user->role === 'admin' ? 'admin' : 'instructor';
         } elseif ($requestedRole === 'staff') {
             if (!in_array($user->role, ['admin', 'dept_head'])) {
+                \App\Helpers\LogActivity::record(
+                    'Login Failed',
+                    'Authentication',
+                    "User {$user->email} ({$user->role}) attempted to sign in via Staff portal",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
                 throw ValidationException::withMessages([
                     'login' => ['This account is registered as an Instructor. Please select the Instructor tab to sign in.'],
                 ]);
@@ -264,7 +297,18 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->tokens()->delete();
+        $user = $request->user();
+        if ($user) {
+            \App\Helpers\LogActivity::record(
+                'Logout',
+                'Authentication',
+                "User {$user->name} ({$user->email}) logged out successfully",
+                'Success',
+                $user->department_id,
+                $user
+            );
+            $user->tokens()->delete();
+        }
 
         return response()->json(['message' => 'Logged out successfully.']);
     }

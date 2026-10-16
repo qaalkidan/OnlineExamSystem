@@ -40,12 +40,16 @@ interface BackendStats {
   security_events: number
   auth_events: number
   data_changes: number
+  unread?: number
 }
 
 // ── State Management ────────────────────────────────────────────────────────
 const viewMode = ref<'table' | 'timeline'>('table')
 const isLoading = ref(true)
+const hasError = ref(false)
+const errorMessage = ref('')
 const isExporting = ref(false)
+const isMarkingAllRead = ref(false)
 const exportDropdownOpen = ref(false)
 const toastMessage = ref<{ text: string; type: 'success' | 'error' | 'info' } | null>(null)
 let toastTimer: any = null
@@ -70,6 +74,7 @@ const stats = ref<BackendStats>({
   security_events: 0,
   auth_events: 0,
   data_changes: 0,
+  unread: 0,
 })
 
 // Dynamic options from backend
@@ -121,10 +126,29 @@ const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success')
   }, 3500)
 }
 
+// ── Mark All Logs as Read ───────────────────────────────────────────────────
+const markAllAsRead = async () => {
+  try {
+    isMarkingAllRead.value = true
+    const res = await apiClient.post('/admin/activity-logs/mark-all-read')
+    logs.value.forEach((l) => (l.is_read = true))
+    stats.value.unread = 0
+    window.dispatchEvent(new CustomEvent('log-count-update', { detail: { count: 0 } }))
+    showToast(res.data?.message || 'All activity logs marked as read.', 'success')
+  } catch (err: any) {
+    console.error('Failed to mark all logs as read:', err)
+    showToast('Failed to mark activity logs as read.', 'error')
+  } finally {
+    isMarkingAllRead.value = false
+  }
+}
+
 // ── Fetch Activity Logs (Server-Side) ───────────────────────────────────────
 const fetchLogs = async (preservePage = false) => {
   try {
     isLoading.value = true
+    hasError.value = false
+    errorMessage.value = ''
     const params: Record<string, any> = {
       page: preservePage ? pagination.value.current_page : 1,
       per_page: perPage.value,
@@ -159,6 +183,9 @@ const fetchLogs = async (preservePage = false) => {
       }
       if (response.data.stats) {
         stats.value = response.data.stats
+        if (typeof response.data.stats.unread === 'number') {
+          window.dispatchEvent(new CustomEvent('log-count-update', { detail: { count: response.data.stats.unread } }))
+        }
       }
       if (response.data.filter_options) {
         filterOptions.value = response.data.filter_options
@@ -166,6 +193,8 @@ const fetchLogs = async (preservePage = false) => {
     }
   } catch (err: any) {
     console.error('Error fetching activity logs:', err)
+    hasError.value = true
+    errorMessage.value = err.response?.data?.message || 'Failed to connect to the institutional activity log service.'
     showToast('Failed to load activity logs from server.', 'error')
   } finally {
     isLoading.value = false
@@ -260,6 +289,9 @@ const openLogModal = async (log: LogEntry) => {
     try {
       await apiClient.post(`/admin/activity-logs/${log.id}/read`)
       log.is_read = true
+      if (stats.value && typeof stats.value.unread === 'number' && stats.value.unread > 0) {
+        stats.value.unread--
+      }
       window.dispatchEvent(new Event('log-read'))
     } catch (err) {
       console.error('Failed to mark log as read:', err)
@@ -295,7 +327,10 @@ const handleExport = async (format: 'csv' | 'pdf') => {
     if (selectedModule.value !== 'all') params.module = selectedModule.value
     if (selectedAction.value !== 'all') params.action = selectedAction.value
     if (selectedRole.value !== 'all') params.role = selectedRole.value
+    if (selectedUser.value !== 'all') params.user_id = selectedUser.value
     if (selectedStatus.value !== 'all') params.status = selectedStatus.value
+    if (activeCategory.value !== 'all') params.category = activeCategory.value
+
     if (selectedQuickDate.value === 'custom') {
       if (customDateFrom.value) params.date_from = customDateFrom.value
       if (customDateTo.value) params.date_to = customDateTo.value
@@ -334,14 +369,24 @@ const handleExport = async (format: 'csv' | 'pdf') => {
 // ── Timeline Grouping ───────────────────────────────────────────────────────
 const timelineGroups = computed(() => {
   const groups: { date: string; isToday: boolean; isYesterday: boolean; items: LogEntry[] }[] = []
-  const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+  const today = new Date()
+  const todayStr = today.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
   const yest = new Date()
   yest.setDate(yest.getDate() - 1)
   const yestStr = yest.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
 
   const map = new Map<string, LogEntry[]>()
   logs.value.forEach((log) => {
-    const dStr = log.time.split('\n')[0] || 'Unknown Date'
+    let dStr = ''
+    if (log.raw_time) {
+      const d = new Date(log.raw_time)
+      if (!isNaN(d.getTime())) {
+        dStr = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+      }
+    }
+    if (!dStr) {
+      dStr = log.time.split('\n')[0] || 'Unknown Date'
+    }
     if (!map.has(dStr)) map.set(dStr, [])
     map.get(dStr)!.push(log)
   })
@@ -548,6 +593,24 @@ onMounted(() => {
               Timeline View
             </button>
           </div>
+
+          <!-- Mark All Read Button -->
+          <button
+            v-if="stats.unread && stats.unread > 0"
+            @click="markAllAsRead"
+            :disabled="isMarkingAllRead"
+            class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-colors shadow-xs disabled:opacity-50"
+            title="Mark all unread logs as read"
+          >
+            <svg v-if="!isMarkingAllRead" class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else class="w-4 h-4 animate-spin text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span>Mark All Read ({{ stats.unread }})</span>
+          </button>
 
           <!-- Refresh Button -->
           <button
@@ -948,6 +1011,23 @@ onMounted(() => {
           <div class="w-48 h-3.5 bg-slate-100 rounded"></div>
           <div class="w-16 h-5 bg-slate-200 rounded-md"></div>
         </div>
+      </div>
+
+      <!-- Error State with Retry -->
+      <div v-else-if="hasError" class="py-16 text-center px-4">
+        <div class="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center mb-4">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-slate-800">Unable to load activity logs</h3>
+        <p class="text-[13px] text-slate-500 max-w-md mx-auto mt-1">{{ errorMessage }}</p>
+        <button
+          @click="fetchLogs(true)"
+          class="mt-4 px-4 py-2 rounded-xl text-[12px] font-bold text-white bg-[#4338ca] hover:bg-indigo-700 transition-colors shadow-sm"
+        >
+          Retry Connection
+        </button>
       </div>
 
       <!-- Empty State -->
