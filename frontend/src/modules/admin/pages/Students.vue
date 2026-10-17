@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import apiClient from '../../../core/api/apiClient'
 import { useSettingsStore } from '../../../store/settingsStore'
 import { useAdminPreferences } from '../../../composables/useAdminPreferences'
@@ -10,6 +10,7 @@ import { Doughnut } from 'vue-chartjs'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const router = useRouter()
+const route = useRoute()
 const settingsStore = useSettingsStore()
 const adminPrefs = useAdminPreferences()
 
@@ -388,6 +389,12 @@ const closeAllDropdowns = () => {
 onMounted(async () => {
   window.addEventListener('click', closeAllDropdowns)
   await Promise.all([fetchStudents(), fetchDepartments()])
+  if (route.query.id) {
+    const found = allStudents.value.find(s => String(s.id) === String(route.query.id))
+    if (found) {
+      viewStudent(found)
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -668,13 +675,63 @@ const closeAdd = () => {
   showAddPage.value = false
 }
 
-const viewStudent = (student: any) => {
+const studentImgError = ref(false)
+const isDetailsLoading = ref(false)
+
+const viewStudent = async (student: any) => {
+  studentImgError.value = false
   viewingStudent.value = student
   showAddPage.value = false
+
+  if (route.query.id !== String(student.id)) {
+    router.replace({ query: { ...route.query, id: student.id } })
+  }
+
+  if (student?.id) {
+    isDetailsLoading.value = true
+    try {
+      const res = await apiClient.get(`/admin/users/${student.id}`)
+      if (res.data?.data) {
+        const u = res.data.data
+        viewingStudent.value = {
+          ...viewingStudent.value,
+          ...u,
+          name: u.name || viewingStudent.value.name,
+          email: u.email || viewingStudent.value.email,
+          username: u.username || viewingStudent.value.username || '—',
+          phone: u.phone || viewingStudent.value.phone || '—',
+          gender: u.gender || viewingStudent.value.gender || '—',
+          dob: u.dob || viewingStudent.value.dob || '',
+          avatar: u.name ? u.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) : viewingStudent.value.avatar,
+          profilePicture: u.profile_picture_url || (u.profile_picture ? `http://localhost:8000/storage/${u.profile_picture}` : viewingStudent.value.profilePicture),
+          status: u.status || viewingStudent.value.status || 'active',
+          departmentName: u.department?.name || viewingStudent.value.departmentName || 'Unassigned',
+          department_id: u.department_id || viewingStudent.value.department_id,
+          year_level: u.year_level || viewingStudent.value.year_level || '1st Year',
+          academic_year: u.academic_year || viewingStudent.value.academic_year || '2025/2026',
+          semester: u.semester || viewingStudent.value.semester || '1st Semester',
+          section: u.section ? (u.section.startsWith('Section ') ? u.section : `Section ${u.section}`) : (viewingStudent.value.section || 'Section A'),
+          id_no: u.id_no || viewingStudent.value.id_no || `WU/${u.id.toString().padStart(4, '0')}/26`,
+          admission_number: u.admission_number || viewingStudent.value.admission_number || `ADM-${u.id.toString().padStart(5, '0')}`,
+          joined: u.created_at ? adminPrefs.formatDate(u.created_at) : viewingStudent.value.joined,
+          lastLogin: u.updated_at ? new Date(u.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : viewingStudent.value.lastLogin,
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load fresh student details:', err)
+    } finally {
+      isDetailsLoading.value = false
+    }
+  }
 }
 
 const closeView = () => {
   viewingStudent.value = null
+  if (route.query.id) {
+    const q = { ...route.query }
+    delete q.id
+    router.replace({ query: q })
+  }
 }
 
 const openEdit = (student: any) => {
@@ -819,7 +876,7 @@ const deleteStudent = async () => {
     await apiClient.delete(`/admin/users/${selectedStudent.value.id}`)
     await fetchStudents(true)
     if (viewingStudent.value?.id === selectedStudent.value.id) {
-      viewingStudent.value = null
+      closeView()
     }
     showDeleteModal.value = false
     showToast(`Student "${selectedStudent.value.name}" removed successfully.`, 'success')
@@ -1382,27 +1439,6 @@ const avatarBg = (id: number) => {
               <option value="inactive">Inactive Only</option>
             </select>
 
-            <!-- Semester -->
-            <select
-              v-model="semesterFilter"
-              class="border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:border-slate-300 focus:outline-none focus:border-indigo-500 transition-colors"
-            >
-              <option value="all">All Semesters</option>
-              <option value="1st Semester">1st Semester</option>
-              <option value="2nd Semester">2nd Semester</option>
-            </select>
-
-            <!-- Join Date Preset -->
-            <select
-              v-model="dateFilter"
-              class="border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:border-slate-300 focus:outline-none focus:border-indigo-500 transition-colors"
-            >
-              <option value="all">All Join Dates</option>
-              <option value="7_days">Last 7 Days</option>
-              <option value="30_days">Last 30 Days</option>
-              <option value="90_days">Last 90 Days</option>
-            </select>
-
             <!-- Columns Management Dropdown -->
             <div class="relative">
               <button
@@ -1910,197 +1946,266 @@ const avatarBg = (id: number) => {
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <!-- 2. STUDENT DETAIL VIEW                                                 -->
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
-    <div v-else-if="viewingStudent" class="space-y-6 pb-16 min-w-0 w-full">
+    <div v-else-if="viewingStudent" class="space-y-6 pb-16 min-w-0 w-full animate-in fade-in duration-200">
       <!-- Breadcrumb Header -->
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4 min-w-0">
           <button
+            type="button"
             @click="closeView"
-            class="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors text-slate-600"
+            class="w-10 h-10 bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors text-slate-600 shadow-2xs shrink-0 focus:outline-none group"
             title="Back to Students Directory"
           >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <svg class="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
           </button>
-          <div>
-            <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-              <span @click="closeView" class="hover:text-indigo-600 cursor-pointer">Students</span>
-              <span>/</span>
-              <span class="text-indigo-600 font-bold">Profile Details</span>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mb-1">
+              <span @click="closeView" class="hover:text-indigo-600 cursor-pointer transition-colors">Students</span>
+              <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+              <span class="text-indigo-600 font-bold">Student Details</span>
             </div>
-            <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              {{ viewingStudent.name }}
+            <div class="flex items-center flex-wrap gap-2.5">
+              <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                {{ viewingStudent.name }}
+              </h1>
               <span
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize border"
+                class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold capitalize border"
                 :class="{
-                  'bg-emerald-50 text-emerald-700 border-emerald-200': viewingStudent.status === 'active',
+                  'bg-emerald-50 text-emerald-700 border-emerald-200/90': viewingStudent.status === 'active',
                   'bg-slate-100 text-slate-700 border-slate-200': viewingStudent.status === 'inactive',
                   'bg-rose-50 text-rose-700 border-rose-200': viewingStudent.status === 'suspended',
                 }"
               >
+                <span class="w-1.5 h-1.5 rounded-full" :class="viewingStudent.status === 'active' ? 'bg-emerald-500' : (viewingStudent.status === 'suspended' ? 'bg-rose-500' : 'bg-slate-400')"></span>
                 {{ viewingStudent.status }}
               </span>
-            </h1>
+              <span v-if="viewingStudent.id_no" class="font-mono text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-lg">
+                {{ viewingStudent.id_no }}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2.5 shrink-0">
           <button
+            type="button"
             @click="openEdit(viewingStudent)"
-            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-indigo-300 text-indigo-700 font-bold rounded-xl text-xs hover:bg-indigo-50 transition-colors shadow-xs"
+            class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl text-xs transition-all shadow-xs focus:outline-none"
           >
-            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-            Edit Profile
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            <span>Edit Profile</span>
           </button>
           <button
+            type="button"
             @click="confirmDelete(viewingStudent)"
-            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-rose-200 text-rose-600 font-bold rounded-xl text-xs hover:bg-rose-50 transition-colors shadow-xs"
+            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-rose-200 hover:border-rose-300 hover:bg-rose-50/70 text-rose-600 font-bold rounded-xl text-xs transition-colors shadow-2xs focus:outline-none"
           >
-            <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            Remove Student
+            <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Remove Student</span>
           </button>
         </div>
       </div>
 
       <!-- Detail Content Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
+        <!-- Left / Primary Column -->
         <div class="space-y-6 min-w-0">
           
-          <!-- Personal Info Card -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-6 sm:p-8 shadow-xs">
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-6 flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
-              Personal Information
-            </h3>
-            <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-              <img
-                v-if="viewingStudent.profilePicture"
-                :src="viewingStudent.profilePicture"
-                class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-slate-100 shadow-sm shrink-0"
-                :alt="viewingStudent.name"
-              />
-              <div
-                v-else
-                :class="avatarBg(viewingStudent.id)"
-                class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center text-3xl font-black border-2 shadow-sm shrink-0 select-none"
-              >
-                {{ viewingStudent.avatar }}
+          <!-- Personal Information Card -->
+          <div class="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+            <div class="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Personal Information
+                </h3>
               </div>
+              <span class="text-[11px] font-semibold text-slate-400">Institutional Identity</span>
+            </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-1 w-full text-xs">
-                <div>
-                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Full Name</p>
-                  <p class="text-sm font-black text-slate-800">{{ viewingStudent.name }}</p>
+            <div class="p-6 sm:p-7">
+              <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 lg:gap-8">
+                <!-- Profile Image Showcase -->
+                <div class="relative shrink-0">
+                  <img
+                    v-if="viewingStudent.profilePicture && !studentImgError"
+                    :src="viewingStudent.profilePicture"
+                    @error="studentImgError = true"
+                    class="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-slate-100 shadow-sm bg-slate-100"
+                    :alt="viewingStudent.name"
+                  />
+                  <div
+                    v-else
+                    :class="avatarBg(viewingStudent.id)"
+                    class="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl font-black border-2 border-slate-200/70 shadow-xs shrink-0 select-none"
+                  >
+                    {{ viewingStudent.avatar || 'ST' }}
+                  </div>
+                  <div class="absolute -bottom-2 -right-2 w-7 h-7 bg-indigo-600 text-white rounded-full flex items-center justify-center border-2 border-white shadow-xs" title="Verified University Student">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                    </svg>
+                  </div>
                 </div>
-                <div>
-                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Student ID (WU / ID No)</p>
-                  <p class="text-sm font-mono font-bold text-indigo-700">{{ viewingStudent.id_no }}</p>
-                </div>
-                <div>
-                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Institutional Email</p>
-                  <p class="text-xs font-semibold text-slate-800">{{ viewingStudent.email }}</p>
-                </div>
-                <div>
-                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Phone Number</p>
-                  <p class="text-xs font-semibold text-slate-800">{{ viewingStudent.phone }}</p>
-                </div>
-                <div>
-                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Gender</p>
-                  <p class="text-xs font-semibold text-slate-800">{{ viewingStudent.gender }}</p>
-                </div>
-                <div>
-                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Date of Birth</p>
-                  <p class="text-xs font-semibold text-slate-800">{{ viewingStudent.dob || '—' }}</p>
+
+                <!-- Structured Metadata Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4.5 flex-1 w-full text-xs">
+                  <div>
+                    <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Full Name</p>
+                    <p class="text-sm font-bold text-slate-900">{{ viewingStudent.name }}</p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Student ID (WU / ID No)</p>
+                    <p class="text-xs font-mono font-bold text-indigo-700 bg-indigo-50/80 border border-indigo-100/90 px-2.5 py-1 rounded-lg inline-block">
+                      {{ viewingStudent.id_no }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Institutional Email</p>
+                    <p class="text-xs font-semibold text-slate-800 break-all">{{ viewingStudent.email }}</p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Phone Number</p>
+                    <p class="text-xs font-semibold text-slate-800">{{ viewingStudent.phone && viewingStudent.phone !== '—' ? viewingStudent.phone : 'Not provided' }}</p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Gender</p>
+                    <p class="text-xs font-semibold text-slate-800 capitalize">{{ viewingStudent.gender && viewingStudent.gender !== '—' ? viewingStudent.gender : 'Not specified' }}</p>
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Date of Birth</p>
+                    <p class="text-xs font-semibold text-slate-800">{{ viewingStudent.dob && viewingStudent.dob !== '—' ? viewingStudent.dob : 'Not recorded' }}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Academic Placement Card -->
-          <div class="bg-white border border-slate-100 rounded-2xl p-6 sm:p-8 shadow-xs">
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-6 flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
-              Academic Placement & Enrollment
-            </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 text-xs">
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Department</p>
-                <p class="text-sm font-black text-slate-800">{{ viewingStudent.departmentName }}</p>
+          <!-- Academic Placement & Enrollment Card -->
+          <div class="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+            <div class="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Academic Placement &amp; Enrollment
+                </h3>
               </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Year Level</p>
-                <p class="text-sm font-black text-slate-800">{{ viewingStudent.year_level }}</p>
-              </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Assigned Section</p>
-                <p class="text-sm font-black text-slate-800">{{ viewingStudent.section }}</p>
-              </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Current Semester</p>
-                <p class="text-xs font-bold text-slate-700">{{ viewingStudent.semester }}</p>
-              </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Academic Year</p>
-                <p class="text-xs font-bold text-slate-700">{{ viewingStudent.academic_year }}</p>
-              </div>
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Admission Number</p>
-                <p class="text-xs font-mono font-bold text-slate-700">{{ viewingStudent.admission_number || '—' }}</p>
+              <span class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full">
+                {{ viewingStudent.semester || 'Current Semester' }}
+              </span>
+            </div>
+
+            <div class="p-6 sm:p-7">
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                <div class="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 hover:bg-slate-50 hover:border-indigo-200/80 transition-colors group">
+                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Department</p>
+                  <p class="text-sm font-bold text-slate-900 capitalize group-hover:text-indigo-600 transition-colors">
+                    {{ viewingStudent.departmentName }}
+                  </p>
+                </div>
+                <div class="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 hover:bg-slate-50 hover:border-indigo-200/80 transition-colors">
+                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Year Level</p>
+                  <p class="text-sm font-bold text-slate-900">{{ viewingStudent.year_level }}</p>
+                </div>
+                <div class="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 hover:bg-slate-50 hover:border-indigo-200/80 transition-colors">
+                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Assigned Section</p>
+                  <p class="text-sm font-bold text-slate-900">{{ viewingStudent.section }}</p>
+                </div>
+                <div class="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 hover:bg-slate-50 hover:border-indigo-200/80 transition-colors">
+                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Current Semester</p>
+                  <p class="text-xs font-bold text-slate-800">{{ viewingStudent.semester }}</p>
+                </div>
+                <div class="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 hover:bg-slate-50 hover:border-indigo-200/80 transition-colors">
+                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Academic Year</p>
+                  <p class="text-xs font-bold text-slate-800">{{ viewingStudent.academic_year }}</p>
+                </div>
+                <div class="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 hover:bg-slate-50 hover:border-indigo-200/80 transition-colors">
+                  <p class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Admission Number</p>
+                  <p class="text-xs font-mono font-bold text-slate-800">{{ viewingStudent.admission_number || '—' }}</p>
+                </div>
               </div>
             </div>
           </div>
 
         </div>
 
-        <!-- Sidebar Summary -->
+        <!-- Right / Secondary Column: Account Overview -->
         <div class="space-y-6">
-          <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4">Account Overview</h4>
+          <div class="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-5 sticky top-6">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Account Overview</h4>
+              </div>
+              <span class="w-2 h-2 rounded-full bg-emerald-500" title="System Connected"></span>
+            </div>
             
             <div class="space-y-3.5 text-xs">
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Account Status</span>
+              <div class="flex items-center justify-between py-1 border-b border-slate-50">
+                <span class="text-slate-500 font-medium">Account Status</span>
                 <span
-                  class="font-bold px-2 py-0.5 rounded-full text-[11px] capitalize"
+                  class="font-bold px-2.5 py-0.5 rounded-full text-[11px] capitalize border"
                   :class="{
-                    'bg-emerald-50 text-emerald-700': viewingStudent.status === 'active',
-                    'bg-slate-100 text-slate-700': viewingStudent.status === 'inactive',
-                    'bg-rose-50 text-rose-700': viewingStudent.status === 'suspended',
+                    'bg-emerald-50 text-emerald-700 border-emerald-200/80': viewingStudent.status === 'active',
+                    'bg-slate-100 text-slate-700 border-slate-200': viewingStudent.status === 'inactive',
+                    'bg-rose-50 text-rose-700 border-rose-200': viewingStudent.status === 'suspended',
                   }"
                 >
                   {{ viewingStudent.status }}
                 </span>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Username</span>
-                <span class="font-mono font-semibold text-slate-700">{{ viewingStudent.username }}</span>
+              <div class="flex items-center justify-between py-1 border-b border-slate-50">
+                <span class="text-slate-500 font-medium">Username</span>
+                <span class="font-mono font-semibold text-slate-800">@{{ viewingStudent.username }}</span>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Role</span>
-                <span class="font-bold text-indigo-700 capitalize">{{ viewingStudent.role }}</span>
+              <div class="flex items-center justify-between py-1 border-b border-slate-50">
+                <span class="text-slate-500 font-medium">Role</span>
+                <span class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100/90 px-2 py-0.5 rounded-md text-[11px] uppercase tracking-wider">Student</span>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Registered On</span>
-                <span class="font-semibold text-slate-700">{{ viewingStudent.joined }}</span>
+              <div class="flex items-center justify-between py-1 border-b border-slate-50">
+                <span class="text-slate-500 font-medium">Registered On</span>
+                <span class="font-semibold text-slate-800">{{ viewingStudent.joined }}</span>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-400">Last Profile Sync</span>
-                <span class="font-semibold text-slate-700">{{ viewingStudent.lastLogin }}</span>
+              <div class="flex items-center justify-between py-1">
+                <span class="text-slate-500 font-medium">Last Profile Sync</span>
+                <span class="font-semibold text-slate-800 font-mono">{{ viewingStudent.lastLogin }}</span>
               </div>
             </div>
 
-            <div class="mt-6 pt-4 border-t border-slate-100 space-y-2">
+            <div class="pt-4 border-t border-slate-100 space-y-2.5">
               <button
+                type="button"
                 @click="openEdit(viewingStudent)"
-                class="w-full py-2.5 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2"
+                class="w-full py-2.5 px-4 bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 text-indigo-700 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-2xs focus:outline-none"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                Edit Student Details
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                <span>Edit Student Details</span>
               </button>
               <button
+                type="button"
                 @click="closeView"
-                class="w-full py-2.5 px-4 border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl text-xs transition-colors"
+                class="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-2xs focus:outline-none"
               >
-                Back to Student Directory
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Back to Student Directory</span>
               </button>
             </div>
           </div>

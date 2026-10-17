@@ -2725,70 +2725,213 @@ const recentCourses = computed(() => {
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
       <!-- Edit Course Modal -->
-      <div v-if="showEditModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 border border-slate-100">
-          <div class="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 shrink-0">
-            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Edit Course: {{ selectedCourse?.name }}</h3>
-            <button @click="showEditModal = false" class="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+      <div
+        v-if="showEditModal"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4 sm:p-6 overflow-y-auto"
+        @click.self="showEditModal = false"
+      >
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 border border-slate-200/90 transform transition-all">
+          <!-- Modal Header -->
+          <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50/80 to-white shrink-0">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2 truncate">
+                  <span>Edit Course</span>
+                  <span class="text-slate-300 font-normal">—</span>
+                  <span class="text-indigo-600 font-semibold truncate">{{ selectedCourse?.name || selectedCourse?.title || 'Course' }}</span>
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                  <span v-if="selectedCourse?.code" class="font-mono font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[11px] border border-slate-200/80">{{ selectedCourse?.code }}</span>
+                  <span v-if="selectedCourse?.departmentName || selectedCourse?.dept || selectedCourse?.department?.name" class="text-slate-400">• {{ selectedCourse?.departmentName || selectedCourse?.dept || selectedCourse?.department?.name }}</span>
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="showEditModal = false"
+              class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors focus:outline-none shrink-0 ml-3"
+              title="Close dialog"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
+          <!-- Modal Body with 2-Column Grid -->
           <div class="p-6 overflow-y-auto space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <!-- Left Column, Row 1: Course Code -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Course Code <span class="text-rose-500">*</span></label>
-                <input v-model="newCourseForm.code" type="text" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600" />
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Course Code <span class="text-rose-500 font-bold">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="newCourseForm.code"
+                    @input="touchCourseField('code')"
+                    type="text"
+                    placeholder="e.g. BO-0"
+                    class="w-full h-11 bg-slate-50/50 hover:bg-white focus:bg-white border rounded-xl px-3.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition shadow-2xs font-mono"
+                    :class="courseFormErrors.code ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 focus:border-indigo-600'"
+                  />
+                </div>
+                <p v-if="courseFormErrors.code" class="mt-1 text-[11px] text-rose-500 font-medium">{{ courseFormErrors.code }}</p>
               </div>
+
+              <!-- Right Column, Row 1: Course Title -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Course Title <span class="text-rose-500">*</span></label>
-                <input v-model="newCourseForm.title" type="text" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600" />
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Course Title <span class="text-rose-500 font-bold">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="newCourseForm.title"
+                    @input="touchCourseField('title')"
+                    type="text"
+                    placeholder="e.g. Biology"
+                    class="w-full h-11 bg-slate-50/50 hover:bg-white focus:bg-white border rounded-xl px-3.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition shadow-2xs"
+                    :class="courseFormErrors.title ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 focus:border-indigo-600'"
+                  />
+                </div>
+                <p v-if="courseFormErrors.title" class="mt-1 text-[11px] text-rose-500 font-medium">{{ courseFormErrors.title }}</p>
               </div>
+
+              <!-- Left Column, Row 2: Department -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Department <span class="text-rose-500">*</span></label>
-                <select v-model="newCourseForm.department_id" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600 bg-white">
-                  <option v-for="d in allDepartments" :key="d.id" :value="String(d.id)">{{ d.name }}</option>
-                </select>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Department <span class="text-rose-500 font-bold">*</span>
+                </label>
+                <div class="relative">
+                  <select
+                    v-model="newCourseForm.department_id"
+                    @change="touchCourseField('department_id')"
+                    class="w-full h-11 appearance-none bg-slate-50/50 hover:bg-white focus:bg-white border rounded-xl px-3.5 pr-10 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition shadow-2xs"
+                    :class="courseFormErrors.department_id ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 focus:border-indigo-600'"
+                  >
+                    <option value="" disabled>Select Department</option>
+                    <option v-for="d in allDepartments" :key="d.id" :value="String(d.id)">{{ d.name }}</option>
+                  </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
+                <p v-if="courseFormErrors.department_id" class="mt-1 text-[11px] text-rose-500 font-medium">{{ courseFormErrors.department_id }}</p>
               </div>
+
+              <!-- Right Column, Row 2: Credit Hours -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Credit Hours <span class="text-rose-500">*</span></label>
-                <input v-model="newCourseForm.credits" type="number" min="1" max="30" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600" />
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Credit Hours <span class="text-rose-500 font-bold">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="newCourseForm.credits"
+                    @input="touchCourseField('credits')"
+                    type="number"
+                    min="1"
+                    max="30"
+                    placeholder="e.g. 3"
+                    class="w-full h-11 bg-slate-50/50 hover:bg-white focus:bg-white border rounded-xl px-3.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition shadow-2xs"
+                    :class="courseFormErrors.credits ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20' : 'border-slate-200 focus:border-indigo-600'"
+                  />
+                </div>
+                <p v-if="courseFormErrors.credits" class="mt-1 text-[11px] text-rose-500 font-medium">{{ courseFormErrors.credits }}</p>
               </div>
+
+              <!-- Left Column, Row 3: Year Level -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Year Level</label>
-                <select v-model="newCourseForm.level" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600 bg-white">
-                  <option v-for="lvl in academicYearLevels" :key="lvl" :value="lvl">{{ lvl }}</option>
-                </select>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Year Level</label>
+                <div class="relative">
+                  <select
+                    v-model="newCourseForm.level"
+                    class="w-full h-11 appearance-none bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs"
+                  >
+                    <option v-for="lvl in academicYearLevels" :key="lvl" :value="lvl">{{ lvl }}</option>
+                  </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
               </div>
+
+              <!-- Right Column, Row 3: Semester -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Semester</label>
-                <select v-model="newCourseForm.semester" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600 bg-white">
-                  <option v-for="sem in semesterOptions" :key="sem" :value="sem">{{ sem }}</option>
-                </select>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Semester</label>
+                <div class="relative">
+                  <select
+                    v-model="newCourseForm.semester"
+                    class="w-full h-11 appearance-none bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs"
+                  >
+                    <option v-for="sem in semesterOptions" :key="sem" :value="sem">{{ sem }}</option>
+                  </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
               </div>
+
+              <!-- Left Column, Row 4: Status -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Status</label>
-                <select v-model="newCourseForm.status" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600 bg-white">
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Status</label>
+                <div class="relative">
+                  <select
+                    v-model="newCourseForm.status"
+                    class="w-full h-11 appearance-none bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
               </div>
+
+              <!-- Right Column, Row 4: Enrollment Status -->
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Enrollment Status</label>
-                <select v-model="newCourseForm.enrollment_status" class="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600 bg-white">
-                  <option value="Open for Enrollment">Open for Enrollment</option>
-                  <option value="Closed">Closed</option>
-                </select>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Enrollment Status</label>
+                <div class="relative">
+                  <select
+                    v-model="newCourseForm.enrollment_status"
+                    class="w-full h-11 appearance-none bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs"
+                  >
+                    <option value="Open for Enrollment">Open for Enrollment</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50 shrink-0">
-            <button @click="showEditModal = false" class="px-5 py-2 text-xs font-bold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+          <!-- Modal Footer -->
+          <div class="px-6 py-4.5 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/70 shrink-0">
+            <button
+              type="button"
+              @click="showEditModal = false"
+              class="px-5 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl transition-colors shadow-2xs focus:outline-none"
+            >
               Cancel
             </button>
-            <button @click="saveCourse" :disabled="isLoading" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-xs disabled:opacity-50">
-              {{ isLoading ? 'Saving...' : 'Save Changes' }}
+            <button
+              type="button"
+              @click="saveCourse"
+              :disabled="isLoading"
+              class="px-6 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl transition-all shadow-xs disabled:opacity-50 inline-flex items-center gap-2 focus:outline-none"
+            >
+              <svg v-if="isLoading" class="w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span>{{ isLoading ? 'Saving Changes...' : 'Save Changes' }}</span>
             </button>
           </div>
         </div>
