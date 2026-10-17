@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Department;
+use App\Models\SystemSetting;
 use App\Helpers\LogActivity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -134,9 +135,9 @@ class AdminUserController extends Controller
             'department_id' => $request->department_id,
             'course_code'   => $request->course_code,
             'course_name'   => $request->course_name,
-            'academic_year' => $request->academic_year,
+            'academic_year' => $request->academic_year ?: (SystemSetting::where('key', 'academicYear')->value('value') ?? '2026'),
             'year_level'    => $request->year_level,
-            'semester'      => $request->semester,
+            'semester'      => $request->semester ?: (SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester'),
             'section'       => $request->section,
             'id_no'         => $request->id_no,
             'phone'         => $request->phone,

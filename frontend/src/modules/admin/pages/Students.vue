@@ -106,7 +106,7 @@ const newStudent = ref({
   department_id: '',
   year_level: '1st Year',
   section: 'Section A',
-  semester: '',
+  semester: settingsStore.semester || 'Second Semester',
   studentId: '',
   admissionNumber: '',
   username: '',
@@ -644,7 +644,12 @@ const clearAllFilters = () => {
 }
 
 // ── Views & Dialogs Handlers ──────────────────────────────────────────────────
-const openAdd = () => {
+const openAdd = async () => {
+  try {
+    await settingsStore.fetchSettings()
+  } catch (e) {
+    // ignore
+  }
   showAddPage.value = true
   viewingStudent.value = null
   previewUrl.value = null
@@ -658,7 +663,7 @@ const openAdd = () => {
     department_id: allDepartments.value[0]?.id ? String(allDepartments.value[0].id) : '',
     year_level: '1st Year',
     section: 'Section A',
-    semester: settingsStore.semester || '1st Semester',
+    semester: settingsStore.semester || 'Second Semester',
     studentId: '',
     admissionNumber: '',
     username: '',
@@ -833,7 +838,8 @@ const addStudent = async () => {
     if (newStudent.value.department_id) formData.append('department_id', newStudent.value.department_id)
     if (newStudent.value.year_level) formData.append('year_level', newStudent.value.year_level)
     if (newStudent.value.section) formData.append('section', newStudent.value.section)
-    if (newStudent.value.semester) formData.append('semester', newStudent.value.semester)
+    const activeSemester = settingsStore.semester || newStudent.value.semester || 'Second Semester'
+    formData.append('semester', activeSemester)
     if (newStudent.value.studentId) formData.append('id_no', newStudent.value.studentId.trim())
     if (newStudent.value.profilePicture) {
       formData.append('profile_picture', newStudent.value.profilePicture)
@@ -2426,14 +2432,23 @@ const avatarBg = (id: number) => {
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">Semester</label>
-                <select
-                  v-model="newStudent.semester"
-                  class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-600 bg-white"
-                >
-                  <option value="1st Semester">1st Semester</option>
-                  <option value="2nd Semester">2nd Semester</option>
-                </select>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-xs font-bold text-slate-700">Semester</label>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                    System Assigned
+                  </span>
+                </div>
+                <div class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs bg-slate-50 text-slate-800 flex items-center justify-between shadow-2xs select-none">
+                  <span class="flex items-center gap-2 truncate">
+                    <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="font-bold text-slate-900 truncate">{{ settingsStore.semester || 'Second Semester' }}</span>
+                  </span>
+                  <span class="text-[10px] text-slate-400 font-medium shrink-0">Admin Defined</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">Configured globally in System Settings</p>
               </div>
             </div>
           </div>

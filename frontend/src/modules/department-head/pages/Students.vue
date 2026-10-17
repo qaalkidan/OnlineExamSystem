@@ -310,7 +310,7 @@ const openEditView = (stu: any) => {
     id_no: stu.id_no || '',
     year_level: stu.year_level || '1st Year',
     section: stu.section || 'Section A',
-    semester: stu.semester || 'First Semester',
+    semester: settingsStore.semester || stu.semester || 'Second Semester',
     academic_year: stu.academic_year || '2026',
     username: stu.username || '',
     password: '',
@@ -365,7 +365,7 @@ const submitEditStudent = async () => {
     formData.append('id_no', editForm.value.id_no.trim())
     formData.append('year_level', editForm.value.year_level)
     formData.append('section', editForm.value.section)
-    formData.append('semester', editForm.value.semester)
+    formData.append('semester', settingsStore.semester || editForm.value.semester || 'Second Semester')
     formData.append('academic_year', editForm.value.academic_year)
     formData.append('status', editForm.value.status)
 
@@ -520,6 +520,7 @@ const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
 // ── Close Dropdowns on Click Outside ──
 onMounted(() => {
   fetchStudents()
+  settingsStore.fetchSettings()
 
   const handleGlobalClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement
@@ -726,15 +727,23 @@ const displayPages = computed(() => {
               </div>
 
               <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Semester</label>
-                <select
-                  v-model="editForm.semester"
-                  class="w-full px-4 py-2.5 text-xs sm:text-sm border border-slate-200 rounded-xl bg-white focus:border-[#5138ed] focus:ring-2 focus:ring-[#5138ed]/20 transition-all outline-none"
-                >
-                  <option value="First Semester">First Semester</option>
-                  <option value="Second Semester">Second Semester</option>
-                  <option value="Summer">Summer</option>
-                </select>
+                <div class="flex items-center justify-between">
+                  <label class="block text-xs font-bold text-slate-700">Semester</label>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-[#5138ed] border border-indigo-100">
+                    <span class="w-1.5 h-1.5 rounded-full bg-[#5138ed]"></span>
+                    System Assigned
+                  </span>
+                </div>
+                <div class="w-full px-4 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 flex items-center justify-between shadow-2xs select-none">
+                  <span class="flex items-center gap-2 truncate">
+                    <svg class="w-4 h-4 text-[#5138ed] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="font-bold text-slate-900 truncate">{{ settingsStore.semester || editForm.semester || 'Second Semester' }}</span>
+                  </span>
+                  <span class="text-[10px] text-slate-400 font-medium shrink-0">Admin Defined</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-0.5">Configured globally by Super Admin</p>
               </div>
 
               <div class="space-y-1.5">
