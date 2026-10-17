@@ -537,7 +537,7 @@ class InstructorController extends Controller
             'gender'          => $request->gender,
             'id_no'           => trim($request->id_no),
             'year_level'      => $request->year_level,
-            'semester'        => $request->semester,
+            'semester'        => $request->semester ?: (SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester'),
             'section'         => $request->section,
             'username'        => trim($request->username),
             'password'        => Hash::make($request->password),

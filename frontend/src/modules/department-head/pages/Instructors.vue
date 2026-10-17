@@ -333,7 +333,7 @@ const resetAddForm = () => {
     profilePicture: null,
     employeeId: '',
     yearLevel: '1st Year',
-    semester: 'First Semester',
+    semester: settingsStore.semester || 'Second Semester',
     section: 'Section A',
     username: '',
     password: '',
@@ -345,8 +345,14 @@ const resetAddForm = () => {
   addFormErrors.value = {}
 }
 
-const openAddView = () => {
+const openAddView = async () => {
+  try {
+    await settingsStore.fetchSettings()
+  } catch (e) {
+    // ignore
+  }
   resetAddForm()
+  addForm.value.semester = settingsStore.semester || 'Second Semester'
   currentView.value = 'add'
 }
 
@@ -377,7 +383,7 @@ const submitAddInstructor = async () => {
     formData.append('gender', addForm.value.gender)
     formData.append('id_no', addForm.value.employeeId.trim())
     formData.append('year_level', addForm.value.yearLevel)
-    formData.append('semester', addForm.value.semester)
+    formData.append('semester', settingsStore.semester || addForm.value.semester || 'Second Semester')
     formData.append('section', addForm.value.section)
     formData.append('username', addForm.value.username.trim())
     formData.append('password', addForm.value.password)
@@ -757,15 +763,23 @@ onMounted(() => {
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Semester</label>
-              <select
-                v-model="addForm.semester"
-                class="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
-              >
-                <option value="First Semester">First Semester</option>
-                <option value="Second Semester">Second Semester</option>
-                <option value="Summer Term">Summer Term</option>
-              </select>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700">Semester</label>
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-[#5138ed] border border-indigo-100">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#5138ed]"></span>
+                  System Assigned
+                </span>
+              </div>
+              <div class="w-full px-3.5 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-800 flex items-center justify-between shadow-2xs select-none">
+                <span class="flex items-center gap-2 truncate">
+                  <svg class="w-4 h-4 text-[#5138ed] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span class="font-bold text-slate-900 truncate">{{ settingsStore.semester || 'Second Semester' }}</span>
+                </span>
+                <span class="text-[10px] text-slate-400 font-medium shrink-0">Admin Defined</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">Configured globally by Super Admin</p>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Assigned Section</label>
