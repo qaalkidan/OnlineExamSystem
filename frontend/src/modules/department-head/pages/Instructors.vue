@@ -297,7 +297,68 @@ const addForm = ref({
 const addPhotoPreview = ref<string | null>(null)
 const addFileInput = ref<HTMLInputElement | null>(null)
 const showAddPassword = ref(false)
+const showAddConfirmPassword = ref(false)
+const passwordTouched = ref(false)
+const confirmPasswordTouched = ref(false)
 const addFormErrors = ref<Record<string, string>>({})
+
+// ── Password Validation Criteria (aligned with backend regex) ──
+const addPasswordCriteria = computed(() => {
+  const pwd = addForm.value.password || ''
+  return {
+    length: pwd.length >= 8,
+    uppercase: /[A-Z]/.test(pwd),
+    lowercase: /[a-z]/.test(pwd),
+    number: /[0-9]/.test(pwd),
+    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]/.test(pwd),
+  }
+})
+
+const isAddPasswordValid = computed(() => {
+  const c = addPasswordCriteria.value
+  return c.length && c.uppercase && c.lowercase && c.number && c.special
+})
+
+const addPasswordStrength = computed(() => {
+  const c = addPasswordCriteria.value
+  const metCount = [c.length, c.uppercase, c.lowercase, c.number, c.special].filter(Boolean).length
+  if (!addForm.value.password) {
+    return { count: 0, text: '', color: 'bg-slate-200', textClass: 'text-slate-400' }
+  }
+  if (metCount <= 2) {
+    return { count: metCount, text: 'Weak', color: 'bg-rose-500', textClass: 'text-rose-600' }
+  }
+  if (metCount <= 4) {
+    return { count: metCount, text: 'Medium', color: 'bg-amber-500', textClass: 'text-amber-600' }
+  }
+  return { count: 5, text: 'Strong', color: 'bg-emerald-500', textClass: 'text-emerald-600' }
+})
+
+const onPasswordInput = () => {
+  passwordTouched.value = true
+  if (!addForm.value.password) {
+    addFormErrors.value.password = 'Password is required'
+  } else if (!isAddPasswordValid.value) {
+    addFormErrors.value.password = 'Password must meet all 5 security requirements'
+  } else {
+    delete addFormErrors.value.password
+  }
+
+  if (confirmPasswordTouched.value || addForm.value.confirmPassword) {
+    onConfirmPasswordInput()
+  }
+}
+
+const onConfirmPasswordInput = () => {
+  confirmPasswordTouched.value = true
+  if (!addForm.value.confirmPassword) {
+    addFormErrors.value.confirmPassword = 'Confirm password is required'
+  } else if (addForm.value.confirmPassword !== addForm.value.password) {
+    addFormErrors.value.confirmPassword = 'Passwords do not match'
+  } else {
+    delete addFormErrors.value.confirmPassword
+  }
+}
 
 const triggerAddFileInput = () => addFileInput.value?.click()
 
@@ -343,6 +404,10 @@ const resetAddForm = () => {
   }
   removeAddPhoto()
   addFormErrors.value = {}
+  showAddPassword.value = false
+  showAddConfirmPassword.value = false
+  passwordTouched.value = false
+  confirmPasswordTouched.value = false
 }
 
 const openAddView = async () => {
@@ -364,11 +429,22 @@ const validateAddForm = (): boolean => {
   if (!addForm.value.phone.trim()) errs.phone = 'Phone number is required'
   if (!addForm.value.employeeId.trim()) errs.employeeId = 'Employee ID is required'
   if (!addForm.value.username.trim()) errs.username = 'Username is required'
-  if (!addForm.value.password) errs.password = 'Password is required'
-  else if (addForm.value.password.length < 8) errs.password = 'Password must be at least 8 characters'
-  if (addForm.value.password !== addForm.value.confirmPassword) errs.confirmPassword = 'Passwords do not match'
+  
+  if (!addForm.value.password) {
+    errs.password = 'Password is required'
+  } else if (!isAddPasswordValid.value) {
+    errs.password = 'Password must meet all 5 requirements below'
+  }
+
+  if (!addForm.value.confirmPassword) {
+    errs.confirmPassword = 'Confirm password is required'
+  } else if (addForm.value.password !== addForm.value.confirmPassword) {
+    errs.confirmPassword = 'Passwords do not match'
+  }
 
   addFormErrors.value = errs
+  passwordTouched.value = true
+  confirmPasswordTouched.value = true
   return Object.keys(errs).length === 0
 }
 
@@ -487,6 +563,17 @@ const submitEditInstructor = async () => {
     formData.append('employment_type', editForm.value.employmentType)
     formData.append('status', editForm.value.status)
     if (editForm.value.password) {
+      const pwd = editForm.value.password
+      const isStrong = pwd.length >= 8 &&
+        /[A-Z]/.test(pwd) &&
+        /[a-z]/.test(pwd) &&
+        /[0-9]/.test(pwd) &&
+        /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]/.test(pwd)
+      if (!isStrong) {
+        alert('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.')
+        isLoading.value = false
+        return
+      }
       formData.append('password', editForm.value.password)
     }
     if (editForm.value.profilePicture) {
@@ -801,38 +888,178 @@ onMounted(() => {
         <div class="pt-4 border-t border-slate-100">
           <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">3. Account Credentials</h3>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- Username Field -->
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Username <span class="text-rose-500">*</span></label>
               <input
                 v-model="addForm.username"
                 type="text"
                 placeholder="username"
-                class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
+                class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
                 :class="addFormErrors.username ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
               />
               <p v-if="addFormErrors.username" class="text-[10px] text-rose-600 mt-0.5">{{ addFormErrors.username }}</p>
             </div>
+
+            <!-- Password Field with Eye Toggle Icon -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Password <span class="text-rose-500">*</span></label>
-              <input
-                v-model="addForm.password"
-                :type="showAddPassword ? 'text' : 'password'"
-                placeholder="Min 8 chars"
-                class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
-                :class="addFormErrors.password ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
-              />
-              <p v-if="addFormErrors.password" class="text-[10px] text-rose-600 mt-0.5">{{ addFormErrors.password }}</p>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700">Password <span class="text-rose-500">*</span></label>
+                <span
+                  v-if="addForm.password"
+                  class="text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                  :class="isAddPasswordValid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                >
+                  {{ isAddPasswordValid ? '✓ Strong' : addPasswordStrength.text }}
+                </span>
+              </div>
+              <div class="relative">
+                <input
+                  v-model="addForm.password"
+                  :type="showAddPassword ? 'text' : 'password'"
+                  placeholder="Min 8 chars, mixed case & symbols"
+                  @input="onPasswordInput"
+                  class="w-full pl-3.5 pr-10 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
+                  :class="addFormErrors.password ? 'border-rose-300 bg-rose-50/30' : (isAddPasswordValid ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200')"
+                />
+                <button
+                  type="button"
+                  @click="showAddPassword = !showAddPassword"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 cursor-pointer"
+                  :title="showAddPassword ? 'Hide password' : 'Show password'"
+                  tabindex="-1"
+                >
+                  <svg v-if="!showAddPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                </button>
+              </div>
+              <p v-if="addFormErrors.password" class="text-[10px] text-rose-600 mt-0.5 font-medium">{{ addFormErrors.password }}</p>
             </div>
+
+            <!-- Confirm Password Field with Eye Toggle Icon -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Confirm Password <span class="text-rose-500">*</span></label>
-              <input
-                v-model="addForm.confirmPassword"
-                :type="showAddPassword ? 'text' : 'password'"
-                placeholder="Confirm password"
-                class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
-                :class="addFormErrors.confirmPassword ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
-              />
-              <p v-if="addFormErrors.confirmPassword" class="text-[10px] text-rose-600 mt-0.5">{{ addFormErrors.confirmPassword }}</p>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-bold text-slate-700">Confirm Password <span class="text-rose-500">*</span></label>
+                <span
+                  v-if="addForm.confirmPassword && addForm.password"
+                  class="text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                  :class="addForm.password === addForm.confirmPassword ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'"
+                >
+                  {{ addForm.password === addForm.confirmPassword ? '✓ Matches' : '✗ Mismatch' }}
+                </span>
+              </div>
+              <div class="relative">
+                <input
+                  v-model="addForm.confirmPassword"
+                  :type="showAddConfirmPassword ? 'text' : 'password'"
+                  placeholder="Confirm password"
+                  @input="onConfirmPasswordInput"
+                  class="w-full pl-3.5 pr-10 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
+                  :class="addFormErrors.confirmPassword ? 'border-rose-300 bg-rose-50/30' : (addForm.confirmPassword && addForm.password === addForm.confirmPassword ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200')"
+                />
+                <button
+                  type="button"
+                  @click="showAddConfirmPassword = !showAddConfirmPassword"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 cursor-pointer"
+                  :title="showAddConfirmPassword ? 'Hide password' : 'Show password'"
+                  tabindex="-1"
+                >
+                  <svg v-if="!showAddConfirmPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                </button>
+              </div>
+              <p v-if="addFormErrors.confirmPassword" class="text-[10px] text-rose-600 mt-0.5 font-medium">{{ addFormErrors.confirmPassword }}</p>
+            </div>
+          </div>
+
+          <!-- Password Requirements Checklist & Strength Feedback Bar -->
+          <div v-if="addForm.password || passwordTouched" class="mt-3.5 p-3.5 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Password Requirements</span>
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-bold" :class="addPasswordStrength.textClass">
+                  Strength: {{ addPasswordStrength.text || 'None' }}
+                </span>
+                <span
+                  v-if="isAddPasswordValid"
+                  class="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full"
+                >
+                  ✓ Ready
+                </span>
+              </div>
+            </div>
+
+            <!-- Strength Meter Progress Bar (5 bars) -->
+            <div class="grid grid-cols-5 gap-1.5 h-1.5 w-full">
+              <div
+                v-for="idx in 5"
+                :key="idx"
+                class="h-full rounded-full transition-all duration-300"
+                :class="idx <= addPasswordStrength.count ? addPasswordStrength.color : 'bg-slate-200'"
+              ></div>
+            </div>
+
+            <!-- 5 Checklist Criteria -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1 text-[11px]">
+              <!-- 1. Length -->
+              <div
+                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                :class="addPasswordCriteria.length ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+              >
+                <svg v-if="addPasswordCriteria.length" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                <span class="truncate">8+ Characters</span>
+              </div>
+
+              <!-- 2. Uppercase -->
+              <div
+                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                :class="addPasswordCriteria.uppercase ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+              >
+                <svg v-if="addPasswordCriteria.uppercase" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                <span class="truncate">Uppercase (A-Z)</span>
+              </div>
+
+              <!-- 3. Lowercase -->
+              <div
+                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                :class="addPasswordCriteria.lowercase ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+              >
+                <svg v-if="addPasswordCriteria.lowercase" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                <span class="truncate">Lowercase (a-z)</span>
+              </div>
+
+              <!-- 4. Number -->
+              <div
+                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                :class="addPasswordCriteria.number ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+              >
+                <svg v-if="addPasswordCriteria.number" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                <span class="truncate">Number (0-9)</span>
+              </div>
+
+              <!-- 5. Special Character -->
+              <div
+                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                :class="addPasswordCriteria.special ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+              >
+                <svg v-if="addPasswordCriteria.special" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                <span class="truncate">Special (!@#$%^&*)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -970,12 +1197,29 @@ onMounted(() => {
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Update Password (optional)</label>
-            <input
-              v-model="editForm.password"
-              type="password"
-              placeholder="Leave blank to preserve current"
-              class="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
-            />
+            <div class="relative">
+              <input
+                v-model="editForm.password"
+                :type="showEditPassword ? 'text' : 'password'"
+                placeholder="Leave blank to preserve current"
+                class="w-full pl-3.5 pr-10 py-2 text-xs border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
+              />
+              <button
+                type="button"
+                @click="showEditPassword = !showEditPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 cursor-pointer"
+                :title="showEditPassword ? 'Hide password' : 'Show password'"
+                tabindex="-1"
+              >
+                <svg v-if="!showEditPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Profile Photo</label>

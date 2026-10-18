@@ -274,6 +274,92 @@ class ActivityLogController extends Controller
     }
 
     /**
+     * Get the count of unread activity logs for the department head.
+     */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $user = $request->user();
+
+        $query = ActivityLog::where('is_read', false);
+
+        if ($deptId) {
+            $query->where(function ($q) use ($deptId, $user) {
+                $q->where('department_id', $deptId)
+                  ->orWhere('user_id', $user->id)
+                  ->orWhereHas('user', function ($uq) use ($deptId) {
+                      $uq->where('department_id', $deptId);
+                  });
+            });
+        }
+
+        $count = $query->count();
+
+        return response()->json([
+            'status' => 'success',
+            'count'  => $count,
+        ]);
+    }
+
+    /**
+     * Mark a specific activity log as read for the department head.
+     */
+    public function markAsRead(Request $request, $id): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $user = $request->user();
+
+        $query = ActivityLog::query();
+        if ($deptId) {
+            $query->where(function ($q) use ($deptId, $user) {
+                $q->where('department_id', $deptId)
+                  ->orWhere('user_id', $user->id)
+                  ->orWhereHas('user', function ($uq) use ($deptId) {
+                      $uq->where('department_id', $deptId);
+                  });
+            });
+        }
+
+        $log = $query->findOrFail($id);
+        if (!$log->is_read) {
+            $log->update(['is_read' => true]);
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Marked as read successfully.',
+        ]);
+    }
+
+    /**
+     * Mark all unread activity logs as read for this department head.
+     */
+    public function markAllAsRead(Request $request): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $user = $request->user();
+
+        $query = ActivityLog::where('is_read', false);
+        if ($deptId) {
+            $query->where(function ($q) use ($deptId, $user) {
+                $q->where('department_id', $deptId)
+                  ->orWhere('user_id', $user->id)
+                  ->orWhereHas('user', function ($uq) use ($deptId) {
+                      $uq->where('department_id', $deptId);
+                  });
+            });
+        }
+
+        $updated = $query->update(['is_read' => true]);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Marked {$updated} logs as read.",
+            'count'   => 0,
+        ]);
+    }
+
+    /**
      * Get single log details.
      */
     public function show(Request $request, $id): JsonResponse
@@ -294,6 +380,10 @@ class ActivityLogController extends Controller
         }
 
         $log = $query->findOrFail($id);
+
+        if (!$log->is_read) {
+            $log->update(['is_read' => true]);
+        }
 
         $rawRole = $log->actor_role ?? ($log->user ? $log->user->role : 'system');
         $roleLabel = match($rawRole) {

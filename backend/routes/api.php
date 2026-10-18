@@ -177,10 +177,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(fu
         Route::get('semester-submissions/{id}', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'show']);
         Route::put('semester-submissions/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'updateStatus']);
         Route::put('semester-submissions/{id}/reopen', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'reopen']);
+        Route::get('activity-logs/unread-count', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'unreadCount']);
+        Route::post('activity-logs/mark-all-read', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'markAllAsRead']);
         Route::get('activity-logs/export', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'export']);
         Route::post('activity-logs/clear', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'clearOldLogs']);
         Route::get('activity-logs', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'index']);
         Route::get('activity-logs/{id}', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'show']);
+        Route::post('activity-logs/{id}/read', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'markAsRead']);
         Route::get('settings', [\App\Http\Controllers\Api\V1\DeptHead\SettingController::class, 'getSettings']);
         Route::put('settings', [\App\Http\Controllers\Api\V1\DeptHead\SettingController::class, 'updateSettings']);
     });

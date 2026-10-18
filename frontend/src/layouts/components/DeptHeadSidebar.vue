@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
 import apiClient from '../../core/api/apiClient'
 
 const route = useRoute()
 const sidebarOpen = inject<{ value: boolean }>('sidebarOpen', { value: true })
 const closeSidebar = inject<() => void>('closeSidebar', () => { sidebarOpen.value = false })
 const pendingCount = ref<number | null>(null)
+const logCount = ref<number | null>(null)
 
 const fetchPendingCount = async () => {
   try {
@@ -22,8 +23,54 @@ const fetchPendingCount = async () => {
   }
 }
 
+const fetchLogCount = async () => {
+  try {
+    const res = await apiClient.get('/dept-head/activity-logs/unread-count')
+    const count = Number(res.data?.count)
+    if (count > 0) {
+      logCount.value = count
+    } else {
+      logCount.value = null
+    }
+  } catch {
+    logCount.value = null
+  }
+}
+
+const handleLogRead = () => {
+  if (logCount.value && logCount.value > 0) {
+    const newCount = logCount.value - 1
+    logCount.value = newCount > 0 ? newCount : null
+  }
+}
+
+const handleLogCountUpdate = (e: Event) => {
+  const detail = (e as CustomEvent).detail
+  const count = Number(detail?.count)
+  logCount.value = count > 0 ? count : null
+}
+
+const handleActivityLogged = () => {
+  fetchLogCount()
+}
+
 onMounted(() => {
   fetchPendingCount()
+  fetchLogCount()
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('log-read', handleLogRead)
+    window.addEventListener('log-count-update', handleLogCountUpdate)
+    window.addEventListener('activity-logged', handleActivityLogged)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('log-read', handleLogRead)
+    window.removeEventListener('log-count-update', handleLogCountUpdate)
+    window.removeEventListener('activity-logged', handleActivityLogged)
+  }
 })
 
 const handleLinkClick = () => {
@@ -42,7 +89,7 @@ const navItems = computed(() => [
   { name: 'Academic Calendar', path: '/dept-head/schedule', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   { name: 'Reports',     path: '/dept-head/reports',      icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { name: 'Semester Submissions', path: '/dept-head/semester-submissions', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', badge: pendingCount.value },
-  { name: 'Active Logs', path: '/dept-head/activity-logs', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { name: 'Active Logs', path: '/dept-head/activity-logs', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', badge: logCount.value },
   { name: 'Settings',    path: '/dept-head/settings',     icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
 ])
 </script>
@@ -114,9 +161,9 @@ const navItems = computed(() => [
         <span 
           v-if="item.badge" 
           class="flex items-center justify-center text-[10px] font-bold text-white bg-rose-500 rounded-full shadow-sm shrink-0"
-          :class="sidebarOpen ? 'w-5 h-5 ml-1' : 'w-2 h-2 absolute top-1.5 right-1.5 ring-2 ring-white'"
+          :class="sidebarOpen ? 'min-w-5 h-5 px-1 ml-1' : 'w-2 h-2 absolute top-1.5 right-1.5 ring-2 ring-white'"
         >
-          <span v-if="sidebarOpen">{{ item.badge }}</span>
+          <span v-if="sidebarOpen">{{ Number(item.badge) > 99 ? '99+' : item.badge }}</span>
         </span>
       </router-link>
     </nav>

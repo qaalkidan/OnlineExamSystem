@@ -16,6 +16,7 @@ import {
   Eye,
   Copy,
   Check,
+  CheckCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -95,6 +96,8 @@ const isLoading = ref(true)
 const isRefreshing = ref(false)
 const isExporting = ref(false)
 const lastUpdatedTime = ref<string>('')
+const unreadLogsCount = ref(0)
+const isMarkingAllRead = ref(false)
 
 // Filter states
 const searchQuery = ref('')
@@ -453,10 +456,50 @@ const confirmClearOldLogs = async () => {
   }
 }
 
-// ── Drawer & Details ─────────────────────────────────────────────────────────
-const openDrawer = (log: LogEntry) => {
+// ── Unread Counts & Drawer Details ──────────────────────────────────────────
+const fetchUnreadCount = async () => {
+  try {
+    const res = await apiClient.get('/dept-head/activity-logs/unread-count')
+    unreadLogsCount.value = Number(res.data?.count || 0)
+  } catch {
+    unreadLogsCount.value = 0
+  }
+}
+
+const markAllAsRead = async () => {
+  try {
+    isMarkingAllRead.value = true
+    await apiClient.post('/dept-head/activity-logs/mark-all-read')
+    unreadLogsCount.value = 0
+    logs.value.forEach((l) => {
+      l.is_read = true
+    })
+    window.dispatchEvent(new CustomEvent('log-count-update', { detail: { count: 0 } }))
+    showToast('All activity logs marked as read.', 'success')
+  } catch (err) {
+    console.error('Failed to mark all logs as read:', err)
+    showToast('Failed to mark all logs as read.', 'error')
+  } finally {
+    isMarkingAllRead.value = false
+  }
+}
+
+const openDrawer = async (log: LogEntry) => {
   selectedLog.value = log
   isDrawerOpen.value = true
+
+  if (!log.is_read) {
+    log.is_read = true
+    if (unreadLogsCount.value > 0) {
+      unreadLogsCount.value--
+    }
+    try {
+      await apiClient.post(`/dept-head/activity-logs/${log.id}/read`)
+      window.dispatchEvent(new CustomEvent('log-read', { detail: { id: log.id } }))
+    } catch (err) {
+      console.error('Failed to mark log as read:', err)
+    }
+  }
 }
 
 const closeDrawer = () => {
@@ -568,8 +611,30 @@ const onPerPageChange = () => {
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
+const handleWindowLogRead = () => {
+  if (unreadLogsCount.value > 0) unreadLogsCount.value--
+}
+
+const handleWindowLogCountUpdate = (e: Event) => {
+  const detail = (e as CustomEvent).detail
+  unreadLogsCount.value = Number(detail?.count || 0)
+}
+
 onMounted(() => {
   fetchLogs(1)
+  fetchUnreadCount()
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('log-read', handleWindowLogRead)
+    window.addEventListener('log-count-update', handleWindowLogCountUpdate)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('log-read', handleWindowLogRead)
+    window.removeEventListener('log-count-update', handleWindowLogCountUpdate)
+  }
 })
 </script>
 
@@ -637,6 +702,19 @@ onMounted(() => {
           <Clock class="w-3.5 h-3.5 text-slate-400" />
           <span>Updated at <strong class="text-slate-700 font-bold">{{ lastUpdatedTime }}</strong></span>
         </div>
+
+        <!-- Mark All as Read Button -->
+        <button
+          v-if="unreadLogsCount > 0"
+          @click="markAllAsRead"
+          :disabled="isMarkingAllRead"
+          title="Mark all unread activity logs as read"
+          class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[42px] rounded-xl text-[12px] font-bold text-[#5138ed] bg-indigo-50 border border-indigo-200/80 hover:bg-[#5138ed] hover:text-white transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-60"
+        >
+          <CheckCheck class="w-4 h-4" />
+          <span class="hidden sm:inline">Mark All Read ({{ unreadLogsCount }})</span>
+          <span class="sm:hidden">Read All</span>
+        </button>
 
         <!-- Functional Refresh Button -->
         <button
@@ -1089,21 +1167,7 @@ onMounted(() => {
                 </div>
               </th>
 
-              <!-- Sortable Module -->
-              <th
-                @click="handleSort('module')"
-                class="px-4 py-3.5 cursor-pointer hover:bg-slate-100/60 transition-colors"
-              >
-                <div class="flex items-center gap-1.5">
-                  <span>Module</span>
-                  <ArrowUp v-if="sortBy === 'module' && sortOrder === 'asc'" class="w-3.5 h-3.5 text-[#5138ed]" />
-                  <ArrowDown v-else-if="sortBy === 'module' && sortOrder === 'desc'" class="w-3.5 h-3.5 text-[#5138ed]" />
-                  <ArrowUpDown v-else class="w-3 h-3 text-slate-300" />
-                </div>
-              </th>
 
-              <th class="px-4 py-3.5">Description</th>
-              <th class="px-4 py-3.5">IP Address</th>
 
               <!-- Sortable Status -->
               <th
@@ -1126,10 +1190,14 @@ onMounted(() => {
               v-for="(log, idx) in logs"
               :key="log.id"
               class="hover:bg-slate-50/70 transition-colors group"
+              :class="{ 'bg-indigo-50/15': !log.is_read }"
             >
               <!-- Index / Counter -->
               <td class="px-5 py-3.5 text-center text-[11px] font-bold text-slate-400">
-                {{ (pagination.from || 1) + idx }}
+                <div class="inline-flex items-center justify-center gap-1.5">
+                  <span v-if="!log.is_read" class="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Unread activity log"></span>
+                  <span>{{ (pagination.from || 1) + idx }}</span>
+                </div>
               </td>
 
               <!-- Date & Time -->
@@ -1178,25 +1246,6 @@ onMounted(() => {
                 >
                   <Activity class="w-3 h-3" />
                   <span>{{ log.action }}</span>
-                </span>
-              </td>
-
-              <!-- Module -->
-              <td class="px-4 py-3.5 whitespace-nowrap">
-                <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                  {{ log.module }}
-                </span>
-              </td>
-
-              <!-- Description -->
-              <td class="px-4 py-3.5 text-[12px] text-slate-600 max-w-[260px] truncate" :title="log.description">
-                {{ log.description }}
-              </td>
-
-              <!-- IP Address -->
-              <td class="px-4 py-3.5 whitespace-nowrap">
-                <span class="font-mono text-[11px] font-bold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                  {{ log.ipAddress }}
                 </span>
               </td>
 
