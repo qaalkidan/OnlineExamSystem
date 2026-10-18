@@ -332,7 +332,7 @@ const resetAddForm = () => {
     gender: 'Male',
     profilePicture: null,
     employeeId: '',
-    yearLevel: '1st Year',
+    yearLevel: 'None',
     semester: settingsStore.semester || 'Second Semester',
     section: 'Section A',
     username: '',
@@ -454,7 +454,7 @@ const openEditView = (inst: any) => {
     phone: inst.phone === '—' ? '' : (inst.phone || ''),
     gender: inst.gender || 'Male',
     employeeId: inst.id_no || '',
-    yearLevel: inst.year_level === '—' ? '1st Year' : inst.year_level,
+    yearLevel: inst.year_level === '—' || !inst.year_level ? 'None' : inst.year_level,
     semester: inst.semester === '—' ? 'First Semester' : inst.semester,
     section: inst.section === '—' ? 'Section A' : inst.section,
     employmentType: inst.employment_type || 'full_time',
@@ -755,12 +755,14 @@ onMounted(() => {
                 v-model="addForm.yearLevel"
                 class="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
               >
+                <option value="None">None (All Academic Years)</option>
                 <option value="1st Year">1st Year</option>
                 <option value="2nd Year">2nd Year</option>
                 <option value="3rd Year">3rd Year</option>
                 <option value="4th Year">4th Year</option>
                 <option value="5th Year">5th Year</option>
               </select>
+              <p class="text-[10px] text-slate-400 mt-1">Select 'None' to allow course assignments across all academic year levels.</p>
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
@@ -935,12 +937,14 @@ onMounted(() => {
               v-model="editForm.yearLevel"
               class="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
             >
+              <option value="None">None (All Academic Years)</option>
               <option value="1st Year">1st Year</option>
               <option value="2nd Year">2nd Year</option>
               <option value="3rd Year">3rd Year</option>
               <option value="4th Year">4th Year</option>
               <option value="5th Year">5th Year</option>
             </select>
+            <p class="text-[10px] text-slate-400 mt-1">Select 'None' to allow course assignments across all academic year levels.</p>
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Semester</label>
@@ -1290,7 +1294,7 @@ onMounted(() => {
                 :key="y"
                 :value="y"
               >
-                {{ y }}
+                {{ y === 'None' ? 'None (All Academic Years)' : y }}
               </option>
             </select>
 
@@ -1535,7 +1539,7 @@ onMounted(() => {
 
                 <!-- Year & Section -->
                 <td class="py-3.5 px-4 whitespace-nowrap text-slate-600">
-                  <p class="font-semibold">{{ inst.year_level }}</p>
+                  <p class="font-semibold">{{ inst.year_level === 'None' ? 'None (All Years)' : (inst.year_level || '—') }}</p>
                   <p class="text-[11px] text-slate-400">{{ inst.section }}</p>
                 </td>
 
@@ -1827,7 +1831,7 @@ onMounted(() => {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50/70 rounded-xl border border-slate-100">
               <p><span class="text-slate-400">Official Email:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.email }}</strong></p>
               <p><span class="text-slate-400">Phone:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.phone }}</strong></p>
-              <p><span class="text-slate-400">Assigned Year:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.year_level }}</strong></p>
+              <p><span class="text-slate-400">Assigned Year:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.year_level === 'None' ? 'None (All Academic Years)' : (instructorDetail?.year_level || '—') }}</strong></p>
               <p><span class="text-slate-400">Assigned Section:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.section }}</strong></p>
               <p><span class="text-slate-400">Registered By:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.creator_name }}</strong></p>
               <p><span class="text-slate-400">Date Joined:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.joined_formatted }}</strong></p>

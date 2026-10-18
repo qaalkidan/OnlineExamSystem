@@ -9,6 +9,7 @@ use App\Models\Course;
 use App\Models\Department;
 use App\Models\Exam;
 use App\Models\User;
+use App\Models\SystemSetting;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\JsonResponse;
@@ -100,7 +101,7 @@ class CourseController extends Controller
 
         $deptInstructors = User::where('department_id', $deptId)
             ->whereIn('role', ['instructor', 'dept_head'])
-            ->select('id', 'name', 'email', 'id_no', 'role', 'status')
+            ->select('id', 'name', 'email', 'id_no', 'role', 'status', 'year_level')
             ->orderBy('name')
             ->get();
 
@@ -361,7 +362,7 @@ class CourseController extends Controller
             'title'            => 'required|string|max:255',
             'code'             => 'required|string|max:50|unique:courses,code',
             'credits'          => 'required|integer|min:1|max:30',
-            'semester'         => 'required|string|max:100',
+            'semester'         => 'nullable|string|max:100',
             'level'            => 'required|string|max:100',
             'section'          => 'nullable|string|max:100',
             'instructor_id'    => [
@@ -396,7 +397,7 @@ class CourseController extends Controller
             'title'            => trim($request->title),
             'code'             => strtoupper(trim($request->code)),
             'credits'          => (int) $request->credits,
-            'semester'         => trim($request->semester),
+            'semester'         => trim((string)$request->semester) ?: (SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester'),
             'level'            => trim($request->level),
             'section'          => $request->section ? trim($request->section) : null,
             'department_id'    => $deptId,
@@ -408,12 +409,18 @@ class CourseController extends Controller
 
         // Sync instructor's assigned course profile fields
         if ($course->instructor_id) {
-            User::where('id', $course->instructor_id)->update([
-                'course_code' => $course->code,
-                'course_name' => $course->title,
-                'year_level'  => $course->level,
-                'section'     => $course->section,
-            ]);
+            $inst = User::find($course->instructor_id);
+            if ($inst) {
+                $instUpdates = [
+                    'course_code' => $course->code,
+                    'course_name' => $course->title,
+                    'section'     => $course->section,
+                ];
+                if ($inst->year_level !== 'None') {
+                    $instUpdates['year_level'] = $course->level;
+                }
+                $inst->update($instUpdates);
+            }
         }
 
         LogActivity::record(
@@ -515,12 +522,18 @@ class CourseController extends Controller
 
         // Sync instructor's assigned course profile fields
         if ($course->instructor_id) {
-            User::where('id', $course->instructor_id)->update([
-                'course_code' => $course->code,
-                'course_name' => $course->title,
-                'year_level'  => $course->level,
-                'section'     => $course->section,
-            ]);
+            $inst = User::find($course->instructor_id);
+            if ($inst) {
+                $instUpdates = [
+                    'course_code' => $course->code,
+                    'course_name' => $course->title,
+                    'section'     => $course->section,
+                ];
+                if ($inst->year_level !== 'None') {
+                    $instUpdates['year_level'] = $course->level;
+                }
+                $inst->update($instUpdates);
+            }
         }
 
         LogActivity::record(

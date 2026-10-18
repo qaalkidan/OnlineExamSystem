@@ -252,6 +252,7 @@ class StudentExamController extends Controller
                         $q->where(function ($yq) use ($allowedYearLevels) {
                             $yq->whereNull('year_level')
                                ->orWhere('year_level', '')
+                               ->orWhere('year_level', 'None')
                                ->orWhereIn('year_level', $allowedYearLevels);
                         });
                     }

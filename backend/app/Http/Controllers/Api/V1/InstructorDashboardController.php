@@ -50,8 +50,10 @@ class InstructorDashboardController extends Controller
 
         if ($totalStudents === 0 && $instructor->department_id && $instructor->year_level) {
             $studentQuery = \App\Models\User::where('role', 'student')
-                ->where('department_id', $instructor->department_id)
-                ->where('year_level', $instructor->year_level);
+                ->where('department_id', $instructor->department_id);
+            if ($instructor->year_level !== 'None') {
+                $studentQuery->where('year_level', $instructor->year_level);
+            }
             if ($instructor->section) {
                 $raw = $instructor->section;
                 $clean = trim(preg_replace('/^[Ss]ection\s+/i', '', $raw));

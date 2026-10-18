@@ -660,7 +660,12 @@ const courseFieldCls = (field: string, extra = '') => {
 }
 
 // ── Form Navigation & Actions ─────────────────────────────────────────────────
-const openAddPage = () => {
+const openAddPage = async () => {
+  try {
+    await settingsStore.fetchSettings()
+  } catch (e) {
+    // ignore
+  }
   isEditing.value = false
   resetCourseValidation()
   newCourseForm.value = {
@@ -2576,14 +2581,23 @@ const recentCourses = computed(() => {
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">Semester</label>
-                <select
-                  v-model="newCourseForm.semester"
-                  class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-600 bg-white"
-                >
-                  <option v-for="sem in semesterOptions" :key="sem" :value="sem">{{ sem }}</option>
-                </select>
-                <p class="text-[11px] text-slate-400 mt-1">Current academic semester: {{ settingsStore.semester }}</p>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-xs font-bold text-slate-700">Semester</label>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                    System Assigned
+                  </span>
+                </div>
+                <div class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs bg-slate-50 text-slate-800 flex items-center justify-between shadow-2xs select-none">
+                  <span class="flex items-center gap-2 truncate">
+                    <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="font-bold text-slate-900 truncate">{{ settingsStore.semester || 'Second Semester' }}</span>
+                  </span>
+                  <span class="text-[10px] text-slate-400 font-medium shrink-0">Admin Defined</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Configured globally in System Settings</p>
               </div>
 
               <div>
@@ -2698,7 +2712,7 @@ const recentCourses = computed(() => {
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Semester</span>
-                <span class="font-bold text-slate-700">{{ newCourseForm.semester }}</span>
+                <span class="font-bold text-slate-700">{{ settingsStore.semester || newCourseForm.semester || 'Second Semester' }}</span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Status</span>
@@ -2862,17 +2876,21 @@ const recentCourses = computed(() => {
 
               <!-- Right Column, Row 3: Semester -->
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Semester</label>
-                <div class="relative">
-                  <select
-                    v-model="newCourseForm.semester"
-                    class="w-full h-11 appearance-none bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs"
-                  >
-                    <option v-for="sem in semesterOptions" :key="sem" :value="sem">{{ sem }}</option>
-                  </select>
-                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                  </div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-xs font-semibold text-slate-700">Semester</label>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                    System Assigned
+                  </span>
+                </div>
+                <div class="w-full h-11 border border-slate-200 rounded-xl px-3.5 text-xs font-medium bg-slate-50 text-slate-800 flex items-center justify-between shadow-2xs select-none">
+                  <span class="flex items-center gap-2 truncate">
+                    <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="font-bold text-slate-900 truncate">{{ settingsStore.semester || 'Second Semester' }}</span>
+                  </span>
+                  <span class="text-[10px] text-slate-400 font-medium shrink-0">Admin Defined</span>
                 </div>
               </div>
 
@@ -3004,7 +3022,7 @@ const recentCourses = computed(() => {
                 <select v-model="assignInstructorId" class="w-full appearance-none bg-slate-50/60 hover:bg-white focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs pr-10">
                   <option value="">Unassigned</option>
                   <option v-for="inst in availableInstructors" :key="inst.id" :value="String(inst.id)">
-                    {{ inst.name }} {{ inst.department?.name ? `(${inst.department.name})` : '' }}
+                    {{ inst.name }} {{ inst.department?.name ? `(${inst.department.name})` : '' }}{{ inst.year_level === 'None' ? ' • All Academic Years' : '' }}
                   </option>
                 </select>
                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">

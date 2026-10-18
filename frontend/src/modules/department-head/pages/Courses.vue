@@ -308,11 +308,7 @@ const validateField = (field: string) => {
       delete formErrors.value.level
     }
   } else if (field === 'semester') {
-    if (!courseForm.value.semester) {
-      formErrors.value.semester = 'Semester is required'
-    } else {
-      delete formErrors.value.semester
-    }
+    delete formErrors.value.semester
   } else if (field === 'credits') {
     const num = Number(courseForm.value.credits)
     if (!courseForm.value.credits) {
@@ -337,7 +333,12 @@ const validateForm = (): boolean => {
 }
 
 // ── Open Add Course ──
-const openAddCourse = () => {
+const openAddCourse = async () => {
+  try {
+    await settingsStore.fetchSettings()
+  } catch (e) {
+    // ignore
+  }
   courseForm.value = {
     id: null,
     code: '',
@@ -366,7 +367,7 @@ const submitAddCourse = async () => {
       title: courseForm.value.title.trim(),
       credits: parseInt(String(courseForm.value.credits)),
       level: courseForm.value.level,
-      semester: courseForm.value.semester,
+      semester: settingsStore.semester || courseForm.value.semester || 'Second Semester',
       section: courseForm.value.section || null,
       instructor_id: courseForm.value.instructor_id || null,
       co_instructor_id: courseForm.value.co_instructor_id || null,
@@ -775,19 +776,23 @@ const getAvatarColor = (id: number) => {
 
           <!-- Semester -->
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1.5">
-              Semester <span class="text-rose-500">*</span>
-            </label>
-            <select
-              v-model="courseForm.semester"
-              @change="validateField('semester')"
-              :class="formErrors.semester ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-[#5138ed]'"
-              class="w-full px-3.5 py-2.5 text-xs sm:text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 bg-white"
-            >
-              <option value="">Select Semester</option>
-              <option v-for="sem in filterOptions.semesters" :key="sem" :value="sem">{{ sem }}</option>
-            </select>
-            <p v-if="formErrors.semester" class="text-[11px] text-rose-500 mt-1 font-medium">{{ formErrors.semester }}</p>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-xs font-bold text-slate-700">Semester</label>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-[#5138ed] border border-indigo-100">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#5138ed]"></span>
+                System Assigned
+              </span>
+            </div>
+            <div class="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 flex items-center justify-between shadow-2xs select-none">
+              <span class="flex items-center gap-2 truncate">
+                <svg class="w-4 h-4 text-[#5138ed] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span class="font-bold text-slate-900 truncate">{{ settingsStore.semester || courseForm.semester || 'Second Semester' }}</span>
+              </span>
+              <span class="text-[10px] text-slate-400 font-medium shrink-0">Admin Defined</span>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">Configured globally by Super Admin</p>
           </div>
 
           <!-- Credits -->
@@ -832,7 +837,7 @@ const getAvatarColor = (id: number) => {
             >
               <option value="">Unassigned (Assign later)</option>
               <option v-for="inst in filterOptions.instructors" :key="inst.id" :value="inst.id">
-                {{ inst.name }} ({{ inst.id_no || 'Faculty' }})
+                {{ inst.name }} ({{ inst.id_no || 'Faculty' }}){{ inst.year_level === 'None' ? ' • All Academic Years' : '' }}
               </option>
             </select>
           </div>
@@ -1796,7 +1801,7 @@ const getAvatarColor = (id: number) => {
                   :key="inst.id"
                   :value="inst.id"
                 >
-                  {{ inst.name }} — {{ inst.id_no || 'Faculty' }} ({{ inst.email }})
+                  {{ inst.name }} — {{ inst.id_no || 'Faculty' }} ({{ inst.email }}){{ inst.year_level === 'None' ? ' • All Academic Years' : '' }}
                 </option>
               </select>
             </div>

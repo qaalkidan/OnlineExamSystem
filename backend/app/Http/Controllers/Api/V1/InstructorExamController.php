@@ -34,8 +34,10 @@ class InstructorExamController extends Controller
 
         return Exam::whereIn('status', ['published', 'scheduled'])
             ->whereHas('instructor', function ($query) use ($instructor) {
-                $query->where('department_id', $instructor->department_id)
-                      ->where('year_level', $instructor->year_level);
+                $query->where('department_id', $instructor->department_id);
+                if ($instructor->year_level && $instructor->year_level !== 'None') {
+                    $query->where('year_level', $instructor->year_level);
+                }
             })
             ->when($excludeExamId, function ($query) use ($excludeExamId) {
                 return $query->where('id', '!=', $excludeExamId);

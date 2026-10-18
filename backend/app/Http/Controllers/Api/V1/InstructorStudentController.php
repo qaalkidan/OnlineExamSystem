@@ -53,7 +53,7 @@ class InstructorStudentController extends Controller
                 ?? Course::where('code', $instructor->course_code)->first();
         }
 
-        $courseLevel = $course?->level ?? $instructor?->year_level ?? '1st Year';
+        $courseLevel = $course?->level ?? (($instructor?->year_level && $instructor?->year_level !== 'None') ? $instructor->year_level : null);
         $courseCode = $course?->code ?? $instructor?->course_code ?? 'NT-00';
         $courseName = $course?->title ?? $instructor?->course_name ?? 'Networking';
         $section = $sectionName ?: ($course?->section ?: ($instructor?->section ?: 'Section B'));
@@ -63,7 +63,7 @@ class InstructorStudentController extends Controller
         if ($department) {
             $studentsQuery->where('department_id', $department->id);
         }
-        if ($courseLevel) {
+        if ($courseLevel && $courseLevel !== 'None') {
             $studentsQuery->where('year_level', $courseLevel);
         }
 

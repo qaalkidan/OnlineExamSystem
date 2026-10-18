@@ -59,7 +59,7 @@ class InstructorSemesterSubmissionController extends Controller
         if ($instructor->department_id) {
             $query->where('department_id', $instructor->department_id);
         }
-        if ($instructor->year_level) {
+        if ($instructor->year_level && $instructor->year_level !== 'None') {
             $query->where('year_level', $instructor->year_level);
         }
         if ($instructor->section) {
@@ -72,7 +72,7 @@ class InstructorSemesterSubmissionController extends Controller
             });
         }
         $studentsCount = $query->count();
-        if ($studentsCount === 0 && $instructor->department_id && $instructor->year_level) {
+        if ($studentsCount === 0 && $instructor->department_id && $instructor->year_level && $instructor->year_level !== 'None') {
             $studentsCount = User::where('role', 'student')
                 ->where('department_id', $instructor->department_id)
                 ->where('year_level', $instructor->year_level)

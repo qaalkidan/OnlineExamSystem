@@ -173,8 +173,10 @@ class User extends Authenticatable
             $instructor = User::where('role', 'instructor')
                 ->where('department_id', $this->department_id)
                 ->where(function ($q) {
-                    if ($this->year_level) {
-                        $q->where('year_level', $this->year_level)->orWhereNull('year_level');
+                    if ($this->year_level && $this->year_level !== 'None') {
+                        $q->where('year_level', $this->year_level)
+                          ->orWhere('year_level', 'None')
+                          ->orWhereNull('year_level');
                     }
                 })
                 ->first();

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\Department;
+use App\Models\SystemSetting;
 use App\Helpers\LogActivity;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -122,7 +123,7 @@ class AdminCourseController extends Controller
             'title' => $request->title,
             'code' => $request->code,
             'credits' => $request->credits,
-            'semester' => $request->semester,
+            'semester' => $request->semester ?: (SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester'),
             'department_id' => $request->department_id,
             'instructor_id' => $request->instructor_id,
             'level' => $request->level,
@@ -190,21 +191,33 @@ class AdminCourseController extends Controller
         // Sync instructor's section and year_level when assigning
         if ($request->has('instructor_id') && $request->instructor_id) {
             $instSection = $request->section === 'Both Sections' ? 'Section A' : ($request->section ?: ($course->section ?: 'Section A'));
-            User::where('id', $request->instructor_id)->update([
-                'section'    => $instSection,
-                'year_level' => $course->level,
-                'course_code' => $course->code,
-                'course_name' => $course->title,
-            ]);
+            $inst = User::find($request->instructor_id);
+            if ($inst) {
+                $instUpdates = [
+                    'section'     => $instSection,
+                    'course_code' => $course->code,
+                    'course_name' => $course->title,
+                ];
+                if ($inst->year_level !== 'None') {
+                    $instUpdates['year_level'] = $course->level;
+                }
+                $inst->update($instUpdates);
+            }
         }
         if ($request->has('co_instructor_id') && $request->co_instructor_id) {
             $coSection = ($request->section === 'Both Sections' || $request->section === 'Section A') ? 'Section B' : ($request->co_instructor_section ?? 'Section B');
-            User::where('id', $request->co_instructor_id)->update([
-                'section'    => $coSection,
-                'year_level' => $course->level,
-                'course_code' => $course->code,
-                'course_name' => $course->title,
-            ]);
+            $coInst = User::find($request->co_instructor_id);
+            if ($coInst) {
+                $coUpdates = [
+                    'section'     => $coSection,
+                    'course_code' => $course->code,
+                    'course_name' => $course->title,
+                ];
+                if ($coInst->year_level !== 'None') {
+                    $coUpdates['year_level'] = $course->level;
+                }
+                $coInst->update($coUpdates);
+            }
         }
 
         LogActivity::record(

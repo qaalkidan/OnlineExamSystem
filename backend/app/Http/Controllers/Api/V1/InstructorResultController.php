@@ -359,7 +359,7 @@ class InstructorResultController extends Controller
             $query->where('department_id', $instructor->department_id);
         }
 
-        if ($instructor->year_level) {
+        if ($instructor->year_level && $instructor->year_level !== 'None') {
             $query->where('year_level', $instructor->year_level);
         }
 
@@ -378,7 +378,7 @@ class InstructorResultController extends Controller
         $students = $query->get();
 
         // Fallback to dept + year_level only (ignore section mismatch)
-        if ($students->isEmpty() && $instructor->department_id && $instructor->year_level) {
+        if ($students->isEmpty() && $instructor->department_id && $instructor->year_level && $instructor->year_level !== 'None') {
             $students = User::where('role', 'student')
                 ->where('department_id', $instructor->department_id)
                 ->where('year_level', $instructor->year_level)
