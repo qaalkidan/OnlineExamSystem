@@ -241,16 +241,13 @@ class InstructorSemesterSubmissionController extends Controller
     public function lockStatus(Request $request): JsonResponse
     {
         $instructor = $request->user();
-        $academicYear = $instructor->academic_year ?? '2025/2026';
-        $semester = $instructor->semester ?? 'First Semester';
+        $sysSettings = \App\Models\SystemSetting::pluck('value', 'key')->toArray();
+        $academicYear = $request->query('academic_year', $instructor->academic_year ?? ($sysSettings['academicYear'] ?? '2025/2026'));
+        $semester = $request->query('semester', $instructor->semester ?? ($sysSettings['semester'] ?? 'Second Semester'));
 
         $submission = SemesterSubmission::where('instructor_id', $instructor->id)
-            ->where(function ($q) use ($academicYear, $semester) {
-                $q->where(function ($sub) use ($academicYear, $semester) {
-                    $sub->where('academic_year', $academicYear)
-                        ->where('semester', $semester);
-                })->orWhereIn('status', ['submitted', 'approved']);
-            })
+            ->where('academic_year', $academicYear)
+            ->where('semester', $semester)
             ->latest('updated_at')
             ->first();
 

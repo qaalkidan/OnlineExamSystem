@@ -36,6 +36,22 @@ const showToast = (message: string, type: 'success' | 'error' | 'info' = 'succes
 const isGuidelinesModalOpen = ref(false)
 const isExportModalOpen = ref(false)
 
+const viewDetailsModal = ref<{
+  open: boolean
+  isLoading: boolean
+  activeTab: 'overview' | 'students' | 'checklist'
+  searchStudent: string
+  statusFilter: string
+  data: any | null
+}>({
+  open: false,
+  isLoading: false,
+  activeTab: 'overview',
+  searchStudent: '',
+  statusFilter: 'all',
+  data: null,
+})
+
 const reviewModal = ref<{
   open: boolean
   instructor: any | null
@@ -212,9 +228,19 @@ const syncRealData = async () => {
   }
 }
 
-onMounted(() => {
-  fetchSubmissions()
+onMounted(async () => {
+  await fetchSubmissions()
   window.addEventListener('click', closeAllMenus)
+
+  // If directly navigated to a submission record ID
+  if (submissionId && submissionId !== 'all' && !submissionId.includes('year') && !isNaN(Number(submissionId))) {
+    const found = instructors.value.find(i => i.submission_id === Number(submissionId) || i.id === Number(submissionId))
+    if (found) {
+      openViewDetailsModal(found)
+    } else {
+      openViewDetailsModal({ id: Number(submissionId), submission_id: Number(submissionId) })
+    }
+  }
 })
 
 const closeAllMenus = () => {
@@ -302,12 +328,137 @@ const toggleMenu = (id: number) => {
   openMenuId.value = openMenuId.value === id ? null : id
 }
 
+// Styling Helper for Grade Badge
+const getGradeBadge = (grade: string) => {
+  if (['A+', 'A', 'A-'].includes(grade)) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (['B+', 'B', 'B-'].includes(grade)) return 'bg-blue-50 text-blue-700 border-blue-200'
+  if (['C+', 'C', 'C-'].includes(grade)) return 'bg-amber-50 text-amber-700 border-amber-200'
+  if (grade === 'D') return 'bg-orange-50 text-orange-700 border-orange-200'
+  if (grade === 'F') return 'bg-rose-50 text-rose-700 border-rose-200'
+  return 'bg-slate-100 text-slate-500 border-slate-200'
+}
+
+// Filtered Enrolled Students for View Details Modal
+const filteredModalStudents = computed<any[]>(() => {
+  if (!viewDetailsModal.value.data?.students) return []
+  const list = viewDetailsModal.value.data.students
+  const q = viewDetailsModal.value.searchStudent.toLowerCase().trim()
+  const filter = viewDetailsModal.value.statusFilter
+
+  return list.filter((st: any) => {
+    const matchesSearch = !q 
+      || st.name?.toLowerCase().includes(q)
+      || st.id_no?.toLowerCase().includes(q)
+      || st.email?.toLowerCase().includes(q)
+
+    let matchesStatus = true
+    if (filter === 'completed') {
+      matchesStatus = st.status === 'Completed'
+    } else if (filter === 'in_progress') {
+      matchesStatus = st.status === 'Partially Graded' || st.status === 'In Progress'
+    } else if (filter === 'not_attempted') {
+      matchesStatus = st.status === 'Not Attempted'
+    }
+
+    return matchesSearch && matchesStatus
+  })
+})
+
+// Open Comprehensive View Details Modal
+const openViewDetailsModal = async (inst: any) => {
+  openMenuId.value = null
+  viewDetailsModal.value = {
+    open: true,
+    isLoading: true,
+    activeTab: 'overview',
+    searchStudent: '',
+    statusFilter: 'all',
+    data: {
+      submission: {
+        id: inst.submission_id || inst.id,
+        instructor_id: inst.instructor_id || inst.id,
+        status: inst.status || 'Pending',
+        raw_status: inst.raw_status || 'pending',
+        is_locked: inst.is_locked,
+        academic_year: inst.academic_year || semesterInfo.value.academicYear,
+        semester: inst.semester || semesterInfo.value.semester,
+        submitted_at: inst.submitted_date ? `${inst.submitted_date} ${inst.submitted_time}` : inst.submitted,
+        approved_at: inst.approved_at,
+        approved_by: inst.approved_by,
+        reopened_at: inst.reopened_at,
+        reopened_by: inst.reopened_by,
+        reopen_reason: inst.reopen_reason,
+        remarks: inst.remarks,
+        locked_at: inst.locked_at,
+      },
+      instructor: {
+        id: inst.instructor_id || inst.id,
+        name: inst.name,
+        email: inst.email,
+        initials: inst.initials,
+        color: inst.color,
+        department: inst.department,
+        section: inst.section,
+        year_level: inst.year_level,
+        phone: inst.phone || '—',
+        office: inst.office || 'Staff Office',
+        role: inst.role || 'Instructor',
+      },
+      course: {
+        title: inst.course,
+        code: inst.course_code,
+        credits: inst.credit || inst.courses || 4,
+        section: inst.section || 'Section A',
+        level: inst.year_level || '3rd Year',
+        department: inst.department,
+      },
+      exams: [],
+      students: [],
+      kpis: {
+        total_enrolled: inst.students || 0,
+        total_exams: inst.exams_count || 0,
+        total_graded: inst.results_submitted || 0,
+        avg_score: inst.avg_score || 0,
+        pass_rate: inst.pass_rate || 0,
+        highest_score: 0,
+        lowest_score: 0,
+      },
+      checklist: inst.checklist || {},
+    }
+  }
+
+  try {
+    const targetId = inst.submission_id || inst.id || inst.instructor_id
+    const res = await apiClient.get(`/dept-head/semester-submissions/${targetId}/record-details`, {
+      params: {
+        academic_year: inst.academic_year || semesterInfo.value.academicYear,
+        semester: inst.semester || semesterInfo.value.semester,
+      }
+    })
+    if (res.data) {
+      viewDetailsModal.value.data = res.data
+    }
+  } catch (err) {
+    console.error('Failed to load full submission details:', err)
+  } finally {
+    viewDetailsModal.value.isLoading = false
+  }
+}
+
 // Open Review Detail Modal
 const openReviewModal = (inst: any) => {
   openMenuId.value = null
   reviewModal.value = {
     open: true,
     instructor: inst,
+  }
+}
+
+const openViewDetailsFromReview = () => {
+  const inst = reviewModal.value.instructor
+  reviewModal.value.open = false
+  if (inst) {
+    openViewDetailsModal(inst)
   }
 }
 
@@ -322,8 +473,8 @@ const openApproveModal = (inst: any) => {
 
 // Functional Actions (Persisting to backend)
 const confirmApprove = async () => {
-  if (!approveModal.value.instructor) return
-  const inst = approveModal.value.instructor
+  const inst = approveModal.value.instructor || viewDetailsModal.value.data?.instructor
+  if (!inst) return
   isSubmittingAction.value = true
   try {
     const targetId = inst.submission_id || inst.id
@@ -349,6 +500,8 @@ const confirmApprove = async () => {
         semesterInfo.value.pendingReview--
       } else if (prevStatus === 'Correction Required' && semesterInfo.value.correctionRequired > 0) {
         semesterInfo.value.correctionRequired--
+      } else if (prevStatus === 'Reopened' && (semesterInfo.value.reopened || 0) > 0) {
+        semesterInfo.value.reopened--
       }
     }
 
@@ -356,6 +509,25 @@ const confirmApprove = async () => {
       reviewModal.value.instructor.status = 'Approved'
       reviewModal.value.instructor.raw_status = 'approved'
       reviewModal.value.instructor.is_locked = true
+      reviewModal.value.instructor.approved_at = res.data?.submission?.approved_at
+    }
+
+    if (viewDetailsModal.value.open && viewDetailsModal.value.data?.submission) {
+      viewDetailsModal.value.data.submission.status = 'Approved'
+      viewDetailsModal.value.data.submission.raw_status = 'approved'
+      viewDetailsModal.value.data.submission.is_locked = true
+      viewDetailsModal.value.data.submission.approved_at = res.data?.submission?.approved_at || new Date().toLocaleString()
+      viewDetailsModal.value.data.submission.approved_by = { name: res.data?.submission?.approved_by || 'Department Head' }
+      viewDetailsModal.value.data.submission.locked_at = res.data?.submission?.locked_at || new Date().toLocaleString()
+    }
+
+    // Update list item
+    const targetInList = instructors.value.find(i => (i.submission_id && i.submission_id === targetId) || i.id === targetId || i.instructor_id === targetId)
+    if (targetInList) {
+      targetInList.status = 'Approved'
+      targetInList.raw_status = 'approved'
+      targetInList.is_locked = true
+      targetInList.approved_at = res.data?.submission?.approved_at
     }
 
     approveModal.value.open = false
@@ -378,8 +550,8 @@ const openCorrectionModal = (inst: any) => {
 }
 
 const submitCorrection = async () => {
-  if (!correctionModal.value.instructor) return
-  const inst = correctionModal.value.instructor
+  const inst = correctionModal.value.instructor || viewDetailsModal.value.data?.instructor
+  if (!inst) return
   if (!correctionModal.value.remarks.trim()) {
     showToast('Please provide feedback or remarks describing what needs correction.', 'error')
     return
@@ -417,6 +589,21 @@ const submitCorrection = async () => {
       reviewModal.value.instructor.remarks = correctionModal.value.remarks
     }
 
+    if (viewDetailsModal.value.open && viewDetailsModal.value.data?.submission) {
+      viewDetailsModal.value.data.submission.status = 'Correction Required'
+      viewDetailsModal.value.data.submission.raw_status = 'correction_required'
+      viewDetailsModal.value.data.submission.is_locked = false
+      viewDetailsModal.value.data.submission.remarks = correctionModal.value.remarks
+    }
+
+    const targetInList = instructors.value.find(i => (i.submission_id && i.submission_id === targetId) || i.id === targetId || i.instructor_id === targetId)
+    if (targetInList) {
+      targetInList.status = 'Correction Required'
+      targetInList.raw_status = 'correction_required'
+      targetInList.is_locked = false
+      targetInList.remarks = correctionModal.value.remarks
+    }
+
     correctionModal.value.open = false
     showToast(`Correction requested for ${inst.name}. Instructor can now modify records.`, 'info')
   } catch (error) {
@@ -437,8 +624,8 @@ const openRejectModal = (inst: any) => {
 }
 
 const submitReject = async () => {
-  if (!rejectModal.value.instructor) return
-  const inst = rejectModal.value.instructor
+  const inst = rejectModal.value.instructor || viewDetailsModal.value.data?.instructor
+  if (!inst) return
   if (!rejectModal.value.remarks.trim()) {
     showToast('Please provide a reason for rejecting the submission.', 'error')
     return
@@ -476,6 +663,19 @@ const submitReject = async () => {
       reviewModal.value.instructor.remarks = rejectModal.value.remarks
     }
 
+    if (viewDetailsModal.value.open && viewDetailsModal.value.data?.submission) {
+      viewDetailsModal.value.data.submission.status = 'Rejected'
+      viewDetailsModal.value.data.submission.raw_status = 'rejected'
+      viewDetailsModal.value.data.submission.remarks = rejectModal.value.remarks
+    }
+
+    const targetInList = instructors.value.find(i => (i.submission_id && i.submission_id === targetId) || i.id === targetId || i.instructor_id === targetId)
+    if (targetInList) {
+      targetInList.status = 'Rejected'
+      targetInList.raw_status = 'rejected'
+      targetInList.remarks = rejectModal.value.remarks
+    }
+
     rejectModal.value.open = false
     showToast(`Submission for ${inst.name} has been rejected.`, 'info')
   } catch (error) {
@@ -488,6 +688,11 @@ const submitReject = async () => {
 
 const openReopenModal = (inst: any) => {
   openMenuId.value = null
+  // Only available when approved & locked!
+  if (inst.status !== 'Approved' && !inst.is_locked) {
+    showToast('Only approved and locked semester submissions can be reopened.', 'info')
+    return
+  }
   reopenModal.value = {
     open: true,
     instructor: inst,
@@ -496,8 +701,8 @@ const openReopenModal = (inst: any) => {
 }
 
 const submitReopen = async () => {
-  if (!reopenModal.value.instructor) return
-  const inst = reopenModal.value.instructor
+  const inst = reopenModal.value.instructor || viewDetailsModal.value.data?.instructor
+  if (!inst) return
   isSubmittingAction.value = true
   try {
     const targetId = inst.submission_id || inst.id
@@ -521,6 +726,26 @@ const submitReopen = async () => {
       reviewModal.value.instructor.status = 'Reopened'
       reviewModal.value.instructor.raw_status = 'reopened'
       reviewModal.value.instructor.is_locked = false
+      reviewModal.value.instructor.reopened_at = res.data?.submission?.reopened_at
+      reviewModal.value.instructor.reopen_reason = reopenModal.value.reason
+    }
+
+    if (viewDetailsModal.value.open && viewDetailsModal.value.data?.submission) {
+      viewDetailsModal.value.data.submission.status = 'Reopened'
+      viewDetailsModal.value.data.submission.raw_status = 'reopened'
+      viewDetailsModal.value.data.submission.is_locked = false
+      viewDetailsModal.value.data.submission.reopened_at = res.data?.submission?.reopened_at || new Date().toLocaleString()
+      viewDetailsModal.value.data.submission.reopened_by = { name: res.data?.submission?.reopened_by || 'Department Head' }
+      viewDetailsModal.value.data.submission.reopen_reason = reopenModal.value.reason
+    }
+
+    const targetInList = instructors.value.find(i => (i.submission_id && i.submission_id === targetId) || i.id === targetId || i.instructor_id === targetId)
+    if (targetInList) {
+      targetInList.status = 'Reopened'
+      targetInList.raw_status = 'reopened'
+      targetInList.is_locked = false
+      targetInList.reopened_at = res.data?.submission?.reopened_at
+      targetInList.reopen_reason = reopenModal.value.reason
     }
 
     reopenModal.value.open = false
@@ -934,7 +1159,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
               v-for="(inst, index) in paginatedInstructors"
               :key="inst.id"
               class="hover:bg-slate-50/70 transition-colors group cursor-pointer"
-              @click="openReviewModal(inst)"
+              @click="openViewDetailsModal(inst)"
             >
               <!-- 1: Row Number -->
               <td class="py-3.5 px-4 text-[12px] font-bold text-slate-400">
@@ -1010,6 +1235,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                   <button
                     @click.stop="toggleMenu(inst.id)"
                     class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                    title="Actions"
                   >
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                       <circle cx="12" cy="5" r="1.5"/>
@@ -1022,48 +1248,68 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                   <div
                     v-if="openMenuId === inst.id"
                     @click.stop
-                    class="absolute right-0 top-9 z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1 text-left animate-in fade-in zoom-in-95 duration-100"
+                    class="absolute right-0 top-9 z-50 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1 text-left animate-in fade-in zoom-in-95 duration-100"
                   >
+                    <!-- 1. View Details -->
+                    <button
+                      @click="openViewDetailsModal(inst)"
+                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-indigo-50 hover:text-[#5138ed] transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      <span>View Details</span>
+                    </button>
+
+                    <!-- 2. Review Submission -->
                     <button
                       @click="openReviewModal(inst)"
                       class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-indigo-50 hover:text-[#5138ed] transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                      Review Submission
+                      <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                      <span>Review Submission</span>
                     </button>
+
                     <div class="border-t border-slate-100 my-1"></div>
+
+                    <!-- 3. Approve & Lock -->
                     <button
                       v-if="inst.status !== 'Approved'"
                       @click="openApproveModal(inst)"
                       class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
-                      Approve & Lock
+                      <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                      <span>Approve & Lock</span>
                     </button>
+
+                    <!-- 4. Request Correction -->
                     <button
                       v-if="inst.status !== 'Correction Required'"
                       @click="openCorrectionModal(inst)"
                       class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                      Request Correction
+                      <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      <span>Request Correction</span>
                     </button>
+
+                    <!-- 5. Reopen Semester (Unlock) - ONLY available when approved & locked! -->
                     <button
-                      v-if="inst.status === 'Approved' || inst.status === 'Pending'"
+                      v-if="inst.status === 'Approved' || inst.is_locked"
                       @click="openReopenModal(inst)"
                       class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
-                      <svg class="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
-                      Reopen Semester (Unlock)
+                      <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                      <span>Reopen Semester (Unlock)</span>
                     </button>
+
                     <div class="border-t border-slate-100 my-1"></div>
+
+                    <!-- 6. Reject -->
                     <button
                       v-if="inst.status !== 'Rejected'"
                       @click="openRejectModal(inst)"
                       class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                      Reject
+                      <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                      <span>Reject</span>
                     </button>
                   </div>
                 </div>
@@ -1153,24 +1399,38 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
 
           <!-- Action Buttons (Touch Friendly min-h-[44px]) -->
           <div class="pt-1 flex flex-wrap items-center gap-2">
+            <!-- 1. View Details -->
             <button
-              @click="openReviewModal(inst)"
+              @click="openViewDetailsModal(inst)"
               class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 text-[#5138ed] border border-indigo-100 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors min-h-[44px] cursor-pointer"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-              <span>Review Details</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              <span>View Details</span>
+            </button>
+
+            <!-- 2. Review Submission -->
+            <button
+              @click="openReviewModal(inst)"
+              class="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors min-h-[44px] cursor-pointer"
+              title="Review Submission"
+            >
+              <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+              <span>Review</span>
             </button>
 
             <template v-if="inst.is_submitted">
+              <!-- 3. Approve & Lock -->
               <button
                 v-if="inst.status !== 'Approved'"
                 @click="openApproveModal(inst)"
-                class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors min-h-[44px] cursor-pointer shadow-xs"
+                class="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors min-h-[44px] cursor-pointer shadow-xs"
+                title="Approve & Lock"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                 <span>Approve</span>
               </button>
 
+              <!-- 4. Request Correction -->
               <button
                 v-if="inst.status !== 'Correction Required'"
                 @click="openCorrectionModal(inst)"
@@ -1180,8 +1440,9 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 Correction
               </button>
 
+              <!-- 5. Reopen Semester (Unlock) - ONLY when approved & locked! -->
               <button
-                v-if="inst.status === 'Approved' || inst.status === 'Pending'"
+                v-if="inst.status === 'Approved' || inst.is_locked"
                 @click="openReopenModal(inst)"
                 class="inline-flex items-center justify-center px-3 py-2 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-xl text-xs font-bold hover:bg-cyan-100 transition-colors min-h-[44px] cursor-pointer"
                 title="Reopen Semester (Unlock)"
@@ -1189,6 +1450,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 Unlock
               </button>
 
+              <!-- 6. Reject -->
               <button
                 v-if="inst.status !== 'Rejected'"
                 @click="openRejectModal(inst)"
@@ -1241,6 +1503,479 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Semester Submission Details Modal (Comprehensive View Details) -->
+    <div
+      v-if="viewDetailsModal.open && viewDetailsModal.data"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto"
+    >
+      <div class="bg-white rounded-2xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl border border-slate-100 my-auto max-h-[94vh] flex flex-col">
+        
+        <!-- Modal Top Header -->
+        <div class="flex items-start justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
+          <div class="flex items-center gap-3 min-w-0">
+            <div :class="['w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold shrink-0 shadow-xs', viewDetailsModal.data.instructor.color || 'bg-indigo-100 text-indigo-700']">
+              {{ viewDetailsModal.data.instructor.initials || 'IN' }}
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-base sm:text-lg font-bold text-slate-800 truncate">{{ viewDetailsModal.data.instructor.name }}</h3>
+                <span :class="['px-2.5 py-0.5 rounded-full text-[11px] font-bold border shrink-0', getStatusBadge(viewDetailsModal.data.submission.status)]">
+                  {{ viewDetailsModal.data.submission.status }}
+                </span>
+                <span v-if="viewDetailsModal.data.submission.is_locked" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                  Locked (Read-Only)
+                </span>
+                <span v-else class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                  Editable (Open)
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 font-medium truncate mt-0.5">
+                {{ viewDetailsModal.data.instructor.email }} &bull; {{ viewDetailsModal.data.instructor.department }} &bull; {{ viewDetailsModal.data.course.title }} ({{ viewDetailsModal.data.course.code }})
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0 ml-2">
+            <button 
+              @click="openViewDetailsModal(viewDetailsModal.data.instructor)" 
+              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Refresh Data"
+            >
+              <svg class="w-4 h-4" :class="viewDetailsModal.isLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+            <button 
+              @click="viewDetailsModal.open = false" 
+              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Close Modal"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex items-center gap-1 border-b border-slate-100 mb-4 shrink-0 overflow-x-auto">
+          <button
+            @click="viewDetailsModal.activeTab = 'overview'"
+            :class="[
+              'px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap',
+              viewDetailsModal.activeTab === 'overview'
+                ? 'border-[#5138ed] text-[#5138ed] bg-indigo-50/50 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span>Overview & Performance</span>
+          </button>
+
+          <button
+            @click="viewDetailsModal.activeTab = 'students'"
+            :class="[
+              'px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap',
+              viewDetailsModal.activeTab === 'students'
+                ? 'border-[#5138ed] text-[#5138ed] bg-indigo-50/50 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <span>Student Examination Records</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+              {{ viewDetailsModal.data.students?.length || 0 }}
+            </span>
+          </button>
+
+          <button
+            @click="viewDetailsModal.activeTab = 'checklist'"
+            :class="[
+              'px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap',
+              viewDetailsModal.activeTab === 'checklist'
+                ? 'border-[#5138ed] text-[#5138ed] bg-indigo-50/50 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Verification Checklist & Review History</span>
+          </button>
+        </div>
+
+        <!-- Modal Body Content -->
+        <div class="overflow-y-auto max-h-[calc(94vh-180px)] pr-1">
+
+          <!-- Loading Indicator -->
+          <div v-if="viewDetailsModal.isLoading" class="py-12 text-center text-slate-400">
+            <div class="flex flex-col items-center gap-3">
+              <div class="animate-spin w-8 h-8 border-2 border-[#5138ed] border-t-transparent rounded-full"></div>
+              <span class="text-xs font-semibold text-slate-500">Fetching live student exam records and verification details...</span>
+            </div>
+          </div>
+
+          <template v-else>
+            <!-- TAB 1: OVERVIEW & PERFORMANCE -->
+            <div v-if="viewDetailsModal.activeTab === 'overview'" class="space-y-4">
+              <!-- Academic Metadata Grid -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Course & Code</span>
+                  <span class="text-xs sm:text-[13px] font-bold text-slate-800 truncate block">{{ viewDetailsModal.data.course.title }}</span>
+                  <span class="text-[11px] font-mono font-semibold text-[#5138ed] bg-indigo-50/60 px-1.5 py-0.5 rounded inline-block mt-0.5">
+                    {{ viewDetailsModal.data.course.code || 'N/A' }}
+                  </span>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Section & Credit</span>
+                  <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ viewDetailsModal.data.submission.section || 'Section A' }}</span>
+                  <span class="text-[11px] text-slate-500 font-medium">{{ viewDetailsModal.data.course.credits }} Credit Hours &bull; {{ viewDetailsModal.data.course.level }}</span>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Academic Term</span>
+                  <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ viewDetailsModal.data.submission.academic_year }}</span>
+                  <span class="text-[11px] text-slate-500 font-medium">{{ viewDetailsModal.data.submission.semester }}</span>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Submission Date</span>
+                  <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ viewDetailsModal.data.submission.submitted_at || '—' }}</span>
+                  <span class="text-[10px] font-semibold text-slate-400">{{ viewDetailsModal.data.submission.is_locked ? 'Locked by Workflow' : 'Open for revisions' }}</span>
+                </div>
+              </div>
+
+              <!-- Reviewer & Decision Context Card -->
+              <div class="border border-slate-100 rounded-xl p-3.5 bg-slate-50/60 space-y-2.5">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Review & Approval Status</span>
+                  <span class="text-xs font-semibold text-slate-500">
+                    Workflow Status: <strong class="text-slate-800">{{ viewDetailsModal.data.submission.status }}</strong>
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div class="bg-white p-3 rounded-xl border border-slate-100">
+                    <span class="text-[11px] font-bold text-slate-500 block mb-1">Approval & Reviewer Information</span>
+                    <p v-if="viewDetailsModal.data.submission.approved_at" class="text-slate-700">
+                      Approved on <strong class="text-emerald-700">{{ viewDetailsModal.data.submission.approved_at }}</strong>
+                      <span v-if="viewDetailsModal.data.submission.approved_by"> by <strong>{{ viewDetailsModal.data.submission.approved_by.name || viewDetailsModal.data.submission.approved_by }}</strong></span>
+                    </p>
+                    <p v-else class="text-slate-400 italic">No formal approval recorded yet.</p>
+                  </div>
+
+                  <div class="bg-white p-3 rounded-xl border border-slate-100">
+                    <span class="text-[11px] font-bold text-slate-500 block mb-1">Locking & Access Status</span>
+                    <p v-if="viewDetailsModal.data.submission.is_locked" class="text-slate-700">
+                      <strong class="text-amber-700">Locked</strong> &bull; Instructor portal is restricted to READ-ONLY mode for this semester.
+                    </p>
+                    <p v-else class="text-slate-700">
+                      <strong class="text-emerald-700">Unlocked</strong> &bull; Instructor can create, modify, or resubmit examination records.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Correction Remarks if present -->
+                <div v-if="viewDetailsModal.data.submission.remarks" class="p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-900">
+                  <span class="font-bold block text-orange-800 mb-0.5">Department Head Remarks / Instructions:</span>
+                  <p>{{ viewDetailsModal.data.submission.remarks }}</p>
+                </div>
+
+                <!-- Reopen Reason if present -->
+                <div v-if="viewDetailsModal.data.submission.reopen_reason" class="p-3 bg-cyan-50 border border-cyan-200 rounded-xl text-xs text-cyan-900">
+                  <span class="font-bold block text-cyan-800 mb-0.5">Reopening Audit Rationale (by {{ viewDetailsModal.data.submission.reopened_by?.name || 'Department Head' }} on {{ viewDetailsModal.data.submission.reopened_at }}):</span>
+                  <p>{{ viewDetailsModal.data.submission.reopen_reason }}</p>
+                </div>
+              </div>
+
+              <!-- Performance KPI Grid -->
+              <div class="border border-slate-100 rounded-xl p-3 sm:p-4 bg-gradient-to-r from-indigo-50/30 to-purple-50/20">
+                <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Class Examination Performance Metrics</h4>
+                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 sm:gap-3 text-center">
+                  <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs">
+                    <span class="text-base sm:text-lg font-black text-slate-800 block">{{ viewDetailsModal.data.kpis?.total_enrolled || 0 }}</span>
+                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Enrolled Students</span>
+                  </div>
+                  <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs">
+                    <span class="text-base sm:text-lg font-black text-slate-800 block">{{ viewDetailsModal.data.kpis?.total_exams || 0 }}</span>
+                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Exams Conducted</span>
+                  </div>
+                  <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs">
+                    <span class="text-base sm:text-lg font-black text-slate-800 block">{{ viewDetailsModal.data.kpis?.total_graded || 0 }}</span>
+                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Graded Attempts</span>
+                  </div>
+                  <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs">
+                    <span class="text-base sm:text-lg font-black text-emerald-600 block">{{ viewDetailsModal.data.kpis?.avg_score || 0 }}%</span>
+                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Class Average</span>
+                  </div>
+                  <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs">
+                    <span class="text-base sm:text-lg font-black text-[#5138ed] block">{{ viewDetailsModal.data.kpis?.pass_rate || 0 }}%</span>
+                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">Pass Rate</span>
+                  </div>
+                  <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs">
+                    <span class="text-base sm:text-lg font-black text-slate-700 block">
+                      {{ viewDetailsModal.data.kpis?.highest_score || 0 }}% / {{ viewDetailsModal.data.kpis?.lowest_score || 0 }}%
+                    </span>
+                    <span class="text-[10px] sm:text-[11px] font-medium text-slate-500">High / Low Score</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Conducted Examinations Table -->
+              <div class="border border-slate-100 rounded-xl overflow-hidden">
+                <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-700">Examinations Conducted for Course</span>
+                  <span class="text-[11px] text-slate-400">{{ viewDetailsModal.data.exams?.length || 0 }} Exam(s)</span>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-xs whitespace-nowrap">
+                    <thead class="bg-slate-50/50 text-[11px] text-slate-400 font-bold border-b border-slate-100">
+                      <tr>
+                        <th class="py-2.5 px-3">Exam Title</th>
+                        <th class="py-2.5 px-3">Duration</th>
+                        <th class="py-2.5 px-3 text-center">Total Marks</th>
+                        <th class="py-2.5 px-3 text-center">Attempts</th>
+                        <th class="py-2.5 px-3 text-center">Class Avg</th>
+                        <th class="py-2.5 px-3 text-center">Pass Rate</th>
+                        <th class="py-2.5 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <tr v-if="!viewDetailsModal.data.exams || viewDetailsModal.data.exams.length === 0">
+                        <td colspan="7" class="py-6 text-center text-slate-400 italic">No examinations recorded for this semester yet.</td>
+                      </tr>
+                      <tr v-else v-for="ex in viewDetailsModal.data.exams" :key="ex.id" class="hover:bg-slate-50/50">
+                        <td class="py-2.5 px-3 font-semibold text-slate-800">{{ ex.title }}</td>
+                        <td class="py-2.5 px-3 text-slate-500">{{ ex.duration_minutes }} mins</td>
+                        <td class="py-2.5 px-3 text-center font-mono font-semibold">{{ ex.total_marks }}</td>
+                        <td class="py-2.5 px-3 text-center font-bold text-slate-700">{{ ex.attempts_count }}</td>
+                        <td class="py-2.5 px-3 text-center font-semibold text-emerald-600">{{ ex.avg_score }}%</td>
+                        <td class="py-2.5 px-3 text-center font-semibold text-[#5138ed]">{{ ex.pass_rate }}%</td>
+                        <td class="py-2.5 px-3">
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" :class="ex.status === 'completed' || ex.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'">
+                            {{ ex.status }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: STUDENT EXAMINATION RECORDS -->
+            <div v-else-if="viewDetailsModal.activeTab === 'students'" class="space-y-3.5">
+              <!-- Filter & Search Toolbar -->
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <div class="relative flex-1 min-w-[200px]">
+                  <input
+                    v-model="viewDetailsModal.searchStudent"
+                    type="text"
+                    placeholder="Search student by name or ID number..."
+                    class="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-[#5138ed]"
+                  />
+                  <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <select
+                    v-model="viewDetailsModal.statusFilter"
+                    class="appearance-none pl-3 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 font-medium focus:outline-none focus:border-[#5138ed] cursor-pointer"
+                  >
+                    <option value="all">All Evaluation States</option>
+                    <option value="completed">Completed Grading</option>
+                    <option value="in_progress">Partially Graded</option>
+                    <option value="not_attempted">Not Attempted</option>
+                  </select>
+
+                  <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">
+                    Showing {{ filteredModalStudents.length }} of {{ viewDetailsModal.data.students?.length || 0 }} Students
+                  </span>
+                </div>
+              </div>
+
+              <!-- Enrolled Students Table -->
+              <div class="border border-slate-100 rounded-xl overflow-hidden bg-white">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-xs whitespace-nowrap">
+                    <thead class="bg-slate-50 text-[11px] text-slate-400 font-bold border-b border-slate-100 uppercase tracking-wider">
+                      <tr>
+                        <th class="py-2.5 px-3 w-8">#</th>
+                        <th class="py-2.5 px-3">Student Name & ID</th>
+                        <th class="py-2.5 px-3">Section</th>
+                        <th class="py-2.5 px-3 text-center">Score / Max</th>
+                        <th class="py-2.5 px-3 text-center">Percentage</th>
+                        <th class="py-2.5 px-3 text-center">Letter Grade</th>
+                        <th class="py-2.5 px-3">Grading Status</th>
+                        <th class="py-2.5 px-3">Publication</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <tr v-if="filteredModalStudents.length === 0">
+                        <td colspan="8" class="py-10 text-center text-slate-400">
+                          <p class="font-semibold text-slate-600">No students matched your search criteria.</p>
+                          <span class="text-[11px]">Try clearing your search query or filter.</span>
+                        </td>
+                      </tr>
+                      <tr v-else v-for="(st, sIdx) in filteredModalStudents" :key="st.id" class="hover:bg-slate-50/50">
+                        <td class="py-2.5 px-3 font-bold text-slate-400">{{ Number(sIdx) + 1 }}</td>
+                        <td class="py-2.5 px-3">
+                          <div class="flex flex-col">
+                            <span class="font-bold text-slate-800">{{ st.name }}</span>
+                            <span class="font-mono text-[11px] text-slate-400">{{ st.id_no }}</span>
+                          </div>
+                        </td>
+                        <td class="py-2.5 px-3">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
+                            {{ st.section }}
+                          </span>
+                        </td>
+                        <td class="py-2.5 px-3 text-center font-bold font-mono">
+                          <span class="text-slate-800">{{ st.total_score }}</span>
+                          <span class="text-slate-400 font-normal"> / {{ st.max_marks }}</span>
+                        </td>
+                        <td class="py-2.5 px-3 text-center font-semibold" :class="st.overall_percentage >= 50 ? 'text-emerald-600' : 'text-rose-600'">
+                          {{ st.overall_percentage }}%
+                        </td>
+                        <td class="py-2.5 px-3 text-center">
+                          <span :class="['px-2 py-0.5 rounded-md text-[11px] font-extrabold border', getGradeBadge(st.letter_grade)]">
+                            {{ st.letter_grade }}
+                          </span>
+                        </td>
+                        <td class="py-2.5 px-3">
+                          <span
+                            class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            :class="st.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : (st.status === 'Partially Graded' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500')"
+                          >
+                            {{ st.status }}
+                          </span>
+                        </td>
+                        <td class="py-2.5 px-3">
+                          <span
+                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            :class="st.publication_status === 'Published' ? 'bg-indigo-50 text-[#5138ed]' : 'bg-slate-100 text-slate-500'"
+                          >
+                            <span class="w-1.5 h-1.5 rounded-full" :class="st.publication_status === 'Published' ? 'bg-[#5138ed]' : 'bg-slate-400'"></span>
+                            {{ st.publication_status }}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 3: VERIFICATION CHECKLIST & REVIEW HISTORY -->
+            <div v-else-if="viewDetailsModal.activeTab === 'checklist'" class="space-y-4">
+              <!-- Checklist Cards -->
+              <div>
+                <h4 class="text-xs font-bold text-slate-700 mb-2.5">Workflow Verification Checklist</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    v-for="(chk, cKey) in viewDetailsModal.data.checklist"
+                    :key="cKey"
+                    class="p-3.5 rounded-xl border flex items-start gap-3 bg-white"
+                    :class="chk.completed ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200 bg-slate-50/50'"
+                  >
+                    <div
+                      class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                      :class="chk.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'"
+                    >
+                      <svg v-if="chk.completed" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                      <span v-else class="text-xs font-bold">!</span>
+                    </div>
+                    <div class="min-w-0">
+                      <span class="text-xs font-bold text-slate-800 block">{{ chk.label }}</span>
+                      <p class="text-[11px] text-slate-500 mt-0.5">{{ chk.detail }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- History & Audit Trail -->
+              <div class="border border-slate-100 rounded-xl p-4 bg-slate-50">
+                <h4 class="text-xs font-bold text-slate-700 mb-3">Submission Record Audit Trail</h4>
+                <div class="space-y-3 text-xs">
+                  <div class="flex items-center justify-between py-1.5 border-b border-slate-200/60">
+                    <span class="text-slate-500">Record Created</span>
+                    <span class="font-semibold text-slate-700">{{ viewDetailsModal.data.submission.created_at || '—' }}</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1.5 border-b border-slate-200/60">
+                    <span class="text-slate-500">Instructor Submission</span>
+                    <span class="font-semibold text-slate-700">{{ viewDetailsModal.data.submission.submitted_at || 'Not submitted' }}</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1.5 border-b border-slate-200/60">
+                    <span class="text-slate-500">Department Approval & Locking</span>
+                    <span class="font-semibold" :class="viewDetailsModal.data.submission.approved_at ? 'text-emerald-700' : 'text-slate-400'">
+                      {{ viewDetailsModal.data.submission.approved_at || 'Pending Approval' }}
+                      <span v-if="viewDetailsModal.data.submission.approved_by"> (by {{ viewDetailsModal.data.submission.approved_by.name || viewDetailsModal.data.submission.approved_by }})</span>
+                    </span>
+                  </div>
+                  <div v-if="viewDetailsModal.data.submission.reopened_at" class="flex items-center justify-between py-1.5 border-b border-slate-200/60">
+                    <span class="text-slate-500">Reopened / Unlocked</span>
+                    <span class="font-semibold text-cyan-700">
+                      {{ viewDetailsModal.data.submission.reopened_at }} (by {{ viewDetailsModal.data.submission.reopened_by?.name || 'Department Head' }})
+                    </span>
+                  </div>
+                  <div class="flex items-center justify-between py-1.5">
+                    <span class="text-slate-500">Lock Enforcement Status</span>
+                    <span class="font-bold" :class="viewDetailsModal.data.submission.is_locked ? 'text-amber-700' : 'text-emerald-600'">
+                      {{ viewDetailsModal.data.submission.is_locked ? 'Active Lock Enforced' : 'Edit Access Active' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div class="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-3.5 mt-4 gap-2.5 shrink-0">
+          <button
+            @click="viewDetailsModal.open = false"
+            class="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors min-h-[40px] cursor-pointer"
+          >
+            Close
+          </button>
+
+          <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            <!-- If submission not approved, allow Approve, Request Correction, Reject -->
+            <template v-if="viewDetailsModal.data?.submission?.raw_status !== 'approved'">
+              <button
+                v-if="viewDetailsModal.data?.submission?.raw_status !== 'rejected'"
+                @click="openRejectModal(viewDetailsModal.data.instructor)"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors min-h-[40px] cursor-pointer"
+              >
+                Reject
+              </button>
+              <button
+                v-if="viewDetailsModal.data?.submission?.raw_status !== 'correction_required'"
+                @click="openCorrectionModal(viewDetailsModal.data.instructor)"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors min-h-[40px] cursor-pointer"
+              >
+                Request Correction
+              </button>
+              <button
+                @click="openApproveModal(viewDetailsModal.data.instructor)"
+                class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs min-h-[40px] cursor-pointer flex items-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <span>Approve & Lock</span>
+              </button>
+            </template>
+
+            <!-- If approved & locked, offer Reopen Semester (Unlock) -->
+            <template v-else>
+              <button
+                @click="openReopenModal(viewDetailsModal.data.instructor)"
+                class="px-4 py-2 rounded-xl text-xs font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 transition-colors flex items-center gap-1.5 min-h-[40px] cursor-pointer"
+              >
+                <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                <span>Reopen Semester (Unlock)</span>
+              </button>
+            </template>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -1302,6 +2037,24 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
               <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ reviewModal.instructor.academic_year || semesterInfo.academicYear }}</span>
               <span class="text-[10px] text-slate-500 font-medium">{{ reviewModal.instructor.semester || semesterInfo.semester }}</span>
             </div>
+          </div>
+
+          <!-- Quick link to full View Details -->
+          <div class="mb-4 sm:mb-5">
+            <button 
+              type="button"
+              @click="openViewDetailsFromReview" 
+              class="w-full py-2.5 px-3.5 rounded-xl bg-indigo-50/80 hover:bg-indigo-100/90 border border-indigo-200/80 text-[#5138ed] text-xs font-bold flex items-center justify-between transition-all cursor-pointer shadow-xs group"
+            >
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-[#5138ed] group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                <span>View Full Student Examination Scores & Grade Roster</span>
+              </div>
+              <span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#5138ed]">
+                Open Details
+                <svg class="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </span>
+            </button>
           </div>
 
           <!-- Performance Metrics Grid -->

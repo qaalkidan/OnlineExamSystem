@@ -20,6 +20,7 @@ class SemesterSubmission extends Model
         'remarks',
         'submitted_at',
         'approved_at',
+        'approved_by',
         'reopened_at',
         'reopened_by',
         'reopen_reason',
@@ -39,6 +40,11 @@ class SemesterSubmission extends Model
     public function instructor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'instructor_id');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function reopenedBy(): BelongsTo

@@ -34,23 +34,36 @@ class InstructorSemesterLockMiddleware
         }
 
         // 3. Only apply lock to instructors (or users acting in instructor role)
-        // Super admins have unrestricted access
-        if ($user->role === 'admin') {
+        // Super admins and department heads have unrestricted access
+        if ($user->role === 'admin' || $user->role === 'dept_head') {
             return $next($request);
         }
 
-        $academicYear = $user->academic_year ?? '2025/2026';
-        $semester = $user->semester ?? 'First Semester';
+        // Check if an exam is being modified to target its specific course/semester scope
+        $examId = $request->route('exam') ?? $request->route('id');
+        $academicYear = null;
+        $semester = null;
 
-        // 4. Query current submission status for this instructor
+        if ($examId && is_numeric($examId)) {
+            $exam = \App\Models\Exam::find($examId);
+            if ($exam && $exam->course_code) {
+                $course = \App\Models\Course::where('code', $exam->course_code)->first();
+                if ($course && $course->semester) {
+                    $semester = $course->semester;
+                }
+            }
+        }
+
+        if (!$academicYear || !$semester) {
+            $sysSettings = \App\Models\SystemSetting::pluck('value', 'key')->toArray();
+            $academicYear = $user->academic_year ?? ($sysSettings['academicYear'] ?? '2025/2026');
+            $semester = $user->semester ?? ($sysSettings['semester'] ?? 'Second Semester');
+        }
+
+        // 4. Query current submission status for this instructor in this specific course-semester scope
         $submission = SemesterSubmission::where('instructor_id', $user->id)
-            ->where(function ($q) use ($academicYear, $semester) {
-                $q->where(function ($sub) use ($academicYear, $semester) {
-                    $sub->where('academic_year', $academicYear)
-                        ->where('semester', $semester);
-                })->orWhereIn('status', ['submitted', 'approved']);
-            })
-            ->whereIn('status', ['submitted', 'approved'])
+            ->where('academic_year', $academicYear)
+            ->where('semester', $semester)
             ->latest('updated_at')
             ->first();
 

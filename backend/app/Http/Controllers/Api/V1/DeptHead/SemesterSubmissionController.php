@@ -14,6 +14,7 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class SemesterSubmissionController extends Controller
@@ -683,11 +684,346 @@ class SemesterSubmissionController extends Controller
     }
 
     /**
+     * Calculate letter grade from percentage
+     */
+    private function calculateGrade(?float $percentage): string
+    {
+        if ($percentage === null) return 'NG';
+        if ($percentage >= 90) return 'A+';
+        if ($percentage >= 85) return 'A';
+        if ($percentage >= 80) return 'A-';
+        if ($percentage >= 75) return 'B+';
+        if ($percentage >= 70) return 'B';
+        if ($percentage >= 65) return 'B-';
+        if ($percentage >= 60) return 'C+';
+        if ($percentage >= 50) return 'C';
+        if ($percentage >= 45) return 'C-';
+        if ($percentage >= 40) return 'D';
+        return 'F';
+    }
+
+    /**
+     * Get comprehensive record details for a single submission/instructor.
+     * Includes overview, real enrolled students, exams, attempts, scores, and checklist.
+     */
+    public function recordDetails(Request $request, $id): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $userDept = $deptId ? Department::find($deptId) : null;
+
+        // 1. Locate submission
+        $submission = SemesterSubmission::with(['instructor.department', 'approvedBy', 'reopenedBy'])->find($id);
+        if (!$submission) {
+            $submission = SemesterSubmission::with(['instructor.department', 'approvedBy', 'reopenedBy'])
+                ->where('instructor_id', $id)
+                ->latest('updated_at')
+                ->first();
+        }
+
+        // 2. Locate instructor
+        $instructor = $submission?->instructor;
+        if (!$instructor) {
+            $instructor = User::with(['department', 'assignedCourses'])->find($id);
+        }
+
+        if (!$instructor) {
+            return response()->json(['message' => 'Instructor or semester submission record not found.'], 404);
+        }
+
+        $academicYear = $submission?->academic_year ?? $request->query('academic_year', '2025/2026');
+        $semester = $submission?->semester ?? $request->query('semester', 'Second Semester');
+
+        if (!$submission) {
+            $submission = SemesterSubmission::firstOrCreate([
+                'instructor_id' => $instructor->id,
+                'academic_year' => $academicYear,
+                'semester'      => $semester,
+            ], [
+                'department'    => $instructor->department?->name ?? ($userDept?->name ?? 'Computer Science'),
+                'section'       => $instructor->section ?? 'Section A',
+                'status'        => 'pending',
+            ]);
+            $submission->load(['approvedBy', 'reopenedBy']);
+        }
+
+        // Color & initials
+        $nameParts = preg_split('/\s+/', trim($instructor->name));
+        $initials = count($nameParts) >= 2 
+            ? strtoupper(substr($nameParts[0], 0, 1) . substr($nameParts[1], 0, 1))
+            : strtoupper(substr($nameParts[0], 0, min(2, strlen($nameParts[0]))));
+        $colorPalettes = [
+            'bg-purple-100 text-purple-700',
+            'bg-rose-100 text-rose-700',
+            'bg-sky-100 text-sky-700',
+            'bg-amber-100 text-amber-700',
+            'bg-emerald-100 text-emerald-700',
+            'bg-indigo-100 text-indigo-700',
+            'bg-orange-100 text-orange-700',
+            'bg-teal-100 text-teal-700',
+        ];
+        $color = $colorPalettes[$instructor->id % count($colorPalettes)];
+
+        // Course info
+        $assignedCourse = Course::where('instructor_id', $instructor->id)->first();
+        if (!$assignedCourse && $instructor->assignedCourses && $instructor->assignedCourses->isNotEmpty()) {
+            $assignedCourse = $instructor->assignedCourses->first();
+        }
+        $courseTitle = $assignedCourse ? $assignedCourse->title : ($instructor->department?->name . ' Instruction');
+        $courseCode = $assignedCourse ? $assignedCourse->code : ($instructor->course_code ?: 'BO-0');
+        $credit = $assignedCourse ? ($assignedCourse->credits ?: 4) : 4;
+        $section = $submission->section ?: ($assignedCourse?->section ?: ($instructor->section ?: 'Section A'));
+        $level = $assignedCourse?->level ?: ($instructor->year_level ?: '3rd Year');
+
+        // Real exams conducted by this instructor or for this course
+        $exams = Exam::where(function ($q) use ($instructor, $courseCode) {
+                $q->where('user_id', $instructor->id);
+                if ($courseCode && $courseCode !== 'BO-0') {
+                    $q->orWhere('course_code', $courseCode);
+                }
+            })
+            ->get();
+
+        $examIds = $exams->pluck('id')->toArray();
+
+        // Exam Attempts
+        $attempts = ExamAttempt::whereIn('exam_id', $examIds)->with('student')->get();
+
+        // Enrolled Students in section / department
+        $studentsQuery = User::where('role', 'student');
+        if ($instructor->department_id) {
+            $studentsQuery->where('department_id', $instructor->department_id);
+        }
+        $deptStudents = $studentsQuery->orderBy('name')->get();
+
+        // Also add students who took attempts
+        $attemptStudentIds = $attempts->pluck('user_id')->unique();
+        $attemptStudents = User::whereIn('id', $attemptStudentIds)->get();
+
+        $allStudents = $deptStudents->concat($attemptStudents)->unique('id')->values();
+
+        // Map exams details
+        $examsList = $exams->map(function ($ex) use ($attempts) {
+            $exAttempts = $attempts->where('exam_id', $ex->id);
+            $count = $exAttempts->count();
+            $avg = $count > 0 ? round($exAttempts->avg('percentage'), 1) : 0;
+            $passed = $exAttempts->filter(fn($a) => ($a->percentage ?? 0) >= 50)->count();
+            $passRate = $count > 0 ? round(($passed / $count) * 100, 1) : 0;
+
+            return [
+                'id'               => $ex->id,
+                'title'            => $ex->title,
+                'course_code'      => $ex->course_code,
+                'section'          => $ex->section ?: 'All Sections',
+                'duration_minutes' => $ex->duration_minutes,
+                'total_marks'      => $ex->total_marks ?? 100,
+                'status'           => $ex->status,
+                'scheduled_at'     => $ex->scheduled_at?->format('M d, Y h:i A'),
+                'published_at'     => $ex->published_at?->format('M d, Y h:i A'),
+                'attempts_count'   => $count,
+                'avg_score'        => $avg,
+                'pass_rate'        => $passRate,
+            ];
+        })->values();
+
+        // Map student examination information
+        $studentsList = [];
+        $totalMaxMarks = $exams->sum('total_marks') ?: 100;
+        $totalScoresArr = [];
+
+        foreach ($allStudents as $idx => $st) {
+            $stAttempts = $attempts->where('user_id', $st->id);
+            $attemptsMap = [];
+            $stTotalScore = 0;
+            $gradedExamsCount = 0;
+            $hasPublished = false;
+
+            foreach ($exams as $ex) {
+                $att = $stAttempts->firstWhere('exam_id', $ex->id);
+                if ($att) {
+                    $score = (float)($att->score ?? 0);
+                    $tot = (float)($att->total_marks ?? $ex->total_marks ?? 100);
+                    $pct = (float)($att->percentage ?? ($tot > 0 ? round(($score / $tot) * 100, 1) : 0));
+                    $stTotalScore += $score;
+                    $gradedExamsCount++;
+                    if ($att->status === 'published') $hasPublished = true;
+
+                    $attemptsMap[] = [
+                        'exam_id'      => $ex->id,
+                        'exam_title'   => $ex->title,
+                        'score'        => $score,
+                        'total_marks'  => $tot,
+                        'percentage'   => $pct,
+                        'grade'        => $att->grade ?: $this->calculateGrade($pct),
+                        'status'       => $att->status === 'published' ? 'Published' : ($att->submitted_at ? 'Graded' : 'Attempted'),
+                        'submitted_at' => $att->submitted_at?->format('M d, Y h:i A') ?? '—',
+                    ];
+                } else {
+                    $attemptsMap[] = [
+                        'exam_id'      => $ex->id,
+                        'exam_title'   => $ex->title,
+                        'score'        => null,
+                        'total_marks'  => (float)($ex->total_marks ?? 100),
+                        'percentage'   => null,
+                        'grade'        => 'NG',
+                        'status'       => 'Not Attempted',
+                        'submitted_at' => '—',
+                    ];
+                }
+            }
+
+            $overallPct = $totalMaxMarks > 0 ? round(($stTotalScore / $totalMaxMarks) * 100, 1) : 0;
+            if ($gradedExamsCount > 0) {
+                $totalScoresArr[] = $overallPct;
+            }
+
+            $evalStatus = 'Not Attempted';
+            if ($exams->isNotEmpty()) {
+                if ($gradedExamsCount === $exams->count()) {
+                    $evalStatus = 'Completed';
+                } elseif ($gradedExamsCount > 0) {
+                    $evalStatus = 'Partially Graded';
+                }
+            }
+
+            $studentsList[] = [
+                'id'                 => $st->id,
+                'name'               => $st->name,
+                'id_no'              => $st->id_no ?: ('WU/' . str_pad($st->id, 5, '0', STR_PAD_LEFT)),
+                'email'              => $st->email,
+                'section'            => $st->section ?: $section,
+                'year_level'         => $st->year_level ?: $level,
+                'attempts'           => $attemptsMap,
+                'total_score'        => round($stTotalScore, 1),
+                'max_marks'          => $totalMaxMarks,
+                'overall_percentage' => $overallPct,
+                'letter_grade'       => $gradedExamsCount > 0 ? $this->calculateGrade($overallPct) : 'NG',
+                'status'             => $evalStatus,
+                'is_published'       => $hasPublished,
+                'publication_status' => $hasPublished ? 'Published' : 'Pending',
+            ];
+        }
+
+        // KPIs computation
+        $totalStudentsCount = count($studentsList);
+        $totalGraded = count($totalScoresArr);
+        $classAvg = $totalGraded > 0 ? round(array_sum($totalScoresArr) / $totalGraded, 1) : 0;
+        $passedCount = count(array_filter($totalScoresArr, fn($p) => $p >= 50));
+        $passRate = $totalGraded > 0 ? round(($passedCount / $totalGraded) * 100, 1) : 0;
+        $highestScore = !empty($totalScoresArr) ? max($totalScoresArr) : 0;
+        $lowestScore = !empty($totalScoresArr) ? min($totalScoresArr) : 0;
+
+        $rawStatus = strtolower($submission->status ?? 'pending');
+        $displayStatus = match ($rawStatus) {
+            'approved' => 'Approved',
+            'correction_required' => 'Correction Required',
+            'rejected' => 'Rejected',
+            'reopened' => 'Reopened',
+            'submitted', 'under_review' => 'Pending',
+            default => 'Pending',
+        };
+
+        $isLocked = in_array($rawStatus, ['submitted', 'approved']);
+
+        return response()->json([
+            'submission' => [
+                'id'            => $submission->id,
+                'instructor_id' => $instructor->id,
+                'academic_year' => $submission->academic_year,
+                'semester'      => $submission->semester,
+                'department'    => $submission->department ?: ($instructor->department?->name ?? 'Computer Science'),
+                'section'       => $section,
+                'status'        => $displayStatus,
+                'raw_status'    => $rawStatus,
+                'is_locked'     => $isLocked,
+                'submitted_at'  => $submission->submitted_at?->format('M d, Y h:i A'),
+                'approved_at'   => $submission->approved_at?->format('M d, Y h:i A'),
+                'approved_by'   => $submission->approvedBy ? [
+                    'id'    => $submission->approvedBy->id,
+                    'name'  => $submission->approvedBy->name,
+                    'email' => $submission->approvedBy->email,
+                    'role'  => $submission->approvedBy->role,
+                ] : null,
+                'reopened_at'   => $submission->reopened_at?->format('M d, Y h:i A'),
+                'reopened_by'   => $submission->reopenedBy ? [
+                    'id'    => $submission->reopenedBy->id,
+                    'name'  => $submission->reopenedBy->name,
+                    'email' => $submission->reopenedBy->email,
+                ] : null,
+                'reopen_reason' => $submission->reopen_reason,
+                'remarks'       => $submission->remarks,
+                'locked_at'     => $submission->locked_at?->format('M d, Y h:i A'),
+                'created_at'    => $submission->created_at?->format('M d, Y h:i A'),
+            ],
+            'instructor' => [
+                'id'              => $instructor->id,
+                'name'            => $instructor->name,
+                'email'           => $instructor->email,
+                'initials'        => $initials,
+                'color'           => $color,
+                'department'      => $instructor->department?->name ?? ($userDept?->name ?? 'Computer Science'),
+                'phone'           => $instructor->phone ?? '—',
+                'role'            => $instructor->role,
+                'office'          => $instructor->office ?? 'Staff Office',
+                'year_level'      => $instructor->year_level ?? $level,
+                'section'         => $section,
+            ],
+            'course' => [
+                'id'         => $assignedCourse?->id,
+                'title'      => $courseTitle,
+                'code'       => $courseCode,
+                'credits'    => $credit,
+                'section'    => $section,
+                'level'      => $level,
+                'department' => $assignedCourse?->department?->name ?? ($instructor->department?->name ?? 'Computer Science'),
+            ],
+            'exams'      => $examsList,
+            'students'   => $studentsList,
+            'kpis'       => [
+                'total_enrolled' => $totalStudentsCount,
+                'total_exams'    => $exams->count(),
+                'total_graded'   => $totalGraded,
+                'avg_score'      => $classAvg,
+                'pass_rate'      => $passRate,
+                'highest_score'  => $highestScore,
+                'lowest_score'   => $lowestScore,
+            ],
+            'checklist'  => [
+                'academic_schedule' => [
+                    'completed' => true,
+                    'label'     => 'Academic Schedule Verified',
+                    'detail'    => "Term {$submission->academic_year} ({$submission->semester}) verified",
+                ],
+                'exams' => [
+                    'completed' => $exams->count() > 0,
+                    'label'     => 'Examinations Completed',
+                    'detail'    => $exams->count() . ' Examinations configured and conducted',
+                ],
+                'students' => [
+                    'completed' => $totalStudentsCount > 0,
+                    'label'     => 'Student Enrollment Verified',
+                    'detail'    => $totalStudentsCount . ' Students active in section ' . $section,
+                ],
+                'results' => [
+                    'completed' => $totalGraded > 0,
+                    'label'     => 'Grades & Results Processed',
+                    'detail'    => $totalGraded . ' Graded student submissions (' . $passRate . '% Pass Rate)',
+                ],
+            ],
+        ]);
+    }
+
+    /**
      * Show detail for a specific year-level / id
      */
     public function show(Request $request, $id): JsonResponse
     {
-        return $this->details($request, $id);
+        // If $id is base64 encoded year-level string (e.g. from SemesterSubmissions.vue overview cards)
+        $decoded = base64_decode($id, true);
+        if ($decoded !== false && ctype_print($decoded) && str_contains(strtolower($decoded), 'year')) {
+            return $this->details($request, $id);
+        }
+
+        return $this->recordDetails($request, $id);
     }
 
     /**
@@ -708,94 +1044,128 @@ class SemesterSubmissionController extends Controller
             $normalizedStatus = 'pending';
         }
 
-        // Find submission by ID
-        $submission = SemesterSubmission::with('instructor')->find($id);
-
-        if (!$submission) {
-            // Find by instructor_id
-            $submission = SemesterSubmission::where('instructor_id', $id)->first();
+        // Validate mandatory remarks for correction or rejection
+        if ($normalizedStatus === 'correction_required' && empty(trim($request->remarks ?? ''))) {
+            return response()->json(['message' => 'Please provide feedback or remarks describing what needs correction.'], 422);
         }
 
-        if (!$submission) {
-            $inst = User::find($id);
-            if ($inst) {
-                $submission = SemesterSubmission::create([
-                    'instructor_id' => $inst->id,
-                    'academic_year' => $request->input('academic_year', '2025/2026'),
-                    'semester'      => $request->input('semester', 'Second Semester'),
-                    'department'    => $inst->department?->name ?? 'Software Engineering',
-                    'section'       => $inst->section ?? 'Section A',
-                    'status'        => $normalizedStatus,
-                    'remarks'       => $request->remarks,
-                    'submitted_at'  => now(),
-                ]);
+        if ($normalizedStatus === 'rejected' && empty(trim($request->remarks ?? ''))) {
+            return response()->json(['message' => 'Please provide a reason for rejecting the submission.'], 422);
+        }
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($request, $id, $normalizedStatus, $user) {
+            // Find submission by ID
+            $submission = SemesterSubmission::with(['instructor', 'approvedBy', 'reopenedBy'])->find($id);
+
+            if (!$submission) {
+                // Find by instructor_id
+                $submission = SemesterSubmission::with(['instructor', 'approvedBy', 'reopenedBy'])->where('instructor_id', $id)->first();
             }
-        }
 
-        if (!$submission) {
-            return response()->json(['message' => 'Submission record not found.'], 404);
-        }
+            if (!$submission) {
+                $inst = User::find($id);
+                if ($inst) {
+                    $submission = SemesterSubmission::create([
+                        'instructor_id' => $inst->id,
+                        'academic_year' => $request->input('academic_year', '2025/2026'),
+                        'semester'      => $request->input('semester', 'Second Semester'),
+                        'department'    => $inst->department?->name ?? 'Computer Science',
+                        'section'       => $inst->section ?? 'Section A',
+                        'status'        => $normalizedStatus,
+                        'remarks'       => $request->remarks,
+                        'submitted_at'  => now(),
+                    ]);
+                    $submission->load(['instructor', 'approvedBy', 'reopenedBy']);
+                }
+            }
 
-        $submission->status = $normalizedStatus;
+            if (!$submission) {
+                return response()->json(['message' => 'Submission record not found.'], 404);
+            }
 
-        if ($normalizedStatus === 'approved') {
-            $submission->approved_at = now();
-            if (!$submission->locked_at) {
+            $submission->status = $normalizedStatus;
+
+            if ($normalizedStatus === 'approved') {
+                $submission->approved_at = now();
+                $submission->approved_by = $user->id;
                 $submission->locked_at = now();
+            } elseif ($normalizedStatus === 'submitted') {
+                if (!$submission->locked_at) {
+                    $submission->locked_at = now();
+                }
+            } elseif ($normalizedStatus === 'reopened') {
+                $submission->locked_at = null;
+                $submission->reopened_at = now();
+                $submission->reopened_by = $user->id;
+                $submission->reopen_reason = $request->reason ?? $request->remarks ?? 'Reopened by Department Head';
+            } elseif ($normalizedStatus === 'correction_required') {
+                $submission->approved_at = null;
+                $submission->approved_by = null;
+                $submission->locked_at = null; // Unlocked for correction
+            } elseif ($normalizedStatus === 'rejected') {
+                $submission->approved_at = null;
+                $submission->approved_by = null;
+                $submission->locked_at = null;
+            } elseif ($normalizedStatus === 'pending') {
+                $submission->approved_at = null;
+                $submission->approved_by = null;
+                $submission->locked_at = null;
             }
-        } elseif ($normalizedStatus === 'submitted') {
-            if (!$submission->locked_at) {
-                $submission->locked_at = now();
+
+            if ($request->has('remarks')) {
+                $submission->remarks = $request->remarks;
             }
-        } elseif ($normalizedStatus === 'reopened') {
-            $submission->locked_at = null;
-            $submission->reopened_at = now();
-            $submission->reopened_by = $request->user()->id;
-            $submission->reopen_reason = $request->reason ?? $request->remarks ?? 'Reopened by Department Head';
-        } elseif ($normalizedStatus === 'pending' || $normalizedStatus === 'correction_required') {
-            $submission->approved_at = null;
-            $submission->locked_at = null;
-        }
 
-        if ($request->has('remarks')) {
-            $submission->remarks = $request->remarks;
-        }
+            $submission->save();
 
-        $submission->save();
+            $displayStatus = match ($normalizedStatus) {
+                'approved' => 'Approved',
+                'correction_required' => 'Correction Required',
+                'rejected' => 'Rejected',
+                'reopened' => 'Reopened',
+                default => 'Pending',
+            };
 
-        $displayStatus = match ($normalizedStatus) {
-            'approved' => 'Approved',
-            'correction_required' => 'Correction Required',
-            'rejected' => 'Rejected',
-            'reopened' => 'Reopened',
-            default => 'Pending',
-        };
+            // Record Activity Log
+            $instName = $submission->instructor?->name ?? 'Instructor';
+            $activityAction = match ($normalizedStatus) {
+                'approved' => 'Approved',
+                'correction_required' => 'Correction Requested',
+                'rejected' => 'Rejected',
+                'reopened' => 'Reopened',
+                default => 'Updated',
+            };
 
-        // Record Activity Log
-        $instName = $submission->instructor?->name ?? 'Instructor';
-        LogActivity::record(
-            'Updated',
-            'Semester Submissions',
-            "{$displayStatus} semester submission for {$instName}" . ($submission->remarks ? ": {$submission->remarks}" : '')
-        );
+            LogActivity::record(
+                $activityAction,
+                'Semester Submissions',
+                "{$displayStatus} semester submission for {$instName}" . ($submission->remarks ? ": {$submission->remarks}" : '')
+            );
 
-        return response()->json([
-            'message'    => "Semester submission updated to {$displayStatus} successfully.",
-            'submission' => [
-                'id'            => $submission->id,
-                'status'        => $displayStatus,
-                'raw_status'    => $submission->status,
-                'is_locked'     => in_array($submission->status, ['submitted', 'approved']),
-                'remarks'       => $submission->remarks,
-                'approved_at'   => $submission->approved_at?->format('M d, Y h:i A'),
-                'reopened_at'   => $submission->reopened_at?->format('M d, Y h:i A'),
-                'reopen_reason' => $submission->reopen_reason,
-            ]
-        ]);
+            return response()->json([
+                'message'    => "Semester submission updated to {$displayStatus} successfully.",
+                'submission' => [
+                    'id'            => $submission->id,
+                    'status'        => $displayStatus,
+                    'raw_status'    => $submission->status,
+                    'is_locked'     => in_array($submission->status, ['submitted', 'approved']),
+                    'remarks'       => $submission->remarks,
+                    'approved_at'   => $submission->approved_at?->format('M d, Y h:i A'),
+                    'approved_by'   => $user->name,
+                    'reopened_at'   => $submission->reopened_at?->format('M d, Y h:i A'),
+                    'reopened_by'   => $submission->reopenedBy?->name ?? null,
+                    'reopen_reason' => $submission->reopen_reason,
+                    'locked_at'     => $submission->locked_at?->format('M d, Y h:i A'),
+                ]
+            ]);
+        });
     }
 
     /**
      * Explicitly reopen a locked semester submission for an instructor.
+     * Enforces that submission is currently approved & locked.
      */
     public function reopen(Request $request, $id): JsonResponse
     {
@@ -803,42 +1173,55 @@ class SemesterSubmissionController extends Controller
             'reason' => 'nullable|string|max:1000',
         ]);
 
-        $submission = SemesterSubmission::with('instructor')->find($id);
+        $submission = SemesterSubmission::with(['instructor', 'approvedBy', 'reopenedBy'])->find($id);
         if (!$submission) {
-            $submission = SemesterSubmission::where('instructor_id', $id)->first();
+            $submission = SemesterSubmission::with(['instructor', 'approvedBy', 'reopenedBy'])->where('instructor_id', $id)->first();
         }
 
         if (!$submission) {
             return response()->json(['message' => 'Semester submission record not found.'], 404);
         }
 
+        // Verify that the submission is currently approved & locked
+        if (!in_array($submission->status, ['approved', 'submitted']) && !$submission->locked_at) {
+            return response()->json([
+                'message' => 'Cannot unlock semester: submission is not currently in an approved or locked status.',
+                'status'  => $submission->status
+            ], 422);
+        }
+
         $reason = $request->input('reason', 'Reopened by Department Head for modifications');
+        $user = $request->user();
 
-        $submission->status = 'reopened';
-        $submission->reopened_at = now();
-        $submission->reopened_by = $request->user()->id;
-        $submission->reopen_reason = $reason;
-        $submission->locked_at = null; // Unlocked!
-        $submission->save();
+        return DB::transaction(function () use ($submission, $reason, $user) {
+            $submission->status = 'reopened';
+            $submission->reopened_at = now();
+            $submission->reopened_by = $user->id;
+            $submission->reopen_reason = $reason;
+            $submission->locked_at = null; // Unlocked!
+            $submission->save();
 
-        $instName = $submission->instructor?->name ?? 'Instructor';
-        LogActivity::record(
-            'Reopened',
-            'Semester Submissions',
-            "Reopened semester submission for {$instName}. Reason: {$reason}"
-        );
+            $instName = $submission->instructor?->name ?? 'Instructor';
+            LogActivity::record(
+                'Reopened',
+                'Semester Submissions',
+                "Reopened semester submission for {$instName}. Reason: {$reason}"
+            );
 
-        return response()->json([
-            'message' => "Semester submission for {$instName} has been reopened successfully. Academic edit access is restored.",
-            'submission' => [
-                'id'            => $submission->id,
-                'status'        => 'Reopened',
-                'raw_status'    => 'reopened',
-                'is_locked'     => false,
-                'reopened_at'   => $submission->reopened_at->format('M d, Y h:i A'),
-                'reopen_reason' => $submission->reopen_reason,
-            ]
-        ]);
+            return response()->json([
+                'message' => "Semester submission for {$instName} has been reopened successfully. Academic edit access is restored.",
+                'submission' => [
+                    'id'            => $submission->id,
+                    'status'        => 'Reopened',
+                    'raw_status'    => 'reopened',
+                    'is_locked'     => false,
+                    'reopened_at'   => $submission->reopened_at->format('M d, Y h:i A'),
+                    'reopened_by'   => $user->name,
+                    'reopen_reason' => $submission->reopen_reason,
+                    'approved_at'   => $submission->approved_at?->format('M d, Y h:i A'),
+                ]
+            ]);
+        });
     }
 
     /**
