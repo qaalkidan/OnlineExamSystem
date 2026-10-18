@@ -23,6 +23,7 @@ import {
   SlidersHorizontal,
   X,
   FileText,
+  FileSpreadsheet,
   User,
   Shield,
   Layers,
@@ -392,13 +393,16 @@ const fetchLogs = async (page = 1, silent = false) => {
   }
 }
 
-// ── Export CSV ───────────────────────────────────────────────────────────────
-const handleExportLogs = async () => {
+// ── Export Logs (PDF & CSV) ─────────────────────────────────────────────────
+const showExportDropdown = ref(false)
+
+const handleExport = async (format: 'pdf' | 'csv' = 'csv') => {
+  showExportDropdown.value = false
   try {
     isExporting.value = true
-    showToast('Generating Activity Logs CSV export...', 'info')
+    showToast(`Generating Activity Logs ${format.toUpperCase()} export...`, 'info')
 
-    const params: Record<string, any> = {}
+    const params: Record<string, any> = { format }
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
     if (selectedModule.value !== 'All Modules') params.module = selectedModule.value
     if (selectedAction.value !== 'All Actions') params.action_type = selectedAction.value
@@ -419,23 +423,26 @@ const handleExportLogs = async () => {
       array[i] = binary.charCodeAt(i)
     }
 
-    const blob = new Blob([array], { type: 'text/csv;charset=utf-8;' })
+    const mimeType = format === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8;'
+    const blob = new Blob([array], { type: mimeType })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = filename || `activity_logs_${Date.now()}.csv`
+    link.download = filename || `activity_logs_${Date.now()}.${format}`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(link.href)
 
-    showToast(`Successfully exported ${count ?? 'all'} activity records to CSV.`, 'success')
+    showToast(`Successfully exported ${count ?? 'all'} activity records to ${format.toUpperCase()}.`, 'success')
   } catch (error) {
     console.error('Export failed:', error)
-    showToast('Failed to export activity logs.', 'error')
+    showToast(`Failed to export activity logs as ${format.toUpperCase()}.`, 'error')
   } finally {
     isExporting.value = false
   }
 }
+
+const handleExportLogs = () => handleExport('csv')
 
 // ── Clear Old Logs ───────────────────────────────────────────────────────────
 const confirmClearOldLogs = async () => {
@@ -620,6 +627,14 @@ const handleWindowLogCountUpdate = (e: Event) => {
   unreadLogsCount.value = Number(detail?.count || 0)
 }
 
+const handleDocumentClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null
+  if (!target) return
+  if (!target.closest('.export-dropdown-container')) {
+    showExportDropdown.value = false
+  }
+}
+
 onMounted(() => {
   fetchLogs(1)
   fetchUnreadCount()
@@ -627,6 +642,7 @@ onMounted(() => {
   if (typeof window !== 'undefined') {
     window.addEventListener('log-read', handleWindowLogRead)
     window.addEventListener('log-count-update', handleWindowLogCountUpdate)
+    window.addEventListener('click', handleDocumentClick)
   }
 })
 
@@ -634,6 +650,7 @@ onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('log-read', handleWindowLogRead)
     window.removeEventListener('log-count-update', handleWindowLogCountUpdate)
+    window.removeEventListener('click', handleDocumentClick)
   }
 })
 </script>
@@ -727,15 +744,57 @@ onUnmounted(() => {
           <span class="hidden sm:inline">Refresh</span>
         </button>
 
-        <!-- CSV Export Button -->
-        <button
-          @click="handleExportLogs"
-          :disabled="isExporting"
-          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-all shadow-sm shadow-indigo-200 cursor-pointer active:scale-95 disabled:opacity-60"
-        >
-          <Download class="w-4 h-4" :class="{ 'animate-bounce': isExporting }" />
-          <span>{{ isExporting ? 'Exporting...' : 'Export CSV' }}</span>
-        </button>
+        <!-- Export Dropdown (PDF & CSV) -->
+        <div class="relative export-dropdown-container">
+          <button
+            type="button"
+            @click="showExportDropdown = !showExportDropdown"
+            :disabled="isExporting"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-[13px] font-bold text-white bg-[#5138ed] hover:bg-indigo-600 transition-all shadow-sm shadow-indigo-200 cursor-pointer active:scale-95 disabled:opacity-60"
+            title="Export activity logs"
+          >
+            <Download v-if="!isExporting" class="w-4 h-4" />
+            <div v-else class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>{{ isExporting ? 'Exporting...' : 'Export' }}</span>
+            <ChevronDown class="w-3.5 h-3.5 text-white/80 transition-transform duration-200" :class="{ 'rotate-180': showExportDropdown }" />
+          </button>
+
+          <!-- Dropdown Menu -->
+          <div
+            v-if="showExportDropdown"
+            class="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+          >
+            <div class="px-4 py-1.5 border-b border-slate-100 mb-1">
+              <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Export Activity Logs</p>
+            </div>
+            <button
+              type="button"
+              @click="handleExport('pdf')"
+              class="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50/70 hover:text-[#5138ed] transition-colors flex items-center gap-3 cursor-pointer"
+            >
+              <div class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <FileText class="w-4 h-4 text-rose-600" />
+              </div>
+              <div>
+                <p class="font-bold text-slate-800">PDF Document</p>
+                <p class="text-[10px] text-slate-400">Official printable report (.pdf)</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              @click="handleExport('csv')"
+              class="w-full px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 transition-colors flex items-center gap-3 cursor-pointer"
+            >
+              <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <FileSpreadsheet class="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <p class="font-bold text-slate-800">CSV Spreadsheet</p>
+                <p class="text-[10px] text-slate-400">Excel data file (.csv)</p>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
