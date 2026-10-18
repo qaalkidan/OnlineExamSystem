@@ -20,11 +20,22 @@ class InstructorSemesterSubmissionController extends Controller
     {
         $instructor = $request->user()->load('department');
         
-        // 1. Get Academic Info
-        $academicYear = $instructor->academic_year ?? '2025/2026';
-        $semester = $instructor->semester ?? 'Second Semester';
+        // 1. Get Academic Info & Active Submission
+        $submission = SemesterSubmission::where('instructor_id', $instructor->id)
+            ->latest('updated_at')
+            ->first();
+
+        if ($submission) {
+            $academicYear = $submission->academic_year;
+            $semester = $submission->semester;
+        } else {
+            $sysSettings = \App\Models\SystemSetting::pluck('value', 'key')->toArray();
+            $academicYear = $request->query('academic_year') ?? $instructor->academic_year ?? ($sysSettings['academicYear'] ?? '2025/2026');
+            $semester = $request->query('semester') ?? $instructor->semester ?? ($sysSettings['semester'] ?? 'Second Semester');
+        }
+
         $department = $instructor->department?->name ?? 'N/A';
-        $section = $instructor->section ?? 'N/A';
+        $section = $submission?->section ?? ($instructor->section ?? 'N/A');
 
         // 2. Compute Checklist Statuses
         
@@ -194,23 +205,27 @@ class InstructorSemesterSubmissionController extends Controller
         $resultsSubmitted = ExamAttempt::whereIn('exam_id', $exams->pluck('id'))->where('status', 'graded')->distinct('user_id')->count('user_id');
 
         // 4. Fetch Submission Status
-        $submission = SemesterSubmission::firstOrCreate([
-            'instructor_id' => $instructor->id,
-            'academic_year' => $academicYear,
-            'semester' => $semester,
-        ], [
-            'department' => $department,
-            'section' => $section,
-            'status' => 'pending',
-        ]);
+        if (!$submission) {
+            $submission = SemesterSubmission::create([
+                'instructor_id' => $instructor->id,
+                'academic_year' => $academicYear,
+                'semester'      => $semester,
+                'department'    => $department,
+                'section'       => $section,
+                'status'        => 'pending',
+            ]);
+        }
+
+        $isLocked = $submission->isLocked();
+        $accessMode = $isLocked ? 'read_only' : 'editable';
 
         return response()->json([
             'data' => [
                 'academic_info' => [
                     'academic_year' => $academicYear,
-                    'semester' => $semester,
-                    'department' => $department,
-                    'section' => $section,
+                    'semester'      => $semester,
+                    'department'    => $department,
+                    'section'       => $section,
                 ],
                 'checklist' => $checklist,
                 'is_all_completed' => $allChecklistComplete,
@@ -222,9 +237,9 @@ class InstructorSemesterSubmissionController extends Controller
                 ],
                 'submission' => [
                     'id' => $submission->id,
-                    'status' => $submission->status, // pending, submitted, approved, rejected, reopened
-                    'is_locked' => in_array($submission->status, ['submitted', 'approved']),
-                    'access_mode' => in_array($submission->status, ['submitted', 'approved']) ? 'read_only' : 'editable',
+                    'status' => $submission->status, // pending, submitted, approved, rejected, correction_required, reopened
+                    'is_locked' => $isLocked,
+                    'access_mode' => $accessMode,
                     'submitted_at' => $submission->submitted_at?->format('M d, Y • h:i A'),
                     'approved_at' => $submission->approved_at?->format('M d, Y • h:i A'),
                     'reopened_at' => $submission->reopened_at?->format('M d, Y • h:i A'),
@@ -241,26 +256,31 @@ class InstructorSemesterSubmissionController extends Controller
     public function lockStatus(Request $request): JsonResponse
     {
         $instructor = $request->user();
-        $sysSettings = \App\Models\SystemSetting::pluck('value', 'key')->toArray();
-        $academicYear = $request->query('academic_year', $instructor->academic_year ?? ($sysSettings['academicYear'] ?? '2025/2026'));
-        $semester = $request->query('semester', $instructor->semester ?? ($sysSettings['semester'] ?? 'Second Semester'));
-
+        
         $submission = SemesterSubmission::where('instructor_id', $instructor->id)
-            ->where('academic_year', $academicYear)
-            ->where('semester', $semester)
             ->latest('updated_at')
             ->first();
 
-        $isLocked = $submission ? in_array($submission->status, ['submitted', 'approved']) : false;
+        if ($submission) {
+            $academicYear = $submission->academic_year;
+            $semester = $submission->semester;
+        } else {
+            $sysSettings = \App\Models\SystemSetting::pluck('value', 'key')->toArray();
+            $academicYear = $request->query('academic_year', $instructor->academic_year ?? ($sysSettings['academicYear'] ?? '2025/2026'));
+            $semester = $request->query('semester', $instructor->semester ?? ($sysSettings['semester'] ?? 'Second Semester'));
+        }
+
+        $isLocked = $submission ? $submission->isLocked() : false;
         $status = $submission ? $submission->status : 'pending';
+        $accessMode = $isLocked ? 'read_only' : 'editable';
 
         return response()->json([
             'data' => [
                 'is_locked'     => $isLocked,
                 'status'        => $status,
-                'access_mode'   => $isLocked ? 'read_only' : 'editable',
-                'academic_year' => $submission?->academic_year ?? $academicYear,
-                'semester'      => $submission?->semester ?? $semester,
+                'access_mode'   => $accessMode,
+                'academic_year' => $academicYear,
+                'semester'      => $semester,
                 'submitted_at'  => $submission?->submitted_at?->format('M d, Y • h:i A'),
                 'approved_at'   => $submission?->approved_at?->format('M d, Y • h:i A'),
                 'reopened_at'   => $submission?->reopened_at?->format('M d, Y • h:i A'),
@@ -277,37 +297,37 @@ class InstructorSemesterSubmissionController extends Controller
     {
         $instructor = $request->user();
         
-        $academicYear = $instructor->academic_year ?? '2025/2026';
-        $semester = $instructor->semester ?? 'First Semester';
-
-        $submission = SemesterSubmission::where([
-            'instructor_id' => $instructor->id,
-            'academic_year' => $academicYear,
-            'semester' => $semester,
-        ])->first();
+        $submission = SemesterSubmission::where('instructor_id', $instructor->id)
+            ->latest('updated_at')
+            ->first();
 
         if (!$submission) {
-            $submission = SemesterSubmission::firstOrCreate([
+            $sysSettings = \App\Models\SystemSetting::pluck('value', 'key')->toArray();
+            $academicYear = $request->input('academic_year') ?? $instructor->academic_year ?? ($sysSettings['academicYear'] ?? '2025/2026');
+            $semester = $request->input('semester') ?? $instructor->semester ?? ($sysSettings['semester'] ?? 'Second Semester');
+
+            $submission = SemesterSubmission::create([
                 'instructor_id' => $instructor->id,
                 'academic_year' => $academicYear,
                 'semester'      => $semester,
-            ], [
-                'department' => $instructor->department?->name ?? 'N/A',
-                'section'    => $instructor->section ?? 'N/A',
-                'status'     => 'pending',
+                'department'    => $instructor->department?->name ?? 'N/A',
+                'section'       => $instructor->section ?? 'N/A',
+                'status'        => 'pending',
             ]);
         }
 
-        if (in_array($submission->status, ['submitted', 'approved'])) {
+        if ($submission->status === 'approved') {
             return response()->json([
-                'message' => 'Your semester records are already submitted and locked.',
+                'message' => 'Your semester records are already approved and locked.',
                 'data' => [
-                    'status' => $submission->status,
+                    'status' => 'approved',
                     'is_locked' => true,
                     'access_mode' => 'read_only'
                 ]
             ], 400);
         }
+
+        $wasCorrection = in_array($submission->status, ['correction_required', 'rejected', 'reopened']);
 
         $submission->status = 'submitted';
         $submission->submitted_at = now();
@@ -315,14 +335,20 @@ class InstructorSemesterSubmissionController extends Controller
         $submission->save();
 
         // Audit Log
+        $actionDesc = $wasCorrection 
+            ? "Instructor {$instructor->name} re-submitted semester ({$submission->academic_year} - {$submission->semester}) after corrections."
+            : "Instructor {$instructor->name} submitted semester ({$submission->academic_year} - {$submission->semester}). Academic activities locked.";
+
         LogActivity::record(
             'Submitted',
             'Semester Submissions',
-            "Instructor {$instructor->name} submitted semester ({$academicYear} - {$semester}). Academic activities locked."
+            $actionDesc
         );
 
         return response()->json([
-            'message' => 'Semester records submitted successfully. Academic activities are now locked for this semester.',
+            'message' => $wasCorrection 
+                ? 'Corrected semester records re-submitted successfully. Records are locked pending Department Head review.'
+                : 'Semester records submitted successfully. Academic activities are now locked for this semester.',
             'data' => [
                 'status'       => 'submitted',
                 'is_locked'    => true,

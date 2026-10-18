@@ -67,6 +67,12 @@ class InstructorSemesterLockMiddleware
             ->latest('updated_at')
             ->first();
 
+        if (!$submission) {
+            $submission = SemesterSubmission::where('instructor_id', $user->id)
+                ->latest('updated_at')
+                ->first();
+        }
+
         // 5. If locked (status is submitted or approved), reject with 403 Forbidden
         if ($submission && $submission->isLocked()) {
             return response()->json([

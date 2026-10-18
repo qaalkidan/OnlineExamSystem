@@ -57,7 +57,11 @@ class SemesterSubmission extends Model
      */
     public function isLocked(): bool
     {
-        return in_array($this->status, ['submitted', 'approved']);
+        $status = strtolower($this->status ?? '');
+        if (in_array($status, ['correction_required', 'rejected', 'reopened', 'pending'])) {
+            return false;
+        }
+        return in_array($status, ['submitted', 'approved']) && $this->locked_at !== null;
     }
 
     /**

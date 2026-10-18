@@ -158,21 +158,92 @@ const completionPercentage = computed(() => {
   return Math.round((completedChecklistCount.value / checklist.value.length) * 100)
 })
 
+const isCorrectionRequired = computed(() => {
+  return (submissionData.value.status || '').toLowerCase() === 'correction_required'
+})
+
+const isRejected = computed(() => {
+  return (submissionData.value.status || '').toLowerCase() === 'rejected'
+})
+
+const isReopened = computed(() => {
+  return (submissionData.value.status || '').toLowerCase() === 'reopened'
+})
+
+const isApproved = computed(() => {
+  return (submissionData.value.status || '').toLowerCase() === 'approved'
+})
+
+const isUnderReview = computed(() => {
+  const s = (submissionData.value.status || '').toLowerCase()
+  return s === 'submitted' || s === 'under_review'
+})
+
+const isPending = computed(() => {
+  return !submissionData.value.status || (submissionData.value.status || '').toLowerCase() === 'pending'
+})
+
+const isSemesterLocked = computed(() => {
+  const status = (submissionData.value.status || '').toLowerCase()
+  if (['correction_required', 'rejected', 'reopened', 'pending'].includes(status)) {
+    return false
+  }
+  return Boolean(submissionData.value.is_locked)
+})
+
+const canSubmit = computed(() => {
+  if (isSemesterLocked.value || isUnderReview.value || isApproved.value) {
+    return false
+  }
+  if (isPending.value) {
+    return isAllCompleted.value
+  }
+  return true
+})
+
+const submitButtonText = computed(() => {
+  if (submitting.value) return 'Submitting Records...'
+  if (isCorrectionRequired.value || isRejected.value || isReopened.value) {
+    return 'Re-Submit Semester Records'
+  }
+  return 'Submit Semester Records'
+})
+
+const submissionStatusSubtext = computed(() => {
+  const status = (submissionData.value.status || 'pending').toLowerCase()
+  switch (status) {
+    case 'approved':
+      return 'Records are approved & officially locked.'
+    case 'submitted':
+    case 'under_review':
+      return 'Records are under Department Head review.'
+    case 'correction_required':
+      return 'Department Head requested corrections. Records are unlocked for editing.'
+    case 'rejected':
+      return 'Submission was rejected. Records are unlocked for revision.'
+    case 'reopened':
+      return 'Semester reopened for modifications. Records are unlocked for editing.'
+    default:
+      return 'Semester records ready for submission.'
+  }
+})
+
 const statusBadgeStyles = computed(() => {
   const status = (submissionData.value.status || 'pending').toLowerCase()
   switch (status) {
     case 'approved':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200/80 font-bold'
     case 'submitted':
     case 'under_review':
-      return 'bg-blue-50 text-blue-700 border-blue-200/80'
+      return 'bg-blue-50 text-blue-700 border-blue-200/80 font-bold'
     case 'correction_required':
+      return 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
     case 'rejected':
-      return 'bg-rose-50 text-rose-700 border-rose-200/80'
+      return 'bg-rose-50 text-rose-800 border-rose-300 font-bold'
     case 'reopened':
-      return 'bg-amber-50 text-amber-700 border-amber-200/80'
+      return 'bg-cyan-50 text-cyan-800 border-cyan-300 font-bold'
     default:
-      return 'bg-slate-100 text-slate-700 border-slate-200/80'
+      return 'bg-slate-100 text-slate-700 border-slate-200/80 font-semibold'
   }
 })
 
@@ -182,6 +253,7 @@ const statusText = computed(() => {
     case 'approved':
       return 'Approved by Department Head'
     case 'submitted':
+    case 'under_review':
       return 'Submitted — Under Review'
     case 'correction_required':
       return 'Correction Required'
@@ -440,6 +512,126 @@ onMounted(() => {
       <!-- Left Column: Checklist & Overview -->
       <div class="xl:col-span-2 space-y-6">
         
+        <!-- Prominent Notification Banner for Correction Required -->
+        <div 
+          v-if="isCorrectionRequired"
+          class="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-300 rounded-2xl p-5 sm:p-6 shadow-xs animate-in fade-in duration-200"
+        >
+          <div class="flex items-start gap-3.5 sm:gap-4">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs ring-4 ring-amber-100 mt-0.5">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm sm:text-base font-bold text-amber-950">Department Head Requested Corrections</h3>
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-200 text-amber-900 border border-amber-300">
+                    Action Required
+                  </span>
+                </div>
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                  Permissions Open & Editable
+                </span>
+              </div>
+              
+              <div class="bg-white/90 border border-amber-200 rounded-xl p-3.5 sm:p-4 my-2.5 shadow-2xs">
+                <p class="text-xs font-bold text-amber-900 mb-1 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                  Department Head Feedback / Correction Remarks:
+                </p>
+                <p class="text-xs sm:text-[13px] text-amber-950 font-medium whitespace-pre-wrap leading-relaxed">
+                  {{ submissionData.remarks || 'Please review and correct your semester exam submissions, student grading, or question banks before re-submitting.' }}
+                </p>
+              </div>
+
+              <p class="text-xs text-amber-900/90 leading-relaxed font-medium">
+                Your semester records are unlocked. You can modify course materials, question banks, exams, schedules, and student marks. When all updates are complete, click <strong>Re-Submit Semester Records</strong> below to send back to Department Head.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prominent Notification Banner for Submission Rejected -->
+        <div 
+          v-if="isRejected"
+          class="bg-gradient-to-r from-rose-50 via-red-50 to-rose-50 border-2 border-rose-300 rounded-2xl p-5 sm:p-6 shadow-xs mb-6 animate-in fade-in duration-200"
+        >
+          <div class="flex items-start gap-3.5 sm:gap-4">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs ring-4 ring-rose-100 mt-0.5">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm sm:text-base font-bold text-rose-950">Semester Submission Rejected</h3>
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-rose-200 text-rose-900 border border-rose-300">
+                    Rejected
+                  </span>
+                </div>
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                  Permissions Open & Editable
+                </span>
+              </div>
+              
+              <div class="bg-white/90 border border-rose-200 rounded-xl p-3.5 sm:p-4 my-2.5 shadow-2xs">
+                <p class="text-xs font-bold text-rose-900 mb-1">Reason for Rejection:</p>
+                <p class="text-xs sm:text-[13px] text-rose-950 font-medium whitespace-pre-wrap leading-relaxed">
+                  {{ submissionData.remarks || 'Your semester submission was rejected by Department Head. Please review and revise all records before re-submitting.' }}
+                </p>
+              </div>
+
+              <p class="text-xs text-rose-900/90 leading-relaxed font-medium">
+                Records are unlocked for editing. You can adjust your exams, questions, results, or student marks, then click <strong>Re-Submit Semester Records</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prominent Notification Banner for Semester Reopened -->
+        <div 
+          v-if="isReopened"
+          class="bg-gradient-to-r from-cyan-50 via-sky-50 to-cyan-50 border-2 border-cyan-300 rounded-2xl p-5 sm:p-6 shadow-xs mb-6 animate-in fade-in duration-200"
+        >
+          <div class="flex items-start gap-3.5 sm:gap-4">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-cyan-600 text-white flex items-center justify-center shrink-0 shadow-xs ring-4 ring-cyan-100 mt-0.5">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm sm:text-base font-bold text-cyan-950">Semester Reopened for Modifications</h3>
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-cyan-200 text-cyan-900 border border-cyan-300">
+                    Reopened
+                  </span>
+                </div>
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                  Permissions Open & Editable
+                </span>
+              </div>
+              
+              <div v-if="submissionData.reopen_reason || submissionData.remarks" class="bg-white/90 border border-cyan-200 rounded-xl p-3.5 sm:p-4 my-2.5 shadow-2xs">
+                <p class="text-xs font-bold text-cyan-900 mb-1">Reopen Reason:</p>
+                <p class="text-xs sm:text-[13px] text-cyan-950 font-medium whitespace-pre-wrap leading-relaxed">
+                  {{ submissionData.reopen_reason || submissionData.remarks }}
+                </p>
+              </div>
+
+              <p class="text-xs text-cyan-900/90 leading-relaxed font-medium">
+                Your Department Head has reopened your semester records. You may make any necessary modifications and re-submit your records below.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Checklist Card -->
         <div class="bg-white rounded-2xl border border-[#E6EBF3] shadow-xs hover:shadow-md transition-shadow duration-200 p-5 sm:p-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-[#E6EBF3]">
@@ -530,30 +722,75 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Ready to Submit Callout Banner -->
+          <!-- Ready to Submit / Re-Submit Callout Banner -->
           <div
-            v-if="isAllCompleted && submissionData.status === 'pending'"
-            class="mt-6 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 rounded-2xl p-4 sm:p-5 border border-emerald-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4"
+            v-if="canSubmit"
+            :class="[
+              isCorrectionRequired ? 'bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-amber-300' :
+              isRejected ? 'bg-gradient-to-r from-rose-50 via-red-50 to-rose-50 border-rose-300' :
+              isReopened ? 'bg-gradient-to-r from-cyan-50 via-sky-50 to-cyan-50 border-cyan-300' :
+              'bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-emerald-300',
+              'mt-6 rounded-2xl p-4 sm:p-5 border-2 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4'
+            ]"
           >
             <div class="flex items-center gap-3.5 min-w-0">
-              <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <div 
+                :class="[
+                  isCorrectionRequired ? 'bg-amber-500 text-white shadow-amber-200 ring-2 ring-amber-100' :
+                  isRejected ? 'bg-rose-500 text-white shadow-rose-200 ring-2 ring-rose-100' :
+                  isReopened ? 'bg-cyan-600 text-white shadow-cyan-200 ring-2 ring-cyan-100' :
+                  'bg-emerald-600 text-white shadow-emerald-200 ring-2 ring-emerald-100',
+                  'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs'
+                ]"
+              >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
                 </svg>
               </div>
               <div>
-                <h4 class="text-xs sm:text-sm font-bold text-emerald-950 leading-tight">
-                  You have completed all required activities for this semester.
+                <h4 
+                  :class="[
+                    isCorrectionRequired ? 'text-amber-950 font-bold' :
+                    isRejected ? 'text-rose-950 font-bold' :
+                    isReopened ? 'text-cyan-950 font-bold' :
+                    'text-emerald-950 font-bold',
+                    'text-xs sm:text-sm leading-tight'
+                  ]"
+                >
+                  {{ 
+                    isCorrectionRequired ? 'Corrections complete? Ready to re-submit semester records.' :
+                    isRejected ? 'Revisions complete? Ready to re-submit semester records.' :
+                    isReopened ? 'Edits finished? Ready to re-submit semester records.' :
+                    'You have completed all required activities for this semester.'
+                  }}
                 </h4>
-                <p class="text-xs text-emerald-800/90 font-medium mt-0.5">
-                  Your academic records are ready to be finalized and submitted to your Department Head.
+                <p 
+                  :class="[
+                    isCorrectionRequired ? 'text-amber-800/90' :
+                    isRejected ? 'text-rose-800/90' :
+                    isReopened ? 'text-cyan-800/90' :
+                    'text-emerald-800/90',
+                    'text-xs font-medium mt-0.5'
+                  ]"
+                >
+                  {{ 
+                    isCorrectionRequired || isRejected || isReopened
+                      ? 'Submitting will lock records and return them to Department Head for final review & approval.'
+                      : 'Your academic records are ready to be finalized and submitted to your Department Head.'
+                  }}
                 </p>
               </div>
             </div>
             <button
               @click="showConfirmModal = true"
               :disabled="submitting"
-              class="min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 bg-[#4F35F3] hover:bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-bold disabled:opacity-50 transition-all shadow-xs shrink-0 cursor-pointer w-full md:w-auto"
+              :class="[
+                isCorrectionRequired ? 'bg-amber-600 hover:bg-amber-700 text-white' :
+                isRejected ? 'bg-rose-600 hover:bg-rose-700 text-white' :
+                isReopened ? 'bg-cyan-600 hover:bg-cyan-700 text-white' :
+                'bg-[#4F35F3] hover:bg-indigo-600 text-white',
+                'min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold disabled:opacity-50 transition-all shadow-xs shrink-0 cursor-pointer w-full md:w-auto'
+              ]"
             >
               <svg v-if="!submitting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -561,7 +798,7 @@ onMounted(() => {
               <svg v-else class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
               </svg>
-              <span>{{ submitting ? 'Submitting Records...' : 'Submit Semester Records' }}</span>
+              <span>{{ submitButtonText }}</span>
             </button>
           </div>
         </div>
@@ -602,7 +839,7 @@ onMounted(() => {
 
         <!-- Reviewer Remarks / Reopen Notes (If present) -->
         <div
-          v-if="submissionData.reopen_reason || submissionData.remarks"
+          v-if="!isCorrectionRequired && !isRejected && !isReopened && (submissionData.reopen_reason || submissionData.remarks)"
           class="bg-amber-50/80 border border-amber-200 rounded-2xl p-5 shadow-2xs"
         >
           <div class="flex items-center gap-2.5 mb-2">
@@ -639,17 +876,44 @@ onMounted(() => {
                 <div class="min-w-0">
                   <h3 class="text-sm sm:text-base font-bold text-white leading-tight">Submission Status</h3>
                   <p class="text-xs text-indigo-100/90 font-medium mt-0.5 truncate">
-                    {{ submissionData.status === 'pending' ? 'Semester records ready for submission.' : (submissionData.status === 'submitted' ? 'Records are under Department Head review.' : 'Records are approved & locked.') }}
+                    {{ submissionStatusSubtext }}
                   </p>
                 </div>
               </div>
-              <span class="px-2.5 py-1 bg-white/20 backdrop-blur-md border border-white/30 rounded-full text-[11px] font-bold capitalize shrink-0">
-                {{ submissionData.status || 'Pending' }}
+              <span 
+                :class="[
+                  isApproved ? 'bg-emerald-500/30 text-emerald-100 border-emerald-400/40' :
+                  isCorrectionRequired ? 'bg-amber-500/30 text-amber-100 border-amber-400/40 font-bold' :
+                  isRejected ? 'bg-rose-500/30 text-rose-100 border-rose-400/40 font-bold' :
+                  isReopened ? 'bg-cyan-500/30 text-cyan-100 border-cyan-400/40 font-bold' :
+                  isUnderReview ? 'bg-blue-500/30 text-blue-100 border-blue-400/40 font-bold' :
+                  'bg-white/20 text-white border-white/30',
+                  'px-2.5 py-1 backdrop-blur-md border rounded-full text-[11px] font-bold capitalize shrink-0'
+                ]"
+              >
+                {{ isCorrectionRequired ? 'Correction Required' : (submissionData.status || 'Pending') }}
               </span>
             </div>
 
             <p class="text-xs text-indigo-200/90 mt-4 leading-relaxed font-medium relative z-10">
-              After submission, you will not be able to make any changes to your records.
+              <template v-if="isApproved">
+                Records are approved & locked. Contact Department Head if changes are needed.
+              </template>
+              <template v-else-if="isUnderReview">
+                Records are currently under Department Head review.
+              </template>
+              <template v-else-if="isCorrectionRequired">
+                Records are unlocked for editing. Update records and click Re-Submit when finished.
+              </template>
+              <template v-else-if="isRejected">
+                Submission was rejected. Records are editable for revisions.
+              </template>
+              <template v-else-if="isReopened">
+                Semester is reopened. Records are editable for modifications.
+              </template>
+              <template v-else>
+                After submission, you will not be able to make any changes to your records.
+              </template>
             </p>
           </div>
           
@@ -685,21 +949,21 @@ onMounted(() => {
                 <div class="flex items-start gap-4">
                   <div
                     :class="[
-                      submissionData.status !== 'pending' ? 'bg-[#10B981] text-white' : (isAllCompleted ? 'bg-[#4F35F3] text-white' : 'bg-slate-50 border border-slate-200 text-slate-400'),
+                      (submissionData.status && submissionData.status !== 'pending') ? 'bg-[#10B981] text-white shadow-emerald-200' : (isAllCompleted ? 'bg-[#4F35F3] text-white shadow-indigo-200' : 'bg-slate-50 border border-slate-200 text-slate-400'),
                       'w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ring-4 ring-white z-10'
                     ]"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path v-if="submissionData.status !== 'pending'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                      <path v-if="submissionData.status && submissionData.status !== 'pending'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
                       <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
                   </div>
                   <div class="pt-1 min-w-0">
-                    <h4 :class="[isAllCompleted ? 'text-[#17243A]' : 'text-slate-400', 'text-xs sm:text-[13px] font-bold leading-tight']">
+                    <h4 :class="[isAllCompleted || (submissionData.status && submissionData.status !== 'pending') ? 'text-[#17243A]' : 'text-slate-400', 'text-xs sm:text-[13px] font-bold leading-tight']">
                       Ready for Submission
                     </h4>
                     <p class="text-[11px] font-medium text-[#71819B] mt-0.5">
-                      {{ isAllCompleted ? 'All required activities are completed' : 'Awaiting activity completion' }}
+                      {{ isAllCompleted || (submissionData.status && submissionData.status !== 'pending') ? 'All required activities are completed' : 'Awaiting activity completion' }}
                     </p>
                   </div>
                 </div>
@@ -708,7 +972,7 @@ onMounted(() => {
                 <div class="flex items-start gap-4">
                   <div
                     :class="[
-                      submissionData.status === 'submitted' ? 'bg-[#4F35F3] text-white' : (submissionData.status === 'approved' ? 'bg-[#10B981] text-white' : 'bg-slate-50 border border-slate-200 text-slate-400'),
+                      submissionData.submitted_at || submissionData.status !== 'pending' ? 'bg-[#10B981] text-white shadow-emerald-200' : 'bg-slate-50 border border-slate-200 text-slate-400',
                       'w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ring-4 ring-white z-10'
                     ]"
                   >
@@ -717,33 +981,83 @@ onMounted(() => {
                     </svg>
                   </div>
                   <div class="pt-1 min-w-0">
-                    <h4 :class="[submissionData.status !== 'pending' ? 'text-[#17243A]' : 'text-slate-400', 'text-xs sm:text-[13px] font-bold leading-tight']">
+                    <h4 :class="[submissionData.submitted_at || submissionData.status !== 'pending' ? 'text-[#17243A]' : 'text-slate-400', 'text-xs sm:text-[13px] font-bold leading-tight']">
                       Submitted
                     </h4>
                     <p class="text-[11px] font-medium text-[#71819B] mt-0.5">
-                      {{ submissionData.status !== 'pending' ? (submissionData.submitted_at || 'Submitted') : 'Not submitted yet' }}
+                      {{ submissionData.submitted_at ? submissionData.submitted_at : (submissionData.status !== 'pending' ? 'Submitted' : 'Not submitted yet') }}
                     </p>
                   </div>
                 </div>
                 
-                <!-- Stage 4: Department Head Approval -->
+                <!-- Stage 4: Department Head Review & Approval -->
                 <div class="flex items-start gap-4">
                   <div
                     :class="[
-                      submissionData.status === 'approved' ? 'bg-[#10B981] text-white' : 'bg-slate-50 border border-slate-200 text-slate-400',
+                      isApproved ? 'bg-[#10B981] text-white shadow-emerald-200 ring-4 ring-emerald-50' : 
+                      isCorrectionRequired ? 'bg-amber-500 text-white shadow-amber-200 ring-4 ring-amber-100' :
+                      isRejected ? 'bg-rose-500 text-white shadow-rose-200 ring-4 ring-rose-100' :
+                      isReopened ? 'bg-cyan-600 text-white shadow-cyan-200 ring-4 ring-cyan-100' :
+                      isUnderReview ? 'bg-blue-600 text-white shadow-blue-200 ring-4 ring-blue-100' :
+                      'bg-slate-50 border border-slate-200 text-slate-400',
                       'w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ring-4 ring-white z-10'
                     ]"
                   >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <!-- Approved Checkmark -->
+                    <svg v-if="isApproved" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <!-- Correction Required (Edit icon) -->
+                    <svg v-else-if="isCorrectionRequired" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                    <!-- Rejected (X-mark) -->
+                    <svg v-else-if="isRejected" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                    <!-- Reopened (Unlock icon) -->
+                    <svg v-else-if="isReopened" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path>
+                    </svg>
+                    <!-- Under Review (Clock) -->
+                    <svg v-else-if="isUnderReview" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <!-- Pending Icon -->
+                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                     </svg>
                   </div>
                   <div class="pt-1 min-w-0">
-                    <h4 :class="[submissionData.status === 'approved' ? 'text-[#17243A]' : 'text-slate-400', 'text-xs sm:text-[13px] font-bold leading-tight']">
-                      Approved by Department Head
+                    <h4 
+                      :class="[
+                        isApproved ? 'text-emerald-700 font-bold' : 
+                        isCorrectionRequired ? 'text-amber-800 font-bold' :
+                        isRejected ? 'text-rose-800 font-bold' :
+                        isReopened ? 'text-cyan-800 font-bold' :
+                        isUnderReview ? 'text-blue-800 font-bold' :
+                        'text-slate-400 font-bold',
+                        'text-xs sm:text-[13px] leading-tight'
+                      ]"
+                    >
+                      {{ 
+                        isApproved ? 'Approved by Department Head' :
+                        isCorrectionRequired ? 'Correction Required' :
+                        isRejected ? 'Submission Rejected' :
+                        isReopened ? 'Semester Reopened' :
+                        isUnderReview ? 'Under Review by Department Head' :
+                        'Awaiting Department Head Approval'
+                      }}
                     </h4>
                     <p class="text-[11px] font-medium text-[#71819B] mt-0.5">
-                      {{ submissionData.status === 'approved' ? (submissionData.approved_at || 'Approved') : 'Awaiting review & approval' }}
+                      {{ 
+                        isApproved ? (submissionData.approved_at || 'Approved & Locked') :
+                        isCorrectionRequired ? 'Department Head requested corrections' :
+                        isRejected ? 'Submission rejected — records unlocked' :
+                        isReopened ? 'Semester reopened for modifications' :
+                        isUnderReview ? 'Awaiting review & approval' :
+                        'Pending submission'
+                      }}
                     </p>
                   </div>
                 </div>
@@ -753,9 +1067,9 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Semester Locked Read-Only Notice Panel (When Locked) -->
+        <!-- Semester Locked Read-Only Notice Panel (ONLY When Actually Locked) -->
         <div
-          v-if="submissionData.is_locked || lockStore.isLocked"
+          v-if="isSemesterLocked"
           class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200/90 rounded-2xl p-5 shadow-2xs"
         >
           <div class="flex items-start gap-3.5">
@@ -778,6 +1092,31 @@ onMounted(() => {
               </p>
               <p class="text-[11px] text-emerald-700/90 mt-2 font-medium">
                 If a correction is required, please contact your Department Head to request reopening.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Editable Mode Notice Panel (When Correction Required) -->
+        <div
+          v-if="isCorrectionRequired"
+          class="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-300 rounded-2xl p-5 shadow-2xs"
+        >
+          <div class="flex items-start gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs ring-4 ring-amber-100 mt-0.5">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <h4 class="text-xs sm:text-sm font-bold text-amber-950">
+                  Editable Mode — Corrections Active
+                </h4>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 border border-amber-300 uppercase tracking-wider">
+                  Editable
+                </span>
+              </div>
+              <p class="text-xs text-amber-800/90 leading-relaxed font-medium">
+                All permissions are open. You have full access to create, update, or delete exam schedules, questions, and student grade records.
               </p>
             </div>
           </div>
@@ -829,17 +1168,21 @@ onMounted(() => {
             </svg>
           </div>
           <div>
-            <h3 class="text-base font-bold text-[#17243A]">Submit Semester Records?</h3>
+            <h3 class="text-base font-bold text-[#17243A]">
+              {{ isCorrectionRequired || isRejected || isReopened ? 'Re-Submit Semester Records?' : 'Submit Semester Records?' }}
+            </h3>
             <p class="text-xs text-[#71819B] mt-0.5">{{ academicInfo[0].value }} &bull; {{ academicInfo[1].value }}</p>
           </div>
         </div>
 
         <div class="py-4 space-y-3">
           <p class="text-xs text-[#17243A] leading-relaxed font-medium">
-            Are you sure you want to finalize and submit your academic records to the Department Head?
+            {{ isCorrectionRequired || isRejected || isReopened 
+              ? 'Are you sure you have completed all requested changes and want to re-submit your semester records to the Department Head?' 
+              : 'Are you sure you want to finalize and submit your academic records to the Department Head?' }}
           </p>
           <div class="bg-amber-50 border border-amber-200/80 rounded-xl p-3 text-xs text-amber-900 font-medium leading-relaxed">
-            <strong>Important Notice:</strong> Once submitted, all exams, questions, student enrollments, and grades will be <strong>LOCKED in read-only mode</strong>. Modifications cannot be made unless reopened by the Department Head.
+            <strong>Important Notice:</strong> Once submitted, all exams, questions, student enrollments, and grades will be <strong>LOCKED in read-only mode</strong> while under Department Head review.
           </div>
         </div>
 
@@ -853,10 +1196,13 @@ onMounted(() => {
           <button
             @click="submitRecords"
             :disabled="submitting"
-            class="px-5 py-2.5 bg-[#4F35F3] hover:bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+            :class="[
+              isCorrectionRequired ? 'bg-amber-600 hover:bg-amber-700' : (isRejected ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#4F35F3] hover:bg-indigo-600'),
+              'px-5 py-2.5 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2'
+            ]"
           >
             <svg v-if="submitting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-            <span>{{ submitting ? 'Submitting...' : 'Confirm & Submit Semester' }}</span>
+            <span>{{ submitting ? 'Submitting...' : (isCorrectionRequired || isRejected || isReopened ? 'Confirm & Re-Submit' : 'Confirm & Submit Semester') }}</span>
           </button>
         </div>
       </div>
