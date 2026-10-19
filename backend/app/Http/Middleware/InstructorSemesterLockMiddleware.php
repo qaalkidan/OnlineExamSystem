@@ -73,11 +73,23 @@ class InstructorSemesterLockMiddleware
                 ->first();
         }
 
-        // 5. If locked (status is submitted or approved), reject with 403 Forbidden
+        // 5. If locked, reject with 403 Forbidden
         if ($submission && $submission->isLocked()) {
+            $courseTitle = 'Course';
+            if (isset($course) && $course && $course->title) {
+                $courseTitle = $course->title;
+            } else {
+                $assigned = \App\Models\Course::where('instructor_id', $user->id)->first();
+                if ($assigned && $assigned->title) {
+                    $courseTitle = $assigned->title;
+                }
+            }
+
+            $msg = "Semester Closed: Your access to the {$courseTitle} semester workspace is temporarily restricted by the Department Head. Please contact your Department Head or wait until the semester is reopened.";
+
             return response()->json([
-                'message' => 'Your semester submission has been completed. Academic modifications are locked for this semester. Please contact the Department Head if a correction is required.',
-                'error'   => 'Semester Locked: Academic modifications are unavailable because your semester submission has been submitted/approved.',
+                'message' => $msg,
+                'error'   => $msg,
                 'locked'  => true,
                 'status'  => $submission->status,
                 'submission' => [
@@ -87,6 +99,7 @@ class InstructorSemesterLockMiddleware
                     'semester'      => $submission->semester,
                     'submitted_at'  => $submission->submitted_at?->format('M d, Y • h:i A'),
                     'approved_at'   => $submission->approved_at?->format('M d, Y • h:i A'),
+                    'locked_at'     => $submission->locked_at?->format('M d, Y • h:i A'),
                 ]
             ], 403);
         }

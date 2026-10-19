@@ -177,6 +177,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(fu
         Route::get('semester-submissions/{id}', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'show']);
         Route::get('semester-submissions/{id}/record-details', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'recordDetails']);
         Route::put('semester-submissions/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'updateStatus']);
+        Route::put('semester-submissions/{id}/lock', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'lock']);
         Route::put('semester-submissions/{id}/reopen', [\App\Http\Controllers\Api\V1\DeptHead\SemesterSubmissionController::class, 'reopen']);
         Route::get('activity-logs/unread-count', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'unreadCount']);
         Route::post('activity-logs/mark-all-read', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'markAllAsRead']);

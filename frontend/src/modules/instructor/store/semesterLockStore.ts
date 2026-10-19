@@ -26,6 +26,8 @@ export const useSemesterLockStore = defineStore('semesterLock', () => {
   const reopenedAt = ref<string | null>(null)
   const reopenReason = ref<string | null>(null)
   const remarks = ref<string | null>(null)
+  const serverLockMessage = ref<string | null>(null)
+  const courseTitle = ref<string>('')
 
   const isLoading = ref(false)
   const hasFetched = ref(false)
@@ -50,7 +52,8 @@ export const useSemesterLockStore = defineStore('semesterLock', () => {
   })
 
   const lockMessage = computed(() => {
-    return 'Your semester submission has been completed. Academic modifications are locked for this semester. Please contact the Department Head if a correction is required.'
+    if (serverLockMessage.value) return serverLockMessage.value
+    return `Semester Closed: Your access to the ${courseTitle.value || 'course'} semester workspace is temporarily restricted by the Department Head. Please contact your Department Head or wait until the semester is reopened.`
   })
 
   const fetchLockStatus = async (force = false): Promise<void> => {
@@ -60,11 +63,11 @@ export const useSemesterLockStore = defineStore('semesterLock', () => {
       const res = await apiClient.get('/instructor/semester-lock-status')
       const data = res.data?.data
       if (data) {
-        const rawStatus = (data.status || 'pending').toLowerCase()
-        const isEditableStatus = ['correction_required', 'rejected', 'reopened', 'pending'].includes(rawStatus)
-        isLocked.value = isEditableStatus ? false : Boolean(data.is_locked)
+        isLocked.value = Boolean(data.is_locked)
         status.value = data.status || 'pending'
-        accessMode.value = isEditableStatus ? 'editable' : (data.access_mode || (data.is_locked ? 'read_only' : 'editable'))
+        accessMode.value = data.access_mode || (isLocked.value ? 'read_only' : 'editable')
+        if (data.lock_message) serverLockMessage.value = data.lock_message
+        if (data.course_title) courseTitle.value = data.course_title
         if (data.academic_year) academicYear.value = data.academic_year
         if (data.semester) semester.value = data.semester
         submittedAt.value = data.submitted_at || null
@@ -82,9 +85,8 @@ export const useSemesterLockStore = defineStore('semesterLock', () => {
   }
 
   const promptLockedNotice = (actionName = 'modify academic records') => {
-    const rawStatus = (status.value || '').toLowerCase()
-    if (['correction_required', 'rejected', 'reopened', 'pending'].includes(rawStatus) || !isLocked.value) {
-      return // Never prompt lock modal when editable or when correction required/rejected
+    if (!isLocked.value) {
+      return // Never prompt lock modal when editable
     }
     attemptedAction.value = actionName
     showLockedNoticeModal.value = true

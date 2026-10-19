@@ -274,6 +274,12 @@ class InstructorSemesterSubmissionController extends Controller
         $status = $submission ? $submission->status : 'pending';
         $accessMode = $isLocked ? 'read_only' : 'editable';
 
+        $course = \App\Models\Course::where('instructor_id', $instructor->id)->first();
+        $courseTitle = $course?->title ?? 'Course';
+        $lockMessage = $isLocked
+            ? "Semester Closed: Your access to the {$courseTitle} semester workspace is temporarily restricted by the Department Head. Please contact your Department Head or wait until the semester is reopened."
+            : null;
+
         return response()->json([
             'data' => [
                 'is_locked'     => $isLocked,
@@ -281,8 +287,11 @@ class InstructorSemesterSubmissionController extends Controller
                 'access_mode'   => $accessMode,
                 'academic_year' => $academicYear,
                 'semester'      => $semester,
+                'course_title'  => $courseTitle,
+                'lock_message'  => $lockMessage,
                 'submitted_at'  => $submission?->submitted_at?->format('M d, Y • h:i A'),
                 'approved_at'   => $submission?->approved_at?->format('M d, Y • h:i A'),
+                'locked_at'     => $submission?->locked_at?->format('M d, Y • h:i A'),
                 'reopened_at'   => $submission?->reopened_at?->format('M d, Y • h:i A'),
                 'reopen_reason' => $submission?->reopen_reason,
                 'remarks'       => $submission?->remarks,

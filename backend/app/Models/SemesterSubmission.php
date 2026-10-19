@@ -54,14 +54,11 @@ class SemesterSubmission extends Model
 
     /**
      * Check if instructor is in locked (READ-ONLY) mode for this semester.
+     * Decoupled from submission status: locked when locked_at is set.
      */
     public function isLocked(): bool
     {
-        $status = strtolower($this->status ?? '');
-        if (in_array($status, ['correction_required', 'rejected', 'reopened', 'pending'])) {
-            return false;
-        }
-        return in_array($status, ['submitted', 'approved']) && $this->locked_at !== null;
+        return $this->locked_at !== null;
     }
 
     /**
