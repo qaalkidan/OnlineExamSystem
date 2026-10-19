@@ -336,5 +336,54 @@ class SemesterLockUnlockWorkflowTest extends TestCase
                 ]
             ]);
     }
+
+    public function test_cannot_request_correction_or_reject_when_semester_is_locked(): void
+    {
+        // 1. Create an approved and locked submission
+        $lockedSubmission = SemesterSubmission::create([
+            'instructor_id' => $this->instructor->id,
+            'academic_year' => '2025/2026',
+            'semester'      => 'Second Semester',
+            'department'    => $this->department->name,
+            'section'       => 'Section A',
+            'status'        => 'approved',
+            'submitted_at'  => now(),
+            'approved_at'   => now(),
+            'approved_by'   => $this->deptHead->id,
+            'locked_at'     => now(),
+        ]);
+
+        $this->assertTrue($lockedSubmission->isLocked());
+
+        Sanctum::actingAs($this->deptHead);
+
+        // 2. Attempting to request correction fails with 422
+        $correctionRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$lockedSubmission->id}/status", [
+            'status'  => 'correction_required',
+            'remarks' => 'Please adjust final grades',
+        ]);
+
+        $correctionRes->assertStatus(422)
+            ->assertJson([
+                'message' => 'Cannot request correction or reject while the semester workspace is closed and locked. Please reopen the semester first.'
+            ]);
+
+        // 3. Attempting to reject fails with 422
+        $rejectRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$lockedSubmission->id}/status", [
+            'status'  => 'rejected',
+            'remarks' => 'Missing core documentation',
+        ]);
+
+        $rejectRes->assertStatus(422)
+            ->assertJson([
+                'message' => 'Cannot request correction or reject while the semester workspace is closed and locked. Please reopen the semester first.'
+            ]);
+
+        // State remains approved and locked
+        $lockedSubmission->refresh();
+        $this->assertEquals('approved', $lockedSubmission->status);
+        $this->assertTrue($lockedSubmission->isLocked());
+    }
 }
+
 

@@ -1388,58 +1388,61 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
 
                     <div v-if="inst.is_submitted" class="border-t border-slate-100 my-1"></div>
 
-                    <!-- 3. Approve -->
-                    <button
-                      v-if="inst.is_submitted && inst.status !== 'Approved'"
-                      @click="openApproveModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2.5 cursor-pointer"
-                    >
-                      <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                      <span>Approve</span>
-                    </button>
+                    <!-- WHEN LOCKED: ONLY display Reopen Semester (Unlock). Request Correction and Reject are hidden! -->
+                    <template v-if="inst.is_locked">
+                      <button
+                        @click="openReopenModal(inst)"
+                        class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                        <span>Reopen Semester (Unlock)</span>
+                      </button>
+                    </template>
 
-                    <!-- 4. Request Correction -->
-                    <button
-                      v-if="inst.is_submitted && inst.status !== 'Correction Required'"
-                      @click="openCorrectionModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2.5 cursor-pointer"
-                    >
-                      <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                      <span>Request Correction</span>
-                    </button>
+                    <!-- WHEN NOT LOCKED: display standard workflow actions -->
+                    <template v-else>
+                      <!-- 3. Approve -->
+                      <button
+                        v-if="inst.is_submitted && inst.status !== 'Approved'"
+                        @click="openApproveModal(inst)"
+                        class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                        <span>Approve</span>
+                      </button>
 
-                    <!-- 5. Close Semester (Lock) / Reopen Semester (Unlock) State-Aware Action -->
-                    <!-- When locked: display Reopen Semester (Unlock) -->
-                    <button
-                      v-if="inst.is_locked"
-                      @click="openReopenModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors flex items-center gap-2.5 cursor-pointer"
-                    >
-                      <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
-                      <span>Reopen Semester (Unlock)</span>
-                    </button>
+                      <!-- 4. Request Correction -->
+                      <button
+                        v-if="inst.is_submitted && inst.status !== 'Correction Required'"
+                        @click="openCorrectionModal(inst)"
+                        class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        <span>Request Correction</span>
+                      </button>
 
-                    <!-- When NOT locked: display Close Semester (Lock) ONLY AFTER APPROVAL -->
-                    <button
-                      v-else-if="canCloseSemester(inst)"
-                      @click="openCloseSemesterModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-amber-700 hover:bg-amber-50 transition-colors flex items-center gap-2.5 cursor-pointer"
-                    >
-                      <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                      <span>Close Semester (Lock)</span>
-                    </button>
+                      <!-- 5. Close Semester (Lock) ONLY AFTER APPROVAL -->
+                      <button
+                        v-if="canCloseSemester(inst)"
+                        @click="openCloseSemesterModal(inst)"
+                        class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-amber-700 hover:bg-amber-50 transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        <span>Close Semester (Lock)</span>
+                      </button>
 
-                    <div v-if="inst.is_submitted" class="border-t border-slate-100 my-1"></div>
+                      <div v-if="inst.is_submitted" class="border-t border-slate-100 my-1"></div>
 
-                    <!-- 6. Reject -->
-                    <button
-                      v-if="inst.is_submitted && inst.status !== 'Rejected'"
-                      @click="openRejectModal(inst)"
-                      class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2.5 cursor-pointer"
-                    >
-                      <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                      <span>Reject</span>
-                    </button>
+                      <!-- 6. Reject -->
+                      <button
+                        v-if="inst.is_submitted && inst.status !== 'Rejected'"
+                        @click="openRejectModal(inst)"
+                        class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <span>Reject</span>
+                      </button>
+                    </template>
                   </div>
                 </div>
               </td>
@@ -1573,7 +1576,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
               <span>Lock</span>
             </button>
 
-            <template v-if="inst.is_submitted">
+            <template v-if="inst.is_submitted && !inst.is_locked">
               <!-- 3. Approve -->
               <button
                 v-if="inst.status !== 'Approved'"
@@ -2282,21 +2285,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
           </button>
 
           <div v-if="reviewModal.instructor.is_submitted" class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              v-if="reviewModal.instructor.status !== 'Rejected'"
-              @click="openRejectModal(reviewModal.instructor)"
-              class="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors min-h-[40px] cursor-pointer"
-            >
-              Reject
-            </button>
-            <button
-              v-if="reviewModal.instructor.status !== 'Correction Required'"
-              @click="openCorrectionModal(reviewModal.instructor)"
-              class="px-3.5 py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors min-h-[40px] cursor-pointer"
-            >
-              Correction
-            </button>
-            <!-- Lock / Unlock Toggle Action -->
+            <!-- When locked: only Reopen Semester (Unlock) -->
             <button
               v-if="reviewModal.instructor.is_locked"
               @click="openReopenModal(reviewModal.instructor)"
@@ -2305,24 +2294,41 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
               <svg class="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
               <span>Reopen Semester (Unlock)</span>
             </button>
-            <button
-              v-else-if="canCloseSemester(reviewModal.instructor)"
-              @click="openCloseSemesterModal(reviewModal.instructor)"
-              class="px-3.5 py-2 rounded-xl text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors flex items-center gap-1.5 min-h-[40px] cursor-pointer"
-            >
-              <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-              <span>Close Semester (Lock)</span>
-            </button>
 
-            <!-- Approve -->
-            <button
-              v-if="reviewModal.instructor.status !== 'Approved'"
-              @click="openApproveModal(reviewModal.instructor)"
-              class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs min-h-[40px] cursor-pointer flex items-center gap-1.5"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-              <span>Approve</span>
-            </button>
+            <!-- When NOT locked: allow Reject, Correction, Close Semester (Lock), Approve -->
+            <template v-else>
+              <button
+                v-if="reviewModal.instructor.status !== 'Rejected'"
+                @click="openRejectModal(reviewModal.instructor)"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors min-h-[40px] cursor-pointer"
+              >
+                Reject
+              </button>
+              <button
+                v-if="reviewModal.instructor.status !== 'Correction Required'"
+                @click="openCorrectionModal(reviewModal.instructor)"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors min-h-[40px] cursor-pointer"
+              >
+                Correction
+              </button>
+              <button
+                v-if="canCloseSemester(reviewModal.instructor)"
+                @click="openCloseSemesterModal(reviewModal.instructor)"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors flex items-center gap-1.5 min-h-[40px] cursor-pointer"
+              >
+                <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                <span>Close Semester (Lock)</span>
+              </button>
+              <!-- Approve -->
+              <button
+                v-if="reviewModal.instructor.status !== 'Approved'"
+                @click="openApproveModal(reviewModal.instructor)"
+                class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs min-h-[40px] cursor-pointer flex items-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <span>Approve</span>
+              </button>
+            </template>
           </div>
           <div v-else class="text-xs text-slate-400 font-medium italic flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
             <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>

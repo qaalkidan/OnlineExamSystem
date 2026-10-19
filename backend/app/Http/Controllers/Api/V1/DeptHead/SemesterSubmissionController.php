@@ -1085,6 +1085,12 @@ class SemesterSubmissionController extends Controller
                 return response()->json(['message' => 'Submission record not found.'], 404);
             }
 
+            if ($submission->isLocked() && in_array($normalizedStatus, ['correction_required', 'rejected'])) {
+                return response()->json([
+                    'message' => 'Cannot request correction or reject while the semester workspace is closed and locked. Please reopen the semester first.'
+                ], 422);
+            }
+
             $submission->status = $normalizedStatus;
 
             if ($normalizedStatus === 'approved') {
