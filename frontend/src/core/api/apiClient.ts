@@ -93,12 +93,11 @@ apiClient.interceptors.response.use(
   async (error) => {
     // 1. Handle 401 Unauthorized globally
     if (error.response && error.response.status === 401) {
-      // Only redirect to login if we are NOT already on the login page
-      // This prevents an infinite reload loop when unauthenticated requests
-      // are made (e.g., fetching settings before login)
-      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      if (typeof window !== 'undefined' && window.location.pathname !== '/' && window.location.pathname !== '/login') {
         localStorage.removeItem('auth_token')
-        window.location.href = '/'
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('instructor_context')
+        window.location.href = '/login'
       }
       return Promise.reject(error)
     }
@@ -115,12 +114,24 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 3. Handle 403 Semester Closed / Workspace Locked: dispatch event for real-time notification
+    // 3. Handle 403 Semester Closed / Workspace Locked: automatically sign out instructor and redirect to login
     if (error.response && error.response.status === 403 && error.response.data?.locked) {
+      const lockMsg = error.response.data.message || error.response.data.error || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
       if (typeof window !== 'undefined') {
+        localStorage.setItem('semester_locked_notice', lockMsg)
+        sessionStorage.setItem('semester_locked_notice', lockMsg)
+
+        if (window.location.pathname.startsWith('/instructor')) {
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('auth_user')
+          localStorage.removeItem('instructor_context')
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
+
         window.dispatchEvent(new CustomEvent('semester-locked-event', {
           detail: {
-            message: error.response.data.message || error.response.data.error,
+            message: lockMsg,
             course_title: error.response.data.course_title
           }
         }))

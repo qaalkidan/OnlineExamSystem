@@ -18,12 +18,12 @@ class InstructorSemesterLockMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. Only intercept mutation requests (POST, PUT, PATCH, DELETE)
-        if (!in_array($request->method(), ['POST', 'PUT', 'PATCH', 'DELETE'])) {
+        // 1. Always allow querying lock status so instructor frontend can detect status
+        if ($request->is('*semester-lock-status') || $request->is('*semester-submission/lock-status')) {
             return $next($request);
         }
 
-        // 2. Allow submitting the semester submission itself
+        // 2. Allow submitting the semester submission itself if not already approved
         if ($request->is('*semester-submission/submit')) {
             return $next($request);
         }
@@ -33,9 +33,8 @@ class InstructorSemesterLockMiddleware
             return $next($request);
         }
 
-        // 3. Only apply lock to instructors (or users acting in instructor role)
-        // Super admins and department heads have unrestricted access
-        if ($user->role === 'admin' || $user->role === 'dept_head') {
+        // 3. Super admins and department heads managing the department have unrestricted access
+        if ($user->role === 'admin') {
             return $next($request);
         }
 

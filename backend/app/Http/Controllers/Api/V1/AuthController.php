@@ -156,6 +156,45 @@ class AuthController extends Controller
                 ], 422);
             }
 
+            // Check if the instructor's semester workspace is closed & locked by the Department Head
+            $lockedSubmission = \App\Models\SemesterSubmission::where('instructor_id', $user->id)
+                ->whereNotNull('locked_at')
+                ->latest('updated_at')
+                ->first();
+
+            if ($lockedSubmission && $lockedSubmission->isLocked()) {
+                $course = $coursesQuery->first();
+                $courseTitle = $course?->title ?? 'Course';
+                $termStr = "{$lockedSubmission->academic_year} — {$lockedSubmission->semester}";
+
+                $lockMsg = "Access Locked: The Department Head has closed access to your {$courseTitle} semester workspace ({$termStr}). Please contact your Department Head if you need access restored.";
+
+                \App\Helpers\LogActivity::record(
+                    'Login Blocked',
+                    'Authentication',
+                    "Login blocked for instructor '{$user->email}': Semester workspace for {$courseTitle} ({$termStr}) is closed and locked by the Department Head.",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
+
+                return response()->json([
+                    'message'      => $lockMsg,
+                    'error_type'   => 'semester_locked',
+                    'locked'       => true,
+                    'course_title' => $courseTitle,
+                    'submission'   => [
+                        'id'            => $lockedSubmission->id,
+                        'academic_year' => $lockedSubmission->academic_year,
+                        'semester'      => $lockedSubmission->semester,
+                        'locked_at'     => $lockedSubmission->locked_at?->format('M d, Y h:i A'),
+                    ],
+                    'errors'       => [
+                        'login' => [$lockMsg],
+                    ],
+                ], 403);
+            }
+
             // Extract unique departments
             $departmentsMap = [];
             if ($user->department) {

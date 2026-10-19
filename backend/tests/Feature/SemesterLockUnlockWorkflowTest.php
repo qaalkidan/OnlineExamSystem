@@ -146,7 +146,25 @@ class SemesterLockUnlockWorkflowTest extends TestCase
         $this->assertNotNull($submission->locked_at);
         $this->assertTrue($submission->isLocked());
 
-        // 4. Instructor attempts a mutation request: blocked by InstructorSemesterLockMiddleware with exact message
+        // Verify that instructor tokens are revoked upon lock
+        $this->assertEquals(0, \Laravel\Sanctum\PersonalAccessToken::where('tokenable_id', $this->instructor->id)->count());
+
+        // 4. When locked, instructor trying to log in is blocked with 403 Access Locked notification
+        $loginLockedRes = $this->postJson('/api/v1/login', [
+            'login'    => $this->instructor->email,
+            'password' => 'password123',
+            'role'     => 'instructor',
+        ]);
+
+        $loginLockedRes->assertStatus(403)
+            ->assertJson([
+                'error_type' => 'semester_locked',
+                'locked'     => true,
+            ]);
+
+        $this->assertStringContainsString('Access Locked: The Department Head has closed access to your', $loginLockedRes->json('message'));
+
+        // 5. Instructor attempts a mutation request: blocked by InstructorSemesterLockMiddleware with exact message
         Sanctum::actingAs($this->instructor);
         $mutationRes = $this->postJson('/api/v1/instructor/exams', [
             'title'       => 'Unauthorized Exam Attempt',
@@ -161,7 +179,7 @@ class SemesterLockUnlockWorkflowTest extends TestCase
         $this->assertStringContainsString('Semester Closed: The Department Head has closed access to your', $mutationRes->json('message'));
         $this->assertStringContainsString('semester workspace', $mutationRes->json('message'));
 
-        // 5. Department Head reopens the semester (Unlock)
+        // 6. Department Head reopens the semester (Unlock)
         Sanctum::actingAs($this->deptHead);
         $reopenRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$submission->id}/reopen", [
             'reason' => 'Grade revision authorized by department head.',
@@ -181,7 +199,22 @@ class SemesterLockUnlockWorkflowTest extends TestCase
         $this->assertFalse($submission->isLocked(), 'isLocked() returns false after reopening.');
         $this->assertNotNull($submission->reopened_at);
 
-        // 6. Instructor workspace access is restored (not blocked by 403 lock)
+        // 7. When reopened, instructor CAN log in successfully
+        $loginReopenedRes = $this->postJson('/api/v1/login', [
+            'login'    => $this->instructor->email,
+            'password' => 'password123',
+            'role'     => 'instructor',
+        ]);
+
+        $loginReopenedRes->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    'user',
+                    'token',
+                ]
+            ]);
+
+        // 8. Instructor workspace access is restored (not blocked by 403 lock)
         Sanctum::actingAs($this->instructor);
         $statusAfterReopen = $this->getJson('/api/v1/instructor/semester-submission/lock-status');
         $statusAfterReopen->assertOk()

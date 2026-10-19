@@ -16,27 +16,33 @@ const lockedInstructorMutationRoutes = [
 
 router.beforeEach(async (to, _from, next) => {
   const token = localStorage.getItem('auth_token')
-  const isInstructorMutationRoute = 
-    lockedInstructorMutationRoutes.includes(to.name as string) ||
-    to.path.includes('/instructor/exams/create') ||
-    to.path.includes('/instructor/exams/edit/') ||
-    to.path.includes('/create-question') ||
-    to.path.includes('/edit-question/')
+  const isInstructorRoute = to.path.startsWith('/instructor')
 
-  if (isInstructorMutationRoute && token) {
+  if (isInstructorRoute && token) {
     try {
       const lockStore = useSemesterLockStore()
       await lockStore.fetchLockStatus()
       if (lockStore.isLocked) {
-        lockStore.promptLockedNotice((to.name as string) || 'perform modifications')
-        if (to.path.includes('/question-banks/')) {
-          next('/instructor/question-banks')
-        } else {
-          next('/instructor/exams')
-        }
+        const lockMsg = lockStore.lockMessage || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
+        localStorage.setItem('semester_locked_notice', lockMsg)
+        sessionStorage.setItem('semester_locked_notice', lockMsg)
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('instructor_context')
+        next('/login')
         return
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.response?.status === 401 || (err?.response?.status === 403 && err?.response?.data?.locked)) {
+        const lockMsg = err?.response?.data?.message || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
+        localStorage.setItem('semester_locked_notice', lockMsg)
+        sessionStorage.setItem('semester_locked_notice', lockMsg)
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('instructor_context')
+        next('/login')
+        return
+      }
       console.warn('Semester lock router guard check error:', err)
     }
   }

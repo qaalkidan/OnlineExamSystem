@@ -134,6 +134,7 @@ export const useAuthStore = defineStore('auth', () => {
         maintenanceMessage.value = errorMsg
         error.value = errorMsg
       } else {
+        pendingInstructor.value = null
         error.value = errorMsg
       }
       throw err

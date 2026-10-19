@@ -57,15 +57,46 @@ const handleResize = () => {
   }
 }
 
+let lockPollTimer: any = null
+
+const checkLockAndAutoSignOut = async () => {
+  try {
+    await lockStore.fetchLockStatus(true)
+    if (lockStore.isLocked) {
+      const lockMsg = lockStore.lockMessage || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
+      localStorage.setItem('semester_locked_notice', lockMsg)
+      sessionStorage.setItem('semester_locked_notice', lockMsg)
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_user')
+      localStorage.removeItem('instructor_context')
+      window.location.href = '/login'
+    }
+  } catch (err: any) {
+    if (err?.response?.status === 401 || (err?.response?.status === 403 && err?.response?.data?.locked)) {
+      const lockMsg = err?.response?.data?.message || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
+      localStorage.setItem('semester_locked_notice', lockMsg)
+      sessionStorage.setItem('semester_locked_notice', lockMsg)
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_user')
+      localStorage.removeItem('instructor_context')
+      window.location.href = '/login'
+    }
+  }
+}
+
 onMounted(() => {
-  lockStore.fetchLockStatus()
+  checkLockAndAutoSignOut()
+  lockPollTimer = setInterval(checkLockAndAutoSignOut, 3000)
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('resize', handleResize)
+  window.addEventListener('focus', checkLockAndAutoSignOut)
 })
 
 onUnmounted(() => {
+  if (lockPollTimer) clearInterval(lockPollTimer)
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('focus', checkLockAndAutoSignOut)
   if (typeof window !== 'undefined') {
     document.body.style.overflow = ''
   }

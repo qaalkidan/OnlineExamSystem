@@ -1216,6 +1216,13 @@ class SemesterSubmissionController extends Controller
             }
             $submission->save();
 
+            // Revoke active sessions/tokens for this instructor so they are immediately signed out
+            if ($submission->instructor_id) {
+                \Laravel\Sanctum\PersonalAccessToken::where('tokenable_type', \App\Models\User::class)
+                    ->where('tokenable_id', $submission->instructor_id)
+                    ->delete();
+            }
+
             $instName = $submission->instructor?->name ?? 'Instructor';
             $termStr = "{$submission->academic_year} — {$submission->semester}";
 
