@@ -131,8 +131,16 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // Revoke old tokens (single-session policy)
-        $user->tokens()->delete();
+        // Revoke old tokens for this specific role/portal (single-session policy per portal role)
+        $user->tokens()
+            ->where(function ($q) use ($effectiveRole) {
+                $q->where('name', "auth_token:{$effectiveRole}")
+                  ->orWhere('abilities', 'like', "%role:{$effectiveRole}%")
+                  ->orWhere('name', 'auth_token'); // legacy tokens
+            })
+            ->where('name', 'not like', ($effectiveRole === 'dept_head' ? '%instructor%' : '%dept_head%'))
+            ->where('abilities', 'not like', ($effectiveRole === 'dept_head' ? '%role:instructor%' : '%role:dept_head%'))
+            ->delete();
 
         $assignedOptions = null;
         if ($effectiveRole === 'instructor') {
@@ -238,7 +246,8 @@ class AuthController extends Controller
             ];
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $tokenName = "auth_token:{$effectiveRole}";
+        $token = $user->createToken($tokenName, ["role:{$effectiveRole}", '*'])->plainTextToken;
 
         // Load department so the frontend has it immediately upon login
         $user->load('department.head');
@@ -346,7 +355,7 @@ class AuthController extends Controller
                 $user->department_id,
                 $user
             );
-            $user->tokens()->delete();
+            $user->currentAccessToken()?->delete();
         }
 
         return response()->json(['message' => 'Logged out successfully.']);

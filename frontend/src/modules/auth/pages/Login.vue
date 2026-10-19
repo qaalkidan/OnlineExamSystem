@@ -7,13 +7,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 onMounted(async () => {
-  const notice = localStorage.getItem('semester_locked_notice') || sessionStorage.getItem('semester_locked_notice')
-  if (notice) {
-    // Navigate directly to dedicated Access Locked page instead of displaying an inline notification
-    router.replace('/access-locked')
-    return
-  }
-
+  authStore.error = null
   await authStore.checkPublicStatus()
   if (authStore.isMaintenanceActive) {
     router.replace('/maintenance')

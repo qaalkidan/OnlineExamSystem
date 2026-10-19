@@ -94,6 +94,16 @@ apiClient.interceptors.response.use(
     // 1. Handle 401 Unauthorized globally
     if (error.response && error.response.status === 401) {
       if (typeof window !== 'undefined' && window.location.pathname !== '/' && window.location.pathname !== '/login') {
+        if (window.location.pathname.startsWith('/instructor')) {
+          const lockMsg = 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
+          localStorage.setItem('semester_locked_notice', lockMsg)
+          sessionStorage.setItem('semester_locked_notice', lockMsg)
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('auth_user')
+          localStorage.removeItem('instructor_context')
+          window.location.href = '/access-locked'
+          return Promise.reject(error)
+        }
         localStorage.removeItem('auth_token')
         localStorage.removeItem('auth_user')
         localStorage.removeItem('instructor_context')

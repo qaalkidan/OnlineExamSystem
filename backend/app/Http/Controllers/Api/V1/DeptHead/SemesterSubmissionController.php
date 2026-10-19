@@ -1207,7 +1207,7 @@ class SemesterSubmissionController extends Controller
             ], 422);
         }
 
-        return DB::transaction(function () use ($submission, $user) {
+        return DB::transaction(function () use ($submission, $user, $request) {
             $submission->status = 'approved';
             $submission->locked_at = now();
             if (!$submission->approved_at) {
@@ -1216,11 +1216,39 @@ class SemesterSubmissionController extends Controller
             }
             $submission->save();
 
-            // Revoke active sessions/tokens for this instructor so they are immediately signed out
+            // Revoke active sessions ONLY for the instructor workspace, never the current Department Head session
             if ($submission->instructor_id) {
-                \Laravel\Sanctum\PersonalAccessToken::where('tokenable_type', \App\Models\User::class)
-                    ->where('tokenable_id', $submission->instructor_id)
-                    ->delete();
+                $currentAccessTokenId = $request->user()?->currentAccessToken()?->id;
+
+                $tokensQuery = \Laravel\Sanctum\PersonalAccessToken::where('tokenable_type', \App\Models\User::class)
+                    ->where('tokenable_id', $submission->instructor_id);
+
+                if ($currentAccessTokenId) {
+                    $tokensQuery->where('id', '!=', $currentAccessTokenId);
+                }
+
+                // Specifically protect dept_head and admin tokens under all circumstances
+                $tokensQuery->where('name', 'not like', '%dept_head%')
+                    ->where('abilities', 'not like', '%role:dept_head%')
+                    ->where('name', 'not like', '%admin%')
+                    ->where('abilities', 'not like', '%role:admin%');
+
+                // If the Department Head is locking their own assigned course,
+                // only revoke instructor-specific tokens so the Dept Head session stays active.
+                if ($submission->instructor_id === $user->id) {
+                    $tokensQuery->where(function ($q) {
+                        $q->where('name', 'like', '%instructor%')
+                          ->orWhere('abilities', 'like', '%role:instructor%');
+                    });
+                } else {
+                    $tokensQuery->where(function ($q) {
+                        $q->where('name', 'like', '%instructor%')
+                          ->orWhere('abilities', 'like', '%role:instructor%')
+                          ->orWhere('name', 'auth_token');
+                    });
+                }
+
+                $tokensQuery->delete();
             }
 
             $instName = $submission->instructor?->name ?? 'Instructor';

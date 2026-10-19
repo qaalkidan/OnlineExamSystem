@@ -55,10 +55,25 @@ onUnmounted(() => {
 })
 
 const goHome = () => {
+  if (typeof window !== 'undefined') {
+    document.body.style.overflow = ''
+  }
   router.push('/')
 }
 
 const goToLogin = () => {
+  localStorage.removeItem('semester_locked_notice')
+  sessionStorage.removeItem('semester_locked_notice')
+  localStorage.removeItem('semester_locked_course')
+  sessionStorage.removeItem('semester_locked_course')
+  localStorage.removeItem('semester_locked_term')
+  sessionStorage.removeItem('semester_locked_term')
+  localStorage.removeItem('auth_token')
+  localStorage.removeItem('auth_user')
+  localStorage.removeItem('instructor_context')
+  if (typeof window !== 'undefined') {
+    document.body.style.overflow = ''
+  }
   router.push('/login')
 }
 
@@ -341,8 +356,20 @@ const manualCheck = async () => {
     </main>
 
     <!-- ── FOOTER: Links including System Maintenance ── -->
-    <footer class="w-full py-1.5 px-4 text-center text-slate-400 text-[10px] shrink-0">
-      &copy; {{ new Date().getFullYear() }} Wollo University Online Examination System. All rights reserved.
+    <footer class="w-full py-1.5 px-4 text-center text-slate-400 text-[10px] shrink-0 flex flex-wrap items-center justify-center gap-2">
+      <button 
+        type="button" 
+        @click="goToLogin" 
+        class="text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+      >
+        Sign In
+      </button>
+      <span class="text-slate-300">&bull;</span>
+      <router-link to="/maintenance" class="text-slate-500 hover:text-blue-600 transition-colors">
+        System Maintenance
+      </router-link>
+      <span class="text-slate-300">&bull;</span>
+      <span>&copy; {{ new Date().getFullYear() }} Wollo University Online Examination System. All rights reserved.</span>
     </footer>
 
   </div>

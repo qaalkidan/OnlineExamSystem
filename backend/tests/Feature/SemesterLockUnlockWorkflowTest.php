@@ -247,4 +247,94 @@ class SemesterLockUnlockWorkflowTest extends TestCase
         $this->assertNotNull($submission->locked_at);
         $this->assertTrue($submission->isLocked());
     }
+
+    public function test_dept_head_locking_own_course_submission_does_not_sign_out_dept_head(): void
+    {
+        // 1. Create a course where the instructor is the Department Head (e.g. Fitsum Gashaw)
+        $headCourse = Course::create([
+            'title'         => 'System Architecture',
+            'code'          => 'CS501',
+            'credit_hours'  => 4,
+            'department_id' => $this->department->id,
+            'instructor_id' => $this->deptHead->id,
+            'academic_year' => '2025/2026',
+            'semester'      => 'Second Semester',
+            'status'        => 'active',
+        ]);
+
+        // 2. Create an approved submission for this course
+        $headSubmission = SemesterSubmission::create([
+            'instructor_id' => $this->deptHead->id,
+            'academic_year' => '2025/2026',
+            'semester'      => 'Second Semester',
+            'department'    => $this->department->name,
+            'section'       => 'Section A',
+            'status'        => 'approved',
+            'submitted_at'  => now(),
+            'approved_at'   => now(),
+            'approved_by'   => $this->deptHead->id,
+            'locked_at'     => null,
+        ]);
+
+        // 3. Create a Dept Head token and an Instructor token for this dual-role user
+        $deptHeadTokenObj = $this->deptHead->createToken('auth_token:dept_head', ['role:dept_head', '*']);
+        $deptHeadToken = $deptHeadTokenObj->plainTextToken;
+
+        $instTokenObj = $this->deptHead->createToken('auth_token:instructor', ['role:instructor', '*']);
+        $instToken = $instTokenObj->plainTextToken;
+
+        $this->assertEquals(2, $this->deptHead->tokens()->count());
+
+        // 4. Dept Head closes/locks their own submission using the Dept Head bearer token
+        $lockRes = $this->withHeader('Authorization', "Bearer {$deptHeadToken}")
+            ->putJson("/api/v1/dept-head/semester-submissions/{$headSubmission->id}/lock");
+
+        $lockRes->assertOk()
+            ->assertJson([
+                'submission' => [
+                    'is_locked' => true,
+                    'status'    => 'Approved',
+                ]
+            ]);
+
+        $headSubmission->refresh();
+        $this->assertTrue($headSubmission->isLocked());
+
+        // 5. Dept Head token MUST NOT be deleted, while instructor token MUST be deleted
+        $remainingTokens = $this->deptHead->tokens()->get();
+        $this->assertTrue($remainingTokens->contains('id', $deptHeadTokenObj->accessToken->id), 'Dept Head token must be preserved.');
+        $this->assertFalse($remainingTokens->contains('id', $instTokenObj->accessToken->id), 'Instructor token must be deleted.');
+
+        // 6. Dept Head session remains completely valid and can access Dept Head endpoints
+        $activityRes = $this->withHeader('Authorization', "Bearer {$deptHeadToken}")
+            ->getJson('/api/v1/dept-head/activity-logs/unread-count');
+        $activityRes->assertOk();
+
+        // 7. When attempting to log in as instructor, access is blocked with 403 semester_locked
+        $loginInstRes = $this->postJson('/api/v1/login', [
+            'login'    => $this->deptHead->email,
+            'password' => 'password123',
+            'role'     => 'instructor',
+        ]);
+        $loginInstRes->assertStatus(403)
+            ->assertJson([
+                'error_type' => 'semester_locked',
+                'locked'     => true,
+            ]);
+
+        // 8. Dept Head logging in via Staff tab succeeds without being blocked
+        $loginStaffRes = $this->postJson('/api/v1/login', [
+            'login'    => $this->deptHead->email,
+            'password' => 'password123',
+            'role'     => 'staff',
+        ]);
+        $loginStaffRes->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    'user',
+                    'token',
+                ]
+            ]);
+    }
 }
+
