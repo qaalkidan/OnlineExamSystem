@@ -114,6 +114,7 @@ export const useSemesterLockStore = defineStore('semesterLock', () => {
     accessMode,
     academicYear,
     semester,
+    courseTitle,
     submittedAt,
     approvedAt,
     reopenedAt,

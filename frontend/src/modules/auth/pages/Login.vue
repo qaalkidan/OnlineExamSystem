@@ -9,20 +9,15 @@ const authStore = useAuthStore()
 onMounted(async () => {
   const notice = localStorage.getItem('semester_locked_notice') || sessionStorage.getItem('semester_locked_notice')
   if (notice) {
-    authStore.error = notice
-    localStorage.removeItem('semester_locked_notice')
-    sessionStorage.removeItem('semester_locked_notice')
+    // Navigate directly to dedicated Access Locked page instead of displaying an inline notification
+    router.replace('/access-locked')
+    return
   }
 
   await authStore.checkPublicStatus()
   if (authStore.isMaintenanceActive) {
     router.replace('/maintenance')
   }
-})
-
-const isAccessLockedError = computed(() => {
-  const err = String(authStore.error || '').toLowerCase()
-  return err.includes('access locked') || err.includes('semester closed') || (err.includes('workspace') && err.includes('closed'))
 })
 
 const loginField = ref('')
@@ -166,19 +161,8 @@ const cancelStep2 = () => {
             <p class="text-xs text-slate-500">Sign in to continue to your account</p>
           </div>
 
-          <!-- Access Locked Notification Box -->
-          <div v-if="isAccessLockedError" class="mb-5 p-3.5 bg-amber-50/90 border border-amber-300 text-amber-950 text-xs rounded-xl flex items-start gap-3 shadow-xs">
-            <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 border border-amber-200">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-            </div>
-            <div class="min-w-0">
-              <h4 class="font-bold text-amber-900 text-[13px] mb-0.5">Access Locked</h4>
-              <p class="text-amber-800 leading-relaxed font-medium">{{ authStore.error }}</p>
-            </div>
-          </div>
-
-          <!-- Standard Error Banner -->
-          <div v-else-if="authStore.error" class="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-center gap-2">
+          <!-- Error Banner -->
+          <div v-if="authStore.error" class="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-center gap-2">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             <span>{{ authStore.error }}</span>
           </div>

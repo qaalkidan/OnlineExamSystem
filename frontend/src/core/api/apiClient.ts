@@ -114,18 +114,31 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 3. Handle 403 Semester Closed / Workspace Locked: automatically sign out instructor and redirect to login
+    // 3. Handle 403 Semester Closed / Workspace Locked: automatically sign out instructor and redirect to dedicated Access Locked page
     if (error.response && error.response.status === 403 && error.response.data?.locked) {
       const lockMsg = error.response.data.message || error.response.data.error || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
       if (typeof window !== 'undefined') {
         localStorage.setItem('semester_locked_notice', lockMsg)
         sessionStorage.setItem('semester_locked_notice', lockMsg)
 
+        if (error.response.data.course_title) {
+          localStorage.setItem('semester_locked_course', error.response.data.course_title)
+          sessionStorage.setItem('semester_locked_course', error.response.data.course_title)
+        }
+        if (error.response.data.submission) {
+          const sub = error.response.data.submission
+          const term = `${sub.academic_year || ''} Semester ${sub.semester || ''}`.trim()
+          if (term) {
+            localStorage.setItem('semester_locked_term', term)
+            sessionStorage.setItem('semester_locked_term', term)
+          }
+        }
+
         if (window.location.pathname.startsWith('/instructor')) {
           localStorage.removeItem('auth_token')
           localStorage.removeItem('auth_user')
           localStorage.removeItem('instructor_context')
-          window.location.href = '/login'
+          window.location.href = '/access-locked'
           return Promise.reject(error)
         }
 

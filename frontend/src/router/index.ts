@@ -26,10 +26,14 @@ router.beforeEach(async (to, _from, next) => {
         const lockMsg = lockStore.lockMessage || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
         localStorage.setItem('semester_locked_notice', lockMsg)
         sessionStorage.setItem('semester_locked_notice', lockMsg)
+        if (lockStore.courseTitle) {
+          localStorage.setItem('semester_locked_course', lockStore.courseTitle)
+          sessionStorage.setItem('semester_locked_course', lockStore.courseTitle)
+        }
         localStorage.removeItem('auth_token')
         localStorage.removeItem('auth_user')
         localStorage.removeItem('instructor_context')
-        next('/login')
+        next('/access-locked')
         return
       }
     } catch (err: any) {
@@ -37,10 +41,14 @@ router.beforeEach(async (to, _from, next) => {
         const lockMsg = err?.response?.data?.message || 'Access Locked: The Department Head has closed access to your semester workspace. Please contact your Department Head if you need access restored.'
         localStorage.setItem('semester_locked_notice', lockMsg)
         sessionStorage.setItem('semester_locked_notice', lockMsg)
+        if (err?.response?.data?.course_title) {
+          localStorage.setItem('semester_locked_course', err.response.data.course_title)
+          sessionStorage.setItem('semester_locked_course', err.response.data.course_title)
+        }
         localStorage.removeItem('auth_token')
         localStorage.removeItem('auth_user')
         localStorage.removeItem('instructor_context')
-        next('/login')
+        next('/access-locked')
         return
       }
       console.warn('Semester lock router guard check error:', err)

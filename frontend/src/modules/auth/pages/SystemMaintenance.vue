@@ -313,6 +313,21 @@ onUnmounted(() => {
         <div class="h-[1.5px] flex-1 bg-blue-300 rounded-full"></div>
       </div>
 
+      <!-- ── Link Under Maintenance: Dedicated Access Locked Page Link ── -->
+      <div class="mt-6 flex flex-col items-center justify-center gap-2">
+        <router-link
+          to="/access-locked"
+          class="inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 shadow-2xs transition-all duration-150 cursor-pointer group"
+          title="Semester Workspace Access Locked Status"
+        >
+          <span class="w-2 h-2 rounded-full bg-amber-500 group-hover:scale-125 transition-transform"></span>
+          <svg class="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <span>Semester Workspace Locked? View Access Locked Page &rarr;</span>
+        </router-link>
+      </div>
+
       <!-- Auto recovery toast notification if maintenance mode ends -->
       <Transition
         enter-active-class="transition duration-200 ease-out"
@@ -333,8 +348,18 @@ onUnmounted(() => {
 
     </main>
 
-    <!-- Bottom Spacing / Clean look matching reference -->
-    <footer class="w-full h-10"></footer>
+    <!-- ── FOOTER: Links under maintenance including Access Locked Page ── -->
+    <footer class="w-full py-4 px-6 text-center text-slate-400 text-xs flex flex-wrap items-center justify-center gap-3">
+      <router-link to="/access-locked" class="text-slate-500 hover:text-amber-700 transition-colors font-medium">
+        Semester Access Locked Page
+      </router-link>
+      <span class="text-slate-300">&bull;</span>
+      <router-link to="/login" class="text-slate-500 hover:text-blue-600 transition-colors">
+        Sign In
+      </router-link>
+      <span class="text-slate-300">&bull;</span>
+      <span>&copy; {{ new Date().getFullYear() }} Wollo University Online Examination System</span>
+    </footer>
 
     <!-- ── MODAL: ADMINISTRATOR LOGIN ── -->
     <Transition

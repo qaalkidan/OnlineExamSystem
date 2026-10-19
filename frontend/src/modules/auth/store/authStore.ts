@@ -122,6 +122,11 @@ export const useAuthStore = defineStore('auth', () => {
 
       const isMaintenance = respData?.error_type === 'system_maintenance' || respData?.maintenance === true
 
+      const isSemesterLocked = respData?.error_type === 'semester_locked' || respData?.locked === true ||
+                               errorMsg.toLowerCase().includes('access locked') ||
+                               errorMsg.toLowerCase().includes('semester closed') ||
+                               (errorMsg.toLowerCase().includes('workspace') && errorMsg.toLowerCase().includes('closed'))
+
       if (isNotAssigned) {
         error.value = null // Suppress top error message banner
         notAssignedModal.value = {
@@ -133,6 +138,25 @@ export const useAuthStore = defineStore('auth', () => {
         isMaintenanceActive.value = true
         maintenanceMessage.value = errorMsg
         error.value = errorMsg
+      } else if (isSemesterLocked) {
+        error.value = null // Suppress login error banner; navigate to dedicated Access Locked page
+        pendingInstructor.value = null
+        localStorage.setItem('semester_locked_notice', errorMsg)
+        sessionStorage.setItem('semester_locked_notice', errorMsg)
+
+        if (respData?.course_title) {
+          localStorage.setItem('semester_locked_course', respData.course_title)
+          sessionStorage.setItem('semester_locked_course', respData.course_title)
+        }
+        if (respData?.submission) {
+          const sub = respData.submission
+          const term = `${sub.academic_year || ''} Semester ${sub.semester || ''}`.trim()
+          if (term) {
+            localStorage.setItem('semester_locked_term', term)
+            sessionStorage.setItem('semester_locked_term', term)
+          }
+        }
+        router.push('/access-locked')
       } else {
         pendingInstructor.value = null
         error.value = errorMsg

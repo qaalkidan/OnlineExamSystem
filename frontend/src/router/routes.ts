@@ -16,6 +16,16 @@ export const routes: Array<RouteRecordRaw> = [
     name: 'SystemMaintenance',
     component: () => import('../modules/auth/pages/SystemMaintenance.vue')
   },
+  {
+    path: '/access-locked',
+    name: 'AccessLocked',
+    component: () => import('../modules/auth/pages/AccessLocked.vue')
+  },
+  {
+    path: '/maintenance/access-locked',
+    name: 'MaintenanceAccessLocked',
+    component: () => import('../modules/auth/pages/AccessLocked.vue')
+  },
 
   // ── Instructor Routes ──
   {
