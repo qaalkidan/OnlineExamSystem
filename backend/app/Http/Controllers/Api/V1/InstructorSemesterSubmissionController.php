@@ -277,7 +277,7 @@ class InstructorSemesterSubmissionController extends Controller
         $course = \App\Models\Course::where('instructor_id', $instructor->id)->first();
         $courseTitle = $course?->title ?? 'Course';
         $lockMessage = $isLocked
-            ? "Semester Closed: Your access to the {$courseTitle} semester workspace is temporarily restricted by the Department Head. Please contact your Department Head or wait until the semester is reopened."
+            ? "Semester Closed: The Department Head has closed access to your {$courseTitle} semester workspace. Please contact your Department Head if you need access restored."
             : null;
 
         return response()->json([
@@ -340,13 +340,13 @@ class InstructorSemesterSubmissionController extends Controller
 
         $submission->status = 'submitted';
         $submission->submitted_at = now();
-        $submission->locked_at = now();
+        $submission->locked_at = null; // Access remains open until explicitly closed/locked by Dept Head
         $submission->save();
 
         // Audit Log
         $actionDesc = $wasCorrection 
             ? "Instructor {$instructor->name} re-submitted semester ({$submission->academic_year} - {$submission->semester}) after corrections."
-            : "Instructor {$instructor->name} submitted semester ({$submission->academic_year} - {$submission->semester}). Academic activities locked.";
+            : "Instructor {$instructor->name} submitted semester ({$submission->academic_year} - {$submission->semester}) for review.";
 
         LogActivity::record(
             'Submitted',
@@ -356,12 +356,12 @@ class InstructorSemesterSubmissionController extends Controller
 
         return response()->json([
             'message' => $wasCorrection 
-                ? 'Corrected semester records re-submitted successfully. Records are locked pending Department Head review.'
-                : 'Semester records submitted successfully. Academic activities are now locked for this semester.',
+                ? 'Corrected semester records re-submitted successfully. Pending Department Head review.'
+                : 'Semester records submitted successfully. Pending Department Head review.',
             'data' => [
                 'status'       => 'submitted',
-                'is_locked'    => true,
-                'access_mode'  => 'read_only',
+                'is_locked'    => false,
+                'access_mode'  => 'editable',
                 'submitted_at' => $submission->submitted_at->format('M d, Y • h:i A')
             ]
         ]);

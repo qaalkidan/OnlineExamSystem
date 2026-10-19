@@ -85,14 +85,15 @@ class InstructorSemesterLockMiddleware
                 }
             }
 
-            $msg = "Semester Closed: Your access to the {$courseTitle} semester workspace is temporarily restricted by the Department Head. Please contact your Department Head or wait until the semester is reopened.";
+            $msg = "Semester Closed: The Department Head has closed access to your {$courseTitle} semester workspace. Please contact your Department Head if you need access restored.";
 
             return response()->json([
-                'message' => $msg,
-                'error'   => $msg,
-                'locked'  => true,
-                'status'  => $submission->status,
-                'submission' => [
+                'message'      => $msg,
+                'error'        => $msg,
+                'locked'       => true,
+                'course_title' => $courseTitle,
+                'status'       => $submission->status,
+                'submission'   => [
                     'id'            => $submission->id,
                     'status'        => $submission->status,
                     'academic_year' => $submission->academic_year,

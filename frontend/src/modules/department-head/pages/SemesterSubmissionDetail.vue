@@ -522,7 +522,8 @@ const confirmApprove = async () => {
     const prevStatus = inst.status
     inst.status = 'Approved'
     inst.raw_status = 'approved'
-    inst.is_locked = true
+    inst.is_locked = false // Access remains OPEN upon approval
+    inst.locked_at = null
     if (res.data?.submission?.approved_at) {
       inst.approved_at = res.data.submission.approved_at
       inst.submitted = res.data.submission.approved_at.replace(' ', '\n')
@@ -535,25 +536,24 @@ const confirmApprove = async () => {
         semesterInfo.value.pendingReview--
       } else if (prevStatus === 'Correction Required' && semesterInfo.value.correctionRequired > 0) {
         semesterInfo.value.correctionRequired--
-      } else if (prevStatus === 'Reopened' && (semesterInfo.value.reopened || 0) > 0) {
-        semesterInfo.value.reopened--
       }
     }
 
     if (reviewModal.value.open && reviewModal.value.instructor?.id === inst.id) {
       reviewModal.value.instructor.status = 'Approved'
       reviewModal.value.instructor.raw_status = 'approved'
-      reviewModal.value.instructor.is_locked = true
+      reviewModal.value.instructor.is_locked = false
+      reviewModal.value.instructor.locked_at = null
       reviewModal.value.instructor.approved_at = res.data?.submission?.approved_at
     }
 
     if (viewDetailsModal.value.open && viewDetailsModal.value.data?.submission) {
       viewDetailsModal.value.data.submission.status = 'Approved'
       viewDetailsModal.value.data.submission.raw_status = 'approved'
-      viewDetailsModal.value.data.submission.is_locked = true
+      viewDetailsModal.value.data.submission.is_locked = false
+      viewDetailsModal.value.data.submission.locked_at = null
       viewDetailsModal.value.data.submission.approved_at = res.data?.submission?.approved_at || new Date().toLocaleString()
       viewDetailsModal.value.data.submission.approved_by = { name: res.data?.submission?.approved_by || 'Department Head' }
-      viewDetailsModal.value.data.submission.locked_at = res.data?.submission?.locked_at || new Date().toLocaleString()
     }
 
     // Update list item
@@ -561,12 +561,13 @@ const confirmApprove = async () => {
     if (targetInList) {
       targetInList.status = 'Approved'
       targetInList.raw_status = 'approved'
-      targetInList.is_locked = true
+      targetInList.is_locked = false
+      targetInList.locked_at = null
       targetInList.approved_at = res.data?.submission?.approved_at
     }
 
     approveModal.value.open = false
-    showToast(`Semester submission for ${inst.name} approved & records locked successfully!`, 'success')
+    showToast(`Semester submission for ${inst.name} approved successfully. Workspace remains open.`, 'success')
   } catch (error) {
     console.error('Failed to approve submission:', error)
     showToast('Failed to approve submission. Please try again.', 'error')
@@ -819,22 +820,16 @@ const submitReopen = async () => {
       reason: reopenModal.value.reason || 'Semester reopened by department head for modifications.'
     })
 
-    const prevStatus = inst.status
-    inst.status = 'Reopened'
-    inst.raw_status = 'reopened'
-    inst.is_locked = false
+    inst.status = 'Approved'
+    inst.raw_status = 'approved'
+    inst.is_locked = false // Access becomes Open!
     inst.locked_at = null
     inst.reopened_at = res.data?.submission?.reopened_at || new Date().toISOString()
     inst.reopen_reason = reopenModal.value.reason
 
-    if (prevStatus === 'Approved' && semesterInfo.value.approved > 0) {
-      semesterInfo.value.approved--
-      semesterInfo.value.reopened = (semesterInfo.value.reopened || 0) + 1
-    }
-
     if (reviewModal.value.open && reviewModal.value.instructor?.id === inst.id) {
-      reviewModal.value.instructor.status = 'Reopened'
-      reviewModal.value.instructor.raw_status = 'reopened'
+      reviewModal.value.instructor.status = 'Approved'
+      reviewModal.value.instructor.raw_status = 'approved'
       reviewModal.value.instructor.is_locked = false
       reviewModal.value.instructor.locked_at = null
       reviewModal.value.instructor.reopened_at = res.data?.submission?.reopened_at
@@ -842,8 +837,8 @@ const submitReopen = async () => {
     }
 
     if (viewDetailsModal.value.open && viewDetailsModal.value.data?.submission) {
-      viewDetailsModal.value.data.submission.status = 'Reopened'
-      viewDetailsModal.value.data.submission.raw_status = 'reopened'
+      viewDetailsModal.value.data.submission.status = 'Approved'
+      viewDetailsModal.value.data.submission.raw_status = 'approved'
       viewDetailsModal.value.data.submission.is_locked = false
       viewDetailsModal.value.data.submission.locked_at = null
       viewDetailsModal.value.data.submission.reopened_at = res.data?.submission?.reopened_at || new Date().toLocaleString()
@@ -853,8 +848,8 @@ const submitReopen = async () => {
 
     const targetInList = instructors.value.find(i => (i.submission_id && i.submission_id === targetId) || i.id === targetId || i.instructor_id === targetId)
     if (targetInList) {
-      targetInList.status = 'Reopened'
-      targetInList.raw_status = 'reopened'
+      targetInList.status = 'Approved'
+      targetInList.raw_status = 'approved'
       targetInList.is_locked = false
       targetInList.locked_at = null
       targetInList.reopened_at = res.data?.submission?.reopened_at
@@ -862,7 +857,7 @@ const submitReopen = async () => {
     }
 
     reopenModal.value.open = false
-    showToast(`Semester reopened for ${inst.name}. Instructor can now make modifications.`, 'success')
+    showToast(`Semester reopened for ${inst.name}. Instructor workspace access restored.`, 'success')
   } catch (error: any) {
     console.error('Failed to reopen semester:', error)
     showToast(error?.response?.data?.message || 'Failed to reopen semester submission.', 'error')
@@ -999,7 +994,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
       </div>
       <div class="flex items-center justify-between flex-1 gap-2 flex-wrap">
         <p class="text-xs sm:text-[12px] font-medium text-indigo-700 leading-snug">
-          Once approved, the semester records will be locked and cannot be modified by the instructor.
+          Approved semesters remain open until explicitly closed &amp; locked by the Department Head.
         </p>
         <span class="text-[11px] font-bold text-indigo-600 bg-white/70 px-2 py-0.5 rounded-md border border-indigo-100 shrink-0">
           Active: {{ semesterInfo.department }} &bull; {{ selectedSemester }}
@@ -1330,16 +1325,25 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 </div>
               </td>
 
-              <!-- 7: Status Badge -->
+              <!-- 7: Status Badge & Access State -->
               <td class="py-3.5 px-4">
-                <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap', getStatusBadge(inst.status)]">
-                  <svg v-if="inst.status === 'Approved'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
-                  <svg v-else-if="inst.status === 'Pending'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                  <svg v-else-if="inst.status === 'Correction Required'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                  <svg v-else-if="inst.status === 'Rejected'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  <svg v-else-if="inst.status === 'Reopened'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
-                  {{ inst.status }}
-                </span>
+                <div class="flex flex-col gap-1 items-start">
+                  <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap', getStatusBadge(inst.status)]">
+                    <svg v-if="inst.status === 'Approved'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                    <svg v-else-if="inst.status === 'Pending'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <svg v-else-if="inst.status === 'Correction Required'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <svg v-else-if="inst.status === 'Rejected'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    {{ inst.status }}
+                  </span>
+                  <span
+                    v-if="inst.status === 'Approved'"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-semibold border"
+                    :class="inst.is_locked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" :class="inst.is_locked ? 'bg-amber-500' : 'bg-emerald-500'"></span>
+                    Access: {{ inst.is_locked ? 'Locked' : 'Open' }}
+                  </span>
+                </div>
               </td>
 
               <!-- 8: Actions Dropdown Menu -->
@@ -1384,14 +1388,14 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
 
                     <div v-if="inst.is_submitted" class="border-t border-slate-100 my-1"></div>
 
-                    <!-- 3. Approve & Lock -->
+                    <!-- 3. Approve -->
                     <button
-                      v-if="inst.is_submitted && inst.status !== 'Approved' && inst.status !== 'Reopened'"
+                      v-if="inst.is_submitted && inst.status !== 'Approved'"
                       @click="openApproveModal(inst)"
                       class="w-full px-4 py-2.5 text-left text-[12px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                      <span>Approve & Lock</span>
+                      <span>Approve</span>
                     </button>
 
                     <!-- 4. Request Correction -->
@@ -1481,10 +1485,20 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 <p class="text-xs text-slate-400 truncate">{{ inst.email }}</p>
               </div>
             </div>
-            <!-- Status Badge -->
-            <span :class="['inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0', getStatusBadge(inst.status)]">
-              {{ inst.status }}
-            </span>
+            <!-- Status Badge & Access State -->
+            <div class="flex flex-col items-end gap-1">
+              <span :class="['inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0', getStatusBadge(inst.status)]">
+                {{ inst.status }}
+              </span>
+              <span
+                v-if="inst.status === 'Approved'"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-semibold border"
+                :class="inst.is_locked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
+              >
+                <span class="w-1.5 h-1.5 rounded-full" :class="inst.is_locked ? 'bg-amber-500' : 'bg-emerald-500'"></span>
+                Access: {{ inst.is_locked ? 'Locked' : 'Open' }}
+              </span>
+            </div>
           </div>
 
           <!-- Course & Department Details -->
@@ -1560,12 +1574,12 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             </button>
 
             <template v-if="inst.is_submitted">
-              <!-- 3. Approve & Lock -->
+              <!-- 3. Approve -->
               <button
-                v-if="inst.status !== 'Approved' && inst.status !== 'Reopened'"
+                v-if="inst.status !== 'Approved'"
                 @click="openApproveModal(inst)"
                 class="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors min-h-[44px] cursor-pointer shadow-xs"
-                title="Approve & Lock"
+                title="Approve"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                 <span>Approve</span>
@@ -1770,7 +1784,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Submission Date</span>
                   <span class="text-xs sm:text-[13px] font-bold text-slate-800 block">{{ viewDetailsModal.data.submission.submitted_at || '—' }}</span>
-                  <span class="text-[10px] font-semibold text-slate-400">{{ viewDetailsModal.data.submission.is_locked ? 'Locked by Workflow' : 'Open for revisions' }}</span>
+                  <span class="text-[10px] font-semibold text-slate-400">{{ viewDetailsModal.data.submission.is_locked ? 'Access: Locked' : 'Access: Open' }}</span>
                 </div>
               </div>
 
@@ -1796,10 +1810,10 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                   <div class="bg-white p-3 rounded-xl border border-slate-100">
                     <span class="text-[11px] font-bold text-slate-500 block mb-1">Locking & Access Status</span>
                     <p v-if="viewDetailsModal.data.submission.is_locked" class="text-slate-700">
-                      <strong class="text-amber-700">Locked</strong> &bull; Instructor portal is restricted to READ-ONLY mode for this semester.
+                      <strong class="text-amber-700">Locked</strong> &bull; Instructor portal is restricted to READ-ONLY mode for this course workspace.
                     </p>
                     <p v-else class="text-slate-700">
-                      <strong class="text-emerald-700">Unlocked</strong> &bull; Instructor can create, modify, or resubmit examination records.
+                      <strong class="text-emerald-700">Open</strong> &bull; Instructor has active editing access to this course workspace.
                     </p>
                   </div>
                 </div>
@@ -2110,7 +2124,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
                 class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs min-h-[40px] cursor-pointer flex items-center gap-1.5"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                <span>Approve & Lock</span>
+                <span>Approve</span>
               </button>
             </template>
           </div>
@@ -2300,14 +2314,14 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
               <span>Close Semester (Lock)</span>
             </button>
 
-            <!-- Approve & Lock -->
+            <!-- Approve -->
             <button
-              v-if="reviewModal.instructor.status !== 'Approved' && reviewModal.instructor.status !== 'Reopened'"
+              v-if="reviewModal.instructor.status !== 'Approved'"
               @click="openApproveModal(reviewModal.instructor)"
               class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs min-h-[40px] cursor-pointer flex items-center gap-1.5"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-              <span>Approve & Lock</span>
+              <span>Approve</span>
             </button>
           </div>
           <div v-else class="text-xs text-slate-400 font-medium italic flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
@@ -2330,19 +2344,19 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
           </div>
           <div class="min-w-0">
-            <h3 class="text-base font-bold text-slate-800 truncate">Approve & Lock Semester</h3>
+            <h3 class="text-base font-bold text-slate-800 truncate">Approve Semester Submission</h3>
             <p class="text-xs text-slate-500 truncate">Instructor: {{ approveModal.instructor.name }}</p>
           </div>
         </div>
 
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4 text-xs text-amber-900 space-y-1.5">
-          <span class="font-bold block text-amber-800">Important Locking Policy:</span>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 mb-4 text-xs text-emerald-900 space-y-1.5">
+          <span class="font-bold block text-emerald-800">Verification & Access Policy:</span>
           <p>
-            Approving this submission will officially finalize and lock all semester examination and result records for 
-            <strong>{{ approveModal.instructor.name }}</strong> ({{ approveModal.instructor.course }}).
+            Approving this submission will officially mark semester examination and assessment records for 
+            <strong>{{ approveModal.instructor.name }}</strong> ({{ approveModal.instructor.course }}) as <strong>Approved</strong>.
           </p>
-          <p class="text-[11px] text-amber-700">
-            The instructor will not be able to alter any student scores unless you explicitly perform an Unlock & Reopen.
+          <p class="text-[11px] text-emerald-700">
+            The instructor's semester workspace remains <strong>Open</strong> until you explicitly choose <strong>Close Semester (Lock)</strong>.
           </p>
         </div>
 
@@ -2359,7 +2373,8 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
             class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs disabled:opacity-50 min-h-[40px] cursor-pointer flex items-center gap-1.5"
           >
             <svg v-if="isSubmittingAction" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-            Confirm & Lock Records
+            <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            Confirm Approval
           </button>
         </div>
       </div>
@@ -2738,7 +2753,7 @@ const triggerExport = async (format: 'pdf' | 'excel' | 'csv') => {
 
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
             <span class="font-bold text-slate-800 block mb-1">3. Approval & Locking Mechanism</span>
-            <p>Once a submission is marked as <strong>Approved</strong>, all course grades for that section will be locked from further edits by the instructor. To reopen editing, the department head must issue an <strong>Unlock & Reopen</strong>.</p>
+            <p>Once a submission is marked as <strong>Approved</strong>, the semester workspace remains open until the Department Head explicitly closes and locks it. Closing locks course records and restricts instructor editing until reopened.</p>
           </div>
 
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">

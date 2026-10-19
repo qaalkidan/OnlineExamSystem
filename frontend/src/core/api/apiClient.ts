@@ -115,6 +115,18 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // 3. Handle 403 Semester Closed / Workspace Locked: dispatch event for real-time notification
+    if (error.response && error.response.status === 403 && error.response.data?.locked) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('semester-locked-event', {
+          detail: {
+            message: error.response.data.message || error.response.data.error,
+            course_title: error.response.data.course_title
+          }
+        }))
+      }
+    }
+
     const config = error.config as (InternalAxiosRequestConfig & {
       __retryCount?: number
       __swappedHost?: boolean

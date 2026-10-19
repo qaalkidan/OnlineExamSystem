@@ -90,7 +90,7 @@ class SemesterLockUnlockWorkflowTest extends TestCase
         $this->assertFalse($submission->isLocked());
     }
 
-    public function test_approve_and_lock_end_to_end_workflow(): void
+    public function test_complete_approval_locking_unlocking_and_instructor_access_lifecycle(): void
     {
         $submission = SemesterSubmission::create([
             'instructor_id' => $this->instructor->id,
@@ -104,7 +104,8 @@ class SemesterLockUnlockWorkflowTest extends TestCase
             'approved_at'   => null,
         ]);
 
-        // 1. Dept Head Approves & Locks submission
+        // 1. Dept Head Approves submission:
+        // Approval must NOT automatically lock the semester (access state remains Open)
         Sanctum::actingAs($this->deptHead);
         $approveRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$submission->id}/status", [
             'status'        => 'approved',
@@ -115,11 +116,37 @@ class SemesterLockUnlockWorkflowTest extends TestCase
         $approveRes->assertOk();
         $submission->refresh();
         $this->assertEquals('approved', $submission->status);
-        $this->assertNotNull($submission->locked_at);
         $this->assertNotNull($submission->approved_at);
+        $this->assertNull($submission->locked_at, 'Approved semester must remain OPEN until explicitly closed & locked.');
+        $this->assertFalse($submission->isLocked(), 'isLocked() must be false after approval.');
+
+        // 2. While approved & open, instructor is NOT locked out
+        Sanctum::actingAs($this->instructor);
+        $statusRes = $this->getJson('/api/v1/instructor/semester-submission/lock-status');
+        $statusRes->assertOk()
+            ->assertJsonPath('data.is_locked', false);
+
+        // 3. Dept Head explicitly closes and locks the semester
+        Sanctum::actingAs($this->deptHead);
+        $lockRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$submission->id}/lock", [
+            'academic_year' => '2025/2026',
+            'semester'      => 'Second Semester',
+        ]);
+
+        $lockRes->assertOk()
+            ->assertJson([
+                'submission' => [
+                    'is_locked' => true,
+                    'status'    => 'Approved',
+                ]
+            ]);
+
+        $submission->refresh();
+        $this->assertEquals('approved', $submission->status);
+        $this->assertNotNull($submission->locked_at);
         $this->assertTrue($submission->isLocked());
 
-        // 2. Instructor attempts a mutation request: blocked by InstructorSemesterLockMiddleware
+        // 4. Instructor attempts a mutation request: blocked by InstructorSemesterLockMiddleware with exact message
         Sanctum::actingAs($this->instructor);
         $mutationRes = $this->postJson('/api/v1/instructor/exams', [
             'title'       => 'Unauthorized Exam Attempt',
@@ -131,10 +158,10 @@ class SemesterLockUnlockWorkflowTest extends TestCase
                 'locked' => true,
             ]);
 
-        $this->assertStringContainsString('Semester Closed: Your access to the', $mutationRes->json('message'));
-        $this->assertStringContainsString('workspace is temporarily restricted by the Department Head', $mutationRes->json('message'));
+        $this->assertStringContainsString('Semester Closed: The Department Head has closed access to your', $mutationRes->json('message'));
+        $this->assertStringContainsString('semester workspace', $mutationRes->json('message'));
 
-        // 3. Department Head reopens the semester
+        // 5. Department Head reopens the semester (Unlock)
         Sanctum::actingAs($this->deptHead);
         $reopenRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$submission->id}/reopen", [
             'reason' => 'Grade revision authorized by department head.',
@@ -144,16 +171,31 @@ class SemesterLockUnlockWorkflowTest extends TestCase
             ->assertJson([
                 'submission' => [
                     'is_locked' => false,
-                    'status'    => 'Reopened',
+                    'status'    => 'Approved',
                 ]
             ]);
 
         $submission->refresh();
-        $this->assertEquals('reopened', $submission->status);
-        $this->assertNull($submission->locked_at);
-        $this->assertFalse($submission->isLocked());
+        $this->assertEquals('approved', $submission->status, 'Submission status remains Approved after reopening.');
+        $this->assertNull($submission->locked_at, 'locked_at is cleared to null.');
+        $this->assertFalse($submission->isLocked(), 'isLocked() returns false after reopening.');
+        $this->assertNotNull($submission->reopened_at);
 
-        // 4. Department Head closes and locks again after reopen
+        // 6. Instructor workspace access is restored (not blocked by 403 lock)
+        Sanctum::actingAs($this->instructor);
+        $statusAfterReopen = $this->getJson('/api/v1/instructor/semester-submission/lock-status');
+        $statusAfterReopen->assertOk()
+            ->assertJsonPath('data.is_locked', false);
+
+        // 7. Cannot reopen an already unlocked semester
+        Sanctum::actingAs($this->deptHead);
+        $reopenAgainRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$submission->id}/reopen");
+        $reopenAgainRes->assertStatus(422)
+            ->assertJson([
+                'message' => 'Cannot unlock semester: submission is not currently locked.'
+            ]);
+
+        // 8. Department Head can close and lock again after reopening
         $lockAgainRes = $this->putJson("/api/v1/dept-head/semester-submissions/{$submission->id}/lock", [
             'academic_year' => '2025/2026',
             'semester'      => 'Second Semester',

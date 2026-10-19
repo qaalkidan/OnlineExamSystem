@@ -53,8 +53,19 @@ export const useSemesterLockStore = defineStore('semesterLock', () => {
 
   const lockMessage = computed(() => {
     if (serverLockMessage.value) return serverLockMessage.value
-    return `Semester Closed: Your access to the ${courseTitle.value || 'course'} semester workspace is temporarily restricted by the Department Head. Please contact your Department Head or wait until the semester is reopened.`
+    return `Semester Closed: The Department Head has closed access to your ${courseTitle.value || 'course'} semester workspace. Please contact your Department Head if you need access restored.`
   })
+
+  // Listen to real-time 403 lock responses from server
+  if (typeof window !== 'undefined') {
+    window.addEventListener('semester-locked-event', (e: any) => {
+      isLocked.value = true
+      accessMode.value = 'read_only'
+      if (e.detail?.message) serverLockMessage.value = e.detail.message
+      if (e.detail?.course_title) courseTitle.value = e.detail.course_title
+      promptLockedNotice('access this workspace')
+    })
+  }
 
   const fetchLockStatus = async (force = false): Promise<void> => {
     if (hasFetched.value && !force) return

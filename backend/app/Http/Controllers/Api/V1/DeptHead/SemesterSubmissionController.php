@@ -1090,11 +1090,9 @@ class SemesterSubmissionController extends Controller
             if ($normalizedStatus === 'approved') {
                 $submission->approved_at = now();
                 $submission->approved_by = $user->id;
-                $submission->locked_at = now();
+                // Approval does NOT lock the semester: semester access remains Open
             } elseif ($normalizedStatus === 'submitted') {
-                if (!$submission->locked_at) {
-                    $submission->locked_at = now();
-                }
+                // Newly submitted semester access state remains Open (locked_at remains null)
             } elseif ($normalizedStatus === 'reopened') {
                 $submission->locked_at = null;
                 $submission->reopened_at = now();
@@ -1193,10 +1191,18 @@ class SemesterSubmissionController extends Controller
         }
 
         // Enforce: Submission must be approved first before it can be closed (locked)
-        $isApproved = ($submission->status === 'approved' || $submission->status === 'reopened' || !empty($submission->approved_at));
+        $isApproved = ($submission->status === 'approved' || !empty($submission->approved_at));
         if (!$isApproved) {
             return response()->json([
                 'message' => 'Cannot close and lock semester: submission must be approved first.',
+                'status'  => $submission->status
+            ], 422);
+        }
+
+        // Verify that the submission is not already locked
+        if ($submission->isLocked()) {
+            return response()->json([
+                'message' => 'Semester workspace is already closed and locked.',
                 'status'  => $submission->status
             ], 422);
         }
@@ -1271,8 +1277,8 @@ class SemesterSubmissionController extends Controller
             }
         }
 
-        // Verify that the submission is currently locked or submitted/approved
-        if (!$submission->locked_at && !in_array($submission->status, ['approved', 'submitted'])) {
+        // Verify that the submission is currently locked
+        if (!$submission->isLocked()) {
             return response()->json([
                 'message' => 'Cannot unlock semester: submission is not currently locked.',
                 'status'  => $submission->status
@@ -1282,11 +1288,11 @@ class SemesterSubmissionController extends Controller
         $reason = $request->input('reason', 'Reopened by Department Head for modifications');
 
         return DB::transaction(function () use ($submission, $reason, $user) {
-            $submission->status = 'reopened';
+            $submission->status = 'approved'; // Submission status remains Approved
             $submission->reopened_at = now();
             $submission->reopened_by = $user->id;
             $submission->reopen_reason = $reason;
-            $submission->locked_at = null; // Unlocked!
+            $submission->locked_at = null; // Access state becomes Open!
             $submission->save();
 
             $instName = $submission->instructor?->name ?? 'Instructor';
@@ -1301,8 +1307,8 @@ class SemesterSubmissionController extends Controller
                 'message' => "Semester submission for {$instName} has been reopened successfully. Academic edit access is restored.",
                 'submission' => [
                     'id'            => $submission->id,
-                    'status'        => 'Reopened',
-                    'raw_status'    => 'reopened',
+                    'status'        => 'Approved',
+                    'raw_status'    => 'approved',
                     'is_locked'     => false,
                     'locked_at'     => null,
                     'reopened_at'   => $submission->reopened_at->format('M d, Y h:i A'),

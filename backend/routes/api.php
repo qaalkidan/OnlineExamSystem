@@ -226,6 +226,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(fu
         
         // Semester Submission & Lock Status
         Route::get('/semester-lock-status', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'lockStatus']);
+        Route::get('/semester-submission/lock-status', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'lockStatus']);
         Route::get('/semester-submission/status', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'status']);
         Route::post('/semester-submission/submit', [\App\Http\Controllers\Api\V1\InstructorSemesterSubmissionController::class, 'submit']);
 
