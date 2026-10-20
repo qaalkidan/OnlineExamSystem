@@ -46,6 +46,22 @@ export const useAuthStore = defineStore('auth', () => {
         if (apiErr.code === 'ERR_NETWORK' || !apiErr.response) {
           console.warn('Backend unreachable. Using mock login data for development.')
           await new Promise(resolve => setTimeout(resolve, 600))
+
+          if (credentials.login?.toLowerCase().includes('admin') && credentials.role !== 'staff') {
+            const err: any = new Error('This account is registered as an Administrator. Please select the Staff option to sign in.')
+            err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+            throw err
+          }
+          if (credentials.login?.toLowerCase().includes('student') && credentials.role !== 'student') {
+            const err: any = new Error('This account is registered as a Student. Please select the Student option to sign in.')
+            err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+            throw err
+          }
+          if (credentials.login?.toLowerCase().includes('instructor') && credentials.role !== 'instructor') {
+            const err: any = new Error('This account is registered as an Instructor. Please select the Instructor option to sign in.')
+            err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+            throw err
+          }
           
           userData = {
             id: 1,
@@ -69,6 +85,23 @@ export const useAuthStore = defineStore('auth', () => {
         } else {
           throw apiErr
         }
+      }
+
+      // Safety check: ensure authenticated role aligns with requested dropdown role
+      if (userData.role === 'admin' && credentials.role !== 'staff') {
+        const err: any = new Error('This account is registered as an Administrator. Please select the Staff option to sign in.')
+        err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+        throw err
+      }
+      if (userData.role === 'student' && credentials.role !== 'student') {
+        const err: any = new Error('This account is registered as a Student. Please select the Student option to sign in.')
+        err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+        throw err
+      }
+      if (userData.role === 'instructor' && credentials.role !== 'instructor') {
+        const err: any = new Error('This account is registered as an Instructor. Please select the Instructor option to sign in.')
+        err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+        throw err
       }
 
       // Check if user is instructor -> Require Step 2 Selection

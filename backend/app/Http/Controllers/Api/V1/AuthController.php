@@ -57,56 +57,88 @@ class AuthController extends Controller
 
         $effectiveRole = $user->role;
 
-        // Role Validation Logic
+        // Role Validation Logic: Enforce strict role-to-dropdown alignment
         if ($user->role === 'admin') {
-            // Super Administrators can sign in through Staff or Instructor tabs
-            $effectiveRole = 'admin';
-        } elseif ($requestedRole === 'student') {
-            if ($user->role !== 'student') {
+            // Super Administrators can sign in through Staff option ONLY
+            if ($requestedRole !== 'staff') {
                 \App\Helpers\LogActivity::record(
                     'Login Failed',
                     'Authentication',
-                    "User {$user->email} ({$user->role}) attempted to sign in via Student portal",
+                    "Administrator '{$user->email}' attempted to sign in via '{$requestedRole}' dropdown option",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
+                throw ValidationException::withMessages([
+                    'login' => ['This account is registered as an Administrator. Please select the Staff option to sign in.'],
+                ]);
+            }
+            $effectiveRole = 'admin';
+        } elseif ($user->role === 'student') {
+            // Students can sign in through Student option ONLY
+            if ($requestedRole !== 'student') {
+                \App\Helpers\LogActivity::record(
+                    'Login Failed',
+                    'Authentication',
+                    "Student '{$user->email}' attempted to sign in via '{$requestedRole}' dropdown option",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
+                throw ValidationException::withMessages([
+                    'login' => ['This account is registered as a Student. Please select the Student option to sign in.'],
+                ]);
+            }
+            $effectiveRole = 'student';
+        } elseif ($user->role === 'instructor') {
+            // Instructors can sign in through Instructor option ONLY
+            if ($requestedRole !== 'instructor') {
+                \App\Helpers\LogActivity::record(
+                    'Login Failed',
+                    'Authentication',
+                    "Instructor '{$user->email}' attempted to sign in via '{$requestedRole}' dropdown option",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
+                throw ValidationException::withMessages([
+                    'login' => ['This account is registered as an Instructor. Please select the Instructor option to sign in.'],
+                ]);
+            }
+            $effectiveRole = 'instructor';
+        } elseif ($user->role === 'dept_head') {
+            // Department Heads can sign in as Staff (for Dept Head Portal) or Instructor (for assigned teaching courses)
+            if ($requestedRole === 'student') {
+                \App\Helpers\LogActivity::record(
+                    'Login Failed',
+                    'Authentication',
+                    "Department Head '{$user->email}' attempted to sign in via 'student' dropdown option",
+                    'Failed',
+                    $user->department_id,
+                    $user
+                );
+                throw ValidationException::withMessages([
+                    'login' => ['This account is registered as Department Head / Staff. Please select the Staff option to sign in.'],
+                ]);
+            }
+            $effectiveRole = $requestedRole === 'instructor' ? 'instructor' : 'dept_head';
+        } else {
+            // Unknown or unhandled roles must match requestedRole
+            if ($requestedRole !== $user->role) {
+                \App\Helpers\LogActivity::record(
+                    'Login Failed',
+                    'Authentication',
+                    "User '{$user->email}' ({$user->role}) attempted to sign in via '{$requestedRole}' dropdown option",
                     'Failed',
                     $user->department_id,
                     $user
                 );
                 $roleLabel = ucfirst($user->role);
-                $targetTab = in_array($user->role, ['admin', 'dept_head']) ? 'Staff' : 'Instructor';
                 throw ValidationException::withMessages([
-                    'login' => ["This account is registered as an {$roleLabel}. Please select the {$targetTab} tab to sign in."],
+                    'login' => ["This account is registered as {$roleLabel}. Please select the appropriate option to sign in."],
                 ]);
             }
-        } elseif ($requestedRole === 'instructor') {
-            if (!in_array($user->role, ['instructor', 'dept_head', 'admin'])) {
-                \App\Helpers\LogActivity::record(
-                    'Login Failed',
-                    'Authentication',
-                    "User {$user->email} ({$user->role}) attempted to sign in via Instructor portal",
-                    'Failed',
-                    $user->department_id,
-                    $user
-                );
-                throw ValidationException::withMessages([
-                    'login' => ['This account is registered as a Student. Please select the Student tab to sign in.'],
-                ]);
-            }
-            $effectiveRole = $user->role === 'admin' ? 'admin' : 'instructor';
-        } elseif ($requestedRole === 'staff') {
-            if (!in_array($user->role, ['admin', 'dept_head'])) {
-                \App\Helpers\LogActivity::record(
-                    'Login Failed',
-                    'Authentication',
-                    "User {$user->email} ({$user->role}) attempted to sign in via Staff portal",
-                    'Failed',
-                    $user->department_id,
-                    $user
-                );
-                throw ValidationException::withMessages([
-                    'login' => ['This account is registered as an Instructor. Please select the Instructor tab to sign in.'],
-                ]);
-            }
-            $effectiveRole = $user->role; // either admin or dept_head
+            $effectiveRole = $user->role;
         }
 
         // System Maintenance Mode: Restrict non-administrator logins during core database operations

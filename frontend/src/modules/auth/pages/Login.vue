@@ -82,6 +82,13 @@ const handleCompleteSetup = () => {
 const cancelStep2 = () => {
   authStore.pendingInstructor = null
 }
+
+// Clear error banner when user changes login identifier or dropdown role
+watch([loginField, selectedRole], () => {
+  if (authStore.error) {
+    authStore.error = null
+  }
+})
 </script>
 
 <template>
