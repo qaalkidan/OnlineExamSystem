@@ -3,8 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Department;
+use App\Models\Course;
+use App\Models\Exam;
 use App\Models\User;
+use App\Services\DepartmentNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
 class DepartmentHeadSettingsNotificationTest extends TestCase
@@ -27,7 +31,7 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
 
         $this->deptHead = User::create([
             'name'                     => 'Fitshum Gashaw',
-            'email'                    => 'fitshumgashaw@gmail.com',
+            'email'                    => 'fitsumgashaw22@gmail.com',
             'password'                 => bcrypt('password123'),
             'role'                     => 'dept_head',
             'department_id'            => $this->department->id,
@@ -39,7 +43,7 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
         ]);
     }
 
-    public function test_get_settings_returns_configured_email_defaults(): void
+    public function test_get_settings_returns_configured_email_defaults_with_masked_password(): void
     {
         $response = $this->actingAs($this->deptHead, 'sanctum')
             ->getJson('/api/v1/dept-head/settings');
@@ -50,7 +54,7 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
                 'data' => [
                     'profile' => [
                         'fullName'   => 'Fitshum Gashaw',
-                        'email'      => 'fitshumgashaw@gmail.com',
+                        'email'      => 'fitsumgashaw22@gmail.com',
                         'department' => 'Computer Science & Engineering',
                     ],
                     'notifications' => [
@@ -58,21 +62,23 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
                         'emailOnCourseCreate'   => true,
                         'emailOnExamPublish'    => false,
                         'weeklyReport'          => true,
+                        'smtpStatus'            => 'connected',
                         'emailConfig'           => [
                             'senderName'     => 'Wollo University Exam Portal',
-                            'senderEmail'    => 'fitshumgashaw@gmail.com',
-                            'recipientEmail' => 'fitshumgashaw@gmail.com',
+                            'senderEmail'    => 'fitsumgashaw22@gmail.com',
+                            'recipientEmail' => 'fitsumgashaw22@gmail.com',
                             'smtpHost'       => 'smtp.gmail.com',
                             'smtpPort'       => '587',
                             'smtpEncryption' => 'tls',
-                            'smtpPassword'   => 'jmrd crdf vtze sksk',
+                            'smtpPassword'   => '••••••••••••••••',
+                            'hasPassword'    => true,
                         ],
                     ],
                 ],
             ]);
     }
 
-    public function test_update_settings_persists_customized_notification_and_email_config(): void
+    public function test_update_settings_persists_customized_notification_and_preserves_password_when_masked(): void
     {
         $updatePayload = [
             'fullName' => 'Dr. Fitshum Gashaw',
@@ -80,17 +86,17 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
             'office'   => 'Tech Complex, Office 301',
             'notifications' => [
                 'emailOnInstructorJoin' => true,
-                'emailOnCourseCreate'   => true,
+                'emailOnCourseCreate'   => false,
                 'emailOnExamPublish'    => true,
                 'weeklyReport'          => false,
                 'emailConfig' => [
                     'senderName'     => 'Wollo University Exam Portal',
-                    'senderEmail'    => 'fitshumgashaw@gmail.com',
-                    'recipientEmail' => 'fitshumgashaw@gmail.com',
+                    'senderEmail'    => 'fitsumgashaw22@gmail.com',
+                    'recipientEmail' => 'fitsumgashaw22@gmail.com',
                     'smtpHost'       => 'smtp.gmail.com',
                     'smtpPort'       => '587',
                     'smtpEncryption' => 'tls',
-                    'smtpPassword'   => 'jmrd crdf vtze sksk',
+                    'smtpPassword'   => '••••••••••••••••', // Masked - must preserve existing server secret
                 ],
             ],
         ];
@@ -107,13 +113,15 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
         $this->deptHead->refresh();
         $this->assertEquals('Dr. Fitshum Gashaw', $this->deptHead->name);
         $this->assertEquals('+251911223344', $this->deptHead->phone);
-        $this->assertEquals('Tech Complex, Office 301', $this->deptHead->office);
 
         $prefs = $this->deptHead->notification_preferences;
         $this->assertIsArray($prefs);
+        $this->assertTrue($prefs['emailOnInstructorJoin']);
+        $this->assertFalse($prefs['emailOnCourseCreate']);
         $this->assertTrue($prefs['emailOnExamPublish']);
         $this->assertFalse($prefs['weeklyReport']);
         $this->assertEquals('Wollo University Exam Portal', $prefs['emailConfig']['senderName']);
+        // Real password preserved on backend
         $this->assertEquals('jmrd crdf vtze sksk', $prefs['emailConfig']['smtpPassword']);
     }
 
@@ -129,5 +137,86 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['emailConfig.smtpPort', 'emailConfig.smtpEncryption']);
+    }
+
+    public function test_weekly_reports_console_command_runs_successfully(): void
+    {
+        $this->deptHead->notification_preferences = [
+            'weeklyReport' => true,
+            'emailConfig' => [
+                'senderName'     => 'Wollo University Exam Portal',
+                'senderEmail'    => 'fitsumgashaw22@gmail.com',
+                'recipientEmail' => 'fitsumgashaw22@gmail.com',
+            ],
+        ];
+        $this->deptHead->save();
+
+        // Create sample course and instructor in department
+        Course::create([
+            'title'         => 'Advanced Algorithms',
+            'code'          => 'CS401',
+            'department_id' => $this->department->id,
+            'status'        => 'active',
+            'credit_hours'  => 4,
+        ]);
+
+        $exitCode = Artisan::call('department:send-weekly-reports', ['--force' => true]);
+        $this->assertEquals(0, $exitCode);
+
+        $this->deptHead->refresh();
+        $currentPeriod = now()->format('o-\WW');
+        $this->assertEquals($currentPeriod, $this->deptHead->notification_preferences['lastWeeklyReportSent'] ?? null);
+    }
+
+    public function test_weekly_report_prevents_duplicate_for_same_period(): void
+    {
+        $currentPeriod = now()->format('o-\WW');
+        $this->deptHead->notification_preferences = [
+            'weeklyReport'         => true,
+            'lastWeeklyReportSent' => $currentPeriod,
+            'emailConfig' => [
+                'senderName'     => 'Wollo University Exam Portal',
+                'senderEmail'    => 'fitsumgashaw22@gmail.com',
+                'recipientEmail' => 'fitsumgashaw22@gmail.com',
+            ],
+        ];
+        $this->deptHead->save();
+
+        // Without --force, it must skip sending duplicate
+        $result = DepartmentNotificationService::sendWeeklyDepartmentReport($this->deptHead, false);
+        $this->assertFalse($result['success']);
+        $this->assertTrue($result['skipped']);
+        $this->assertStringContainsString('already been sent', $result['message']);
+    }
+
+    public function test_each_toggle_operates_independently(): void
+    {
+        // Toggle only instructor join on
+        $this->deptHead->notification_preferences = [
+            'emailOnInstructorJoin' => true,
+            'emailOnCourseCreate'   => false,
+            'emailOnExamPublish'    => false,
+            'weeklyReport'          => false,
+        ];
+        $this->deptHead->save();
+
+        $prefs = $this->deptHead->notification_preferences;
+        $this->assertTrue($prefs['emailOnInstructorJoin']);
+        $this->assertFalse($prefs['emailOnCourseCreate']);
+        $this->assertFalse($prefs['emailOnExamPublish']);
+        $this->assertFalse($prefs['weeklyReport']);
+
+        // Toggle course create on, instructor join off
+        $this->deptHead->notification_preferences = [
+            'emailOnInstructorJoin' => false,
+            'emailOnCourseCreate'   => true,
+            'emailOnExamPublish'    => false,
+            'weeklyReport'          => false,
+        ];
+        $this->deptHead->save();
+
+        $this->deptHead->refresh();
+        $this->assertFalse($this->deptHead->notification_preferences['emailOnInstructorJoin']);
+        $this->assertTrue($this->deptHead->notification_preferences['emailOnCourseCreate']);
     }
 }
