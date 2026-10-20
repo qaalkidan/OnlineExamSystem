@@ -940,6 +940,12 @@ class ExamController extends Controller
             "Scheduled exam \"{$exam->title}\" ({$exam->course_code}) for Department ID {$deptId}"
         );
 
+        try {
+            \App\Services\DepartmentNotificationService::notifyExamPublished($exam);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Could not dispatch exam published notification: " . $e->getMessage());
+        }
+
         return response()->json([
             'status'  => 'success',
             'message' => 'Examination scheduled successfully',

@@ -36,8 +36,22 @@ const notifications = ref({
   emailOnInstructorJoin: true,
   emailOnCourseCreate: true,
   emailOnExamPublish: false,
-  weeklyReport: true
+  weeklyReport: true,
+  emailConfig: {
+    senderName: 'Wollo University Exam Portal',
+    senderEmail: 'fitshumgashaw@gmail.com',
+    recipientEmail: 'fitshumgashaw@gmail.com',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: '587',
+    smtpEncryption: 'tls',
+    smtpPassword: 'jmrd crdf vtze sksk'
+  }
 })
+
+const showSmtpPassword = ref(false)
+const isSendingTest = ref(false)
+const selectedTestType = ref('integration')
+const testEmailStatus = ref<{ show: boolean; success: boolean; message: string; details?: string } | null>(null)
 
 // Validation & Error states
 const errors = ref<Record<string, string>>({})
@@ -53,7 +67,7 @@ const showToast = (message: string, type: 'success' | 'error' = 'success') => {
   toast.value = { show: true, message, type }
   setTimeout(() => {
     toast.value.show = false
-  }, 4000)
+  }, 4500)
 }
 
 // Fetch current user settings
@@ -70,7 +84,7 @@ const fetchSettings = async () => {
           id: data.profile.id ?? null,
           fullName: data.profile.fullName || authStore.user?.name || '',
           email: data.profile.email || authStore.user?.email || '',
-          phone: data.profile.phone || '+251 91 123 4567',
+          phone: data.profile.phone || '+251980426395',
           office: data.profile.office || 'Block A, Room 204',
           department: data.profile.department || 'Computer Science',
           role: data.profile.role || 'dept_head'
@@ -81,17 +95,25 @@ const fetchSettings = async () => {
           emailOnInstructorJoin: !!data.notifications.emailOnInstructorJoin,
           emailOnCourseCreate: !!data.notifications.emailOnCourseCreate,
           emailOnExamPublish: !!data.notifications.emailOnExamPublish,
-          weeklyReport: !!data.notifications.weeklyReport
+          weeklyReport: !!data.notifications.weeklyReport,
+          emailConfig: {
+            senderName: data.notifications.emailConfig?.senderName || 'Wollo University Exam Portal',
+            senderEmail: data.notifications.emailConfig?.senderEmail || data.profile?.email || 'fitshumgashaw@gmail.com',
+            recipientEmail: data.notifications.emailConfig?.recipientEmail || data.profile?.email || 'fitshumgashaw@gmail.com',
+            smtpHost: data.notifications.emailConfig?.smtpHost || 'smtp.gmail.com',
+            smtpPort: String(data.notifications.emailConfig?.smtpPort || '587'),
+            smtpEncryption: data.notifications.emailConfig?.smtpEncryption || 'tls',
+            smtpPassword: data.notifications.emailConfig?.smtpPassword || 'jmrd crdf vtze sksk'
+          }
         }
       }
     }
   } catch (err: any) {
     console.error('Failed to load department head settings:', err)
-    // Fallback gracefully to logged-in user in auth store
     if (authStore.user) {
-      profile.value.fullName = authStore.user.name || 'Dr. Department Head'
-      profile.value.email = authStore.user.email || 'head.cs@wou.edu.et'
-      profile.value.phone = authStore.user.phone || '+251 91 123 4567'
+      profile.value.fullName = authStore.user.name || 'fitsum gashaw'
+      profile.value.email = authStore.user.email || 'fitshumgashaw@gmail.com'
+      profile.value.phone = authStore.user.phone || '+251980426395'
       profile.value.office = authStore.user.office || 'Block A, Room 204'
     }
     showToast('Failed to load settings from server.', 'error')
@@ -145,7 +167,16 @@ const saveSettings = async () => {
         emailOnInstructorJoin: notifications.value.emailOnInstructorJoin,
         emailOnCourseCreate: notifications.value.emailOnCourseCreate,
         emailOnExamPublish: notifications.value.emailOnExamPublish,
-        weeklyReport: notifications.value.weeklyReport
+        weeklyReport: notifications.value.weeklyReport,
+        emailConfig: {
+          senderName: notifications.value.emailConfig.senderName?.trim() || 'Wollo University Exam Portal',
+          senderEmail: notifications.value.emailConfig.senderEmail?.trim() || 'fitshumgashaw@gmail.com',
+          recipientEmail: notifications.value.emailConfig.recipientEmail?.trim() || 'fitshumgashaw@gmail.com',
+          smtpHost: notifications.value.emailConfig.smtpHost?.trim() || 'smtp.gmail.com',
+          smtpPort: String(notifications.value.emailConfig.smtpPort || '587').trim(),
+          smtpEncryption: notifications.value.emailConfig.smtpEncryption || 'tls',
+          smtpPassword: notifications.value.emailConfig.smtpPassword?.trim() || 'jmrd crdf vtze sksk'
+        }
       }
     }
 
@@ -173,7 +204,7 @@ const saveSettings = async () => {
       }
 
       saved.value = true
-      showToast(res.data.message || 'Account settings saved successfully!', 'success')
+      showToast(res.data.message || 'Notification preferences and settings saved successfully!', 'success')
       setTimeout(() => {
         saved.value = false
       }, 3000)
@@ -194,13 +225,59 @@ const saveSettings = async () => {
   }
 }
 
+// Send Test Notification Email Handler
+const sendTestEmail = async () => {
+  try {
+    isSendingTest.value = true
+    testEmailStatus.value = null
+
+    const payload = {
+      emailConfig: {
+        senderName: notifications.value.emailConfig.senderName?.trim() || 'Wollo University Exam Portal',
+        senderEmail: notifications.value.emailConfig.senderEmail?.trim() || 'fitshumgashaw@gmail.com',
+        recipientEmail: notifications.value.emailConfig.recipientEmail?.trim() || 'fitshumgashaw@gmail.com',
+        smtpHost: notifications.value.emailConfig.smtpHost?.trim() || 'smtp.gmail.com',
+        smtpPort: notifications.value.emailConfig.smtpPort || '587',
+        smtpEncryption: notifications.value.emailConfig.smtpEncryption || 'tls',
+        smtpPassword: notifications.value.emailConfig.smtpPassword?.trim() || 'jmrd crdf vtze sksk'
+      },
+      testType: selectedTestType.value
+    }
+
+    const res = await apiClient.post('/dept-head/settings/test-email', payload)
+
+    if (res.data?.status === 'success') {
+      const target = payload.emailConfig.recipientEmail
+      testEmailStatus.value = {
+        show: true,
+        success: true,
+        message: res.data.message || `Test notification email dispatched successfully to ${target}!`
+      }
+      showToast(testEmailStatus.value.message, 'success')
+    }
+  } catch (err: any) {
+    console.error('Failed to send test email:', err)
+    const errMessage = err.response?.data?.message || 'Failed to dispatch test notification email.'
+    const errDetails = err.response?.data?.error_details || ''
+    testEmailStatus.value = {
+      show: true,
+      success: false,
+      message: errMessage,
+      details: errDetails
+    }
+    showToast(errMessage, 'error')
+  } finally {
+    isSendingTest.value = false
+  }
+}
+
 onMounted(() => {
   fetchSettings()
 })
 </script>
 
 <template>
-  <div class="max-w-[1500px] mx-auto space-y-6 pb-12 min-w-0 max-w-full">
+  <div class="max-w-[1500px] mx-auto space-y-6 pb-12 min-w-0 max-w-full font-sans">
 
     <!-- Toast Notification -->
     <div
@@ -220,8 +297,8 @@ onMounted(() => {
     <!-- Header Section -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800">Account Settings</h1>
-        <p class="text-[12px] sm:text-[13px] text-slate-500 mt-1">Manage your personal profile and notification preferences.</p>
+        <h1 class="text-[20px] sm:text-[22px] font-bold text-slate-800 tracking-tight">Account Settings</h1>
+        <p class="text-[12px] sm:text-[13px] text-slate-500 mt-0.5">Manage your personal profile and notification preferences.</p>
       </div>
 
       <!-- Save Changes Button -->
@@ -284,7 +361,7 @@ onMounted(() => {
             <input
               v-model="profile.fullName"
               type="text"
-              placeholder="e.g. Dr. Department Head"
+              placeholder="e.g. fitsum gashaw"
               class="w-full border rounded-xl px-4 py-2.5 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
               :class="errors.fullName ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white'"
             />
@@ -312,7 +389,7 @@ onMounted(() => {
               <input
                 v-model="profile.phone"
                 type="text"
-                placeholder="+251 91 123 4567"
+                placeholder="+251980426395"
                 class="w-full border border-slate-200 rounded-xl px-4 py-2.5 min-h-[44px] text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
               />
             </div>
@@ -358,7 +435,7 @@ onMounted(() => {
               <button
                 type="button"
                 @click="showPasswords.current = !showPasswords.current"
-                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
               >
                 <svg v-if="showPasswords.current" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
                 <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -381,7 +458,7 @@ onMounted(() => {
               <button
                 type="button"
                 @click="showPasswords.new = !showPasswords.new"
-                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
               >
                 <svg v-if="showPasswords.new" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
                 <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -404,7 +481,7 @@ onMounted(() => {
               <button
                 type="button"
                 @click="showPasswords.confirm = !showPasswords.confirm"
-                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                class="w-10 h-10 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
               >
                 <svg v-if="showPasswords.confirm" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
                 <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -415,85 +492,310 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 3. Notification Preferences Card (Col-Span 2) -->
+      <!-- 3. Notification Preferences & Email Integration Card (Col-Span 2) -->
       <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6 col-span-1 lg:col-span-2">
-        <div class="flex items-center gap-3 mb-6">
-          <div class="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center shrink-0">
-            <svg class="w-4.5 h-4.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+        
+        <!-- Header with Status Badge -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center shrink-0">
+              <svg class="w-4.5 h-4.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-[15px] font-bold text-slate-800">Notification Preferences & Email Integration</h3>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Configured: {{ notifications.emailConfig.senderName }}
+                </span>
+              </div>
+              <p class="text-[11px] sm:text-[12px] text-slate-400 mt-0.5">Configure email delivery parameters and choose when automated notifications are dispatched.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3A. Integrated Email Configuration Form Panel -->
+        <div class="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200/60">
+            <div class="flex items-center gap-2">
+              <div class="w-6 h-6 rounded-lg bg-indigo-100 text-[#5138ed] flex items-center justify-center shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+              </div>
+              <h4 class="text-[13px] font-bold text-slate-700">Email Delivery & SMTP Service Settings</h4>
+            </div>
+            <span class="text-[11px] font-medium text-slate-500">
+              Host: <code class="font-mono text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200">{{ notifications.emailConfig.smtpHost }}:{{ notifications.emailConfig.smtpPort }}</code>
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- 1. Sender App Name -->
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">
+                App Name (Mail From Name)
+                <span class="text-rose-500">*</span>
+              </label>
+              <input
+                v-model="notifications.emailConfig.senderName"
+                type="text"
+                placeholder="Wollo University Exam Portal"
+                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+              />
+              <p class="text-[10px] text-slate-400 mt-1">Sender name displayed in student & faculty inboxes</p>
+            </div>
+
+            <!-- 2. Sender Email / SMTP Username -->
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">
+                Sender Email (SMTP Username)
+                <span class="text-rose-500">*</span>
+              </label>
+              <input
+                v-model="notifications.emailConfig.senderEmail"
+                type="email"
+                placeholder="fitshumgashaw@gmail.com"
+                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+              />
+              <p class="text-[10px] text-slate-400 mt-1">Authenticated SMTP account</p>
+            </div>
+
+            <!-- 3. Notification Recipient Email -->
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">
+                Notification Recipient Email
+                <span class="text-rose-500">*</span>
+              </label>
+              <input
+                v-model="notifications.emailConfig.recipientEmail"
+                type="email"
+                placeholder="fitshumgashaw@gmail.com"
+                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+              />
+              <p class="text-[10px] text-slate-400 mt-1">Where Department Head notifications will arrive</p>
+            </div>
+
+            <!-- 4. Email App Password -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[11px] font-bold text-slate-600">
+                  Google App Password
+                  <span class="text-rose-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  @click="showSmtpPassword = !showSmtpPassword"
+                  class="text-[10px] font-semibold text-[#5138ed] hover:underline focus:outline-none cursor-pointer"
+                >
+                  {{ showSmtpPassword ? 'Hide' : 'Show' }}
+                </button>
+              </div>
+              <div class="relative">
+                <input
+                  v-model="notifications.emailConfig.smtpPassword"
+                  :type="showSmtpPassword ? 'text' : 'password'"
+                  placeholder="jmrd crdf vtze sksk"
+                  class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 pr-10 text-[12px] sm:text-[13px] text-slate-800 font-mono transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+                />
+                <button
+                  type="button"
+                  @click="showSmtpPassword = !showSmtpPassword"
+                  class="w-8 h-8 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  <svg v-if="showSmtpPassword" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                </button>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">16-character Google App Password (e.g. jmrd crdf vtze sksk)</p>
+            </div>
+
+            <!-- 5. SMTP Server Host -->
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">SMTP Host</label>
+              <input
+                v-model="notifications.emailConfig.smtpHost"
+                type="text"
+                placeholder="smtp.gmail.com"
+                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+              />
+              <p class="text-[10px] text-slate-400 mt-1">Default: smtp.gmail.com</p>
+            </div>
+
+            <!-- 6. Port & Encryption -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Port</label>
+                <input
+                  v-model="notifications.emailConfig.smtpPort"
+                  type="text"
+                  placeholder="587"
+                  class="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
+                />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Encryption</label>
+                <select
+                  v-model="notifications.emailConfig.smtpEncryption"
+                  class="w-full border border-slate-200 bg-white rounded-xl px-2.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer"
+                >
+                  <option value="tls">TLS (587)</option>
+                  <option value="ssl">SSL (465)</option>
+                </select>
+              </div>
+              <p class="col-span-2 text-[10px] text-slate-400">Transport encryption protocol</p>
+            </div>
+          </div>
+
+          <!-- Email Test & Integration Action Bar -->
+          <div class="mt-4 pt-3.5 border-t border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <label class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Preview Trigger:</label>
+              <select
+                v-model="selectedTestType"
+                class="border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#5138ed] cursor-pointer"
+              >
+                <option value="integration">General Integration Test</option>
+                <option value="instructor_join">Sample: New Instructor Joined</option>
+                <option value="course_create">Sample: New Course Created</option>
+                <option value="exam_publish">Sample: Exam Published</option>
+                <option value="weekly_report">Sample: Weekly Department Report</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-2.5">
+              <button
+                type="button"
+                @click="sendTestEmail"
+                :disabled="isSendingTest"
+                class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 border border-indigo-200 text-[#5138ed] hover:border-indigo-300 rounded-xl text-[12px] font-bold shadow-xs transition-all active:scale-95 disabled:opacity-60 cursor-pointer min-h-[38px]"
+              >
+                <svg v-if="isSendingTest" class="w-3.5 h-3.5 animate-spin text-[#5138ed]" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg v-else class="w-3.5 h-3.5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                <span>{{ isSendingTest ? 'Testing Connection...' : 'Send Test Notification Email' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Direct Test Status Banner -->
+          <div
+            v-if="testEmailStatus?.show"
+            class="mt-3.5 p-3 rounded-xl border text-[12px] flex items-start gap-2.5 animate-in fade-in duration-200"
+            :class="testEmailStatus.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'"
+          >
+            <svg v-if="testEmailStatus.success" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
-          </div>
-          <div>
-            <h3 class="text-[14px] font-bold text-slate-800">Notification Preferences</h3>
-            <p class="text-[11px] text-slate-400">When should we email you?</p>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-3 sm:gap-y-4">
-          <!-- Toggle 1: New Instructor Joins -->
-          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
-            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Email me when a new instructor joins</span>
+            <svg v-else class="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <div class="min-w-0 flex-1">
+              <span class="font-bold block">{{ testEmailStatus.message }}</span>
+              <p v-if="testEmailStatus.details" class="text-[11px] opacity-80 mt-0.5 font-mono break-all">{{ testEmailStatus.details }}</p>
+            </div>
             <button
               type="button"
-              @click="notifications.emailOnInstructorJoin = !notifications.emailOnInstructorJoin"
-              :class="notifications.emailOnInstructorJoin ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
+              @click="testEmailStatus.show = false"
+              class="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
             >
-              <span
-                :class="notifications.emailOnInstructorJoin ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
-              ></span>
-            </button>
-          </div>
-
-          <!-- Toggle 2: New Course Created -->
-          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
-            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Email me when a new course is created</span>
-            <button
-              type="button"
-              @click="notifications.emailOnCourseCreate = !notifications.emailOnCourseCreate"
-              :class="notifications.emailOnCourseCreate ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
-            >
-              <span
-                :class="notifications.emailOnCourseCreate ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
-              ></span>
-            </button>
-          </div>
-
-          <!-- Toggle 3: Exam Published -->
-          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
-            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Email me when an exam is published</span>
-            <button
-              type="button"
-              @click="notifications.emailOnExamPublish = !notifications.emailOnExamPublish"
-              :class="notifications.emailOnExamPublish ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
-            >
-              <span
-                :class="notifications.emailOnExamPublish ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
-              ></span>
-            </button>
-          </div>
-
-          <!-- Toggle 4: Weekly Department Report -->
-          <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
-            <span class="text-[12px] sm:text-[13px] font-semibold text-slate-600">Send me a weekly department report</span>
-            <button
-              type="button"
-              @click="notifications.weeklyReport = !notifications.weeklyReport"
-              :class="notifications.weeklyReport ? 'bg-[#5138ed]' : 'bg-slate-200'"
-              class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
-            >
-              <span
-                :class="notifications.weeklyReport ? 'translate-x-5' : 'translate-x-0.5'"
-                class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
-              ></span>
+              &times;
             </button>
           </div>
         </div>
+
+        <!-- 3B. Notification Triggers (When should we email you?) -->
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <h4 class="text-[13px] font-bold text-slate-700">When should we email you?</h4>
+            <span class="text-[11px] text-slate-400">(Toggle individual event triggers)</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-3 sm:gap-y-4">
+            <!-- Toggle 1: New Instructor Joins -->
+            <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+              <div class="flex flex-col">
+                <span class="text-[12px] sm:text-[13px] font-semibold text-slate-700">Email me when a new instructor joins</span>
+                <span class="text-[10px] text-slate-400">Receive alert with instructor details upon faculty addition</span>
+              </div>
+              <button
+                type="button"
+                @click="notifications.emailOnInstructorJoin = !notifications.emailOnInstructorJoin"
+                :class="notifications.emailOnInstructorJoin ? 'bg-[#5138ed]' : 'bg-slate-200'"
+                class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
+              >
+                <span
+                  :class="notifications.emailOnInstructorJoin ? 'translate-x-5' : 'translate-x-0.5'"
+                  class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                ></span>
+              </button>
+            </div>
+
+            <!-- Toggle 2: New Course Created -->
+            <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+              <div class="flex flex-col">
+                <span class="text-[12px] sm:text-[13px] font-semibold text-slate-700">Email me when a new course is created</span>
+                <span class="text-[10px] text-slate-400">Receive notification when curriculum courses are added</span>
+              </div>
+              <button
+                type="button"
+                @click="notifications.emailOnCourseCreate = !notifications.emailOnCourseCreate"
+                :class="notifications.emailOnCourseCreate ? 'bg-[#5138ed]' : 'bg-slate-200'"
+                class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
+              >
+                <span
+                  :class="notifications.emailOnCourseCreate ? 'translate-x-5' : 'translate-x-0.5'"
+                  class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                ></span>
+              </button>
+            </div>
+
+            <!-- Toggle 3: Exam Published -->
+            <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+              <div class="flex flex-col">
+                <span class="text-[12px] sm:text-[13px] font-semibold text-slate-700">Email me when an exam is published</span>
+                <span class="text-[10px] text-slate-400">Instant notification when instructor publishes an exam</span>
+              </div>
+              <button
+                type="button"
+                @click="notifications.emailOnExamPublish = !notifications.emailOnExamPublish"
+                :class="notifications.emailOnExamPublish ? 'bg-[#5138ed]' : 'bg-slate-200'"
+                class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
+              >
+                <span
+                  :class="notifications.emailOnExamPublish ? 'translate-x-5' : 'translate-x-0.5'"
+                  class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                ></span>
+              </button>
+            </div>
+
+            <!-- Toggle 4: Weekly Department Report -->
+            <div class="flex items-center justify-between py-2.5 min-h-[44px] border-b border-slate-50 last:border-0 gap-3">
+              <div class="flex flex-col">
+                <span class="text-[12px] sm:text-[13px] font-semibold text-slate-700">Send me a weekly department report</span>
+                <span class="text-[10px] text-slate-400">Weekly automated summary of submissions, courses & assessments</span>
+              </div>
+              <button
+                type="button"
+                @click="notifications.weeklyReport = !notifications.weeklyReport"
+                :class="notifications.weeklyReport ? 'bg-[#5138ed]' : 'bg-slate-200'"
+                class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none shrink-0"
+              >
+                <span
+                  :class="notifications.weeklyReport ? 'translate-x-5' : 'translate-x-0.5'"
+                  class="inline-block w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200"
+                ></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>

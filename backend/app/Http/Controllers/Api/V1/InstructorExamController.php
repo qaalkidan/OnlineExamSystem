@@ -220,6 +220,14 @@ class InstructorExamController extends Controller
 
         $exam->loadCount(['questions', 'students']);
 
+        if ($exam->status === 'published') {
+            try {
+                \App\Services\DepartmentNotificationService::notifyExamPublished($exam);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Could not dispatch exam published notification: " . $e->getMessage());
+            }
+        }
+
         return response()->json([
             'message' => 'Exam created successfully',
             'data'    => [
@@ -342,6 +350,14 @@ class InstructorExamController extends Controller
         });
 
         $exam->loadCount(['questions', 'students']);
+
+        if ($exam->status === 'published') {
+            try {
+                \App\Services\DepartmentNotificationService::notifyExamPublished($exam);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Could not dispatch exam published notification: " . $e->getMessage());
+            }
+        }
         $exam->load('questions');
 
         return response()->json([

@@ -429,6 +429,12 @@ class CourseController extends Controller
             "Created course \"{$course->title}\" ({$course->code}) in Department ID {$deptId}"
         );
 
+        try {
+            \App\Services\DepartmentNotificationService::notifyCourseCreated($course);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Could not dispatch course created notification: " . $e->getMessage());
+        }
+
         return response()->json([
             'status'  => 'success',
             'message' => 'Course created successfully',

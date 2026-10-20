@@ -555,6 +555,12 @@ class InstructorController extends Controller
             "Created a new Instructor \"{$instructor->name}\""
         );
 
+        try {
+            \App\Services\DepartmentNotificationService::notifyInstructorJoined($instructor);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Could not dispatch instructor joined notification: " . $e->getMessage());
+        }
+
         return response()->json([
             'status'  => 'success',
             'message' => 'Instructor created successfully',

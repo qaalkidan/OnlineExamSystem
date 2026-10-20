@@ -188,6 +188,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(fu
         Route::post('activity-logs/{id}/read', [\App\Http\Controllers\Api\V1\DeptHead\ActivityLogController::class, 'markAsRead']);
         Route::get('settings', [\App\Http\Controllers\Api\V1\DeptHead\SettingController::class, 'getSettings']);
         Route::put('settings', [\App\Http\Controllers\Api\V1\DeptHead\SettingController::class, 'updateSettings']);
+        Route::post('settings/test-email', [\App\Http\Controllers\Api\V1\DeptHead\SettingController::class, 'sendTestEmail']);
     });
 
     // ------------------------------------------------------------------
