@@ -13,49 +13,19 @@ use Illuminate\Validation\ValidationException;
 class SettingController extends Controller
 {
     /**
-     * Get the logged-in Department Head's account settings and preferences.
-     * Sensitive credentials like SMTP passwords are masked before sending to the client.
+     * Get the logged-in Department Head's account settings and notification preferences.
      */
     public function getSettings(Request $request): JsonResponse
     {
         $user = $request->user()->load('department');
-
-        $defaultEmailConfig = [
-            'senderName'     => config('mail.from.name', 'Wollo University Exam Portal'),
-            'senderEmail'    => config('mail.from.address', 'fitsumgashaw22@gmail.com'),
-            'recipientEmail' => $user->email ?: 'fitsumgashaw22@gmail.com',
-            'smtpHost'       => config('mail.mailers.smtp.host', 'smtp.gmail.com'),
-            'smtpPort'       => (string)config('mail.mailers.smtp.port', '587'),
-            'smtpEncryption' => config('mail.mailers.smtp.encryption', 'tls'),
-            'smtpPassword'   => config('mail.mailers.smtp.password', 'jmrd crdf vtze sksk'),
-        ];
-
-        $defaultNotifications = [
-            'emailOnInstructorJoin' => true,
-            'emailOnCourseCreate'   => true,
-            'emailOnExamPublish'    => false,
-            'weeklyReport'          => true,
-            'emailConfig'           => $defaultEmailConfig,
-        ];
-
         $userPrefs = is_array($user->notification_preferences) ? $user->notification_preferences : [];
-        $mergedEmailConfig = array_merge($defaultEmailConfig, $userPrefs['emailConfig'] ?? []);
-
-        // Mask password before returning to frontend
-        $hasPassword = !empty($mergedEmailConfig['smtpPassword']) || !empty(config('mail.mailers.smtp.password'));
-        $safeEmailConfig = $mergedEmailConfig;
-        $safeEmailConfig['smtpPassword'] = $hasPassword ? '••••••••••••••••' : '';
-        $safeEmailConfig['hasPassword'] = $hasPassword;
 
         $notifications = [
-            'emailOnInstructorJoin' => (bool)($userPrefs['emailOnInstructorJoin'] ?? $defaultNotifications['emailOnInstructorJoin']),
-            'emailOnCourseCreate'   => (bool)($userPrefs['emailOnCourseCreate'] ?? $defaultNotifications['emailOnCourseCreate']),
-            'emailOnExamPublish'    => (bool)($userPrefs['emailOnExamPublish'] ?? $defaultNotifications['emailOnExamPublish']),
-            'weeklyReport'          => (bool)($userPrefs['weeklyReport'] ?? $defaultNotifications['weeklyReport']),
-            'smtpStatus'            => $userPrefs['smtpStatus'] ?? 'connected',
-            'lastTestTime'          => $userPrefs['lastTestTime'] ?? null,
-            'lastTestResult'        => $userPrefs['lastTestResult'] ?? null,
-            'emailConfig'           => $safeEmailConfig,
+            'emailOnInstructorJoin' => (bool)($userPrefs['emailOnInstructorJoin'] ?? true),
+            'emailOnCourseCreate'   => (bool)($userPrefs['emailOnCourseCreate'] ?? true),
+            'emailOnExamPublish'    => (bool)($userPrefs['emailOnExamPublish'] ?? false),
+            'weeklyReport'          => (bool)($userPrefs['weeklyReport'] ?? true),
+            'recipientEmail'        => $user->email,
         ];
 
         return response()->json([
@@ -76,7 +46,7 @@ class SettingController extends Controller
     }
 
     /**
-     * Update account settings (profile information, security/password, notification preferences & email integration).
+     * Update account settings (profile information, security/password, notification preferences).
      */
     public function updateSettings(Request $request): JsonResponse
     {
@@ -92,7 +62,7 @@ class SettingController extends Controller
             'confirmPassword' => 'nullable|string',
         ];
 
-        $validated = $request->validate($rules);
+        $request->validate($rules);
 
         // Handle Password Change if requested
         $passwordChanged = false;
@@ -128,66 +98,34 @@ class SettingController extends Controller
             $user->office = $request->office;
         }
 
-        // Update Notification Preferences & Email Integration Form
+        // Update Notification Preferences (4 toggles)
         if ($request->has('notifications') && is_array($request->notifications)) {
             $notifData = $request->notifications;
-            $emailConfig = is_array($notifData['emailConfig'] ?? null) ? $notifData['emailConfig'] : [];
             $existingPrefs = is_array($user->notification_preferences) ? $user->notification_preferences : [];
-            $existingEmailConfig = $existingPrefs['emailConfig'] ?? [];
-
-            // Password handling: preserve existing password if incoming is masked or empty
-            $incomingPass = $emailConfig['smtpPassword'] ?? '';
-            $isMasked = preg_match('/^[•*●\s]+$/u', (string)$incomingPass);
-            if (!empty($incomingPass) && !$isMasked) {
-                $finalPassword = $incomingPass;
-            } elseif (!empty($existingEmailConfig['smtpPassword'])) {
-                $finalPassword = $existingEmailConfig['smtpPassword'];
-            } else {
-                $finalPassword = config('mail.mailers.smtp.password', 'jmrd crdf vtze sksk');
-            }
 
             $user->notification_preferences = [
                 'emailOnInstructorJoin' => (bool)($notifData['emailOnInstructorJoin'] ?? false),
                 'emailOnCourseCreate'   => (bool)($notifData['emailOnCourseCreate'] ?? false),
                 'emailOnExamPublish'    => (bool)($notifData['emailOnExamPublish'] ?? false),
                 'weeklyReport'          => (bool)($notifData['weeklyReport'] ?? false),
-                'smtpStatus'            => $existingPrefs['smtpStatus'] ?? 'connected',
-                'lastTestTime'          => $existingPrefs['lastTestTime'] ?? null,
-                'lastTestResult'        => $existingPrefs['lastTestResult'] ?? null,
                 'lastWeeklyReportSent'  => $existingPrefs['lastWeeklyReportSent'] ?? null,
-                'emailConfig'           => [
-                    'senderName'     => $emailConfig['senderName'] ?? 'Wollo University Exam Portal',
-                    'senderEmail'    => $emailConfig['senderEmail'] ?? config('mail.from.address', 'fitsumgashaw22@gmail.com'),
-                    'recipientEmail' => $emailConfig['recipientEmail'] ?? ($user->email ?: 'fitsumgashaw22@gmail.com'),
-                    'smtpHost'       => $emailConfig['smtpHost'] ?? config('mail.mailers.smtp.host', 'smtp.gmail.com'),
-                    'smtpPort'       => (string)($emailConfig['smtpPort'] ?? '587'),
-                    'smtpEncryption' => $emailConfig['smtpEncryption'] ?? 'tls',
-                    'smtpPassword'   => $finalPassword,
-                ],
             ];
         }
 
         $user->save();
 
         // Log the activity
-        $logMessage = "Department Head updated profile information, notification preferences & email configuration";
+        $logMessage = "Department Head updated profile information and notification preferences";
         if ($passwordChanged) {
             $logMessage .= " and changed security password";
         }
         LogActivity::record('Updated', 'Settings', $logMessage, 'Success', $user->department_id, $user);
 
-        // Format safe response for frontend
-        $safePrefs = $user->notification_preferences;
-        if (isset($safePrefs['emailConfig']['smtpPassword'])) {
-            $safePrefs['emailConfig']['smtpPassword'] = '••••••••••••••••';
-            $safePrefs['emailConfig']['hasPassword'] = true;
-        }
-
         return response()->json([
             'status'  => 'success',
             'message' => $passwordChanged
-                ? 'Account settings, email integration, and password updated successfully.'
-                : 'Account settings and notification email preferences saved successfully.',
+                ? 'Account settings, notification preferences, and password updated successfully.'
+                : 'Account settings and notification preferences saved successfully.',
             'data'    => [
                 'profile' => [
                     'id'          => $user->id,
@@ -198,66 +136,58 @@ class SettingController extends Controller
                     'role'        => $user->role,
                     'department'  => $user->department?->name,
                 ],
-                'notifications' => $safePrefs,
+                'notifications' => [
+                    'emailOnInstructorJoin' => (bool)($user->notification_preferences['emailOnInstructorJoin'] ?? false),
+                    'emailOnCourseCreate'   => (bool)($user->notification_preferences['emailOnCourseCreate'] ?? false),
+                    'emailOnExamPublish'    => (bool)($user->notification_preferences['emailOnExamPublish'] ?? false),
+                    'weeklyReport'          => (bool)($user->notification_preferences['weeklyReport'] ?? false),
+                    'recipientEmail'        => $user->email,
+                ],
             ]
         ]);
     }
 
     /**
-     * Send a real test email using the configured notification preferences & email credentials.
+     * Send a real test email to the Department Head's email address.
      */
     public function sendTestEmail(Request $request): JsonResponse
     {
         $user = $request->user();
+        $config = DepartmentNotificationService::resolveConfig($user);
+        $target = $user->email ?: config('mail.from.address', 'fitsumgashaw22@gmail.com');
+        $appName = $config['senderName'];
 
-        $rules = [
-            'emailConfig'                  => 'nullable|array',
-            'emailConfig.senderName'       => 'nullable|string|max:100',
-            'emailConfig.senderEmail'      => 'nullable|email|max:150',
-            'emailConfig.recipientEmail'   => 'nullable|email|max:150',
-            'emailConfig.smtpHost'         => 'nullable|string|max:150',
-            'emailConfig.smtpPort'         => 'nullable|numeric',
-            'emailConfig.smtpEncryption'   => 'nullable|string|in:tls,ssl,none',
-            'emailConfig.smtpPassword'     => 'nullable|string',
-            'testType'                     => 'nullable|string|in:integration,instructor_join,course_create,exam_publish,weekly_report',
-        ];
+        $subject = "{$appName} — Notification Integration Verification";
+        $timestamp = now()->format('M d, Y • h:i A');
 
-        $request->validate($rules);
+        $html = "
+        <div style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;max-width:580px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;'>
+            <div style='background:linear-gradient(135deg,#3730a3 0%,#4f46e5 100%);padding:24px;text-align:center;'>
+                <h1 style='color:#fff;font-size:18px;margin:0;'>{$appName}</h1>
+                <p style='color:#c7d2fe;font-size:12px;margin:4px 0 0 0;'>Department Head Notification Service</p>
+            </div>
+            <div style='padding:24px;'>
+                <div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;margin-bottom:20px;'>
+                    <span style='color:#15803d;font-weight:700;font-size:13px;display:block;'>✓ Notification Channel Operational</span>
+                    <p style='color:#166534;font-size:12px;margin:4px 0 0 0;'>Automated department notifications will be delivered directly to your email: <strong>{$target}</strong>.</p>
+                </div>
+                <p style='font-size:13px;color:#475569;'>Verified on: <strong>{$timestamp}</strong></p>
+            </div>
+        </div>";
 
-        $override = $request->input('emailConfig', []);
-        $testType = $request->input('testType', 'integration');
-
-        $result = DepartmentNotificationService::sendTestNotification($user, $override, $testType);
+        $result = DepartmentNotificationService::deliverEmail($config, $target, $subject, $html);
 
         if ($result['success']) {
-            $target = $result['targetEmail'] ?? ($override['recipientEmail'] ?? ($user->email ?: 'fitsumgashaw22@gmail.com'));
             return response()->json([
-                'status'       => 'success',
-                'message'      => "Test notification email dispatched successfully to {$target}!",
-                'smtpStatus'   => 'connected',
-                'lastTestTime' => $result['lastTestTime'] ?? now()->toIso8601String(),
-                'details'      => [
-                    'recipient' => $target,
-                    'timestamp' => now()->format('M d, Y h:i A'),
-                ],
+                'status'  => 'success',
+                'message' => "Test notification email sent successfully to your Department Head email ({$target})!",
             ]);
-        }
-
-        // Return descriptive error details to the frontend
-        $rawError = $result['error'] ?? 'Unknown SMTP connection error';
-        $userFriendlyNotice = 'Failed to connect to SMTP server.';
-
-        if (str_contains($rawError, '535') || str_contains($rawError, 'BadCredentials') || str_contains($rawError, 'Username and Password not accepted')) {
-            $userFriendlyNotice = 'Google SMTP rejected the credentials (535 Bad Credentials). Please confirm that: (1) The Sender Email matches the exact Google Account for this App Password (e.g. fitsumgashaw22@gmail.com), (2) 2-Step Verification is active, and (3) the 16-character App Password is correct.';
-        } elseif (str_contains($rawError, 'Connection could not be established') || str_contains($rawError, 'Connection timed out')) {
-            $userFriendlyNotice = 'Connection timed out connecting to smtp.gmail.com:587. Please check network port access.';
         }
 
         return response()->json([
             'status'        => 'error',
-            'message'       => $userFriendlyNotice,
-            'smtpStatus'    => 'failed',
-            'error_details' => $rawError,
+            'message'       => 'Failed to deliver notification email. Please check server mail logs.',
+            'error_details' => $result['error'] ?? 'SMTP Error',
         ], 422);
     }
 }

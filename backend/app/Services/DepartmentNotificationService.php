@@ -17,56 +17,22 @@ use Symfony\Component\Mime\Address;
 class DepartmentNotificationService
 {
     /**
-     * Resolve effective email configuration for a given department head or from system defaults.
-     * Plaintext passwords from the server/env are never exposed to the frontend.
+     * Resolve server-side SMTP configuration and Department Head recipient.
+     * All outgoing notifications authenticate via verified server SMTP credentials (.env),
+     * and are delivered directly to the Department Head's account email.
      */
-    public static function resolveConfig(?User $user = null, ?array $override = null): array
+    public static function resolveConfig(?User $deptHead = null): array
     {
-        $prefs = $user && is_array($user->notification_preferences)
-            ? $user->notification_preferences
-            : [];
+        $smtpHost = config('mail.mailers.smtp.host', 'smtp.gmail.com');
+        $smtpPort = (int)config('mail.mailers.smtp.port', 587);
+        $smtpEncryption = config('mail.mailers.smtp.encryption', 'tls');
+        $smtpUsername = config('mail.mailers.smtp.username', 'fitsumgashaw22@gmail.com');
+        $smtpPassword = config('mail.mailers.smtp.password', 'jmrd crdf vtze sksk');
+        $senderName = config('mail.from.name', 'Wollo University Exam Portal');
+        $senderEmail = config('mail.from.address', 'fitsumgashaw22@gmail.com');
 
-        $savedConfig = is_array($prefs['emailConfig'] ?? null)
-            ? $prefs['emailConfig']
-            : [];
-
-        $senderName = !empty($override['senderName'])
-            ? trim($override['senderName'])
-            : ($savedConfig['senderName'] ?? config('mail.from.name', 'Wollo University Exam Portal'));
-
-        $senderEmail = !empty($override['senderEmail'])
-            ? trim($override['senderEmail'])
-            : ($savedConfig['senderEmail'] ?? config('mail.from.address', 'fitsumgashaw22@gmail.com'));
-
-        $recipientEmail = !empty($override['recipientEmail'])
-            ? trim($override['recipientEmail'])
-            : ($savedConfig['recipientEmail'] ?? ($user?->email ?: 'fitsumgashaw22@gmail.com'));
-
-        $smtpHost = !empty($override['smtpHost'])
-            ? trim($override['smtpHost'])
-            : ($savedConfig['smtpHost'] ?? config('mail.mailers.smtp.host', 'smtp.gmail.com'));
-
-        $smtpPort = (int)(
-            !empty($override['smtpPort'])
-                ? $override['smtpPort']
-                : ($savedConfig['smtpPort'] ?? config('mail.mailers.smtp.port', 587))
-        );
-
-        $smtpEncryption = !empty($override['smtpEncryption'])
-            ? trim($override['smtpEncryption'])
-            : ($savedConfig['smtpEncryption'] ?? config('mail.mailers.smtp.encryption', 'tls'));
-
-        // Resolve password: if override is empty or masked (e.g. bullets), fall back to saved or .env
-        $overridePass = $override['smtpPassword'] ?? '';
-        $isMasked = preg_match('/^[•*●\s]+$/u', (string)$overridePass);
-
-        if (!empty($overridePass) && !$isMasked) {
-            $smtpPassword = $overridePass;
-        } elseif (!empty($savedConfig['smtpPassword']) && !preg_match('/^[•*●\s]+$/u', (string)$savedConfig['smtpPassword'])) {
-            $smtpPassword = $savedConfig['smtpPassword'];
-        } else {
-            $smtpPassword = config('mail.mailers.smtp.password', 'jmrd crdf vtze sksk');
-        }
+        // Recipient is ALWAYS the Department Head's account email
+        $recipientEmail = $deptHead?->email ?: $senderEmail;
 
         return [
             'senderName'     => $senderName,
@@ -75,24 +41,75 @@ class DepartmentNotificationService
             'smtpHost'       => $smtpHost,
             'smtpPort'       => $smtpPort,
             'smtpEncryption' => $smtpEncryption,
+            'smtpUsername'   => $smtpUsername,
             'smtpPassword'   => $smtpPassword,
         ];
     }
 
     /**
+     * Resolve the authorized Department Head user for a given department ID or actor.
+     */
+    public static function resolveDeptHead(?int $deptId, ?User $actor = null): ?User
+    {
+        // 1. If actor is explicitly passed and is a dept_head, prioritize them if deptId matches or none specified
+        $current = $actor ?? auth()->user();
+        if ($current && $current->role === 'dept_head') {
+            if (!$deptId || $current->department_id == $deptId) {
+                return $current;
+            }
+        }
+
+        // 2. Query department head by department ID
+        if ($deptId) {
+            $deptHead = User::where('department_id', $deptId)
+                ->where('role', 'dept_head')
+                ->first();
+            if ($deptHead) {
+                return $deptHead;
+            }
+        }
+
+        // 3. Fallback to current authenticated dept_head if any
+        if ($current && $current->role === 'dept_head') {
+            return $current;
+        }
+
+        // 4. Fallback to any department head
+        return User::where('role', 'dept_head')->first();
+    }
+
+    /**
+     * Check if a specific notification toggle is enabled for a Department Head.
+     * Default for instructor join, course create, weekly report is true unless explicitly disabled.
+     */
+    public static function isNotificationEnabled(User $deptHead, string $key, bool $default = true): bool
+    {
+        $prefs = $deptHead->notification_preferences;
+        if (!is_array($prefs)) {
+            return $default;
+        }
+
+        if (array_key_exists($key, $prefs)) {
+            return (bool)$prefs[$key];
+        }
+
+        return $default;
+    }
+
+    /**
      * Build and execute direct SMTP email delivery via Symfony Mailer EsmtpTransport.
-     * Passwords and sensitive authentication tokens are strictly redacted from errors and logs.
+     * Passwords and sensitive credentials are redacted from logs and errors.
      */
     public static function deliverEmail(array $config, string $to, string $subject, string $htmlBody, string $textBody = ''): array
     {
-        $host = $config['smtpHost'] ?? config('mail.mailers.smtp.host', 'smtp.gmail.com');
+        $host = $config['smtpHost'] ?? 'smtp.gmail.com';
         $port = (int)($config['smtpPort'] ?? 587);
-        $user = $config['senderEmail'] ?? config('mail.from.address', 'fitsumgashaw22@gmail.com');
+        $username = $config['smtpUsername'] ?? config('mail.mailers.smtp.username', 'fitsumgashaw22@gmail.com');
         $rawPass = $config['smtpPassword'] ?? config('mail.mailers.smtp.password', 'jmrd crdf vtze sksk');
         $fromName = $config['senderName'] ?? config('mail.from.name', 'Wollo University Exam Portal');
         $fromAddress = $config['senderEmail'] ?? config('mail.from.address', 'fitsumgashaw22@gmail.com');
 
-        // Sanitize 16-character google app password (removing spaces)
+        // Sanitize 16-character google app password
         $cleanPass = str_replace(' ', '', $rawPass);
         $attempts = array_unique([$cleanPass, $rawPass]);
         $lastError = null;
@@ -101,7 +118,7 @@ class DepartmentNotificationService
             try {
                 $isSsl = ($port === 465 || strtolower($config['smtpEncryption'] ?? '') === 'ssl');
                 $transport = new EsmtpTransport($host, $port, $isSsl);
-                $transport->setUsername($user);
+                $transport->setUsername($username);
                 $transport->setPassword($passToTry);
 
                 $mailer = new Mailer($transport);
@@ -126,10 +143,9 @@ class DepartmentNotificationService
                     'message' => "Email sent successfully to {$to}",
                 ];
             } catch (\Throwable $e) {
-                // Redact raw password from exception message
                 $sanitizedError = str_replace([$rawPass, $cleanPass], '[REDACTED]', $e->getMessage());
                 $lastError = $sanitizedError;
-                Log::warning("SMTP delivery attempt failed for {$user} on {$host}:{$port} with error: {$sanitizedError}");
+                Log::warning("SMTP delivery attempt failed for {$username} on {$host}:{$port} with error: {$sanitizedError}");
             }
         }
 
@@ -140,127 +156,28 @@ class DepartmentNotificationService
     }
 
     /**
-     * Send real test notification email to verify SMTP connection & credentials.
-     */
-    public static function sendTestNotification(User $user, ?array $overrideConfig = null, string $testType = 'integration'): array
-    {
-        $config = self::resolveConfig($user, $overrideConfig);
-        $targetEmail = $config['recipientEmail'] ?: $user->email;
-        $appName = $config['senderName'] ?: 'Wollo University Exam Portal';
-
-        $typeLabels = [
-            'integration'     => 'Email Integration Test Verification',
-            'instructor_join' => 'Sample Alert: New Instructor Joined',
-            'course_create'   => 'Sample Alert: New Course Registered',
-            'exam_publish'    => 'Sample Alert: Examination Published',
-            'weekly_report'   => 'Sample Alert: Department Weekly Digest',
-        ];
-
-        $subject = "{$appName} — " . ($typeLabels[$testType] ?? 'Notification Integration Test');
-        $timestamp = now()->format('M d, Y • h:i:s A');
-
-        $html = self::buildBaseTemplate(
-            appName: $appName,
-            headline: 'SMTP Email Delivery Verification',
-            subtitle: 'Department Head Notification Service',
-            contentHtml: "
-                <div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin-bottom:24px;'>
-                    <span style='color:#15803d;font-weight:700;font-size:14px;display:block;'>✓ SMTP Connection Authenticated Successfully</span>
-                    <p style='color:#166534;font-size:13px;margin:6px 0 0 0;'>Your Wollo University Exam Portal email delivery channel is operational. Outgoing alerts and notifications will be dispatched through this verified SMTP account.</p>
-                </div>
-
-                <h2 style='font-size:15px;color:#1e293b;margin:0 0 14px 0;'>Verified Configuration Parameters:</h2>
-                <table style='width:100%;border-collapse:collapse;font-size:13px;color:#334155;margin-bottom:24px;'>
-                    <tr style='border-bottom:1px solid #f1f5f9;'>
-                        <td style='padding:9px 0;font-weight:600;color:#64748b;width:35%;'>Recipient Email:</td>
-                        <td style='padding:9px 0;font-weight:700;color:#0f172a;'>{$targetEmail}</td>
-                    </tr>
-                    <tr style='border-bottom:1px solid #f1f5f9;'>
-                        <td style='padding:9px 0;font-weight:600;color:#64748b;'>Sender Name:</td>
-                        <td style='padding:9px 0;color:#0f172a;'>{$config['senderName']}</td>
-                    </tr>
-                    <tr style='border-bottom:1px solid #f1f5f9;'>
-                        <td style='padding:9px 0;font-weight:600;color:#64748b;'>SMTP Host & Port:</td>
-                        <td style='padding:9px 0;color:#0f172a;'>{$config['smtpHost']}:{$config['smtpPort']} ({$config['smtpEncryption']})</td>
-                    </tr>
-                    <tr style='border-bottom:1px solid #f1f5f9;'>
-                        <td style='padding:9px 0;font-weight:600;color:#64748b;'>Sender Account:</td>
-                        <td style='padding:9px 0;color:#0f172a;'>{$config['senderEmail']}</td>
-                    </tr>
-                    <tr>
-                        <td style='padding:9px 0;font-weight:600;color:#64748b;'>Verified At:</td>
-                        <td style='padding:9px 0;color:#0f172a;'>{$timestamp}</td>
-                    </tr>
-                </table>
-
-                <div style='background:#f8fafc;border-left:4px solid #6366f1;padding:14px 16px;border-radius:8px;font-size:12px;color:#475569;'>
-                    <strong>Active Notification Channels:</strong> Automated department updates (Instructor registrations, course creations, exam publications, and scheduled weekly reports) are now active according to your notification toggles.
-                </div>"
-        );
-
-        $result = self::deliverEmail($config, $targetEmail, $subject, $html);
-
-        // Update persistent SMTP status on the user
-        $prefs = is_array($user->notification_preferences) ? $user->notification_preferences : [];
-        if ($result['success']) {
-            $prefs['smtpStatus'] = 'connected';
-            $prefs['lastTestTime'] = now()->toIso8601String();
-            $prefs['lastTestResult'] = 'Connected and verified successfully';
-            $prefs['lastTestRecipient'] = $targetEmail;
-
-            LogActivity::record(
-                'Sent',
-                'Email Integration',
-                "Sent test notification email to {$targetEmail} ({$appName})",
-                'Success',
-                $user->department_id,
-                $user
-            );
-        } else {
-            $prefs['smtpStatus'] = 'failed';
-            $prefs['lastTestTime'] = now()->toIso8601String();
-            $prefs['lastTestResult'] = substr($result['error'], 0, 200);
-
-            LogActivity::record(
-                'Failed',
-                'Email Integration',
-                "Failed to send test email to {$targetEmail}: " . substr($result['error'], 0, 150),
-                'Failed',
-                $user->department_id,
-                $user
-            );
-        }
-
-        $user->notification_preferences = $prefs;
-        $user->save();
-
-        $result['lastTestTime'] = $prefs['lastTestTime'];
-        $result['targetEmail'] = $targetEmail;
-        return $result;
-    }
-
-    /**
      * Notify Department Head when a new instructor joins.
+     * The email is sent directly to the Department Head's email address ($deptHead->email).
      */
-    public static function notifyInstructorJoined(User $instructor, ?Department $department = null): void
+    public static function notifyInstructorJoined(User $instructor, ?Department $department = null): array
     {
         $deptId = $department?->id ?? $instructor->department_id;
-        if (!$deptId) return;
+        $creator = $instructor->creator ?? ($instructor->created_by ? User::find($instructor->created_by) : null);
+        $deptHead = self::resolveDeptHead($deptId, $creator);
 
-        $deptHead = User::where('department_id', $deptId)
-            ->where('role', 'dept_head')
-            ->first();
+        if (!$deptHead || empty($deptHead->email)) {
+            Log::info("No Department Head found to notify for new instructor ID {$instructor->id}.");
+            return ['success' => false, 'message' => 'No Department Head found to notify.'];
+        }
 
-        if (!$deptHead) return;
-
-        $prefs = $deptHead->notification_preferences;
-        if (!is_array($prefs) || empty($prefs['emailOnInstructorJoin'])) {
-            return;
+        if (!self::isNotificationEnabled($deptHead, 'emailOnInstructorJoin', true)) {
+            Log::info("emailOnInstructorJoin notification toggle is disabled for Department Head {$deptHead->email}.");
+            return ['success' => false, 'skipped' => true, 'message' => 'Toggle is disabled.'];
         }
 
         $config = self::resolveConfig($deptHead);
-        $target = $config['recipientEmail'] ?: $deptHead->email;
-        $appName = $config['senderName'] ?: 'Wollo University Exam Portal';
+        $target = $deptHead->email;
+        $appName = $config['senderName'];
         $deptName = $department?->name ?? $deptHead->department?->name ?? 'Department';
         $dateStr = now()->format('M d, Y • h:i A');
 
@@ -303,31 +220,45 @@ class DepartmentNotificationService
                 </div>"
         );
 
-        self::deliverEmail($config, $target, $subject, $html);
+        $result = self::deliverEmail($config, $target, $subject, $html);
+
+        if ($result['success']) {
+            LogActivity::record(
+                'Sent',
+                'Email Notification',
+                "Sent New Instructor alert to Department Head {$target} for {$instructor->name}",
+                'Success',
+                $deptId,
+                $deptHead
+            );
+        }
+
+        return $result;
     }
 
     /**
      * Notify Department Head when a new course is created.
+     * The email is sent directly to the Department Head's email address ($deptHead->email).
      */
-    public static function notifyCourseCreated(Course $course, ?Department $department = null): void
+    public static function notifyCourseCreated(Course $course, ?Department $department = null): array
     {
         $deptId = $department?->id ?? $course->department_id;
-        if (!$deptId) return;
+        $creator = $course->creator ?? ($course->created_by ? User::find($course->created_by) : null);
+        $deptHead = self::resolveDeptHead($deptId, $creator);
 
-        $deptHead = User::where('department_id', $deptId)
-            ->where('role', 'dept_head')
-            ->first();
+        if (!$deptHead || empty($deptHead->email)) {
+            Log::info("No Department Head found to notify for new course ID {$course->id}.");
+            return ['success' => false, 'message' => 'No Department Head found to notify.'];
+        }
 
-        if (!$deptHead) return;
-
-        $prefs = $deptHead->notification_preferences;
-        if (!is_array($prefs) || empty($prefs['emailOnCourseCreate'])) {
-            return;
+        if (!self::isNotificationEnabled($deptHead, 'emailOnCourseCreate', true)) {
+            Log::info("emailOnCourseCreate notification toggle is disabled for Department Head {$deptHead->email}.");
+            return ['success' => false, 'skipped' => true, 'message' => 'Toggle is disabled.'];
         }
 
         $config = self::resolveConfig($deptHead);
-        $target = $config['recipientEmail'] ?: $deptHead->email;
-        $appName = $config['senderName'] ?: 'Wollo University Exam Portal';
+        $target = $deptHead->email;
+        $appName = $config['senderName'];
         $deptName = $department?->name ?? $deptHead->department?->name ?? 'Department';
         $dateStr = now()->format('M d, Y • h:i A');
 
@@ -370,32 +301,46 @@ class DepartmentNotificationService
                 </div>"
         );
 
-        self::deliverEmail($config, $target, $subject, $html);
+        $result = self::deliverEmail($config, $target, $subject, $html);
+
+        if ($result['success']) {
+            LogActivity::record(
+                'Sent',
+                'Email Notification',
+                "Sent New Course alert to Department Head {$target} for {$course->title} ({$course->code})",
+                'Success',
+                $deptId,
+                $deptHead
+            );
+        }
+
+        return $result;
     }
 
     /**
      * Notify Department Head when an exam is published.
+     * The email is sent directly to the Department Head's email address ($deptHead->email).
      */
-    public static function notifyExamPublished(Exam $exam): void
+    public static function notifyExamPublished(Exam $exam): array
     {
         $course = Course::where('code', $exam->course_code)->first();
-        $deptId = $course?->department_id;
-        if (!$deptId) return;
+        $deptId = $course?->department_id ?? $exam->user?->department_id;
+        $actor = $exam->user ?? null;
+        $deptHead = self::resolveDeptHead($deptId, $actor);
 
-        $deptHead = User::where('department_id', $deptId)
-            ->where('role', 'dept_head')
-            ->first();
+        if (!$deptHead || empty($deptHead->email)) {
+            Log::info("No Department Head found to notify for exam published ID {$exam->id}.");
+            return ['success' => false, 'message' => 'No Department Head found to notify.'];
+        }
 
-        if (!$deptHead) return;
-
-        $prefs = $deptHead->notification_preferences;
-        if (!is_array($prefs) || empty($prefs['emailOnExamPublish'])) {
-            return;
+        if (!self::isNotificationEnabled($deptHead, 'emailOnExamPublish', false)) {
+            Log::info("emailOnExamPublish notification toggle is disabled for Department Head {$deptHead->email}.");
+            return ['success' => false, 'skipped' => true, 'message' => 'Toggle is disabled.'];
         }
 
         $config = self::resolveConfig($deptHead);
-        $target = $config['recipientEmail'] ?: $deptHead->email;
-        $appName = $config['senderName'] ?: 'Wollo University Exam Portal';
+        $target = $deptHead->email;
+        $appName = $config['senderName'];
         $deptName = $deptHead->department?->name ?? 'Department';
         $dateStr = now()->format('M d, Y • h:i A');
 
@@ -438,20 +383,42 @@ class DepartmentNotificationService
                 </div>"
         );
 
-        self::deliverEmail($config, $target, $subject, $html);
+        $result = self::deliverEmail($config, $target, $subject, $html);
+
+        if ($result['success']) {
+            LogActivity::record(
+                'Sent',
+                'Email Notification',
+                "Sent Exam Published alert to Department Head {$target} for {$exam->title}",
+                'Success',
+                $deptId,
+                $deptHead
+            );
+        }
+
+        return $result;
     }
 
     /**
-     * Generate and send the comprehensive weekly department executive summary report.
+     * Generate and send the comprehensive weekly department executive summary report directly to the Department Head email.
      */
     public static function sendWeeklyDepartmentReport(User $deptHead, bool $force = false): array
     {
         $prefs = is_array($deptHead->notification_preferences) ? $deptHead->notification_preferences : [];
-        if (empty($prefs['weeklyReport'])) {
+
+        if (!self::isNotificationEnabled($deptHead, 'weeklyReport', true)) {
             return [
                 'success' => false,
                 'skipped' => true,
                 'message' => 'Weekly report toggle is disabled.',
+            ];
+        }
+
+        if (empty($deptHead->email)) {
+            return [
+                'success' => false,
+                'skipped' => true,
+                'message' => 'Department Head does not have an email address configured.',
             ];
         }
 
@@ -487,8 +454,8 @@ class DepartmentNotificationService
         $correctionSubmissions = (clone $submissionsQuery)->where('status', 'correction_required')->count();
 
         $config = self::resolveConfig($deptHead);
-        $target = $config['recipientEmail'] ?: $deptHead->email;
-        $appName = $config['senderName'] ?: 'Wollo University Exam Portal';
+        $target = $deptHead->email;
+        $appName = $config['senderName'];
         $reportPeriodLabel = now()->startOfWeek()->format('M d') . ' – ' . now()->endOfWeek()->format('M d, Y');
 
         $subject = "{$appName} — Weekly Department Executive Digest ({$reportPeriodLabel})";
@@ -576,7 +543,7 @@ class DepartmentNotificationService
 
             LogActivity::record(
                 'Sent',
-                'Email Integration',
+                'Email Notification',
                 "Dispatched weekly department executive digest to {$target} ({$currentPeriod})",
                 'Success',
                 $deptId,

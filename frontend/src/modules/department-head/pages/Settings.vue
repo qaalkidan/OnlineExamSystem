@@ -518,248 +518,21 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 3. Notification Preferences & Email Integration Card (Col-Span 2) -->
+      <!-- 3. Notification Preferences Card (Col-Span 2) -->
       <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 sm:p-6 col-span-1 lg:col-span-2">
-        
-        <!-- Header with Status Badge -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center shrink-0">
-              <svg class="w-4.5 h-4.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+            <div class="w-9 h-9 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </div>
             <div>
-              <div class="flex items-center gap-2 flex-wrap">
-                <h3 class="text-[15px] font-bold text-slate-800">Notification Preferences & Email Integration</h3>
-                
-                <!-- Dynamic SMTP Connection Status Badge -->
-                <span
-                  v-if="isSendingTest || smtpStatus === 'testing'"
-                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"
-                >
-                  <svg class="w-3 h-3 animate-spin text-indigo-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  Testing Connection...
-                </span>
-                <span
-                  v-else-if="smtpStatus === 'connected'"
-                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Connected: {{ notifications.emailConfig.senderName }}
-                  <span v-if="lastTestTime" class="text-[10px] text-emerald-600 font-normal">({{ formatRelativeTime(lastTestTime) }})</span>
-                </span>
-                <span
-                  v-else-if="smtpStatus === 'failed'"
-                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  Connection Failed
-                </span>
-                <span
-                  v-else
-                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                  Not Configured
-                </span>
-              </div>
-              <p class="text-[11px] sm:text-[12px] text-slate-400 mt-0.5">Configure email delivery parameters and choose when automated notifications are dispatched.</p>
+              <h3 class="text-[15px] font-bold text-slate-800">Notification Preferences</h3>
+              <p class="text-[11px] sm:text-[12px] text-slate-400 mt-0.5">
+                Choose which automated notifications are delivered directly to your Department Head email (<strong class="text-slate-600 font-semibold">{{ profile.email || 'your account email' }}</strong>).
+              </p>
             </div>
-          </div>
-        </div>
-
-        <!-- 3A. Integrated Email Configuration Form Panel -->
-        <div class="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 mb-6">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200/60">
-            <div class="flex items-center gap-2">
-              <div class="w-6 h-6 rounded-lg bg-indigo-100 text-[#5138ed] flex items-center justify-center shrink-0">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                </svg>
-              </div>
-              <h4 class="text-[13px] font-bold text-slate-700">Email Delivery & SMTP Service Settings</h4>
-            </div>
-            <span class="text-[11px] font-medium text-slate-500">
-              Host: <code class="font-mono text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200">{{ notifications.emailConfig.smtpHost }}:{{ notifications.emailConfig.smtpPort }}</code>
-            </span>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <!-- 1. Sender App Name -->
-            <div>
-              <label class="block text-[11px] font-bold text-slate-600 mb-1">
-                App Name (Mail From Name)
-                <span class="text-rose-500">*</span>
-              </label>
-              <input
-                v-model="notifications.emailConfig.senderName"
-                type="text"
-                placeholder="Wollo University Exam Portal"
-                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
-              />
-              <p class="text-[10px] text-slate-400 mt-1">Sender name displayed in student & faculty inboxes</p>
-            </div>
-
-            <!-- 2. Sender Email / SMTP Username -->
-            <div>
-              <label class="block text-[11px] font-bold text-slate-600 mb-1">
-                Sender Email (SMTP Username)
-                <span class="text-rose-500">*</span>
-              </label>
-              <input
-                v-model="notifications.emailConfig.senderEmail"
-                type="email"
-                placeholder="fitsumgashaw22@gmail.com"
-                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
-              />
-              <p class="text-[10px] text-slate-400 mt-1">Authenticated SMTP account</p>
-            </div>
-
-            <!-- 3. Notification Recipient Email -->
-            <div>
-              <label class="block text-[11px] font-bold text-slate-600 mb-1">
-                Notification Recipient Email
-                <span class="text-rose-500">*</span>
-              </label>
-              <input
-                v-model="notifications.emailConfig.recipientEmail"
-                type="email"
-                placeholder="fitsumgashaw22@gmail.com"
-                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
-              />
-              <p class="text-[10px] text-slate-400 mt-1">Where Department Head notifications will arrive</p>
-            </div>
-
-            <!-- 4. Email App Password -->
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[11px] font-bold text-slate-600">
-                  Google App Password
-                  <span class="text-rose-500">*</span>
-                </label>
-                <button
-                  type="button"
-                  @click="showSmtpPassword = !showSmtpPassword"
-                  class="text-[10px] font-semibold text-[#5138ed] hover:underline focus:outline-none cursor-pointer"
-                >
-                  {{ showSmtpPassword ? 'Hide' : 'Show' }}
-                </button>
-              </div>
-              <div class="relative">
-                <input
-                  v-model="notifications.emailConfig.smtpPassword"
-                  :type="showSmtpPassword ? 'text' : 'password'"
-                  placeholder="••••••••••••••••"
-                  class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 pr-10 text-[12px] sm:text-[13px] text-slate-800 font-mono transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
-                />
-                <button
-                  type="button"
-                  @click="showSmtpPassword = !showSmtpPassword"
-                  class="w-8 h-8 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
-                >
-                  <svg v-if="showSmtpPassword" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
-                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                </button>
-              </div>
-              <p class="text-[10px] text-slate-400 mt-1">16-character Google App Password (e.g. jmrd crdf vtze sksk). Password is protected.</p>
-            </div>
-
-            <!-- 5. SMTP Server Host -->
-            <div>
-              <label class="block text-[11px] font-bold text-slate-600 mb-1">SMTP Host</label>
-              <input
-                v-model="notifications.emailConfig.smtpHost"
-                type="text"
-                placeholder="smtp.gmail.com"
-                class="w-full border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
-              />
-              <p class="text-[10px] text-slate-400 mt-1">Default: smtp.gmail.com</p>
-            </div>
-
-            <!-- 6. Port & Encryption -->
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[11px] font-bold text-slate-600 mb-1">Port</label>
-                <input
-                  v-model="notifications.emailConfig.smtpPort"
-                  type="text"
-                  placeholder="587"
-                  class="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed]"
-                />
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-slate-600 mb-1">Encryption</label>
-                <select
-                  v-model="notifications.emailConfig.smtpEncryption"
-                  class="w-full border border-slate-200 bg-white rounded-xl px-2.5 py-2 text-[12px] sm:text-[13px] text-slate-800 font-medium transition-colors focus:outline-none focus:border-[#5138ed] focus:ring-1 focus:ring-[#5138ed] cursor-pointer"
-                >
-                  <option value="tls">TLS (587)</option>
-                  <option value="ssl">SSL (465)</option>
-                </select>
-              </div>
-              <p class="col-span-2 text-[10px] text-slate-400">Transport encryption protocol</p>
-            </div>
-          </div>
-
-          <!-- Email Test & Integration Action Bar -->
-          <div class="mt-4 pt-3.5 border-t border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <label class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Preview Trigger:</label>
-              <select
-                v-model="selectedTestType"
-                class="border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#5138ed] cursor-pointer"
-              >
-                <option value="integration">General Integration Test</option>
-                <option value="instructor_join">Sample: New Instructor Joined</option>
-                <option value="course_create">Sample: New Course Created</option>
-                <option value="exam_publish">Sample: Exam Published</option>
-                <option value="weekly_report">Sample: Weekly Department Report</option>
-              </select>
-            </div>
-
-            <div class="flex items-center gap-2.5">
-              <button
-                type="button"
-                @click="sendTestEmail"
-                :disabled="isSendingTest"
-                class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 border border-indigo-200 text-[#5138ed] hover:border-indigo-300 rounded-xl text-[12px] font-bold shadow-xs transition-all active:scale-95 disabled:opacity-60 cursor-pointer min-h-[38px]"
-              >
-                <svg v-if="isSendingTest" class="w-3.5 h-3.5 animate-spin text-[#5138ed]" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <svg v-else class="w-3.5 h-3.5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-                <span>{{ isSendingTest ? 'Testing Connection...' : 'Send Test Notification Email' }}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Direct Test Status Banner -->
-          <div
-            v-if="testEmailStatus?.show"
-            class="mt-3.5 p-3 rounded-xl border text-[12px] flex items-start gap-2.5 animate-in fade-in duration-200"
-            :class="testEmailStatus.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'"
-          >
-            <svg v-if="testEmailStatus.success" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            <svg v-else class="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-            <div class="min-w-0 flex-1">
-              <span class="font-bold block">{{ testEmailStatus.message }}</span>
-              <p v-if="testEmailStatus.details" class="text-[11px] opacity-80 mt-0.5 font-mono break-all">{{ testEmailStatus.details }}</p>
-            </div>
-            <button
-              type="button"
-              @click="testEmailStatus.show = false"
-              class="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-            >
-              &times;
-            </button>
           </div>
         </div>
 
@@ -847,7 +620,24 @@ onMounted(() => {
               </button>
             </div>
           </div>
+        
+        <!-- Direct Email Delivery Information Banner -->
+        <div class="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0 mt-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h5 class="text-[12px] font-bold text-slate-700">Automated Direct Email Delivery</h5>
+            <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+              Active notifications are automatically delivered directly to your registered Department Head email address:
+              <strong class="font-semibold text-indigo-700">{{ profile.email || 'your account email' }}</strong>.
+              Delivery authenticates securely through the university exam portal mail service.
+            </p>
+          </div>
         </div>
+      </div>
 
       </div>
 

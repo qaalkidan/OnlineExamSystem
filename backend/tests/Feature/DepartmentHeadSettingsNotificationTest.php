@@ -43,7 +43,7 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
         ]);
     }
 
-    public function test_get_settings_returns_configured_email_defaults_with_masked_password(): void
+    public function test_get_settings_returns_clean_notification_toggles_and_recipient(): void
     {
         $response = $this->actingAs($this->deptHead, 'sanctum')
             ->getJson('/api/v1/dept-head/settings');
@@ -62,23 +62,13 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
                         'emailOnCourseCreate'   => true,
                         'emailOnExamPublish'    => false,
                         'weeklyReport'          => true,
-                        'smtpStatus'            => 'connected',
-                        'emailConfig'           => [
-                            'senderName'     => 'Wollo University Exam Portal',
-                            'senderEmail'    => 'fitsumgashaw22@gmail.com',
-                            'recipientEmail' => 'fitsumgashaw22@gmail.com',
-                            'smtpHost'       => 'smtp.gmail.com',
-                            'smtpPort'       => '587',
-                            'smtpEncryption' => 'tls',
-                            'smtpPassword'   => '••••••••••••••••',
-                            'hasPassword'    => true,
-                        ],
+                        'recipientEmail'        => 'fitsumgashaw22@gmail.com',
                     ],
                 ],
             ]);
     }
 
-    public function test_update_settings_persists_customized_notification_and_preserves_password_when_masked(): void
+    public function test_update_settings_persists_customized_notification_toggles(): void
     {
         $updatePayload = [
             'fullName' => 'Dr. Fitshum Gashaw',
@@ -89,15 +79,6 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
                 'emailOnCourseCreate'   => false,
                 'emailOnExamPublish'    => true,
                 'weeklyReport'          => false,
-                'emailConfig' => [
-                    'senderName'     => 'Wollo University Exam Portal',
-                    'senderEmail'    => 'fitsumgashaw22@gmail.com',
-                    'recipientEmail' => 'fitsumgashaw22@gmail.com',
-                    'smtpHost'       => 'smtp.gmail.com',
-                    'smtpPort'       => '587',
-                    'smtpEncryption' => 'tls',
-                    'smtpPassword'   => '••••••••••••••••', // Masked - must preserve existing server secret
-                ],
             ],
         ];
 
@@ -107,7 +88,7 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'status'  => 'success',
-                'message' => 'Account settings and notification email preferences saved successfully.',
+                'message' => 'Account settings and notification preferences saved successfully.',
             ]);
 
         $this->deptHead->refresh();
@@ -120,34 +101,12 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
         $this->assertFalse($prefs['emailOnCourseCreate']);
         $this->assertTrue($prefs['emailOnExamPublish']);
         $this->assertFalse($prefs['weeklyReport']);
-        $this->assertEquals('Wollo University Exam Portal', $prefs['emailConfig']['senderName']);
-        // Real password preserved on backend
-        $this->assertEquals('jmrd crdf vtze sksk', $prefs['emailConfig']['smtpPassword']);
-    }
-
-    public function test_send_test_email_validates_request(): void
-    {
-        $response = $this->actingAs($this->deptHead, 'sanctum')
-            ->postJson('/api/v1/dept-head/settings/test-email', [
-                'emailConfig' => [
-                    'smtpPort' => 'not-a-number',
-                    'smtpEncryption' => 'invalid-encryption',
-                ],
-            ]);
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['emailConfig.smtpPort', 'emailConfig.smtpEncryption']);
     }
 
     public function test_weekly_reports_console_command_runs_successfully(): void
     {
         $this->deptHead->notification_preferences = [
             'weeklyReport' => true,
-            'emailConfig' => [
-                'senderName'     => 'Wollo University Exam Portal',
-                'senderEmail'    => 'fitsumgashaw22@gmail.com',
-                'recipientEmail' => 'fitsumgashaw22@gmail.com',
-            ],
         ];
         $this->deptHead->save();
 
@@ -174,11 +133,6 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
         $this->deptHead->notification_preferences = [
             'weeklyReport'         => true,
             'lastWeeklyReportSent' => $currentPeriod,
-            'emailConfig' => [
-                'senderName'     => 'Wollo University Exam Portal',
-                'senderEmail'    => 'fitsumgashaw22@gmail.com',
-                'recipientEmail' => 'fitsumgashaw22@gmail.com',
-            ],
         ];
         $this->deptHead->save();
 
@@ -218,5 +172,13 @@ class DepartmentHeadSettingsNotificationTest extends TestCase
         $this->deptHead->refresh();
         $this->assertFalse($this->deptHead->notification_preferences['emailOnInstructorJoin']);
         $this->assertTrue($this->deptHead->notification_preferences['emailOnCourseCreate']);
+    }
+
+    public function test_resolve_config_routes_to_dept_head_email(): void
+    {
+        $config = DepartmentNotificationService::resolveConfig($this->deptHead);
+        $this->assertEquals($this->deptHead->email, $config['recipientEmail']);
+        $this->assertEquals('fitsumgashaw22@gmail.com', $config['smtpUsername']);
+        $this->assertEquals('jmrd crdf vtze sksk', $config['smtpPassword']);
     }
 }
