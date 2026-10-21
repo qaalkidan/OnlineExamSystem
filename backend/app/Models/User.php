@@ -38,6 +38,9 @@ class User extends Authenticatable
         'office',
         'notification_preferences',
         'preferences',
+        'must_change_password',
+        'password_delivery_status',
+        'password_delivered_at',
     ];
 
     protected $hidden = [
@@ -64,6 +67,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
+            'password_delivered_at' => 'datetime',
             'notification_preferences' => 'array',
             'preferences' => 'array',
         ];

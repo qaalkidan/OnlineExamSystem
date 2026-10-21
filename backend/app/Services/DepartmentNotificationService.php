@@ -111,21 +111,30 @@ class DepartmentNotificationService
 
         // Sanitize 16-character google app password
         $cleanPass = str_replace(' ', '', $rawPass);
-        $attempts = array_unique([$cleanPass, $rawPass]);
+
+        // Try configured port, with automatic fallback to port 465 (direct SSL) if 587 encounters a socket error
+        $isPrimarySsl = ($port === 465 || strtolower($config['smtpEncryption'] ?? '') === 'ssl');
+        $connectionProfiles = [
+            ['port' => $port, 'ssl' => $isPrimarySsl, 'pass' => $cleanPass],
+            ['port' => $port, 'ssl' => $isPrimarySsl, 'pass' => $rawPass],
+            ['port' => 465,   'ssl' => true,          'pass' => $cleanPass],
+        ];
+
         $lastError = null;
 
-        foreach ($attempts as $passToTry) {
+        foreach ($connectionProfiles as $profile) {
             try {
-                $isSsl = ($port === 465 || strtolower($config['smtpEncryption'] ?? '') === 'ssl');
-                $transport = new EsmtpTransport($host, $port, $isSsl);
+                $transport = new EsmtpTransport($host, $profile['port'], $profile['ssl']);
                 $transport->setUsername($username);
-                $transport->setPassword($passToTry);
+                $transport->setPassword($profile['pass']);
 
                 $mailer = new Mailer($transport);
 
                 $email = (new Email())
                     ->from(new Address($fromAddress, $fromName))
                     ->to($to)
+                    ->replyTo(new Address($fromAddress, $fromName))
+                    ->priority(Email::PRIORITY_HIGHEST)
                     ->subject($subject)
                     ->html($htmlBody);
 
@@ -137,7 +146,7 @@ class DepartmentNotificationService
 
                 $mailer->send($email);
 
-                Log::info("Email notification dispatched successfully to {$to} (Subject: {$subject})");
+                Log::info("Email notification dispatched successfully to {$to} via {$host}:{$profile['port']} (Subject: {$subject})");
                 return [
                     'success' => true,
                     'message' => "Email sent successfully to {$to}",
@@ -145,7 +154,7 @@ class DepartmentNotificationService
             } catch (\Throwable $e) {
                 $sanitizedError = str_replace([$rawPass, $cleanPass], '[REDACTED]', $e->getMessage());
                 $lastError = $sanitizedError;
-                Log::warning("SMTP delivery attempt failed for {$username} on {$host}:{$port} with error: {$sanitizedError}");
+                Log::warning("SMTP delivery attempt failed for {$username} on {$host}:{$profile['port']} with error: {$sanitizedError}");
             }
         }
 
@@ -181,7 +190,7 @@ class DepartmentNotificationService
         $deptName = $department?->name ?? $deptHead->department?->name ?? 'Department';
         $dateStr = now()->format('M d, Y • h:i A');
 
-        $subject = "{$appName} — New Instructor Registered: {$instructor->name}";
+        $subject = "{$appName} - New Instructor Registered: {$instructor->name}";
         $html = self::buildBaseTemplate(
             appName: $appName,
             headline: 'New Instructor Registered',
@@ -237,6 +246,117 @@ class DepartmentNotificationService
     }
 
     /**
+     * Send account credentials (username & temporary password) directly to the instructor's registered email address.
+     * The plaintext password is only delivered inside this email and is never saved or logged.
+     */
+    public static function sendInstructorCredentialsEmail(User $instructor, string $plainPassword, ?Department $department = null): array
+    {
+        $target = $instructor->email;
+        if (empty($target) || !filter_var($target, FILTER_VALIDATE_EMAIL)) {
+            Log::warning("Cannot dispatch credentials email: Instructor ID {$instructor->id} has invalid email address.");
+            return [
+                'success' => false,
+                'error'   => 'Instructor has no valid email address configured.',
+            ];
+        }
+
+        $config = self::resolveConfig();
+        $appName = $config['senderName'] ?? 'Wollo University Exam Portal';
+        $deptName = $department?->name ?? $instructor->department?->name ?? 'Academic Department';
+        $frontendUrl = rtrim(config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:5173')), '/');
+        $loginUrl = $frontendUrl . '/login';
+        $dateStr = now()->format('M d, Y • h:i A');
+
+        $subject = "{$appName} - Your Account Credentials";
+
+        $textBody = "Dear {$instructor->name},\n\n"
+            . "An instructor account has been created for you in the {$deptName} on the Wollo University Exam Portal.\n\n"
+            . "YOUR LOGIN CREDENTIALS:\n"
+            . "• Portal URL: {$loginUrl}\n"
+            . "• Username: {$instructor->username}\n"
+            . "• Registered Email: {$instructor->email}\n"
+            . "• Temporary Password: {$plainPassword}\n"
+            . "• Provisioned Date: {$dateStr}\n\n"
+            . "SECURITY NOTICE:\n"
+            . "This is a temporary password generated securely by the system. You will be required to change your password immediately upon your first sign in. Do not share these credentials with anyone.\n\n"
+            . "Regards,\nWollo University Exam Portal";
+
+        $html = self::buildBaseTemplate(
+            appName: $appName,
+            headline: 'Account Credentials & Portal Access',
+            subtitle: "Faculty Provisioning &bull; {$deptName}",
+            contentHtml: "
+                <p style='font-size:14px;color:#1e293b;margin:0 0 16px 0;'>Dear <strong>{$instructor->name}</strong>,</p>
+                <p style='font-size:13px;color:#475569;margin:0 0 20px 0;'>An instructor account has been created for you in the <strong>{$deptName}</strong> on the Wollo University Exam Portal.</p>
+
+                <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;'>
+                    <h4 style='margin:0 0 14px 0;font-size:13px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;'>Your Login Credentials</h4>
+                    <table style='width:100%;font-size:13px;color:#334155;border-collapse:collapse;'>
+                        <tr style='border-bottom:1px solid #e2e8f0;'>
+                            <td style='padding:8px 0;font-weight:600;color:#64748b;width:35%;'>Username:</td>
+                            <td style='padding:8px 0;font-weight:700;color:#0f172a;font-family:monospace;font-size:14px;'>{$instructor->username}</td>
+                        </tr>
+                        <tr style='border-bottom:1px solid #e2e8f0;'>
+                            <td style='padding:8px 0;font-weight:600;color:#64748b;'>Registered Email:</td>
+                            <td style='padding:8px 0;color:#0f172a;'>{$instructor->email}</td>
+                        </tr>
+                        <tr style='border-bottom:1px solid #e2e8f0;'>
+                            <td style='padding:8px 0;font-weight:600;color:#64748b;'>Temporary Password:</td>
+                            <td style='padding:8px 0;'>
+                                <span style='display:inline-block;background:#eef2ff;color:#4338ca;font-weight:700;font-family:Consolas,Monaco,monospace;font-size:15px;padding:6px 14px;border-radius:8px;border:1px dashed #6366f1;letter-spacing:1px;'>
+                                    {$plainPassword}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style='padding:8px 0;font-weight:600;color:#64748b;'>Provisioned Date:</td>
+                            <td style='padding:8px 0;color:#0f172a;'>{$dateStr}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div style='text-align:center;margin:28px 0;'>
+                    <a href='{$loginUrl}' style='display:inline-block;background:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 32px;border-radius:10px;box-shadow:0 2px 8px rgba(79,70,229,0.3);'>
+                        Sign In to Exam Portal &rarr;
+                    </a>
+                    <p style='font-size:11px;color:#64748b;margin:8px 0 0 0;'>Portal URL: <a href='{$loginUrl}' style='color:#6366f1;text-decoration:underline;'>{$loginUrl}</a></p>
+                </div>
+
+                <div style='background:#fef3c7;border-left:4px solid #f59e0b;padding:14px 16px;border-radius:8px;font-size:12px;color:#92400e;margin-bottom:20px;'>
+                    <strong>Security Notice:</strong> This is a temporary password generated securely by the system. You will be required to change your password immediately upon your first sign in. Do not share these credentials with anyone.
+                </div>
+
+                <div style='background:#f0fdf4;border-left:4px solid #22c55e;padding:12px 16px;border-radius:8px;font-size:12px;color:#166534;'>
+                    If you did not expect to receive this account invitation or experience any sign-in issues, please contact your Department Head or university IT support.
+                </div>"
+        );
+
+        $result = self::deliverEmail($config, $target, $subject, $html, $textBody);
+
+        if ($result['success']) {
+            LogActivity::record(
+                'Sent',
+                'Credentials Email',
+                "Dispatched temporary account credentials to instructor {$instructor->name} at {$target}",
+                'Success',
+                $instructor->department_id,
+                $instructor
+            );
+        } else {
+            LogActivity::record(
+                'Delivery Failed',
+                'Credentials Email',
+                "Failed to dispatch temporary credentials to {$target}: " . ($result['error'] ?? 'Unknown error'),
+                'Failed',
+                $instructor->department_id,
+                $instructor
+            );
+        }
+
+        return $result;
+    }
+
+    /**
      * Notify Department Head when a new course is created.
      * The email is sent directly to the Department Head's email address ($deptHead->email).
      */
@@ -262,7 +382,7 @@ class DepartmentNotificationService
         $deptName = $department?->name ?? $deptHead->department?->name ?? 'Department';
         $dateStr = now()->format('M d, Y • h:i A');
 
-        $subject = "{$appName} — New Course Created: {$course->title} ({$course->code})";
+        $subject = "{$appName} - New Course Created: {$course->title} ({$course->code})";
         $html = self::buildBaseTemplate(
             appName: $appName,
             headline: 'Curriculum Course Created',
@@ -344,7 +464,7 @@ class DepartmentNotificationService
         $deptName = $deptHead->department?->name ?? 'Department';
         $dateStr = now()->format('M d, Y • h:i A');
 
-        $subject = "{$appName} — Examination Published: {$exam->title}";
+        $subject = "{$appName} - Examination Published: {$exam->title}";
         $html = self::buildBaseTemplate(
             appName: $appName,
             headline: 'Examination Published',
@@ -578,7 +698,7 @@ class DepartmentNotificationService
             <div style='max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.04);'>
                 <!-- Header Banner -->
                 <div style='background:linear-gradient(135deg, #3730a3 0%, #4f46e5 100%);padding:28px 24px;text-align:center;'>
-                    <div style='display:inline-block;width:44px;height:44px;line-height:44px;background:rgba(255,255,255,0.2);border-radius:12px;font-size:22px;color:#ffffff;margin-bottom:10px;'>🎓</div>
+                    <div style='display:inline-block;width:44px;height:44px;line-height:44px;background:rgba(255,255,255,0.2);border-radius:12px;font-size:16px;font-weight:900;letter-spacing:1px;color:#ffffff;margin-bottom:10px;'>WU</div>
                     <h1 style='color:#ffffff;font-size:19px;margin:0;font-weight:700;letter-spacing:-0.2px;'>{$appName}</h1>
                     <p style='color:#c7d2fe;font-size:12px;margin:4px 0 0 0;font-weight:500;'>{$headline}</p>
                     <div style='display:inline-block;margin-top:8px;padding:3px 10px;background:rgba(255,255,255,0.15);border-radius:20px;font-size:11px;color:#ffffff;'>{$subtitle}</div>

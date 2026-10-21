@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'instructor.semester.lock' => \App\Http\Middleware\InstructorSemesterLockMiddleware::class,
             'check.maintenance'        => \App\Http\Middleware\CheckSystemMaintenanceMode::class,
+            'password.change.required' => \App\Http\Middleware\EnsurePasswordChanged::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

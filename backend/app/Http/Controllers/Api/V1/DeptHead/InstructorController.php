@@ -11,6 +11,7 @@ use App\Models\Department;
 use App\Models\Exam;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\DepartmentNotificationService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\JsonResponse;
@@ -331,6 +332,9 @@ class InstructorController extends Controller
                 'profile_picture_url' => $instructor->profile_picture_url,
                 'created_at'          => $instructor->created_at ? $instructor->created_at->toIso8601String() : null,
                 'joined_formatted'    => $instructor->created_at ? $instructor->created_at->format('M d, Y') : '—',
+                'must_change_password'=> (bool) $instructor->must_change_password,
+                'password_delivery_status' => $instructor->password_delivery_status ?? 'manual',
+                'password_delivered_at'    => $instructor->password_delivered_at ? $instructor->password_delivered_at->toIso8601String() : null,
                 'assigned_courses'    => $assignedCoursesList,
                 'co_instructor_courses'=> $coCoursesList,
                 'courses_count'       => $assignedCoursesList->count(),
@@ -480,6 +484,9 @@ class InstructorController extends Controller
                 'can_deactivate'      => !$isSelf,
                 'profile_picture_url' => $instructor->profile_picture_url,
                 'joined_formatted'    => $instructor->created_at ? $instructor->created_at->format('M d, Y') : '—',
+                'must_change_password'=> (bool) $instructor->must_change_password,
+                'password_delivery_status' => $instructor->password_delivery_status ?? 'manual',
+                'password_delivered_at'    => $instructor->password_delivered_at ? $instructor->password_delivered_at->toIso8601String() : null,
                 'assigned_courses'    => $assignedCourses,
                 'co_instructor_courses'=> $coCourses,
                 'courses_count'       => $assignedCourses->count(),
@@ -492,13 +499,151 @@ class InstructorController extends Controller
     }
 
     /**
+     * Generate a cryptographically secure temporary password satisfying:
+     * - Minimum 14 characters
+     * - At least 2 uppercase letters [A-Z]
+     * - At least 2 lowercase letters [a-z]
+     * - At least 2 digits [0-9]
+     * - At least 2 special symbols [!@#$%^&*_\-+=]
+     */
+    private function generateSecurePassword(int $length = 14): string
+    {
+        $length = max(14, $length);
+        $uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        $lowercase = 'abcdefghijkmnopqrstuvwxyz';
+        $numbers   = '23456789';
+        $symbols   = '!@#$%^&*_-+=';
+
+        $allChars = $uppercase . $lowercase . $numbers . $symbols;
+
+        $passwordChars = [
+            $uppercase[random_int(0, strlen($uppercase) - 1)],
+            $uppercase[random_int(0, strlen($uppercase) - 1)],
+            $lowercase[random_int(0, strlen($lowercase) - 1)],
+            $lowercase[random_int(0, strlen($lowercase) - 1)],
+            $numbers[random_int(0, strlen($numbers) - 1)],
+            $numbers[random_int(0, strlen($numbers) - 1)],
+            $symbols[random_int(0, strlen($symbols) - 1)],
+            $symbols[random_int(0, strlen($symbols) - 1)],
+        ];
+
+        while (count($passwordChars) < $length) {
+            $passwordChars[] = $allChars[random_int(0, strlen($allChars) - 1)];
+        }
+
+        // Fisher-Yates shuffle
+        for ($i = count($passwordChars) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            $tmp = $passwordChars[$i];
+            $passwordChars[$i] = $passwordChars[$j];
+            $passwordChars[$j] = $tmp;
+        }
+
+        return implode('', $passwordChars);
+    }
+
+    /**
      * Store a newly created instructor in storage.
      */
     public function store(Request $request): JsonResponse
     {
         $deptId = $this->resolveDeptId($request);
+        $department = $deptId ? Department::find($deptId) : null;
+        $passwordMode = $request->input('password_mode', 'manual');
 
-        $request->validate([
+        $rawEmail = (string) $request->input('email', '');
+        $cleanedEmail = strtolower(trim($rawEmail));
+
+        $rawUsername = (string) $request->input('username', '');
+        $cleanedUsername = trim($rawUsername);
+
+        // In auto-generation mode:
+        if ($passwordMode === 'auto') {
+            // If username is empty, auto-generate a unique username from email prefix or name
+            if ($cleanedUsername === '') {
+                $base = preg_replace('/[^a-z0-9_]/', '', strtolower(explode('@', $cleanedEmail)[0]));
+                if (empty($base)) {
+                    $base = preg_replace('/[^a-z0-9_]/', '', strtolower(str_replace(' ', '', (string)$request->name)));
+                }
+                $candidate = $base ?: 'ins';
+                $counter = 1;
+                while (User::where('username', $candidate)->exists()) {
+                    $candidate = $base . $counter;
+                    $counter++;
+                }
+                $cleanedUsername = $candidate;
+            } elseif (User::where('username', $cleanedUsername)->exists()) {
+                // If user specified a username that is already taken, generate a unique variant
+                $base = $cleanedUsername;
+                $counter = 1;
+                while (User::where('username', $candidate = $base . $counter)->exists()) {
+                    $counter++;
+                }
+                $cleanedUsername = $candidate;
+            }
+        }
+
+        $request->merge([
+            'email'    => $cleanedEmail,
+            'username' => $cleanedUsername,
+        ]);
+
+        // Check if email already exists with helpful guidance
+        if ($existingUser = User::where('email', $cleanedEmail)->first()) {
+            $isSameDept = ($existingUser->department_id === $deptId);
+
+            // In auto password mode: If instructor is already in this department, seamlessly refresh credentials & send email
+            if ($isSameDept && $passwordMode === 'auto') {
+                $plainPassword = $this->generateSecurePassword(14);
+                $existingUser->password = Hash::make($plainPassword);
+                $existingUser->must_change_password = true;
+                $existingUser->password_delivery_status = 'pending';
+                $existingUser->save();
+
+                $deliveryResult = DepartmentNotificationService::sendInstructorCredentialsEmail(
+                    $existingUser,
+                    $plainPassword,
+                    $department
+                );
+
+                $existingUser->password_delivery_status = $deliveryResult['success'] ? 'delivered' : 'failed';
+                $existingUser->password_delivered_at = $deliveryResult['success'] ? now() : null;
+                $existingUser->save();
+
+                LogActivity::record(
+                    'Updated',
+                    'Instructors',
+                    "Refreshed credentials email for instructor \"{$existingUser->name}\" ({$existingUser->email})"
+                );
+
+                return response()->json([
+                    'status'   => 'success',
+                    'message'  => "Instructor '{$existingUser->name}' ({$existingUser->email}) is already registered in your department. A new secure password has been generated and emailed directly to {$existingUser->email}.",
+                    'data'     => $existingUser->fresh(),
+                    'delivery' => [
+                        'status'       => $existingUser->password_delivery_status,
+                        'delivered_at' => $existingUser->password_delivered_at ? $existingUser->password_delivered_at->toIso8601String() : null,
+                        'email'        => $existingUser->email,
+                    ],
+                ], 200);
+            }
+
+            $msg = $isSameDept
+                ? "The instructor '{$existingUser->name}' ({$cleanedEmail}) is already registered in your department. You can resend their password email directly from the faculty list."
+                : "The email '{$cleanedEmail}' is already registered to another account in the institution.";
+
+            return response()->json([
+                'message'        => $msg,
+                'error_type'     => $isSameDept ? 'instructor_already_in_department' : 'email_already_registered',
+                'instructor_id'  => $isSameDept ? $existingUser->id : null,
+                'instructor_name'=> $existingUser->name,
+                'errors'         => [
+                    'email' => [$msg],
+                ],
+            ], 422);
+        }
+
+        $rules = [
             'name'            => 'required|string|max:255',
             'email'           => 'required|email|unique:users,email',
             'phone'           => 'required|string|max:255',
@@ -509,7 +654,15 @@ class InstructorController extends Controller
             'section'         => 'nullable|string|max:255',
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'username'        => 'required|string|unique:users,username',
-            'password'        => [
+            'password_mode'   => 'nullable|string|in:manual,auto',
+            'employment_type' => 'nullable|string|in:full_time,part_time,full time,part time',
+            'status'          => 'nullable|string|in:active,on_leave,inactive,suspended',
+        ];
+
+        if ($passwordMode === 'auto') {
+            $rules['password'] = 'nullable|string';
+        } else {
+            $rules['password'] = [
                 'required',
                 'string',
                 'min:8',
@@ -517,12 +670,18 @@ class InstructorController extends Controller
                 'regex:/[A-Z]/',
                 'regex:/[0-9]/',
                 'regex:/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?`~]/',
-            ],
-            'employment_type' => 'nullable|string|in:full_time,part_time,full time,part time',
-            'status'          => 'nullable|string|in:active,on_leave,inactive,suspended',
-        ], [
-            'password.min'   => 'Password must be at least 8 characters long.',
-            'password.regex' => 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+            ];
+        }
+
+        $request->validate($rules, [
+            'email.required'    => 'Instructor email address is required.',
+            'email.email'       => 'Please provide a valid email address.',
+            'email.unique'      => "The email '{$cleanedEmail}' has already been registered.",
+            'username.required' => 'Username is required.',
+            'username.unique'   => "The username '{$cleanedUsername}' is already taken. Please choose another username.",
+            'password.required' => 'Password is required when manually setting credentials.',
+            'password.min'      => 'Password must be at least 8 characters long.',
+            'password.regex'    => 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
         ]);
 
         $profilePicturePath = null;
@@ -530,42 +689,147 @@ class InstructorController extends Controller
             $profilePicturePath = $request->file('profile_picture')->store('avatars', 'public');
         }
 
+        $isAuto = ($passwordMode === 'auto');
+        $plainPassword = $isAuto ? $this->generateSecurePassword(14) : $request->password;
+
         $instructor = User::create([
-            'name'            => trim($request->name),
-            'email'           => trim(strtolower($request->email)),
-            'phone'           => trim($request->phone),
-            'gender'          => $request->gender,
-            'id_no'           => trim($request->id_no),
-            'year_level'      => $request->year_level,
-            'semester'        => $request->semester ?: (SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester'),
-            'section'         => $request->section,
-            'username'        => trim($request->username),
-            'password'        => Hash::make($request->password),
-            'role'            => 'instructor',
-            'department_id'   => $deptId,
-            'status'          => $request->status ?? 'active',
-            'employment_type' => $request->employment_type ?? 'full_time',
-            'created_by'      => $request->user()->id,
-            'profile_picture' => $profilePicturePath,
+            'name'                     => trim($request->name),
+            'email'                    => trim(strtolower($request->email)),
+            'phone'                    => trim($request->phone),
+            'gender'                   => $request->gender,
+            'id_no'                    => trim($request->id_no),
+            'year_level'               => $request->year_level,
+            'semester'                 => $request->semester ?: (SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester'),
+            'section'                  => $request->section,
+            'username'                 => trim($request->username),
+            'password'                 => Hash::make($plainPassword),
+            'role'                     => 'instructor',
+            'department_id'            => $deptId,
+            'status'                   => $request->status ?? 'active',
+            'employment_type'          => $request->employment_type ?? 'full_time',
+            'created_by'               => $request->user()->id,
+            'profile_picture'          => $profilePicturePath,
+            'must_change_password'     => $isAuto,
+            'password_delivery_status' => $isAuto ? 'pending' : 'manual',
+            'password_delivered_at'    => null,
         ]);
 
         LogActivity::record(
             'Created',
             'Instructors',
-            "Created a new Instructor \"{$instructor->name}\""
+            "Created a new Instructor \"{$instructor->name}\"" . ($isAuto ? ' with auto-generated credentials' : '')
         );
 
-        try {
-            \App\Services\DepartmentNotificationService::notifyInstructorJoined($instructor);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning("Could not dispatch instructor joined notification: " . $e->getMessage());
+        if ($isAuto) {
+            $deliveryResult = DepartmentNotificationService::sendInstructorCredentialsEmail(
+                $instructor,
+                $plainPassword,
+                $department
+            );
+
+            if ($deliveryResult['success']) {
+                $instructor->password_delivery_status = 'delivered';
+                $instructor->password_delivered_at = now();
+                $instructor->save();
+            } else {
+                $instructor->password_delivery_status = 'failed';
+                $instructor->save();
+            }
         }
 
+        defer(function () use ($instructor) {
+            try {
+                DepartmentNotificationService::notifyInstructorJoined($instructor);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Could not dispatch instructor joined notification: " . $e->getMessage());
+            }
+        });
+
+        $freshInstructor = $instructor->fresh();
+
         return response()->json([
-            'status'  => 'success',
-            'message' => 'Instructor created successfully',
-            'data'    => $instructor
+            'status'   => 'success',
+            'message'  => $isAuto
+                ? ($instructor->password_delivery_status === 'delivered'
+                    ? "Instructor created successfully and temporary credentials emailed to {$instructor->email}."
+                    : "Instructor created successfully, but credentials email could not be delivered. You may resend credentials.")
+                : 'Instructor created successfully.',
+            'data'     => $freshInstructor,
+            'delivery' => $isAuto ? [
+                'status'       => $instructor->password_delivery_status,
+                'delivered_at' => $instructor->password_delivered_at ? $instructor->password_delivered_at->toIso8601String() : null,
+                'email'        => $instructor->email,
+            ] : null,
         ], 201);
+    }
+
+    /**
+     * Invalidate current password, generate a fresh secure temporary password,
+     * and email credentials to the instructor's registered email address.
+     */
+    public function resendCredentials(Request $request, string $id): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $department = $deptId ? Department::find($deptId) : null;
+
+        $instructor = User::where('department_id', $deptId)
+            ->whereIn('role', ['instructor', 'dept_head'])
+            ->findOrFail($id);
+
+        $plainPassword = $this->generateSecurePassword(14);
+
+        $instructor->password = Hash::make($plainPassword);
+        $instructor->must_change_password = true;
+        $instructor->password_delivery_status = 'pending';
+        $instructor->save();
+
+        $deliveryResult = DepartmentNotificationService::sendInstructorCredentialsEmail(
+            $instructor,
+            $plainPassword,
+            $department
+        );
+
+        if ($deliveryResult['success']) {
+            $instructor->password_delivery_status = 'delivered';
+            $instructor->password_delivered_at = now();
+            $instructor->save();
+
+            LogActivity::record(
+                'Updated',
+                'Instructors',
+                "Resent account credentials email to instructor \"{$instructor->name}\" ({$instructor->email})"
+            );
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => "A new secure password has been generated and emailed to {$instructor->email}.",
+                'data'    => [
+                    'id'                       => $instructor->id,
+                    'email'                    => $instructor->email,
+                    'password_delivery_status' => 'delivered',
+                    'password_delivered_at'    => $instructor->password_delivered_at->toIso8601String(),
+                ]
+            ]);
+        } else {
+            $instructor->password_delivery_status = 'failed';
+            $instructor->save();
+
+            LogActivity::record(
+                'Warning',
+                'Instructors',
+                "Failed to resend credentials email to instructor \"{$instructor->name}\" ({$instructor->email}): " . ($deliveryResult['error'] ?? 'Unknown error')
+            );
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => "Failed to deliver credentials email: " . ($deliveryResult['error'] ?? 'SMTP delivery failed'),
+                'data'    => [
+                    'id'                       => $instructor->id,
+                    'email'                    => $instructor->email,
+                    'password_delivery_status' => 'failed',
+                ]
+            ], 500);
+        }
     }
 
     /**

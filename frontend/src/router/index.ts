@@ -16,6 +16,41 @@ const lockedInstructorMutationRoutes = [
 
 router.beforeEach(async (to, _from, next) => {
   const token = localStorage.getItem('auth_token')
+  const authUserStr = localStorage.getItem('auth_user')
+  let authUser: any = null
+  if (authUserStr) {
+    try {
+      authUser = JSON.parse(authUserStr)
+    } catch (_) {}
+  }
+
+  // 1. First-time login mandatory password change enforcement
+  if (authUser?.must_change_password) {
+    if (to.path !== '/change-password' && to.path !== '/login' && to.path !== '/access-locked') {
+      next('/change-password')
+      return
+    }
+  } else if (to.path === '/change-password') {
+    if (!token) {
+      next('/login')
+      return
+    }
+    // If user already changed their password, redirect to their role home
+    if (authUser?.role === 'dept_head') {
+      next('/dept-head/dashboard')
+      return
+    } else if (authUser?.role === 'admin') {
+      next('/admin/dashboard')
+      return
+    } else if (authUser?.role === 'student') {
+      next('/student')
+      return
+    } else if (authUser?.role === 'instructor') {
+      next('/instructor/dashboard')
+      return
+    }
+  }
+
   const isInstructorRoute = to.path.startsWith('/instructor')
 
   if (isInstructorRoute && token) {

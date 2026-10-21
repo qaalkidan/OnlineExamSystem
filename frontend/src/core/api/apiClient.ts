@@ -52,7 +52,7 @@ const isTransientServerError = (error: any): boolean => {
 
 const apiClient = axios.create({
   baseURL: resolveDefaultBaseUrl(),
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json'
@@ -161,6 +161,22 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // 4. Handle 403 Mandatory Password Change Required
+    if (error.response && error.response.status === 403 && error.response.data?.error_type === 'password_change_required') {
+      if (typeof window !== 'undefined' && window.location.pathname !== '/change-password') {
+        const storedUser = localStorage.getItem('auth_user')
+        if (storedUser) {
+          try {
+            const u = JSON.parse(storedUser)
+            u.must_change_password = true
+            localStorage.setItem('auth_user', JSON.stringify(u))
+          } catch (_) {}
+        }
+        window.location.href = '/change-password'
+      }
+      return Promise.reject(error)
+    }
+
     const config = error.config as (InternalAxiosRequestConfig & {
       __retryCount?: number
       __swappedHost?: boolean
@@ -175,11 +191,11 @@ apiClient.interceptors.response.use(
     const isNetworkDrop = isNetworkChangedOrDropped(error)
     const isTransientServer = isTransientServerError(error)
 
-    // 2. Automatically retry transient network drops (like ERR_NETWORK_CHANGED) or 502-504
-    if (isNetworkDrop || isTransientServer) {
+    // 2. Automatically retry transient network drops (like ERR_NETWORK_CHANGED) or 502-504 ONLY for idempotent requests
+    // Never auto-retry mutating methods (POST, PUT, PATCH, DELETE) to prevent duplicate transactions
+    if (isIdempotent && (isNetworkDrop || isTransientServer)) {
       config.__retryCount = config.__retryCount || 0
-      // Max 2 retries for idempotent requests, 1 retry for network drops before response
-      const maxRetries = isIdempotent ? 2 : (!error.response ? 1 : 0)
+      const maxRetries = 2
 
       if (config.__retryCount < maxRetries) {
         config.__retryCount += 1

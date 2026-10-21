@@ -289,6 +289,7 @@ const addForm = ref({
   semester: '',
   section: '',
   username: '',
+  passwordMode: 'manual' as 'manual' | 'auto',
   password: '',
   confirmPassword: '',
   employmentType: 'full_time',
@@ -301,6 +302,13 @@ const showAddConfirmPassword = ref(false)
 const passwordTouched = ref(false)
 const confirmPasswordTouched = ref(false)
 const addFormErrors = ref<Record<string, string>>({})
+const addFormExistingInstructor = ref<{ id: number; name: string; email: string } | null>(null)
+
+const existingInstructorInDept = computed(() => {
+  const email = addForm.value.email.trim().toLowerCase()
+  if (!email) return null
+  return instructors.value.find((i: any) => i.email?.toLowerCase() === email) || null
+})
 
 // ── Password Validation Criteria (aligned with backend regex) ──
 const addPasswordCriteria = computed(() => {
@@ -397,6 +405,7 @@ const resetAddForm = () => {
     semester: settingsStore.semester || 'Second Semester',
     section: 'Section A',
     username: '',
+    passwordMode: 'manual',
     password: '',
     confirmPassword: '',
     employmentType: 'full_time',
@@ -404,6 +413,7 @@ const resetAddForm = () => {
   }
   removeAddPhoto()
   addFormErrors.value = {}
+  addFormExistingInstructor.value = null
   showAddPassword.value = false
   showAddConfirmPassword.value = false
   passwordTouched.value = false
@@ -430,21 +440,23 @@ const validateAddForm = (): boolean => {
   if (!addForm.value.employeeId.trim()) errs.employeeId = 'Employee ID is required'
   if (!addForm.value.username.trim()) errs.username = 'Username is required'
   
-  if (!addForm.value.password) {
-    errs.password = 'Password is required'
-  } else if (!isAddPasswordValid.value) {
-    errs.password = 'Password must meet all 5 requirements below'
-  }
+  if (addForm.value.passwordMode === 'manual') {
+    if (!addForm.value.password) {
+      errs.password = 'Password is required'
+    } else if (!isAddPasswordValid.value) {
+      errs.password = 'Password must meet all 5 requirements below'
+    }
 
-  if (!addForm.value.confirmPassword) {
-    errs.confirmPassword = 'Confirm password is required'
-  } else if (addForm.value.password !== addForm.value.confirmPassword) {
-    errs.confirmPassword = 'Passwords do not match'
+    if (!addForm.value.confirmPassword) {
+      errs.confirmPassword = 'Confirm password is required'
+    } else if (addForm.value.password !== addForm.value.confirmPassword) {
+      errs.confirmPassword = 'Passwords do not match'
+    }
+    passwordTouched.value = true
+    confirmPasswordTouched.value = true
   }
 
   addFormErrors.value = errs
-  passwordTouched.value = true
-  confirmPasswordTouched.value = true
   return Object.keys(errs).length === 0
 }
 
@@ -462,27 +474,78 @@ const submitAddInstructor = async () => {
     formData.append('semester', settingsStore.semester || addForm.value.semester || 'Second Semester')
     formData.append('section', addForm.value.section)
     formData.append('username', addForm.value.username.trim())
-    formData.append('password', addForm.value.password)
+    formData.append('password_mode', addForm.value.passwordMode)
+    if (addForm.value.passwordMode === 'manual') {
+      formData.append('password', addForm.value.password)
+    }
     formData.append('employment_type', addForm.value.employmentType)
     formData.append('status', addForm.value.status)
     if (addForm.value.profilePicture) {
       formData.append('profile_picture', addForm.value.profilePicture)
     }
 
-    await apiClient.post('/dept-head/instructors', formData)
-    showToast('Instructor created successfully in department.')
+    const res = await apiClient.post('/dept-head/instructors', formData)
+    showToast(res.data?.message || 'Instructor created successfully in department.')
     currentView.value = 'list'
     await fetchInstructors()
   } catch (err: any) {
-    const serverErrors = err?.response?.data?.errors
+    const errData = err?.response?.data
+    const serverErrors = errData?.errors
     if (serverErrors) {
-      const msg = Object.values(serverErrors).flat().join('\n')
-      alert(msg)
+      const fieldMap: Record<string, string> = {
+        name: 'fullName',
+        email: 'email',
+        phone: 'phone',
+        id_no: 'employeeId',
+        username: 'username',
+        password: 'password',
+        gender: 'gender',
+      }
+      for (const [key, msgs] of Object.entries(serverErrors)) {
+        const target = fieldMap[key] || key
+        addFormErrors.value[target] = Array.isArray(msgs) ? msgs[0] : (msgs as string)
+      }
+    }
+
+    if (errData?.error_type === 'instructor_already_in_department') {
+      addFormExistingInstructor.value = {
+        id: errData.instructor_id,
+        name: errData.instructor_name || addForm.value.fullName,
+        email: addForm.value.email.trim(),
+      }
+      showToast('This instructor is already registered in your department.')
     } else {
-      alert(err?.response?.data?.message || 'Failed to create instructor.')
+      const msg = errData?.message || (serverErrors ? Object.values(serverErrors).flat().join(' ') : 'Failed to create instructor.')
+      showToast(msg)
     }
   } finally {
     isLoading.value = false
+  }
+}
+
+// ── Resend Credentials State & Handler ──
+const isResendingCredentials = ref<number | null>(null)
+
+const handleResendCredentials = async (inst: any) => {
+  if (!confirm(`Are you sure you want to generate a new secure password and dispatch it via email to ${inst.name} (${inst.email})?`)) {
+    return
+  }
+
+  isResendingCredentials.value = inst.id
+  try {
+    const res = await apiClient.post(`/dept-head/instructors/${inst.id}/resend-credentials`)
+    showToast(res.data?.message || `A new password was generated and emailed to ${inst.email}.`)
+    await fetchInstructors()
+    if (selectedInstructor.value && selectedInstructor.value.id === inst.id) {
+      selectedInstructor.value.password_delivery_status = 'delivered'
+    }
+    if (instructorDetail.value && instructorDetail.value.id === inst.id) {
+      instructorDetail.value.password_delivery_status = 'delivered'
+    }
+  } catch (err: any) {
+    alert(err?.response?.data?.message || 'Failed to resend credentials.')
+  } finally {
+    isResendingCredentials.value = null
   }
 }
 
@@ -725,6 +788,37 @@ onMounted(() => {
       </div>
 
       <div class="space-y-6">
+        <!-- Banner if Instructor is already registered in Department -->
+        <div
+          v-if="addFormExistingInstructor || existingInstructorInDept"
+          class="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/90 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+        >
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="text-xs space-y-0.5">
+              <p class="font-bold text-slate-900">
+                Instructor Already Registered in Department
+              </p>
+              <p class="text-slate-600 text-[11px]">
+                <strong>{{ (addFormExistingInstructor || existingInstructorInDept)?.name }}</strong>
+                ({{ (addFormExistingInstructor || existingInstructorInDept)?.email }}) is already in your department faculty roster.
+                You can generate and dispatch a new secure password directly to their email address right now.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="handleResendCredentials(addFormExistingInstructor || existingInstructorInDept)"
+            :disabled="isResendingCredentials === (addFormExistingInstructor || existingInstructorInDept)?.id"
+            class="px-4 py-2 bg-[#5138ed] hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shrink-0 shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            <span>{{ isResendingCredentials === (addFormExistingInstructor || existingInstructorInDept)?.id ? 'Sending...' : 'Resend Password Email Now' }}</span>
+          </button>
+        </div>
+
         <!-- Section 1: Personal Details -->
         <div>
           <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">1. Personal Information</h3>
@@ -735,6 +829,7 @@ onMounted(() => {
                 v-model="addForm.fullName"
                 type="text"
                 placeholder="e.g. Dr. Abebe Bikila"
+                @input="delete addFormErrors.fullName"
                 class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
                 :class="addFormErrors.fullName ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
               />
@@ -746,6 +841,7 @@ onMounted(() => {
                 v-model="addForm.email"
                 type="email"
                 placeholder="instructor@wollo.edu.et"
+                @input="delete addFormErrors.email; addFormExistingInstructor = null"
                 class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
                 :class="addFormErrors.email ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
               />
@@ -757,6 +853,7 @@ onMounted(() => {
                 v-model="addForm.phone"
                 type="text"
                 placeholder="+251 9XX XXX XXX"
+                @input="delete addFormErrors.phone"
                 class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
                 :class="addFormErrors.phone ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
               />
@@ -810,6 +907,7 @@ onMounted(() => {
                 v-model="addForm.employeeId"
                 type="text"
                 placeholder="e.g. WU-INS-042"
+                @input="delete addFormErrors.employeeId"
                 class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed]"
                 :class="addFormErrors.employeeId ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
               />
@@ -886,179 +984,318 @@ onMounted(() => {
 
         <!-- Section 3: Account Credentials -->
         <div class="pt-4 border-t border-slate-100">
-          <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">3. Account Credentials</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <!-- Username Field -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Username <span class="text-rose-500">*</span></label>
-              <input
-                v-model="addForm.username"
-                type="text"
-                placeholder="username"
-                class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
-                :class="addFormErrors.username ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
-              />
-              <p v-if="addFormErrors.username" class="text-[10px] text-rose-600 mt-0.5">{{ addFormErrors.username }}</p>
-            </div>
-
-            <!-- Password Field with Eye Toggle Icon -->
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-xs font-bold text-slate-700">Password <span class="text-rose-500">*</span></label>
-                <span
-                  v-if="addForm.password"
-                  class="text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors"
-                  :class="isAddPasswordValid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
-                >
-                  {{ isAddPasswordValid ? '✓ Strong' : addPasswordStrength.text }}
-                </span>
-              </div>
-              <div class="relative">
-                <input
-                  v-model="addForm.password"
-                  :type="showAddPassword ? 'text' : 'password'"
-                  placeholder="Min 8 chars, mixed case & symbols"
-                  @input="onPasswordInput"
-                  class="w-full pl-3.5 pr-10 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
-                  :class="addFormErrors.password ? 'border-rose-300 bg-rose-50/30' : (isAddPasswordValid ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200')"
-                />
-                <button
-                  type="button"
-                  @click="showAddPassword = !showAddPassword"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 cursor-pointer"
-                  :title="showAddPassword ? 'Hide password' : 'Show password'"
-                  tabindex="-1"
-                >
-                  <svg v-if="!showAddPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                  </svg>
-                </button>
-              </div>
-              <p v-if="addFormErrors.password" class="text-[10px] text-rose-600 mt-0.5 font-medium">{{ addFormErrors.password }}</p>
-            </div>
-
-            <!-- Confirm Password Field with Eye Toggle Icon -->
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-xs font-bold text-slate-700">Confirm Password <span class="text-rose-500">*</span></label>
-                <span
-                  v-if="addForm.confirmPassword && addForm.password"
-                  class="text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors"
-                  :class="addForm.password === addForm.confirmPassword ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'"
-                >
-                  {{ addForm.password === addForm.confirmPassword ? '✓ Matches' : '✗ Mismatch' }}
-                </span>
-              </div>
-              <div class="relative">
-                <input
-                  v-model="addForm.confirmPassword"
-                  :type="showAddConfirmPassword ? 'text' : 'password'"
-                  placeholder="Confirm password"
-                  @input="onConfirmPasswordInput"
-                  class="w-full pl-3.5 pr-10 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
-                  :class="addFormErrors.confirmPassword ? 'border-rose-300 bg-rose-50/30' : (addForm.confirmPassword && addForm.password === addForm.confirmPassword ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200')"
-                />
-                <button
-                  type="button"
-                  @click="showAddConfirmPassword = !showAddConfirmPassword"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 cursor-pointer"
-                  :title="showAddConfirmPassword ? 'Hide password' : 'Show password'"
-                  tabindex="-1"
-                >
-                  <svg v-if="!showAddConfirmPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                  </svg>
-                </button>
-              </div>
-              <p v-if="addFormErrors.confirmPassword" class="text-[10px] text-rose-600 mt-0.5 font-medium">{{ addFormErrors.confirmPassword }}</p>
+              <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">3. Account Credentials</h3>
+              <p class="text-xs text-slate-400 mt-0.5">Select how you want to provision initial login credentials for this instructor.</p>
             </div>
           </div>
 
-          <!-- Password Requirements Checklist & Strength Feedback Bar -->
-          <div v-if="addForm.password || passwordTouched" class="mt-3.5 p-3.5 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2.5">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Password Requirements</span>
-              <div class="flex items-center gap-2">
-                <span class="text-[11px] font-bold" :class="addPasswordStrength.textClass">
-                  Strength: {{ addPasswordStrength.text || 'None' }}
-                </span>
-                <span
-                  v-if="isAddPasswordValid"
-                  class="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full"
+          <!-- Password Creation Method Selector (Two Radio Cards) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-5">
+            <!-- Option A: Manually Set Password -->
+            <label
+              class="relative flex items-start gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 select-none"
+              :class="addForm.passwordMode === 'manual'
+                ? 'border-[#5138ed] bg-indigo-50/20 shadow-xs ring-2 ring-[#5138ed]/10'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'"
+            >
+              <input
+                type="radio"
+                name="passwordMode"
+                value="manual"
+                v-model="addForm.passwordMode"
+                class="mt-1 h-4 w-4 text-[#5138ed] focus:ring-[#5138ed] border-slate-300 cursor-pointer"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                    :class="addForm.passwordMode === 'manual' ? 'bg-[#5138ed] text-white' : 'bg-slate-100 text-slate-600'"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                  </div>
+                  <span class="text-xs font-bold text-slate-900">Manually Set Password</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  Enter and confirm an initial password manually. Requires satisfying all 5 security policy rules.
+                </p>
+              </div>
+            </label>
+
+            <!-- Option B: Automatically Generate & Email -->
+            <label
+              class="relative flex items-start gap-3.5 p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 select-none"
+              :class="addForm.passwordMode === 'auto'
+                ? 'border-[#5138ed] bg-indigo-50/20 shadow-xs ring-2 ring-[#5138ed]/10'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'"
+            >
+              <input
+                type="radio"
+                name="passwordMode"
+                value="auto"
+                v-model="addForm.passwordMode"
+                class="mt-1 h-4 w-4 text-[#5138ed] focus:ring-[#5138ed] border-slate-300 cursor-pointer"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                    :class="addForm.passwordMode === 'auto' ? 'bg-[#5138ed] text-white' : 'bg-slate-100 text-slate-600'"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                  </div>
+                  <span class="text-xs font-bold text-slate-900">Auto-Generate &amp; Send by Email</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  Generates a secure 14+ character temporary password and emails it directly to the instructor's address.
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <!-- OPTION A: MANUAL PASSWORD FIELDS -->
+          <div v-if="addForm.passwordMode === 'manual'" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <!-- Username Field -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Username <span class="text-rose-500">*</span></label>
+                <input
+                  v-model="addForm.username"
+                  type="text"
+                  placeholder="username"
+                  @input="delete addFormErrors.username"
+                  class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
+                  :class="addFormErrors.username ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
+                />
+                <p v-if="addFormErrors.username" class="text-[10px] text-rose-600 mt-0.5">{{ addFormErrors.username }}</p>
+              </div>
+
+              <!-- Password Field with Eye Toggle Icon -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-slate-700">Password <span class="text-rose-500">*</span></label>
+                  <span
+                    v-if="addForm.password"
+                    class="text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                    :class="isAddPasswordValid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                  >
+                    {{ isAddPasswordValid ? '✓ Strong' : addPasswordStrength.text }}
+                  </span>
+                </div>
+                <div class="relative">
+                  <input
+                    v-model="addForm.password"
+                    :type="showAddPassword ? 'text' : 'password'"
+                    placeholder="Min 8 chars, mixed case & symbols"
+                    @input="onPasswordInput"
+                    class="w-full pl-3.5 pr-10 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
+                    :class="addFormErrors.password ? 'border-rose-300 bg-rose-50/30' : (isAddPasswordValid ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200')"
+                  />
+                  <button
+                    type="button"
+                    @click="showAddPassword = !showAddPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 cursor-pointer"
+                    :title="showAddPassword ? 'Hide password' : 'Show password'"
+                    tabindex="-1"
+                  >
+                    <svg v-if="!showAddPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                    </svg>
+                  </button>
+                </div>
+                <p v-if="addFormErrors.password" class="text-[10px] text-rose-600 mt-0.5 font-medium">{{ addFormErrors.password }}</p>
+              </div>
+
+              <!-- Confirm Password Field with Eye Toggle Icon -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-slate-700">Confirm Password <span class="text-rose-500">*</span></label>
+                  <span
+                    v-if="addForm.confirmPassword && addForm.password"
+                    class="text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                    :class="addForm.password === addForm.confirmPassword ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'"
+                  >
+                    {{ addForm.password === addForm.confirmPassword ? '✓ Matches' : '✗ Mismatch' }}
+                  </span>
+                </div>
+                <div class="relative">
+                  <input
+                    v-model="addForm.confirmPassword"
+                    :type="showAddConfirmPassword ? 'text' : 'password'"
+                    placeholder="Confirm password"
+                    @input="onConfirmPasswordInput"
+                    class="w-full pl-3.5 pr-10 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition"
+                    :class="addFormErrors.confirmPassword ? 'border-rose-300 bg-rose-50/30' : (addForm.confirmPassword && addForm.password === addForm.confirmPassword ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200')"
+                  />
+                  <button
+                    type="button"
+                    @click="showAddConfirmPassword = !showAddConfirmPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-0.5 cursor-pointer"
+                    :title="showAddConfirmPassword ? 'Hide password' : 'Show password'"
+                    tabindex="-1"
+                  >
+                    <svg v-if="!showAddConfirmPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                    </svg>
+                  </button>
+                </div>
+                <p v-if="addFormErrors.confirmPassword" class="text-[10px] text-rose-600 mt-0.5 font-medium">{{ addFormErrors.confirmPassword }}</p>
+              </div>
+            </div>
+
+            <!-- Password Requirements Checklist & Strength Feedback Bar -->
+            <div v-if="addForm.password || passwordTouched" class="mt-3.5 p-3.5 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Password Requirements</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] font-bold" :class="addPasswordStrength.textClass">
+                    Strength: {{ addPasswordStrength.text || 'None' }}
+                  </span>
+                  <span
+                    v-if="isAddPasswordValid"
+                    class="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full"
+                  >
+                    ✓ Ready
+                  </span>
+                </div>
+              </div>
+
+              <!-- Strength Meter Progress Bar (5 bars) -->
+              <div class="grid grid-cols-5 gap-1.5 h-1.5 w-full">
+                <div
+                  v-for="idx in 5"
+                  :key="idx"
+                  class="h-full rounded-full transition-all duration-300"
+                  :class="idx <= addPasswordStrength.count ? addPasswordStrength.color : 'bg-slate-200'"
+                ></div>
+              </div>
+
+              <!-- 5 Checklist Criteria -->
+              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1 text-[11px]">
+                <!-- 1. Length -->
+                <div
+                  class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                  :class="addPasswordCriteria.length ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
                 >
-                  ✓ Ready
-                </span>
+                  <svg v-if="addPasswordCriteria.length" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                  <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                  <span class="truncate">8+ Characters</span>
+                </div>
+
+                <!-- 2. Uppercase -->
+                <div
+                  class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                  :class="addPasswordCriteria.uppercase ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+                >
+                  <svg v-if="addPasswordCriteria.uppercase" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                  <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                  <span class="truncate">Uppercase (A-Z)</span>
+                </div>
+
+                <!-- 3. Lowercase -->
+                <div
+                  class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                  :class="addPasswordCriteria.lowercase ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+                >
+                  <svg v-if="addPasswordCriteria.lowercase" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                  <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                  <span class="truncate">Lowercase (a-z)</span>
+                </div>
+
+                <!-- 4. Number -->
+                <div
+                  class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                  :class="addPasswordCriteria.number ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+                >
+                  <svg v-if="addPasswordCriteria.number" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                  <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                  <span class="truncate">Number (0-9)</span>
+                </div>
+
+                <!-- 5. Special Character -->
+                <div
+                  class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
+                  :class="addPasswordCriteria.special ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
+                >
+                  <svg v-if="addPasswordCriteria.special" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                  <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
+                  <span class="truncate">Special (!@#$%^&*)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- OPTION B: AUTOMATICALLY GENERATE & EMAIL -->
+          <div v-else class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Username input -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">
+                  Account Username <span class="text-rose-500">*</span>
+                </label>
+                <input
+                  v-model="addForm.username"
+                  type="text"
+                  placeholder="e.g. j.doe or employee username"
+                  @input="delete addFormErrors.username"
+                  class="w-full px-3.5 py-2 text-xs border rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition bg-white"
+                  :class="addFormErrors.username ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'"
+                />
+                <p v-if="addFormErrors.username" class="text-[10px] text-rose-600 mt-0.5">{{ addFormErrors.username }}</p>
+                <p class="text-[11px] text-slate-400 mt-1">Instructor will use this username to sign in to the portal.</p>
+              </div>
+
+              <!-- Recipient Email Preview -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">
+                  Password Recipient (Registered Email)
+                </label>
+                <div class="px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span class="truncate">{{ addForm.email.trim() || 'Enter instructor email in Section 1' }}</span>
+                  <span v-if="addForm.email.trim()" class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                    Recipient
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Credentials will be emailed directly to this address upon creation.</p>
               </div>
             </div>
 
-            <!-- Strength Meter Progress Bar (5 bars) -->
-            <div class="grid grid-cols-5 gap-1.5 h-1.5 w-full">
-              <div
-                v-for="idx in 5"
-                :key="idx"
-                class="h-full rounded-full transition-all duration-300"
-                :class="idx <= addPasswordStrength.count ? addPasswordStrength.color : 'bg-slate-200'"
-              ></div>
-            </div>
-
-            <!-- 5 Checklist Criteria -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1 text-[11px]">
-              <!-- 1. Length -->
-              <div
-                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
-                :class="addPasswordCriteria.length ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
-              >
-                <svg v-if="addPasswordCriteria.length" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
-                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
-                <span class="truncate">8+ Characters</span>
+            <!-- Explanation & Delivery Notice Box -->
+            <div class="p-4 bg-indigo-50/40 rounded-2xl border border-indigo-100 space-y-3">
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-xl bg-indigo-100 text-[#5138ed] flex items-center justify-center shrink-0 mt-0.5">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div class="text-xs text-slate-700 space-y-1">
+                  <p class="font-bold text-slate-900">Automatically Generate Secure Password</p>
+                  <p class="text-slate-600 leading-relaxed text-[11px]">
+                    The system will generate a unique temporary password (minimum 14 characters, combining uppercase, lowercase, numbers, and symbols), securely create the instructor's account, and email the credentials directly to <strong class="text-slate-900">{{ addForm.email || 'the instructor’s registered email' }}</strong>. The password will not be displayed to the Department Head.
+                  </p>
+                </div>
               </div>
 
-              <!-- 2. Uppercase -->
-              <div
-                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
-                :class="addPasswordCriteria.uppercase ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
-              >
-                <svg v-if="addPasswordCriteria.uppercase" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
-                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
-                <span class="truncate">Uppercase (A-Z)</span>
-              </div>
-
-              <!-- 3. Lowercase -->
-              <div
-                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
-                :class="addPasswordCriteria.lowercase ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
-              >
-                <svg v-if="addPasswordCriteria.lowercase" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
-                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
-                <span class="truncate">Lowercase (a-z)</span>
-              </div>
-
-              <!-- 4. Number -->
-              <div
-                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
-                :class="addPasswordCriteria.number ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
-              >
-                <svg v-if="addPasswordCriteria.number" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
-                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
-                <span class="truncate">Number (0-9)</span>
-              </div>
-
-              <!-- 5. Special Character -->
-              <div
-                class="flex items-center gap-1.5 py-1 px-2 rounded-lg transition-colors border"
-                :class="addPasswordCriteria.special ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200 font-semibold' : 'bg-white text-slate-500 border-slate-200/70'"
-              >
-                <svg v-if="addPasswordCriteria.special" class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
-                <span v-else class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center text-[9px] text-slate-400">•</span>
-                <span class="truncate">Special (!@#$%^&*)</span>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-indigo-100/70 text-[11px]">
+                <div class="p-2.5 bg-white/80 rounded-xl border border-indigo-100/50">
+                  <span class="text-slate-400 block text-[10px] font-bold uppercase">Password Privacy</span>
+                  <span class="font-bold text-slate-800 mt-0.5 block">Not displayed to Dept Head</span>
+                </div>
+                <div class="p-2.5 bg-white/80 rounded-xl border border-indigo-100/50">
+                  <span class="text-slate-400 block text-[10px] font-bold uppercase">First Login Policy</span>
+                  <span class="font-bold text-amber-700 mt-0.5 block">Password change enforced</span>
+                </div>
+                <div class="p-2.5 bg-white/80 rounded-xl border border-indigo-100/50">
+                  <span class="text-slate-400 block text-[10px] font-bold uppercase">Delivery Status</span>
+                  <span class="font-bold text-emerald-700 mt-0.5 block">Emailed automatically</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1077,9 +1314,16 @@ onMounted(() => {
             type="button"
             @click="submitAddInstructor"
             :disabled="isLoading"
-            class="px-5 py-2 bg-[#5138ed] hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm disabled:opacity-50"
+            class="px-5 py-2 bg-[#5138ed] hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm disabled:opacity-50 flex items-center gap-1.5"
           >
-            {{ isLoading ? 'Creating Instructor...' : 'Save & Register Instructor' }}
+            <svg v-if="isLoading" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span>
+              {{
+                isLoading
+                  ? (addForm.passwordMode === 'auto' ? 'Creating & Sending Password...' : 'Creating Instructor...')
+                  : (addForm.passwordMode === 'auto' ? 'Create Instructor & Send Password' : 'Save & Register Instructor')
+              }}
+            </span>
           </button>
         </div>
       </div>
@@ -1711,6 +1955,20 @@ onMounted(() => {
                 <td class="py-3.5 px-4">
                   <p class="font-semibold text-slate-800 truncate max-w-[170px]">{{ inst.email }}</p>
                   <p class="text-[11px] text-slate-400 mt-0.5">{{ inst.phone }}</p>
+                  <div v-if="inst.password_delivery_status && inst.password_delivery_status !== 'manual'" class="mt-1">
+                    <span
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                      :class="{
+                        'bg-emerald-50 text-emerald-700 border border-emerald-200': inst.password_delivery_status === 'delivered',
+                        'bg-amber-50 text-amber-700 border border-amber-200': inst.password_delivery_status === 'pending',
+                        'bg-rose-50 text-rose-700 border border-rose-200': inst.password_delivery_status === 'failed',
+                      }"
+                    >
+                      <svg v-if="inst.password_delivery_status === 'delivered'" class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                      <svg v-else-if="inst.password_delivery_status === 'failed'" class="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                      <span>{{ inst.password_delivery_status === 'delivered' ? 'Password Sent' : (inst.password_delivery_status === 'failed' ? 'Email Failed' : 'Pending') }}</span>
+                    </span>
+                  </div>
                 </td>
 
                 <!-- Employment Type -->
@@ -1843,6 +2101,19 @@ onMounted(() => {
                         <span>Edit Instructor</span>
                       </button>
 
+                      <!-- Resend Password Email -->
+                      <button
+                        v-if="!inst.is_self"
+                        @click="handleResendCredentials(inst); openDropdownId = null"
+                        :disabled="isResendingCredentials === inst.id"
+                        class="w-full px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span>{{ isResendingCredentials === inst.id ? 'Sending Email...' : 'Resend Password Email' }}</span>
+                      </button>
+
                       <div class="my-1 border-t border-slate-100"></div>
 
                       <!-- Status Change Actions -->
@@ -1934,6 +2205,18 @@ onMounted(() => {
             <div class="text-xs text-slate-600 space-y-1">
               <p>Email: <strong class="text-slate-800">{{ inst.email }}</strong></p>
               <p>Workload: <strong class="text-emerald-700">{{ inst.total_credits }} Credits</strong> ({{ inst.courses_count }} courses)</p>
+              <p v-if="inst.password_delivery_status && inst.password_delivery_status !== 'manual'">
+                Credentials Delivery:
+                <strong
+                  :class="{
+                    'text-emerald-600': inst.password_delivery_status === 'delivered',
+                    'text-rose-600': inst.password_delivery_status === 'failed',
+                    'text-amber-600': inst.password_delivery_status === 'pending'
+                  }"
+                >
+                  {{ inst.password_delivery_status === 'delivered' ? 'Password Sent' : (inst.password_delivery_status === 'failed' ? 'Email Failed' : 'Pending') }}
+                </strong>
+              </p>
             </div>
 
             <div class="pt-2 flex items-center gap-2">
@@ -1949,6 +2232,15 @@ onMounted(() => {
                 class="flex-1 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-[#5138ed] text-xs font-bold rounded-lg transition"
               >
                 Edit
+              </button>
+              <button
+                v-if="!inst.is_self"
+                @click="handleResendCredentials(inst)"
+                :disabled="isResendingCredentials === inst.id"
+                class="py-1.5 px-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-lg transition disabled:opacity-50"
+                title="Resend Credentials Email"
+              >
+                {{ isResendingCredentials === inst.id ? 'Sending...' : 'Resend' }}
               </button>
             </div>
           </div>
@@ -2079,6 +2371,21 @@ onMounted(() => {
               <p><span class="text-slate-400">Assigned Section:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.section }}</strong></p>
               <p><span class="text-slate-400">Registered By:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.creator_name }}</strong></p>
               <p><span class="text-slate-400">Date Joined:</span> <strong class="text-slate-700 ml-1">{{ instructorDetail?.joined_formatted }}</strong></p>
+              <p class="sm:col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between">
+                <span class="text-slate-400">Password Delivery:</span>
+                <span
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  :class="{
+                    'bg-emerald-50 text-emerald-700 border border-emerald-200': instructorDetail?.password_delivery_status === 'delivered',
+                    'bg-amber-50 text-amber-700 border border-amber-200': instructorDetail?.password_delivery_status === 'pending',
+                    'bg-rose-50 text-rose-700 border border-rose-200': instructorDetail?.password_delivery_status === 'failed',
+                    'bg-slate-100 text-slate-600 border border-slate-200': !instructorDetail?.password_delivery_status || instructorDetail?.password_delivery_status === 'manual'
+                  }"
+                >
+                  {{ (instructorDetail?.password_delivery_status || 'manual').toUpperCase() }}
+                  <span v-if="instructorDetail?.must_change_password" class="text-amber-600 font-semibold">• Change Enforced</span>
+                </span>
+              </p>
             </div>
           </div>
 
@@ -2126,7 +2433,18 @@ onMounted(() => {
 
         </div>
 
-        <div class="pt-4 border-t border-slate-100 flex items-center justify-end">
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+          <div>
+            <button
+              v-if="!instructorDetail?.is_self"
+              @click="handleResendCredentials(instructorDetail)"
+              :disabled="isResendingCredentials === instructorDetail?.id"
+              class="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 border border-purple-200"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              <span>{{ isResendingCredentials === instructorDetail?.id ? 'Sending...' : 'Resend Credentials Email' }}</span>
+            </button>
+          </div>
           <button
             @click="showDetailModal = false"
             class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"

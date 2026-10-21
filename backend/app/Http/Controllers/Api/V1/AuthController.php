@@ -182,100 +182,113 @@ class AuthController extends Controller
                 ->get();
 
             if ($coursesQuery->isEmpty()) {
-                return response()->json([
-                    'message'    => 'Access denied. You have not been assigned to any courses yet. Please wait for an administrator to assign you to a course.',
-                    'error_type' => 'instructor_not_assigned',
-                    'instructor' => [
-                        'name'       => $user->name,
-                        'email'      => $user->email,
-                        'department' => $user->department?->name ?? 'Unassigned',
-                    ],
-                    'errors'     => [
-                        'login' => ['Access denied. You have not been assigned to any courses yet. Please wait for an administrator to assign you to a course.'],
-                    ],
-                ], 422);
-            }
+                if ($user->must_change_password) {
+                    // Newly provisioned instructor with temporary credentials:
+                    // Must be allowed to log in and reach /change-password to set their permanent password
+                    $assignedOptions = [
+                        'departments' => $user->department ? [[
+                            'id'   => $user->department->id,
+                            'name' => $user->department->name,
+                        ]] : [],
+                        'courses'     => [],
+                        'sections'    => $user->section ? [$user->section] : ['Section A'],
+                    ];
+                } else {
+                    return response()->json([
+                        'message'    => 'Access denied. You have not been assigned to any courses yet. Please wait for an administrator to assign you to a course.',
+                        'error_type' => 'instructor_not_assigned',
+                        'instructor' => [
+                            'name'       => $user->name,
+                            'email'      => $user->email,
+                            'department' => $user->department?->name ?? 'Unassigned',
+                        ],
+                        'errors'     => [
+                            'login' => ['Access denied. You have not been assigned to any courses yet. Please wait for an administrator to assign you to a course.'],
+                        ],
+                    ], 422);
+                }
+            } else {
+                // Check if the instructor's semester workspace is closed & locked by the Department Head
+                $lockedSubmission = \App\Models\SemesterSubmission::where('instructor_id', $user->id)
+                    ->whereNotNull('locked_at')
+                    ->latest('updated_at')
+                    ->first();
 
-            // Check if the instructor's semester workspace is closed & locked by the Department Head
-            $lockedSubmission = \App\Models\SemesterSubmission::where('instructor_id', $user->id)
-                ->whereNotNull('locked_at')
-                ->latest('updated_at')
-                ->first();
+                if ($lockedSubmission && $lockedSubmission->isLocked() && ! $user->must_change_password) {
+                    $course = $coursesQuery->first();
+                    $courseTitle = $course?->title ?? 'Course';
+                    $termStr = "{$lockedSubmission->academic_year} — {$lockedSubmission->semester}";
 
-            if ($lockedSubmission && $lockedSubmission->isLocked()) {
-                $course = $coursesQuery->first();
-                $courseTitle = $course?->title ?? 'Course';
-                $termStr = "{$lockedSubmission->academic_year} — {$lockedSubmission->semester}";
+                    $lockMsg = "Access Locked: The Department Head has closed access to your {$courseTitle} semester workspace ({$termStr}). Please contact your Department Head if you need access restored.";
 
-                $lockMsg = "Access Locked: The Department Head has closed access to your {$courseTitle} semester workspace ({$termStr}). Please contact your Department Head if you need access restored.";
+                    \App\Helpers\LogActivity::record(
+                        'Login Blocked',
+                        'Authentication',
+                        "Login blocked for instructor '{$user->email}': Semester workspace for {$courseTitle} ({$termStr}) is closed and locked by the Department Head.",
+                        'Failed',
+                        $user->department_id,
+                        $user
+                    );
 
-                \App\Helpers\LogActivity::record(
-                    'Login Blocked',
-                    'Authentication',
-                    "Login blocked for instructor '{$user->email}': Semester workspace for {$courseTitle} ({$termStr}) is closed and locked by the Department Head.",
-                    'Failed',
-                    $user->department_id,
-                    $user
-                );
+                    return response()->json([
+                        'message'      => $lockMsg,
+                        'error_type'   => 'semester_locked',
+                        'locked'       => true,
+                        'course_title' => $courseTitle,
+                        'submission'   => [
+                            'id'            => $lockedSubmission->id,
+                            'academic_year' => $lockedSubmission->academic_year,
+                            'semester'      => $lockedSubmission->semester,
+                            'locked_at'     => $lockedSubmission->locked_at?->format('M d, Y h:i A'),
+                        ],
+                        'errors'       => [
+                            'login' => [$lockMsg],
+                        ],
+                    ], 403);
+                }
 
-                return response()->json([
-                    'message'      => $lockMsg,
-                    'error_type'   => 'semester_locked',
-                    'locked'       => true,
-                    'course_title' => $courseTitle,
-                    'submission'   => [
-                        'id'            => $lockedSubmission->id,
-                        'academic_year' => $lockedSubmission->academic_year,
-                        'semester'      => $lockedSubmission->semester,
-                        'locked_at'     => $lockedSubmission->locked_at?->format('M d, Y h:i A'),
-                    ],
-                    'errors'       => [
-                        'login' => [$lockMsg],
-                    ],
-                ], 403);
-            }
-
-            // Extract unique departments
-            $departmentsMap = [];
-            if ($user->department) {
-                $departmentsMap[$user->department->id] = [
-                    'id'   => $user->department->id,
-                    'name' => $user->department->name,
-                ];
-            }
-
-            $coursesData = [];
-            $sectionsSet = [];
-
-            if ($user->section && $user->section !== 'N/A') {
-                $sectionsSet[$user->section] = true;
-            }
-
-            foreach ($coursesQuery as $c) {
-                if ($c->department) {
-                    $departmentsMap[$c->department->id] = [
-                        'id'   => $c->department->id,
-                        'name' => $c->department->name,
+                // Extract unique departments
+                $departmentsMap = [];
+                if ($user->department) {
+                    $departmentsMap[$user->department->id] = [
+                        'id'   => $user->department->id,
+                        'name' => $user->department->name,
                     ];
                 }
-                $sec = $c->section ?: ($user->section ?: 'Section A');
-                $sectionsSet[$sec] = true;
 
-                $coursesData[] = [
-                    'id'            => $c->id,
-                    'title'         => $c->title,
-                    'code'          => $c->code,
-                    'department_id' => $c->department_id,
-                    'department'    => $c->department?->name ?? 'N/A',
-                    'section'       => $sec,
+                $coursesData = [];
+                $sectionsSet = [];
+
+                if ($user->section && $user->section !== 'N/A') {
+                    $sectionsSet[$user->section] = true;
+                }
+
+                foreach ($coursesQuery as $c) {
+                    if ($c->department) {
+                        $departmentsMap[$c->department->id] = [
+                            'id'   => $c->department->id,
+                            'name' => $c->department->name,
+                        ];
+                    }
+                    $sec = $c->section ?: ($user->section ?: 'Section A');
+                    $sectionsSet[$sec] = true;
+
+                    $coursesData[] = [
+                        'id'            => $c->id,
+                        'title'         => $c->title,
+                        'code'          => $c->code,
+                        'department_id' => $c->department_id,
+                        'department'    => $c->department?->name ?? 'N/A',
+                        'section'       => $sec,
+                    ];
+                }
+
+                $assignedOptions = [
+                    'departments' => array_values($departmentsMap),
+                    'courses'     => $coursesData,
+                    'sections'    => array_keys($sectionsSet),
                 ];
             }
-
-            $assignedOptions = [
-                'departments' => array_values($departmentsMap),
-                'courses'     => $coursesData,
-                'sections'    => array_keys($sectionsSet),
-            ];
         }
 
         $tokenName = "auth_token:{$effectiveRole}";
@@ -315,6 +328,8 @@ class AuthController extends Controller
                     'email'               => $user->email,
                     'username'            => $user->username,
                     'role'                => $effectiveRole,
+                    'must_change_password'=> (bool)$user->must_change_password,
+                    'password_delivery_status' => $user->password_delivery_status ?? 'manual',
                     'department_id'       => $user->department_id,
                     'department'          => $user->department,
                     'profile_picture'     => $user->profile_picture,
@@ -425,6 +440,7 @@ class AuthController extends Controller
         }
 
         $user->password = Hash::make($request->new_password);
+        $user->must_change_password = false;
         $user->save();
 
         \App\Helpers\LogActivity::record(
@@ -433,7 +449,13 @@ class AuthController extends Controller
             "Changed account password"
         );
 
-        return response()->json(['message' => 'Password changed successfully.']);
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Password changed successfully.',
+            'data'    => [
+                'must_change_password' => false,
+            ],
+        ]);
     }
 
     /**
@@ -596,6 +618,8 @@ class AuthController extends Controller
                 'gender'                   => $user->gender ?: 'Not Specified',
                 'status'                   => $user->status ?: 'Active',
                 'role'                     => $user->role ?: 'Instructor',
+                'must_change_password'     => (bool)$user->must_change_password,
+                'password_delivery_status' => $user->password_delivery_status ?? 'manual',
                 'department_id'            => $user->department_id,
                 'department'               => $user->department,
                 'department_name'          => $user->department?->name ?? 'Computer Science',

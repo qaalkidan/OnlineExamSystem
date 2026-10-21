@@ -17,6 +17,11 @@ export const routes: Array<RouteRecordRaw> = [
     component: () => import('../modules/auth/pages/SystemMaintenance.vue')
   },
   {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: () => import('../modules/auth/pages/ChangePassword.vue')
+  },
+  {
     path: '/access-locked',
     name: 'AccessLocked',
     component: () => import('../modules/auth/pages/AccessLocked.vue')

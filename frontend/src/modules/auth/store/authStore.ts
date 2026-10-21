@@ -104,6 +104,16 @@ export const useAuthStore = defineStore('auth', () => {
         throw err
       }
 
+      // Check if user must change their temporary password first
+      if (userData.must_change_password) {
+        user.value = userData
+        token.value = authToken
+        localStorage.setItem('auth_token', authToken)
+        localStorage.setItem('auth_user', JSON.stringify(userData))
+        router.push('/change-password')
+        return { step: 1 }
+      }
+
       // Check if user is instructor -> Require Step 2 Selection
       if (userData.role === 'instructor') {
         // Ensure default assigned options exist if null
@@ -231,6 +241,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     const settingsStore = useSettingsStore()
     settingsStore.fetchSettings()
+
+    if (userData.must_change_password) {
+      router.push('/change-password')
+      return
+    }
 
     router.push('/instructor/dashboard')
   }

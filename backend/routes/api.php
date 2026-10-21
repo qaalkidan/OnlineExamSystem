@@ -35,7 +35,7 @@ Route::prefix('v1')->group(function () {
 // ------------------------------------------------------------------
 // Protected routes (Sanctum token required + Maintenance Mode check)
 // ------------------------------------------------------------------
-Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance', 'password.change.required'])->group(function () {
 
     // Current user info
     Route::get('/user', function (Request $request) {
@@ -144,6 +144,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance'])->group(fu
         Route::get('dashboard-stats', [\App\Http\Controllers\Api\V1\DeptHead\DashboardController::class, 'stats']);
         Route::get('instructors/export', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'export']);
         Route::patch('instructors/{id}/status', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'updateStatus']);
+        Route::post('instructors/{id}/resend-credentials', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'resendCredentials']);
         Route::match(['put', 'post'], 'instructors/{id}', [\App\Http\Controllers\Api\V1\DeptHead\InstructorController::class, 'update']);
         Route::apiResource('instructors', \App\Http\Controllers\Api\V1\DeptHead\InstructorController::class);
         Route::get('courses/export', [\App\Http\Controllers\Api\V1\DeptHead\CourseController::class, 'export']);
