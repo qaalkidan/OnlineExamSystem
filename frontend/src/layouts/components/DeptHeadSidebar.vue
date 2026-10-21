@@ -9,6 +9,18 @@ const closeSidebar = inject<() => void>('closeSidebar', () => { sidebarOpen.valu
 const pendingCount = ref<number | null>(null)
 const logCount = ref<number | null>(null)
 
+interface NavItem {
+  name: string
+  path: string
+  icon: string
+  badge?: number | null
+}
+
+interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
 const fetchPendingCount = async () => {
   try {
     const res = await apiClient.get('/dept-head/dashboard-stats')
@@ -79,24 +91,102 @@ const handleLinkClick = () => {
   }
 }
 
-const navItems = computed(() => [
-  { name: 'Dashboard',   path: '/dept-head/dashboard',    icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' },
-  { name: 'Instructors', path: '/dept-head/instructors',  icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-  { name: 'Students',    path: '/dept-head/students',     icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
-  { name: 'Courses',     path: '/dept-head/courses',      icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-  { name: 'Exams',       path: '/dept-head/exams',        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
-  { name: 'Results',     path: '/dept-head/results',      icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-  { name: 'Academic Calendar', path: '/dept-head/schedule', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { name: 'Reports',     path: '/dept-head/reports',      icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-  { name: 'Semester Submissions', path: '/dept-head/semester-submissions', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', badge: pendingCount.value },
-  { name: 'Active Logs', path: '/dept-head/activity-logs', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', badge: logCount.value },
-  { name: 'Settings',    path: '/dept-head/settings',     icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+const isItemActive = (path: string) => {
+  if (path === '/dept-head/dashboard') {
+    return route.path === '/dept-head' || route.path === '/dept-head/' || route.path === '/dept-head/dashboard'
+  }
+  return route.path.startsWith(path)
+}
+
+const navSections = computed<NavSection[]>(() => [
+  {
+    title: 'OVERVIEW',
+    items: [
+      {
+        name: 'Dashboard',
+        path: '/dept-head/dashboard',
+        icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'
+      }
+    ]
+  },
+  {
+    title: 'ACADEMIC',
+    items: [
+      {
+        name: 'Instructors',
+        path: '/dept-head/instructors',
+        icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+      },
+      {
+        name: 'Students',
+        path: '/dept-head/students',
+        icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'
+      },
+      {
+        name: 'Courses',
+        path: '/dept-head/courses',
+        icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
+      },
+      {
+        name: 'Exams',
+        path: '/dept-head/exams',
+        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'
+      },
+      {
+        name: 'Results',
+        path: '/dept-head/results',
+        icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
+      }
+    ]
+  },
+  {
+    title: 'ANALYTICS',
+    items: [
+      {
+        name: 'Academic Calendar',
+        path: '/dept-head/schedule',
+        icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
+      },
+      {
+        name: 'Reports',
+        path: '/dept-head/reports',
+        icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+      }
+    ]
+  },
+  {
+    title: 'SEMESTER MANAGEMENT',
+    items: [
+      {
+        name: 'Semester Submission',
+        path: '/dept-head/semester-submissions',
+        icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+        badge: pendingCount.value
+      }
+    ]
+  },
+  {
+    title: 'SYSTEM',
+    items: [
+      {
+        name: 'Active Logs',
+        path: '/dept-head/activity-logs',
+        icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+        badge: logCount.value
+      },
+      {
+        name: 'Settings',
+        path: '/dept-head/settings',
+        icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z'
+      }
+    ]
+  }
 ])
 </script>
 
 <template>
   <aside 
-    class="bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 overflow-hidden transition-all duration-300 z-50 lg:z-30"
+    class="bg-white border-r border-slate-100 flex flex-col h-screen fixed left-0 top-0 overflow-hidden transition-all duration-300 z-50 lg:z-30 shadow-xs"
     :class="[
       sidebarOpen 
         ? 'translate-x-0 w-64 lg:w-56 shadow-2xl lg:shadow-none' 
@@ -109,8 +199,8 @@ const navItems = computed(() => [
       <div class="flex items-center gap-2.5 min-w-0">
         <img src="../../assets/images/logo.png" alt="Wollo University" class="w-9 h-9 object-contain rounded-full shadow-sm shrink-0" />
         <div v-if="sidebarOpen" class="flex flex-col whitespace-nowrap">
-          <span class="text-[14px] font-bold text-slate-900 leading-tight">Wollo University</span>
-          <span class="text-[10px] text-slate-500 font-medium">Department Head</span>
+          <span class="text-[13px] font-bold text-slate-900 leading-tight">Wollo University</span>
+          <span class="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">Department Head</span>
         </div>
       </div>
 
@@ -119,7 +209,7 @@ const navItems = computed(() => [
         v-if="sidebarOpen"
         @click="closeSidebar"
         type="button"
-        class="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+        class="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
         title="Close menu"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -128,44 +218,63 @@ const navItems = computed(() => [
       </button>
     </div>
 
-    <!-- Navigation Links -->
-    <nav class="flex-1 px-3 sm:px-4 py-3 space-y-1.5 overflow-y-auto overflow-x-hidden min-h-0 scrollbar-none">
-      <router-link 
-        v-for="item in navItems" 
-        :key="item.name"
-        :to="item.path"
-        @click="handleLinkClick"
-        class="flex items-center rounded-xl transition-all duration-200 group relative min-h-[44px]"
-        :class="[
-          sidebarOpen ? 'px-3.5 py-2.5 justify-between' : 'lg:justify-center p-2.5',
-          route.path.startsWith(item.path) 
-            ? 'bg-indigo-50 text-[#5138ed] font-semibold shadow-xs' 
-            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-        ]"
-        :title="!sidebarOpen ? item.name : undefined"
-      >
-        <div class="flex items-center gap-3 min-w-0">
+    <!-- Navigation Sections -->
+    <nav class="flex-1 px-3 py-3 space-y-4 overflow-y-auto overflow-x-hidden min-h-0 scrollbar-none">
+      <div v-for="(section, sIndex) in navSections" :key="section.title" class="space-y-1">
+        <!-- Section Header (visible when sidebar expanded) -->
+        <div 
+          v-if="sidebarOpen" 
+          class="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none"
+        >
+          {{ section.title }}
+        </div>
+        <!-- Divider for collapsed sidebar -->
+        <div 
+          v-else-if="sIndex > 0" 
+          class="my-2 border-t border-slate-100 mx-2"
+        ></div>
+
+        <!-- Links in Section -->
+        <router-link 
+          v-for="item in section.items" 
+          :key="item.name"
+          :to="item.path"
+          @click="handleLinkClick"
+          class="flex items-center gap-3 py-2 rounded-xl transition-all duration-200 group relative text-[13px]"
+          :class="[
+            isItemActive(item.path) 
+              ? 'bg-indigo-50 text-[#5138ed] font-semibold shadow-xs' 
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium',
+            sidebarOpen ? 'px-3' : 'justify-center px-0'
+          ]"
+          :title="!sidebarOpen ? item.name : undefined"
+        >
           <svg 
-            class="w-5 h-5 shrink-0 transition-colors duration-200" 
-            :class="route.path.startsWith(item.path) ? 'text-[#5138ed]' : 'text-slate-400 group-hover:text-slate-600'"
+            class="w-5 h-5 flex-shrink-0 transition-colors duration-200" 
+            :class="isItemActive(item.path) ? 'text-[#5138ed]' : 'text-slate-400 group-hover:text-slate-600'"
             fill="none" 
             stroke="currentColor" 
             viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon" />
           </svg>
-          <span v-if="sidebarOpen" class="text-[13px] tracking-wide font-medium truncate">{{ item.name }}</span>
-        </div>
-        
-        <!-- Notification Badge -->
-        <span 
-          v-if="item.badge" 
-          class="flex items-center justify-center text-[10px] font-bold text-white bg-rose-500 rounded-full shadow-sm shrink-0"
-          :class="sidebarOpen ? 'min-w-5 h-5 px-1 ml-1' : 'w-2 h-2 absolute top-1.5 right-1.5 ring-2 ring-white'"
-        >
-          <span v-if="sidebarOpen">{{ Number(item.badge) > 99 ? '99+' : item.badge }}</span>
-        </span>
-      </router-link>
+          <span v-if="sidebarOpen" class="tracking-normal whitespace-nowrap flex-1 truncate">{{ item.name }}</span>
+          
+          <!-- Notification Badge -->
+          <span 
+            v-if="sidebarOpen && item.badge" 
+            class="px-2 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full shadow-xs shrink-0"
+            :title="item.name + ': ' + item.badge"
+          >
+            {{ Number(item.badge) > 99 ? '99+' : item.badge }}
+          </span>
+          <div 
+            v-else-if="!sidebarOpen && item.badge" 
+            class="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white"
+            :title="item.name + ': ' + item.badge"
+          ></div>
+        </router-link>
+      </div>
     </nav>
 
     <!-- Bottom Graphic: only when sidebar is open -->
