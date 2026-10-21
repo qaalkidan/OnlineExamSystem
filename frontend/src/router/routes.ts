@@ -327,7 +327,7 @@ export const routes: Array<RouteRecordRaw> = [
       {
         path: 'semester-submissions',
         name: 'DeptHeadSemesterSubmissions',
-        component: () => import('../modules/department-head/pages/SemesterSubmissionDetail.vue')
+        component: () => import('../modules/department-head/pages/SemesterSubmissions.vue')
       },
       {
         path: 'semester-submissions/overview',

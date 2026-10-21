@@ -6,7 +6,7 @@ import apiClient from '../../../core/api/apiClient'
 const route = useRoute()
 const router = useRouter()
 
-const submissionId = route.params.id as string
+const submissionId = computed(() => (route.params.id as string) || 'all')
 
 const isLoading = ref(true)
 const isSyncing = ref(false)
@@ -153,8 +153,8 @@ const fetchSubmissions = async () => {
       status: 'All Instructors'
     }
 
-    if (submissionId && submissionId !== 'all') {
-      params.year_level = submissionId
+    if (submissionId.value && submissionId.value !== 'all') {
+      params.year_level = submissionId.value
     }
 
     if (selectedDepartment.value && selectedDepartment.value !== 'All Departments') {
@@ -241,14 +241,19 @@ onMounted(async () => {
   window.addEventListener('click', closeAllMenus)
 
   // If directly navigated to a submission record ID
-  if (submissionId && submissionId !== 'all' && !submissionId.includes('year') && !isNaN(Number(submissionId))) {
-    const found = instructors.value.find(i => i.submission_id === Number(submissionId) || i.id === Number(submissionId))
+  if (submissionId.value && submissionId.value !== 'all' && !submissionId.value.includes('year') && !isNaN(Number(submissionId.value))) {
+    const found = instructors.value.find(i => i.submission_id === Number(submissionId.value) || i.id === Number(submissionId.value))
     if (found) {
       openViewDetailsModal(found)
     } else {
-      openViewDetailsModal({ id: Number(submissionId), submission_id: Number(submissionId) })
+      openViewDetailsModal({ id: Number(submissionId.value), submission_id: Number(submissionId.value) })
     }
   }
+})
+
+watch(() => route.params.id, () => {
+  currentPage.value = 1
+  fetchSubmissions()
 })
 
 const closeAllMenus = () => {

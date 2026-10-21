@@ -67,7 +67,7 @@ const refreshData = () => {
       </div>
 
       <button
-        @click="router.push({ name: 'DeptHeadSemesterSubmissions' })"
+        @click="router.push({ name: 'DeptHeadSemesterSubmissionDetail', params: { id: 'all' } })"
         class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#5138ed] text-white rounded-xl text-xs sm:text-[13px] font-bold hover:bg-[#432dd4] transition-all shadow-xs min-h-[44px] cursor-pointer shrink-0"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>

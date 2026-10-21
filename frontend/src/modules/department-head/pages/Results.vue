@@ -726,7 +726,7 @@ onMounted(() => {
           </div>
 
           <button
-            @click="router.push('/department-head/semester-submissions')"
+            @click="router.push('/dept-head/semester-submissions')"
             class="w-full mt-2 py-2.5 px-3 bg-[#5138ed] hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
           >
             <span>Open Semester Submissions Center</span>
@@ -1263,7 +1263,7 @@ onMounted(() => {
             Monitoring faculty result submission obligations for semester close-out.
           </p>
           <button
-            @click="router.push('/department-head/semester-submissions')"
+            @click="router.push('/dept-head/semester-submissions')"
             class="px-3.5 py-1.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-colors"
           >
             Manage Semester Submissions
