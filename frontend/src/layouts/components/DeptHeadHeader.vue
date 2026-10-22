@@ -144,7 +144,7 @@ const pageInfo = computed(() => {
   if (path.includes('/courses')) return { title: 'Courses Management', desc: 'Manage courses and assign instructors.' }
   if (path.includes('/exams')) return { title: 'Exams Overview', desc: 'Monitor all department exams and pass rates.' }
   if (path.includes('/results')) return { title: 'Exam Results', desc: 'Review exam results and student performances.' }
-  if (path.includes('/schedule')) return { title: 'Academic Calendar', desc: 'Department exam schedule and academic dates.' }
+  if (path.includes('/schedule') || path.includes('/exam-schedule')) return { title: 'Exam Schedule', desc: 'View, manage, and publish examination schedules for your department.' }
   if (path.includes('/reports')) return { title: 'Analytics & Reports', desc: 'Detailed analytics on department performance.' }
   if (path.includes('/settings')) return { title: 'Account Settings', desc: 'Manage your personal profile and preferences.' }
   if (path.includes('/semester-submissions')) return { title: 'Semester Submissions', desc: 'Review and approve semester exam packages.' }

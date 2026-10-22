@@ -8,8 +8,8 @@ const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 
 // ── View States ─────────────────────────────────────────────────────────────
-const activeMainView = ref<'calendar' | 'table'>('calendar')
-const calendarSubView = ref<'month' | 'week' | 'agenda'>('month')
+const activeMainView = ref<'calendar' | 'table' | 'agenda'>('calendar')
+const calendarSubView = ref<'month' | 'week'>('month')
 
 // ── Loading & Error States ──────────────────────────────────────────────────
 const isLoading = ref(true)
@@ -21,11 +21,13 @@ const exams = ref<any[]>([])
 const academicEvents = ref<any[]>([])
 const availableCourses = ref<any[]>([])
 const availableInstructors = ref<any[]>([])
+const availableSections = ref<string[]>(['All Sections', 'Section A', 'Section B'])
 const availableSemesters = ref<string[]>(['First Semester', 'Second Semester', 'Summer Term'])
 
 // ── Real KPI Stats (Zero Fake Mock Trends) ───────────────────────────────────
 const stats = ref({
   total: 0,
+  published: 0,
   scheduled: 0,
   upcoming: 0,
   conflicts: 0,
@@ -45,9 +47,9 @@ const currentSemester = computed(() => settingsStore.semester || 'Second Semeste
 const departmentInfo = computed(() => {
   const dept = authStore.user?.department
   return {
-    name: dept?.name || 'Computer Science',
-    code: dept?.code || 'CS',
-    college: dept?.college || 'College of Informatics'
+    name: dept?.name || 'Civil Engineering',
+    code: dept?.code || 'CV001',
+    college: dept?.college || 'College of Engineering'
   }
 })
 
@@ -55,13 +57,18 @@ const departmentInfo = computed(() => {
 const search = ref('')
 const semesterFilter = ref('all')
 const courseFilter = ref('all')
+const sectionFilter = ref('all')
 const statusFilter = ref('all')
+const conflictsOnlyFilter = ref(false)
+
 const activeFilterCount = computed(() => {
   let count = 0
   if (search.value.trim()) count++
   if (semesterFilter.value !== 'all') count++
   if (courseFilter.value !== 'all') count++
+  if (sectionFilter.value !== 'all') count++
   if (statusFilter.value !== 'all') count++
+  if (conflictsOnlyFilter.value) count++
   return count
 })
 
@@ -69,7 +76,26 @@ const resetFilters = () => {
   search.value = ''
   semesterFilter.value = 'all'
   courseFilter.value = 'all'
+  sectionFilter.value = 'all'
   statusFilter.value = 'all'
+  conflictsOnlyFilter.value = false
+  currentPage.value = 1
+}
+
+// Card Filter Shortcuts
+const handleCardClick = (type: 'total' | 'published' | 'upcoming' | 'conflicts') => {
+  if (type === 'total') {
+    statusFilter.value = 'all'
+    conflictsOnlyFilter.value = false
+  } else if (type === 'published') {
+    statusFilter.value = statusFilter.value === 'published' ? 'all' : 'published'
+    conflictsOnlyFilter.value = false
+  } else if (type === 'upcoming') {
+    statusFilter.value = statusFilter.value === 'upcoming' ? 'all' : 'upcoming'
+    conflictsOnlyFilter.value = false
+  } else if (type === 'conflicts') {
+    conflictsOnlyFilter.value = !conflictsOnlyFilter.value
+  }
   currentPage.value = 1
 }
 
@@ -167,10 +193,15 @@ const weekTitle = computed(() => {
   return `${start.toLocaleString('en-US', { month: 'short' })} ${start.getDate()} – ${end.toLocaleString('en-US', { month: 'short' })} ${end.getDate()}, ${start.getFullYear()}`
 })
 
-function isDateToday(dateStr: string): boolean {
+function getTodayStr(): string {
   const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  return dateStr === todayStr
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+const todayStr = computed(() => getTodayStr())
+
+function isDateToday(dateStr: string): boolean {
+  return dateStr === todayStr.value
 }
 
 // ── Unified Calendar Events Mapping ─────────────────────────────────────────
@@ -181,13 +212,20 @@ interface UnifiedCalendarItem {
   code?: string
   courseCode?: string
   courseName?: string
+  departmentName?: string
+  departmentCode?: string
   date: string // YYYY-MM-DD
   endDate?: string
   time?: string
   endTime?: string
+  duration?: string
+  durationMinutes?: number
   room?: string
   instructor?: string
+  section?: string
   status: string
+  rawStatus?: string
+  isPublished?: boolean
   hasConflict?: boolean
   conflictReason?: string
   color: string
@@ -200,26 +238,34 @@ const allCalendarItems = computed<UnifiedCalendarItem[]>(() => {
 
   // Add Department Exams
   exams.value.forEach(exam => {
-    if (!exam.date || exam.date === 'Unscheduled') return
-    const d = exam.scheduled_at ? exam.scheduled_at.split('T')[0] : null
-    if (!d) return
+    const d = exam.date || (exam.scheduled_at ? exam.scheduled_at.split('T')[0] : null)
+    if (!d || d === 'Unscheduled') return
+
+    const isPublished = exam.is_published || (exam.status || '').toLowerCase() === 'published'
 
     list.push({
-      id: `exam-${exam.id}`,
+      id: `exam-${exam.exam_id || exam.id}`,
       sourceType: 'exam',
       title: exam.title,
       code: exam.code,
       courseCode: exam.course_code || exam.courseCode,
       courseName: exam.course_name || exam.courseName || exam.course,
+      departmentName: exam.department_name || departmentInfo.value.name,
+      departmentCode: exam.department_code || departmentInfo.value.code,
       date: d,
-      time: exam.time,
-      endTime: exam.endTime,
+      time: exam.start_time || exam.time || 'TBD',
+      endTime: exam.end_time || exam.endTime || 'TBD',
+      duration: exam.duration,
+      durationMinutes: exam.duration_minutes,
       room: exam.room || 'Room 101',
       instructor: exam.instructor_name || exam.instructor?.name || 'Unassigned',
+      section: exam.section || 'All Sections',
       status: exam.status,
+      rawStatus: exam.raw_status || exam.status,
+      isPublished,
       hasConflict: exam.has_conflict,
       conflictReason: exam.conflict_reason,
-      color: exam.has_conflict ? '#ef4444' : '#5138ed',
+      color: exam.has_conflict ? '#ef4444' : (isPublished ? '#5138ed' : '#64748b'),
       rawItem: exam
     })
   })
@@ -228,7 +274,7 @@ const allCalendarItems = computed<UnifiedCalendarItem[]>(() => {
   academicEvents.value.forEach(event => {
     if (!event.start_date) return
     list.push({
-      id: `event-${event.id}`,
+      id: `event-${event.event_id || event.id}`,
       sourceType: 'academic_event',
       title: event.title,
       date: event.start_date,
@@ -255,7 +301,8 @@ const filteredCalendarItems = computed(() => {
         (item.code && item.code.toLowerCase().includes(q)) ||
         (item.courseCode && item.courseCode.toLowerCase().includes(q)) ||
         (item.courseName && item.courseName.toLowerCase().includes(q)) ||
-        (item.room && item.room.toLowerCase().includes(q))
+        (item.room && item.room.toLowerCase().includes(q)) ||
+        (item.instructor && item.instructor.toLowerCase().includes(q))
       if (!match) return false
     }
 
@@ -268,8 +315,33 @@ const filteredCalendarItems = computed(() => {
         const cCode = exam.course_code || exam.courseCode
         if (cCode !== courseFilter.value) return false
       }
+      if (sectionFilter.value !== 'all') {
+        const sec = exam.section || 'All Sections'
+        if (sec.toLowerCase() !== sectionFilter.value.toLowerCase()) return false
+      }
+      if (conflictsOnlyFilter.value && !item.hasConflict) {
+        return false
+      }
       if (statusFilter.value !== 'all') {
-        if (exam.status.toLowerCase() !== statusFilter.value.toLowerCase()) return false
+        const s = (item.status || '').toLowerCase()
+        const raw = (item.rawStatus || '').toLowerCase()
+        if (statusFilter.value === 'published') {
+          if (!item.isPublished && s !== 'published' && raw !== 'published') return false
+        } else if (statusFilter.value === 'upcoming') {
+          if (!item.date || new Date(item.date) < new Date(todayStr.value) || s === 'cancelled') return false
+        } else if (statusFilter.value === 'draft') {
+          if (s !== 'draft' && raw !== 'draft') return false
+        } else {
+          if (s !== statusFilter.value.toLowerCase() && raw !== statusFilter.value.toLowerCase()) return false
+        }
+      }
+    } else {
+      // If filtering specifically by status or course or conflicts, hide generic academic events
+      if (conflictsOnlyFilter.value || courseFilter.value !== 'all' || sectionFilter.value !== 'all') {
+        return false
+      }
+      if (statusFilter.value !== 'all' && statusFilter.value !== 'scheduled') {
+        return false
       }
     }
 
@@ -352,8 +424,9 @@ const filteredExams = computed(() => {
         (exam.title && exam.title.toLowerCase().includes(q)) ||
         (exam.code && exam.code.toLowerCase().includes(q)) ||
         (exam.course && exam.course.toLowerCase().includes(q)) ||
-        (exam.courseName && exam.courseName.toLowerCase().includes(q)) ||
+        (exam.course_name && exam.course_name.toLowerCase().includes(q)) ||
         (exam.course_code && exam.course_code.toLowerCase().includes(q)) ||
+        (exam.instructor_name && exam.instructor_name.toLowerCase().includes(q)) ||
         (exam.room && exam.room.toLowerCase().includes(q))
       if (!match) return false
     }
@@ -367,8 +440,28 @@ const filteredExams = computed(() => {
       if (cCode !== courseFilter.value) return false
     }
 
+    if (sectionFilter.value !== 'all') {
+      const sec = exam.section || 'All Sections'
+      if (sec.toLowerCase() !== sectionFilter.value.toLowerCase()) return false
+    }
+
+    if (conflictsOnlyFilter.value && !exam.has_conflict) {
+      return false
+    }
+
     if (statusFilter.value !== 'all') {
-      if ((exam.status || '').toLowerCase() !== statusFilter.value.toLowerCase()) return false
+      const s = (exam.status || '').toLowerCase()
+      const raw = (exam.raw_status || '').toLowerCase()
+      if (statusFilter.value === 'published') {
+        if (!exam.is_published && s !== 'published' && raw !== 'published') return false
+      } else if (statusFilter.value === 'upcoming') {
+        const d = exam.date || (exam.scheduled_at ? exam.scheduled_at.split('T')[0] : null)
+        if (!d || new Date(d) < new Date(todayStr.value) || s === 'cancelled') return false
+      } else if (statusFilter.value === 'draft') {
+        if (s !== 'draft' && raw !== 'draft') return false
+      } else {
+        if (s !== statusFilter.value.toLowerCase() && raw !== statusFilter.value.toLowerCase()) return false
+      }
     }
 
     return true
@@ -382,7 +475,7 @@ const paginatedExams = computed(() => {
   return filteredExams.value.slice(start, start + perPage.value)
 })
 
-watch([search, semesterFilter, courseFilter, statusFilter], () => {
+watch([search, semesterFilter, courseFilter, sectionFilter, statusFilter, conflictsOnlyFilter], () => {
   currentPage.value = 1
 })
 
@@ -424,10 +517,14 @@ const fetchCalendarData = async () => {
     academicEvents.value = d.academic_events || []
     availableCourses.value = d.courses || []
     availableInstructors.value = d.instructors || []
+    if (d.sections && Array.isArray(d.sections) && d.sections.length > 0) {
+      availableSections.value = d.sections
+    }
 
     if (d.stats) {
       stats.value = {
         total: d.stats.total || 0,
+        published: d.stats.published || 0,
         scheduled: d.stats.scheduled || 0,
         upcoming: d.stats.upcoming || 0,
         conflicts: d.stats.conflicts || 0,
@@ -435,7 +532,7 @@ const fetchCalendarData = async () => {
       }
     }
   } catch (err: any) {
-    console.error('Failed to load academic calendar data:', err)
+    console.error('Failed to load exam schedule data:', err)
     errorMessage.value = err?.response?.data?.message || 'Unable to load examination schedule and academic dates.'
   } finally {
     isLoading.value = false
@@ -457,9 +554,12 @@ onMounted(async () => {
 
 // ── Modals State ────────────────────────────────────────────────────────────
 const showDetailsModal = ref(false)
+const showCreateModal = ref(false)
+const showPublishModal = ref(false)
 const showRescheduleModal = ref(false)
 const showCancelModal = ref(false)
 const showExportDropdown = ref(false)
+
 const selectedItem = ref<UnifiedCalendarItem | null>(null)
 const selectedExamForAction = ref<any | null>(null)
 
@@ -476,25 +576,159 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'succes
   toastTimer = setTimeout(() => { toast.value.show = false }, 4000)
 }
 
+// ── Schedule / Create Exam Workflow ─────────────────────────────────────────
+const createForm = ref({
+  course_code: '',
+  title: '',
+  exam_type: 'Midterm',
+  section: 'All Sections',
+  instructor_id: null as number | null,
+  date: new Date().toISOString().split('T')[0],
+  time: '09:00',
+  duration_minutes: 60,
+  total_marks: 100,
+  room: 'Room 101',
+  description: '',
+  publish_now: true,
+})
+const isSubmittingCreate = ref(false)
+const createConflictWarning = ref<string | null>(null)
+
+const openCreateModal = () => {
+  const firstCourse = availableCourses.value[0]
+  createForm.value = {
+    course_code: firstCourse?.code || '',
+    title: firstCourse ? `${firstCourse.title} Examination` : '',
+    exam_type: 'Midterm',
+    section: firstCourse?.section || 'All Sections',
+    instructor_id: availableInstructors.value[0]?.id || null,
+    date: new Date().toISOString().split('T')[0],
+    time: '09:00',
+    duration_minutes: 60,
+    total_marks: 100,
+    room: 'Room 101',
+    description: '',
+    publish_now: true,
+  }
+  createConflictWarning.value = null
+  showCreateModal.value = true
+}
+
+const onCourseSelect = () => {
+  const c = availableCourses.value.find(item => item.code === createForm.value.course_code)
+  if (c) {
+    createForm.value.title = `${c.title} Examination`
+    if (c.section) createForm.value.section = c.section
+  }
+}
+
+const checkCreateConflict = async () => {
+  if (!createForm.value.course_code || !createForm.value.date || !createForm.value.time) return
+  try {
+    const fullDateTime = `${createForm.value.date} ${createForm.value.time}:00`
+    const res = await apiClient.post('/dept-head/exams/check-conflict', {
+      course_code: createForm.value.course_code,
+      scheduled_at: fullDateTime,
+      duration_minutes: createForm.value.duration_minutes,
+      room: createForm.value.room,
+      instructor_id: createForm.value.instructor_id,
+    })
+    createConflictWarning.value = res.data?.has_conflict ? res.data.message : null
+  } catch {
+    createConflictWarning.value = null
+  }
+}
+
+watch(
+  () => [createForm.value.course_code, createForm.value.date, createForm.value.time, createForm.value.room, createForm.value.instructor_id, createForm.value.duration_minutes],
+  () => checkCreateConflict()
+)
+
+const submitCreateExam = async (publishImmediate = true) => {
+  if (!createForm.value.course_code || !createForm.value.title || !createForm.value.date) {
+    showToast('Please fill in all required exam fields.', 'error')
+    return
+  }
+
+  isSubmittingCreate.value = true
+  try {
+    const fullDateTime = `${createForm.value.date} ${createForm.value.time}:00`
+    await apiClient.post('/dept-head/exams', {
+      title: createForm.value.title,
+      course_code: createForm.value.course_code,
+      scheduled_at: fullDateTime,
+      duration_minutes: createForm.value.duration_minutes,
+      total_marks: createForm.value.total_marks,
+      exam_type: createForm.value.exam_type,
+      instructor_id: createForm.value.instructor_id,
+      room: createForm.value.room,
+      section: createForm.value.section,
+      description: createForm.value.description,
+      publish_now: publishImmediate,
+    })
+
+    showToast(
+      publishImmediate
+        ? `Exam "${createForm.value.title}" successfully scheduled and published to students!`
+        : `Exam "${createForm.value.title}" saved as draft.`,
+      'success'
+    )
+    showCreateModal.value = false
+    await fetchCalendarData()
+  } catch (err: any) {
+    const msg = err?.response?.data?.message || 'Failed to create examination schedule.'
+    showToast(msg, 'error')
+  } finally {
+    isSubmittingCreate.value = false
+  }
+}
+
+// ── Publish Exam Workflow ───────────────────────────────────────────────────
+const isSubmittingPublish = ref(false)
+
+const openPublishModal = (exam: any) => {
+  selectedExamForAction.value = exam
+  showPublishModal.value = true
+}
+
+const submitPublishExam = async () => {
+  if (!selectedExamForAction.value) return
+  isSubmittingPublish.value = true
+  try {
+    const res = await apiClient.post(`/dept-head/exams/${selectedExamForAction.value.exam_id || selectedExamForAction.value.id}/publish`)
+    showToast(res.data?.message || `Exam schedule published successfully! Visible to students.`, 'success')
+    showPublishModal.value = false
+    showDetailsModal.value = false
+    await fetchCalendarData()
+  } catch (err: any) {
+    const msg = err?.response?.data?.message || 'Failed to publish examination schedule.'
+    showToast(msg, 'error')
+  } finally {
+    isSubmittingPublish.value = false
+  }
+}
+
 // ── Reschedule Exam Workflow ────────────────────────────────────────────────
 const rescheduleForm = ref({
   date: '',
   time: '09:00',
   duration_minutes: 60,
-  room: 'Room 101'
+  room: 'Room 101',
+  section: 'All Sections'
 })
 const isSubmittingReschedule = ref(false)
 const rescheduleConflictWarning = ref<string | null>(null)
 
 const openRescheduleModal = (exam: any) => {
   selectedExamForAction.value = exam
-  const d = exam.scheduled_at ? exam.scheduled_at.split('T')[0] : ''
-  const t = exam.scheduled_at ? exam.scheduled_at.split('T')[1].slice(0, 5) : '09:00'
+  const d = exam.scheduled_at ? exam.scheduled_at.split('T')[0] : (exam.date || '')
+  const t = exam.scheduled_at ? exam.scheduled_at.split('T')[1]?.slice(0, 5) : (exam.start_time || '09:00')
   rescheduleForm.value = {
     date: d || new Date().toISOString().split('T')[0],
     time: t || '09:00',
     duration_minutes: exam.duration_minutes || 60,
-    room: exam.room || 'Room 101'
+    room: exam.room || 'Room 101',
+    section: exam.section || 'All Sections'
   }
   rescheduleConflictWarning.value = null
   showRescheduleModal.value = true
@@ -509,7 +743,8 @@ const checkRescheduleConflict = async () => {
       scheduled_at: fullDateTime,
       duration_minutes: rescheduleForm.value.duration_minutes,
       room: rescheduleForm.value.room,
-      exclude_id: selectedExamForAction.value.id
+      instructor_id: selectedExamForAction.value.instructor_id || selectedExamForAction.value.user_id,
+      exclude_id: selectedExamForAction.value.exam_id || selectedExamForAction.value.id
     })
     rescheduleConflictWarning.value = res.data?.has_conflict ? res.data.message : null
   } catch {
@@ -527,10 +762,11 @@ const submitReschedule = async () => {
   isSubmittingReschedule.value = true
   try {
     const fullDateTime = `${rescheduleForm.value.date} ${rescheduleForm.value.time}:00`
-    await apiClient.put(`/dept-head/exams/${selectedExamForAction.value.id}`, {
+    await apiClient.put(`/dept-head/exams/${selectedExamForAction.value.exam_id || selectedExamForAction.value.id}`, {
       scheduled_at: fullDateTime,
       duration_minutes: rescheduleForm.value.duration_minutes,
-      room: rescheduleForm.value.room
+      room: rescheduleForm.value.room,
+      section: rescheduleForm.value.section,
     })
 
     showToast(`Exam "${selectedExamForAction.value.title}" successfully rescheduled!`, 'success')
@@ -559,7 +795,7 @@ const submitCancelExam = async () => {
   if (!selectedExamForAction.value) return
   isSubmittingCancel.value = true
   try {
-    await apiClient.post(`/dept-head/exams/${selectedExamForAction.value.id}/cancel`, {
+    await apiClient.post(`/dept-head/exams/${selectedExamForAction.value.exam_id || selectedExamForAction.value.id}/cancel`, {
       reason: cancelReason.value.trim() || 'Cancelled by Department Head'
     })
     showToast(`Exam "${selectedExamForAction.value.title}" has been cancelled.`, 'success')
@@ -581,23 +817,32 @@ const openItemDetails = (item: UnifiedCalendarItem) => {
 }
 
 const openExamDetailsFromTable = (exam: any) => {
-  const d = exam.scheduled_at ? exam.scheduled_at.split('T')[0] : (exam.date || '')
+  const d = exam.date || (exam.scheduled_at ? exam.scheduled_at.split('T')[0] : '')
+  const isPublished = exam.is_published || (exam.status || '').toLowerCase() === 'published'
+
   selectedItem.value = {
-    id: `exam-${exam.id}`,
+    id: `exam-${exam.exam_id || exam.id}`,
     sourceType: 'exam',
     title: exam.title,
     code: exam.code,
     courseCode: exam.course_code || exam.courseCode,
     courseName: exam.course_name || exam.courseName || exam.course,
+    departmentName: exam.department_name || departmentInfo.value.name,
+    departmentCode: exam.department_code || departmentInfo.value.code,
     date: d,
-    time: exam.time,
-    endTime: exam.endTime,
+    time: exam.start_time || exam.time || 'TBD',
+    endTime: exam.end_time || exam.endTime || 'TBD',
+    duration: exam.duration,
+    durationMinutes: exam.duration_minutes,
     room: exam.room || 'Room 101',
     instructor: exam.instructor_name || exam.instructor?.name || 'Unassigned',
+    section: exam.section || 'All Sections',
     status: exam.status,
+    rawStatus: exam.raw_status || exam.status,
+    isPublished,
     hasConflict: exam.has_conflict,
     conflictReason: exam.conflict_reason,
-    color: exam.has_conflict ? '#ef4444' : '#5138ed',
+    color: exam.has_conflict ? '#ef4444' : (isPublished ? '#5138ed' : '#64748b'),
     rawItem: exam
   }
   selectedExamForAction.value = exam
@@ -627,7 +872,7 @@ const handleExport = async (format: 'xlsx' | 'csv' | 'pdf') => {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `wollo_cs_exam_schedule_${new Date().toISOString().slice(0, 10)}.${format}`
+    link.download = `wollo_exam_schedule_${new Date().toISOString().slice(0, 10)}.${format}`
     link.click()
     window.URL.revokeObjectURL(url)
     showToast(`Schedule exported as ${format.toUpperCase()} successfully!`, 'success')
@@ -647,7 +892,7 @@ const printSchedule = () => {
 // ── Status Badges Styling ───────────────────────────────────────────────────
 const getStatusBadgeClass = (status: string) => {
   const s = (status || '').toLowerCase()
-  if (s === 'scheduled' || s === 'published') return 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+  if (s === 'published' || s === 'scheduled') return 'text-emerald-700 bg-emerald-50 border border-emerald-200'
   if (s === 'active') return 'text-indigo-700 bg-indigo-50 border border-indigo-200'
   if (s === 'completed') return 'text-sky-700 bg-sky-50 border border-sky-200'
   if (s === 'cancelled') return 'text-rose-700 bg-rose-50 border border-rose-200'
@@ -664,19 +909,19 @@ const getStatusBadgeClass = (status: string) => {
     ══════════════════════════════════════════════════ -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
       <div>
-        <div class="flex items-center gap-2.5 mb-1">
+        <div class="flex items-center gap-2.5 mb-1 flex-wrap">
           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase bg-indigo-100 text-[#5138ed]">
             {{ departmentInfo.code }} Department
           </span>
           <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
-            {{ academicYear }} {{ currentSemester }}
+            {{ academicYear }} • {{ currentSemester }}
           </span>
         </div>
         <h1 class="text-2xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight leading-snug">
-          Academic Calendar &amp; Exam Scheduling Center
+          Exam Schedule
         </h1>
         <p class="text-[13px] text-slate-500 font-medium">
-          Manage, monitor examination schedules, and track important university academic dates for {{ departmentInfo.name }}.
+          View, manage, and publish examination schedules for your department.
         </p>
       </div>
 
@@ -687,18 +932,18 @@ const getStatusBadgeClass = (status: string) => {
           <button
             @click="activeMainView = 'calendar'"
             :class="[
-              'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer',
               activeMainView === 'calendar' ? 'bg-white text-[#5138ed] shadow-xs' : 'text-slate-600 hover:text-slate-900'
             ]"
             title="Interactive Visual Calendar"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            Calendar View
+            Calendar
           </button>
           <button
             @click="activeMainView = 'table'"
             :class="[
-              'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer',
               activeMainView === 'table' ? 'bg-white text-[#5138ed] shadow-xs' : 'text-slate-600 hover:text-slate-900'
             ]"
             title="Tabular Exam Schedule"
@@ -706,7 +951,27 @@ const getStatusBadgeClass = (status: string) => {
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
             Schedule Table
           </button>
+          <button
+            @click="activeMainView = 'agenda'"
+            :class="[
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer',
+              activeMainView === 'agenda' ? 'bg-white text-[#5138ed] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            ]"
+            title="Chronological Agenda"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+            Agenda
+          </button>
         </div>
+
+        <!-- Schedule Exam Primary Action -->
+        <button
+          @click="openCreateModal"
+          class="min-h-[42px] px-4 py-2 bg-[#5138ed] hover:bg-[#432dd4] text-white rounded-xl text-[13px] font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+          <span>Schedule Exam</span>
+        </button>
 
         <!-- Export Dropdown -->
         <div class="relative">
@@ -763,7 +1028,7 @@ const getStatusBadgeClass = (status: string) => {
           @click="refreshData"
           :disabled="isRefreshing"
           class="min-h-[42px] w-[42px] bg-white border border-slate-200 hover:border-slate-300 text-slate-600 rounded-xl flex items-center justify-center transition-all hover:bg-slate-50 disabled:opacity-50 cursor-pointer shadow-2xs"
-          title="Refresh calendar & exams"
+          title="Refresh schedule"
         >
           <svg :class="['w-4 h-4', isRefreshing && 'animate-spin text-[#5138ed]']" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
         </button>
@@ -771,12 +1036,16 @@ const getStatusBadgeClass = (status: string) => {
     </div>
 
     <!-- ══════════════════════════════════════════════════
-         4 REAL KPI SUMMARY CARDS (ZERO FAKE MOCK TRENDS)
+         4 REAL DATA SUMMARY CARDS WITH FILTER SHORTCUTS
     ══════════════════════════════════════════════════ -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
 
       <!-- Card 1: Total Exams -->
-      <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+      <div 
+        @click="handleCardClick('total')"
+        class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer"
+        :class="statusFilter === 'all' && !conflictsOnlyFilter && 'ring-2 ring-indigo-500/30 border-indigo-300'"
+      >
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -792,25 +1061,33 @@ const getStatusBadgeClass = (status: string) => {
         </div>
       </div>
 
-      <!-- Card 2: Scheduled Exams -->
-      <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+      <!-- Card 2: Published Exams -->
+      <div 
+        @click="handleCardClick('published')"
+        class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer"
+        :class="statusFilter === 'published' && 'ring-2 ring-emerald-500/30 border-emerald-300'"
+      >
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
           </div>
           <div>
-            <p class="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Scheduled Exams</p>
+            <p class="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Published Exams</p>
             <h3 class="text-2xl font-black text-slate-800 leading-tight mt-0.5">
               <span v-if="isLoading" class="inline-block w-8 h-6 bg-slate-100 animate-pulse rounded"></span>
-              <span v-else>{{ stats.scheduled }}</span>
+              <span v-else>{{ stats.published }}</span>
             </h3>
-            <p class="text-[11px] font-semibold text-emerald-600 mt-0.5">Active &amp; Published</p>
+            <p class="text-[11px] font-semibold text-emerald-600 mt-0.5">Visible to Students</p>
           </div>
         </div>
       </div>
 
       <!-- Card 3: Upcoming Exams -->
-      <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+      <div 
+        @click="handleCardClick('upcoming')"
+        class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer"
+        :class="statusFilter === 'upcoming' && 'ring-2 ring-amber-500/30 border-amber-300'"
+      >
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -827,13 +1104,17 @@ const getStatusBadgeClass = (status: string) => {
       </div>
 
       <!-- Card 4: Scheduling Conflicts -->
-      <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+      <div 
+        @click="handleCardClick('conflicts')"
+        class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer"
+        :class="conflictsOnlyFilter && 'ring-2 ring-rose-500/30 border-rose-300'"
+      >
         <div class="flex items-center gap-4">
           <div :class="[stats.conflicts > 0 ? 'bg-rose-100 text-rose-600 animate-pulse' : 'bg-rose-50 text-rose-500', 'w-12 h-12 rounded-xl flex items-center justify-center shrink-0']">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
           </div>
           <div>
-            <p class="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Conflicts</p>
+            <p class="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Schedule Conflicts</p>
             <h3 class="text-2xl font-black text-slate-800 leading-tight mt-0.5">
               <span v-if="isLoading" class="inline-block w-8 h-6 bg-slate-100 animate-pulse rounded"></span>
               <span v-else :class="stats.conflicts > 0 ? 'text-rose-600' : 'text-slate-800'">{{ stats.conflicts }}</span>
@@ -854,65 +1135,78 @@ const getStatusBadgeClass = (status: string) => {
       <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4">
         
         <!-- Search input -->
-        <div class="relative w-full lg:w-80">
+        <div class="relative w-full lg:w-72">
           <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           <input
             v-model="search"
             type="text"
-            placeholder="Search exams by title, course or code..."
+            placeholder="Search by title, course, or code..."
             class="w-full pl-10 pr-4 py-2.5 min-h-[42px] bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 focus:border-[#5138ed] transition-all"
           />
           <button
             v-if="search"
             @click="search = ''"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
 
-        <!-- Filter Dropdowns -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+        <!-- Filter Dropdowns Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 flex-1">
           <!-- Semester -->
           <div class="relative">
             <select
               v-model="semesterFilter"
-              class="w-full appearance-none px-4 py-2.5 min-h-[42px] bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 transition-all cursor-pointer"
+              class="w-full appearance-none px-3.5 py-2.5 min-h-[42px] bg-white border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 transition-all cursor-pointer"
             >
               <option value="all">All Semesters</option>
               <option v-for="sem in availableSemesters" :key="sem" :value="sem">{{ sem }}</option>
             </select>
-            <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
 
           <!-- Courses -->
           <div class="relative">
             <select
               v-model="courseFilter"
-              class="w-full appearance-none px-4 py-2.5 min-h-[42px] bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 transition-all cursor-pointer"
+              class="w-full appearance-none px-3.5 py-2.5 min-h-[42px] bg-white border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 transition-all cursor-pointer truncate"
             >
               <option value="all">All Courses</option>
               <option v-for="c in availableCourses" :key="c.id" :value="c.code">
                 {{ c.code }} - {{ c.title }}
               </option>
             </select>
-            <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          </div>
+
+          <!-- Section / Cohort -->
+          <div class="relative">
+            <select
+              v-model="sectionFilter"
+              class="w-full appearance-none px-3.5 py-2.5 min-h-[42px] bg-white border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 transition-all cursor-pointer"
+            >
+              <option value="all">All Sections</option>
+              <option v-for="sec in availableSections" :key="sec" :value="sec">{{ sec }}</option>
+            </select>
+            <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
 
           <!-- Status -->
           <div class="relative">
             <select
               v-model="statusFilter"
-              class="w-full appearance-none px-4 py-2.5 min-h-[42px] bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 transition-all cursor-pointer"
+              class="w-full appearance-none px-3.5 py-2.5 min-h-[42px] bg-white border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20 transition-all cursor-pointer"
             >
-              <option value="all">All Status</option>
-              <option value="scheduled">Scheduled</option>
+              <option value="all">All Statuses</option>
               <option value="published">Published</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="draft">Draft</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
-              <option value="draft">Draft</option>
             </select>
-            <svg class="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </div>
         </div>
 
@@ -933,7 +1227,7 @@ const getStatusBadgeClass = (status: string) => {
     </div>
 
     <!-- ══════════════════════════════════════════════════
-         MAIN VIEW: INTERACTIVE CALENDAR
+         MAIN VIEW: CALENDAR VIEW
     ══════════════════════════════════════════════════ -->
     <div v-if="activeMainView === 'calendar'" class="space-y-4 print:hidden">
 
@@ -966,7 +1260,7 @@ const getStatusBadgeClass = (status: string) => {
           </div>
 
           <h2 class="text-base sm:text-lg font-bold text-slate-800 tracking-tight">
-            {{ calendarSubView === 'month' ? calendarTitle : (calendarSubView === 'week' ? weekTitle : 'Agenda &amp; Timeline') }}
+            {{ calendarSubView === 'month' ? calendarTitle : weekTitle }}
           </h2>
         </div>
 
@@ -977,7 +1271,11 @@ const getStatusBadgeClass = (status: string) => {
           <div class="hidden xl:flex items-center gap-3 text-[11px] font-semibold text-slate-500 mr-2">
             <div class="flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full bg-[#5138ed]"></span>
-              <span>Exam</span>
+              <span>Published Exam</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+              <span>Draft</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
@@ -1008,15 +1306,6 @@ const getStatusBadgeClass = (status: string) => {
               ]"
             >
               Week
-            </button>
-            <button
-              @click="calendarSubView = 'agenda'"
-              :class="[
-                'px-3 py-1 rounded-lg text-[12px] font-bold transition-all cursor-pointer',
-                calendarSubView === 'agenda' ? 'bg-white text-[#5138ed] shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              ]"
-            >
-              Agenda
             </button>
           </div>
         </div>
@@ -1070,7 +1359,9 @@ const getStatusBadgeClass = (status: string) => {
                   'px-2 py-1 rounded-md text-[11px] font-semibold truncate cursor-pointer transition-transform hover:scale-[1.02] flex items-center gap-1.5',
                   item.hasConflict 
                     ? 'bg-rose-100 text-rose-800 border border-rose-300' 
-                    : (item.sourceType === 'exam' ? 'bg-indigo-50 text-[#5138ed] border border-indigo-100 hover:bg-indigo-100' : 'bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100')
+                    : (item.sourceType === 'exam' 
+                        ? (item.isPublished ? 'bg-indigo-50 text-[#5138ed] border border-indigo-100 hover:bg-indigo-100' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200') 
+                        : 'bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100')
                 ]"
                 :title="`${item.title} (${item.time})`"
               >
@@ -1126,7 +1417,9 @@ const getStatusBadgeClass = (status: string) => {
                   'p-2.5 rounded-xl border text-[12px] cursor-pointer transition-all hover:shadow-xs',
                   item.hasConflict 
                     ? 'bg-rose-50 border-rose-200 text-rose-900' 
-                    : (item.sourceType === 'exam' ? 'bg-indigo-50/60 border-indigo-100 text-slate-800' : 'bg-blue-50/60 border-blue-100 text-slate-800')
+                    : (item.sourceType === 'exam' 
+                        ? (item.isPublished ? 'bg-indigo-50/60 border-indigo-100 text-slate-800' : 'bg-slate-100/70 border-slate-200 text-slate-700') 
+                        : 'bg-blue-50/60 border-blue-100 text-slate-800')
                 ]"
               >
                 <div class="flex items-center justify-between gap-1 mb-1">
@@ -1153,80 +1446,101 @@ const getStatusBadgeClass = (status: string) => {
         </div>
       </div><!-- End Week View -->
 
-      <!-- ── AGENDA / TIMELINE VIEW ── -->
-      <div v-else-if="calendarSubView === 'agenda'" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6">
-        <div v-if="agendaGroups.length === 0" class="py-12 text-center text-slate-400">
-          <p class="text-base font-bold text-slate-600">No scheduled exams or events found</p>
-          <p class="text-[13px] text-slate-400 mt-1">Try clearing filters or click "Schedule Exam" to add a new schedule.</p>
-        </div>
-
-        <div v-else class="space-y-6">
-          <div v-for="group in agendaGroups" :key="group.dateStr" class="space-y-3">
-            <!-- Date header banner -->
-            <div class="flex items-center gap-3">
-              <span
-                :class="[
-                  'px-3 py-1 rounded-xl text-[12px] font-bold uppercase tracking-wider',
-                  group.isToday ? 'bg-[#5138ed] text-white' : 'bg-slate-100 text-slate-700'
-                ]"
-              >
-                {{ group.formatted }}
-              </span>
-              <div class="flex-1 h-px bg-slate-200/80"></div>
-            </div>
-
-            <!-- List of items for that day -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
-              <div
-                v-for="item in group.items"
-                :key="item.id"
-                @click="openItemDetails(item)"
-                :class="[
-                  'p-4 rounded-xl border transition-all hover:shadow-xs cursor-pointer flex items-start justify-between gap-3',
-                  item.hasConflict 
-                    ? 'bg-rose-50 border-rose-200' 
-                    : (item.sourceType === 'exam' ? 'bg-white border-slate-200 hover:border-indigo-200' : 'bg-blue-50/40 border-blue-100')
-                ]"
-              >
-                <div class="space-y-1">
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase"
-                      :class="item.sourceType === 'exam' ? 'bg-indigo-100 text-[#5138ed]' : 'bg-blue-100 text-blue-700'"
-                    >
-                      {{ item.sourceType === 'exam' ? (item.courseCode || 'EXAM') : 'UNIVERSITY EVENT' }}
-                    </span>
-                    <span v-if="item.time" class="text-[12px] font-medium text-slate-500">{{ item.time }}</span>
-                  </div>
-                  <h4 class="text-[14px] font-bold text-slate-800">{{ item.title }}</h4>
-                  <p v-if="item.courseName" class="text-[12px] text-slate-500 font-medium">{{ item.courseName }}</p>
-                  
-                  <div class="flex items-center gap-4 text-[12px] text-slate-500 pt-1">
-                    <span v-if="item.room" class="flex items-center gap-1 font-medium">
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                      {{ item.room }}
-                    </span>
-                    <span v-if="item.instructor" class="flex items-center gap-1">
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                      {{ item.instructor }}
-                    </span>
-                  </div>
-                </div>
-
-                <span :class="[getStatusBadgeClass(item.status), 'text-[11px] font-bold px-2.5 py-1 rounded-md capitalize shrink-0']">
-                  {{ item.status }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div><!-- End Agenda View -->
-
     </div><!-- End Calendar Main View -->
 
 
     <!-- ══════════════════════════════════════════════════
-         MAIN VIEW: EXAM SCHEDULE TABLE (EXACT SCREENSHOT LAYOUT)
+         MAIN VIEW: CHRONOLOGICAL AGENDA VIEW
+    ══════════════════════════════════════════════════ -->
+    <div v-if="activeMainView === 'agenda'" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 print:hidden">
+      <div v-if="agendaGroups.length === 0" class="py-12 text-center text-slate-400">
+        <p class="text-base font-bold text-slate-600">No scheduled exams or events found</p>
+        <p class="text-[13px] text-slate-400 mt-1">Try clearing filters or click "Schedule Exam" to schedule a new examination.</p>
+      </div>
+
+      <div v-else class="space-y-6">
+        <div v-for="group in agendaGroups" :key="group.dateStr" class="space-y-3">
+          <!-- Date header banner -->
+          <div class="flex items-center gap-3">
+            <span
+              :class="[
+                'px-3 py-1 rounded-xl text-[12px] font-bold uppercase tracking-wider',
+                group.isToday ? 'bg-[#5138ed] text-white shadow-xs' : 'bg-slate-100 text-slate-700'
+              ]"
+            >
+              {{ group.formatted }}
+            </span>
+            <div class="flex-1 h-px bg-slate-200/80"></div>
+          </div>
+
+          <!-- List of items for that day -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
+            <div
+              v-for="item in group.items"
+              :key="item.id"
+              @click="openItemDetails(item)"
+              :class="[
+                'p-4 rounded-xl border transition-all hover:shadow-xs cursor-pointer flex items-start justify-between gap-3',
+                item.hasConflict 
+                  ? 'bg-rose-50 border-rose-200' 
+                  : (item.sourceType === 'exam' 
+                      ? (item.isPublished ? 'bg-white border-slate-200 hover:border-indigo-200' : 'bg-slate-50 border-slate-200 hover:border-slate-300') 
+                      : 'bg-blue-50/40 border-blue-100')
+              ]"
+            >
+              <div class="space-y-1.5 flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span
+                    class="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase"
+                    :class="item.sourceType === 'exam' ? 'bg-indigo-100 text-[#5138ed]' : 'bg-blue-100 text-blue-700'"
+                  >
+                    {{ item.sourceType === 'exam' ? (item.courseCode || 'EXAM') : 'UNIVERSITY EVENT' }}
+                  </span>
+                  <span v-if="item.section" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
+                    {{ item.section }}
+                  </span>
+                  <span v-if="item.time" class="text-[12px] font-medium text-slate-500">{{ item.time }}</span>
+                </div>
+                <h4 class="text-[14px] font-bold text-slate-800 leading-snug truncate">{{ item.title }}</h4>
+                <p v-if="item.courseName" class="text-[12px] text-slate-500 font-medium truncate">{{ item.courseName }}</p>
+                
+                <div class="flex items-center gap-4 text-[12px] text-slate-500 pt-1 flex-wrap">
+                  <span v-if="item.room" class="flex items-center gap-1 font-medium">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    {{ item.room }}
+                  </span>
+                  <span v-if="item.instructor" class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    {{ item.instructor }}
+                  </span>
+                  <span v-if="item.duration" class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    {{ item.duration }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="flex flex-col items-end gap-2 shrink-0">
+                <span :class="[getStatusBadgeClass(item.status), 'text-[11px] font-bold px-2.5 py-1 rounded-md capitalize']">
+                  {{ item.status }}
+                </span>
+                <button
+                  v-if="item.sourceType === 'exam' && item.rawItem?.can_publish"
+                  @click.stop="openPublishModal(item.rawItem)"
+                  class="px-2.5 py-1 text-[11px] font-bold text-white bg-[#5138ed] hover:bg-[#432dd4] rounded-lg transition-colors cursor-pointer"
+                >
+                  Publish
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- End Agenda View -->
+
+
+    <!-- ══════════════════════════════════════════════════
+         MAIN VIEW: FULL SCHEDULE TABLE
     ══════════════════════════════════════════════════ -->
     <div v-show="activeMainView === 'table'" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
       
@@ -1234,7 +1548,7 @@ const getStatusBadgeClass = (status: string) => {
       <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-3">
         <div>
           <h3 class="text-base font-bold text-slate-800">Exam Schedule Table</h3>
-          <p class="text-[12px] text-slate-500 mt-0.5">Real departmental exam schedules matching Wollo University records.</p>
+          <p class="text-[12px] text-slate-500 mt-0.5">Authoritative departmental examination schedules and publication records.</p>
         </div>
         <div class="text-[12px] font-bold text-slate-500">
           Showing {{ paginatedExams.length }} of {{ totalTableItems }} exams
@@ -1243,31 +1557,33 @@ const getStatusBadgeClass = (status: string) => {
 
       <!-- Desktop Table -->
       <div class="hidden md:block overflow-x-auto min-w-0 w-full">
-        <table class="w-full min-w-[950px]">
+        <table class="w-full min-w-[1050px]">
           <thead class="bg-slate-50 border-b border-slate-200/80">
             <tr>
-              <th class="text-left px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Exam Title</th>
-              <th class="text-left px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course Code</th>
-              <th class="text-left px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course</th>
-              <th class="text-left px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date &amp; Time</th>
-              <th class="text-left px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Room</th>
-              <th class="text-left px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-              <th class="text-center px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Exam Title</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Course</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Instructor</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Section</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date &amp; Time</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Duration</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
+              <th class="text-left px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+              <th class="text-center px-5 py-3.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             <!-- Loading Skeleton -->
             <tr v-if="isLoading" v-for="i in 5" :key="'sk-'+i">
-              <td colspan="7" class="px-6 py-4">
+              <td colspan="9" class="px-5 py-4">
                 <div class="h-4 bg-slate-100 rounded animate-pulse w-full"></div>
               </td>
             </tr>
 
             <!-- Empty State -->
             <tr v-else-if="paginatedExams.length === 0">
-              <td colspan="7" class="px-6 py-12 text-center text-slate-400">
-                <p class="text-base font-bold text-slate-600">NO EXAMS SCHEDULED</p>
-                <p class="text-[12px] text-slate-400 mt-1">There are no exams matching your search criteria.</p>
+              <td colspan="9" class="px-5 py-12 text-center text-slate-400">
+                <p class="text-base font-bold text-slate-600">NO EXAMS MATCHING FILTERS</p>
+                <p class="text-[12px] text-slate-400 mt-1">There are no exams matching your search criteria. Try resetting filters.</p>
               </td>
             </tr>
 
@@ -1279,11 +1595,11 @@ const getStatusBadgeClass = (status: string) => {
               class="hover:bg-slate-50/80 transition-colors"
             >
               <!-- Exam Title -->
-              <td class="px-6 py-4">
+              <td class="px-5 py-4">
                 <div class="flex items-center gap-2">
                   <span
                     v-if="exam.has_conflict"
-                    class="w-2 h-2 rounded-full bg-rose-500 shrink-0"
+                    class="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 animate-ping"
                     title="Conflict detected!"
                   ></span>
                   <div>
@@ -1293,67 +1609,98 @@ const getStatusBadgeClass = (status: string) => {
                 </div>
               </td>
 
-              <!-- Course Code -->
-              <td class="px-6 py-4">
-                <span class="inline-block px-2 py-0.5 rounded text-[12px] font-mono font-bold bg-slate-100 text-slate-700">
+              <!-- Course (code & title) -->
+              <td class="px-5 py-4">
+                <span class="inline-block px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-700">
                   {{ exam.course_code || exam.courseCode }}
+                </span>
+                <span class="text-[12px] font-medium text-slate-700 block truncate max-w-[180px] mt-0.5">
+                  {{ exam.course || exam.course_name || exam.courseName }}
                 </span>
               </td>
 
-              <!-- Course -->
-              <td class="px-6 py-4">
-                <span class="text-[13px] font-medium text-slate-700 block">{{ exam.course || exam.courseName }}</span>
-                <span class="text-[11px] text-slate-400 font-semibold">{{ exam.type || 'Midterm' }}</span>
+              <!-- Instructor -->
+              <td class="px-5 py-4">
+                <span class="text-[13px] font-semibold text-slate-800 block">
+                  {{ exam.instructor_name || exam.instructor?.name || 'Unassigned' }}
+                </span>
+                <span class="text-[11px] text-slate-400 block truncate max-w-[140px]">
+                  {{ exam.instructor_email || exam.instructor?.email || '' }}
+                </span>
+              </td>
+
+              <!-- Section / Cohort -->
+              <td class="px-5 py-4">
+                <span class="inline-block px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700">
+                  {{ exam.section || 'All Sections' }}
+                </span>
               </td>
 
               <!-- Date & Time -->
-              <td class="px-6 py-4">
+              <td class="px-5 py-4">
                 <div class="flex items-center gap-1.5">
                   <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                   <span class="text-[13px] font-bold text-slate-700">{{ exam.date }}</span>
                 </div>
-                <span class="text-[11px] text-slate-500 pl-5 block">{{ exam.time }} - {{ exam.endTime }}</span>
+                <span class="text-[11px] text-slate-500 pl-5 block">{{ exam.time || exam.start_time }} - {{ exam.endTime || exam.end_time }}</span>
               </td>
 
-              <!-- Room -->
-              <td class="px-6 py-4 text-[13px] font-medium text-slate-700">
-                {{ exam.room || 'Room 101' }}
+              <!-- Duration -->
+              <td class="px-5 py-4 text-[12px] font-semibold text-slate-700">
+                {{ exam.duration || (exam.duration_minutes ? `${exam.duration_minutes}m` : '60m') }}
+              </td>
+
+              <!-- Type -->
+              <td class="px-5 py-4">
+                <span class="text-[12px] font-semibold text-slate-700">
+                  {{ exam.exam_type || exam.type || 'Midterm' }}
+                </span>
               </td>
 
               <!-- Status -->
-              <td class="px-6 py-4">
-                <span :class="[getStatusBadgeClass(exam.status), 'text-[11px] font-bold px-2.5 py-1 rounded-md capitalize']">
+              <td class="px-5 py-4">
+                <span :class="[getStatusBadgeClass(exam.status), 'text-[11px] font-bold px-2.5 py-1 rounded-md capitalize block text-center']">
                   {{ exam.status }}
                 </span>
               </td>
 
               <!-- Actions -->
-              <td class="px-6 py-4">
-                <div class="flex items-center justify-center gap-1.5">
+              <td class="px-5 py-4">
+                <div class="flex items-center justify-center gap-1">
                   <!-- View Details -->
                   <button
                     @click="openExamDetailsFromTable(exam)"
-                    class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#5138ed] hover:bg-indigo-50 transition-colors cursor-pointer"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-[#5138ed] hover:bg-indigo-50 transition-colors cursor-pointer"
                     title="View Details"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                  </button>
+
+                  <!-- Publish Button if not published -->
+                  <button
+                    v-if="exam.can_publish"
+                    @click="openPublishModal(exam)"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                    title="Publish Schedule to Students"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                   </button>
 
                   <!-- Reschedule -->
                   <button
                     v-if="exam.can_edit"
                     @click="openRescheduleModal(exam)"
-                    class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                     title="Reschedule Exam"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                   </button>
 
-                  <!-- Cancel / Delete -->
+                  <!-- Cancel -->
                   <button
                     v-if="exam.can_cancel"
                     @click="openCancelModal(exam)"
-                    class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Cancel Exam"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -1368,7 +1715,7 @@ const getStatusBadgeClass = (status: string) => {
       <!-- Mobile Responsive Cards -->
       <div class="md:hidden divide-y divide-slate-100">
         <div v-if="paginatedExams.length === 0" class="p-8 text-center text-slate-400">
-          <p class="text-base font-bold text-slate-600">No exams scheduled found</p>
+          <p class="text-base font-bold text-slate-600">No exams found</p>
         </div>
         <div
           v-for="exam in paginatedExams"
@@ -1378,10 +1725,10 @@ const getStatusBadgeClass = (status: string) => {
           <div class="flex items-start justify-between gap-2">
             <div>
               <span class="inline-block px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-700 mb-1">
-                {{ exam.course_code || exam.courseCode }}
+                {{ exam.course_code || exam.courseCode }} • {{ exam.section || 'All Sections' }}
               </span>
               <h4 class="text-[15px] font-bold text-slate-900 leading-snug">{{ exam.title }}</h4>
-              <p class="text-[12px] text-slate-500 font-medium">{{ exam.course || exam.courseName }}</p>
+              <p class="text-[12px] text-slate-500 font-medium">{{ exam.course || exam.course_name || exam.courseName }}</p>
             </div>
             <span :class="[getStatusBadgeClass(exam.status), 'text-[11px] font-bold px-2.5 py-0.5 rounded-md capitalize shrink-0']">
               {{ exam.status }}
@@ -1392,33 +1739,40 @@ const getStatusBadgeClass = (status: string) => {
             <div>
               <span class="text-slate-400 block text-[10px] uppercase font-bold">Date &amp; Time</span>
               <span class="font-bold text-slate-800">{{ exam.date }}</span>
-              <span class="text-slate-500 block text-[11px]">{{ exam.time }}</span>
+              <span class="text-slate-500 block text-[11px]">{{ exam.time || exam.start_time }}</span>
             </div>
             <div>
-              <span class="text-slate-400 block text-[10px] uppercase font-bold">Room</span>
+              <span class="text-slate-400 block text-[10px] uppercase font-bold">Venue &amp; Duration</span>
               <span class="font-bold text-slate-800">{{ exam.room || 'Room 101' }}</span>
               <span class="text-slate-500 block text-[11px]">{{ exam.duration }}</span>
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-2 pt-1">
+          <div class="flex items-center justify-end gap-2 pt-1 flex-wrap">
             <button
               @click="openExamDetailsFromTable(exam)"
-              class="px-3 py-1.5 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+              class="px-3 py-1.5 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer"
             >
               Details
             </button>
             <button
+              v-if="exam.can_publish"
+              @click="openPublishModal(exam)"
+              class="px-3 py-1.5 text-[12px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer"
+            >
+              Publish
+            </button>
+            <button
               v-if="exam.can_edit"
               @click="openRescheduleModal(exam)"
-              class="px-3 py-1.5 text-[12px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
+              class="px-3 py-1.5 text-[12px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 cursor-pointer"
             >
               Reschedule
             </button>
             <button
               v-if="exam.can_cancel"
               @click="openCancelModal(exam)"
-              class="px-3 py-1.5 text-[12px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100"
+              class="px-3 py-1.5 text-[12px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 cursor-pointer"
             >
               Cancel
             </button>
@@ -1463,7 +1817,219 @@ const getStatusBadgeClass = (status: string) => {
     </div><!-- End Table View -->
 
 
+    <!-- ══════════════════════════════════════════════════
+         SCHEDULE EXAM MODAL (CREATE NEW SCHEDULE)
+    ══════════════════════════════════════════════════ -->
+    <div
+      v-if="showCreateModal"
+      class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto"
+      @click.self="showCreateModal = false"
+    >
+      <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-8 animate-in fade-in zoom-in-95 duration-200">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Schedule Examination</h3>
+            <p class="text-[12px] text-slate-500">Create and publish an exam date for your department.</p>
+          </div>
+          <button @click="showCreateModal = false" class="text-slate-400 hover:text-slate-600 cursor-pointer p-1">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
 
+        <div v-if="createConflictWarning" class="bg-rose-50 border border-rose-200 p-3.5 rounded-xl text-rose-800 text-[12px]">
+          <span class="font-bold block">Collision Detected:</span>
+          {{ createConflictWarning }}
+        </div>
+
+        <div class="space-y-3.5 text-left">
+          <!-- Course Selection -->
+          <div>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1">Course <span class="text-rose-500">*</span></label>
+            <select
+              v-model="createForm.course_code"
+              @change="onCourseSelect"
+              class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
+            >
+              <option value="" disabled>Select Department Course</option>
+              <option v-for="c in availableCourses" :key="c.id" :value="c.code">
+                {{ c.code }} - {{ c.title }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Exam Title -->
+          <div>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1">Exam Title <span class="text-rose-500">*</span></label>
+            <input
+              v-model="createForm.title"
+              type="text"
+              placeholder="e.g. Midterm Examination 2026"
+              class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#5138ed]/20"
+            />
+          </div>
+
+          <!-- Exam Type & Section -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Exam Type</label>
+              <select
+                v-model="createForm.exam_type"
+                class="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+              >
+                <option value="Midterm">Midterm Exam</option>
+                <option value="Final">Final Exam</option>
+                <option value="Quiz">Quiz</option>
+                <option value="Practical">Practical / Lab Exam</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Section / Cohort</label>
+              <select
+                v-model="createForm.section"
+                class="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+              >
+                <option v-for="sec in availableSections" :key="sec" :value="sec">{{ sec }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Assigned Instructor -->
+          <div>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1">Assigned Faculty / Invigilator</label>
+            <select
+              v-model="createForm.instructor_id"
+              class="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+            >
+              <option :value="null">Default (Course Instructor)</option>
+              <option v-for="inst in availableInstructors" :key="inst.id" :value="inst.id">
+                {{ inst.name }} ({{ inst.email }})
+              </option>
+            </select>
+          </div>
+
+          <!-- Date & Time -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Exam Date <span class="text-rose-500">*</span></label>
+              <input
+                v-model="createForm.date"
+                type="date"
+                class="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+              />
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Start Time <span class="text-rose-500">*</span></label>
+              <input
+                v-model="createForm.time"
+                type="time"
+                class="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+              />
+            </div>
+          </div>
+
+          <!-- Duration, Marks & Room -->
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Duration (Min)</label>
+              <input
+                v-model.number="createForm.duration_minutes"
+                type="number"
+                min="5"
+                max="360"
+                class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+              />
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Total Marks</label>
+              <input
+                v-model.number="createForm.total_marks"
+                type="number"
+                min="1"
+                max="500"
+                class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+              />
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Room / Venue</label>
+              <input
+                v-model="createForm.room"
+                type="text"
+                placeholder="e.g. Lab 2"
+                class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+          <button
+            @click="showCreateModal = false"
+            class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+          >
+            Cancel
+          </button>
+          <div class="flex items-center gap-2">
+            <button
+              @click="submitCreateExam(false)"
+              :disabled="isSubmittingCreate || !!createConflictWarning"
+              class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Save as Draft
+            </button>
+            <button
+              @click="submitCreateExam(true)"
+              :disabled="isSubmittingCreate || !!createConflictWarning"
+              class="px-5 py-2.5 bg-[#5138ed] hover:bg-[#432dd4] text-white text-[13px] font-bold rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {{ isSubmittingCreate ? 'Scheduling...' : 'Schedule & Publish' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════
+         PUBLISH EXAM MODAL
+    ══════════════════════════════════════════════════ -->
+    <div
+      v-if="showPublishModal && selectedExamForAction"
+      class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+      @click.self="showPublishModal = false"
+    >
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Publish Examination Schedule?</h3>
+          <p class="text-[13px] text-slate-500 mt-1">
+            This will publish <strong class="text-slate-800">{{ selectedExamForAction.title }}</strong> ({{ selectedExamForAction.course_code || selectedExamForAction.courseCode }}).
+          </p>
+          <div class="mt-3 p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl text-[12px] text-emerald-900 space-y-1">
+            <p><strong>Date:</strong> {{ selectedExamForAction.date || selectedExamForAction.scheduled_at?.split('T')[0] }}</p>
+            <p><strong>Time:</strong> {{ selectedExamForAction.time || selectedExamForAction.start_time || '09:00 AM' }} ({{ selectedExamForAction.duration || '60m' }})</p>
+            <p><strong>Section:</strong> {{ selectedExamForAction.section || 'All Sections' }}</p>
+            <p class="pt-1 text-emerald-700 font-medium">Eligible enrolled students will immediately see this schedule in their Student Exam Portal.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button @click="showPublishModal = false" class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">
+            Cancel
+          </button>
+          <button
+            @click="submitPublishExam"
+            :disabled="isSubmittingPublish"
+            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            {{ isSubmittingPublish ? 'Publishing...' : 'Confirm & Publish' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
 
     <!-- ══════════════════════════════════════════════════
@@ -1480,7 +2046,7 @@ const getStatusBadgeClass = (status: string) => {
             <h3 class="text-lg font-bold text-slate-900">Reschedule Examination</h3>
             <p class="text-[12px] text-slate-500 font-mono">{{ selectedExamForAction.code }} • {{ selectedExamForAction.title }}</p>
           </div>
-          <button @click="showRescheduleModal = false" class="text-slate-400 hover:text-slate-600">
+          <button @click="showRescheduleModal = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
@@ -1502,7 +2068,7 @@ const getStatusBadgeClass = (status: string) => {
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="block text-[12px] font-bold text-slate-700 mb-1">Duration (Min)</label>
               <input v-model.number="rescheduleForm.duration_minutes" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700" />
@@ -1511,17 +2077,23 @@ const getStatusBadgeClass = (status: string) => {
               <label class="block text-[12px] font-bold text-slate-700 mb-1">Room / Venue</label>
               <input v-model="rescheduleForm.room" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700" />
             </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1">Section</label>
+              <select v-model="rescheduleForm.section" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-700">
+                <option v-for="sec in availableSections" :key="sec" :value="sec">{{ sec }}</option>
+              </select>
+            </div>
           </div>
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-          <button @click="showRescheduleModal = false" class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl">
+          <button @click="showRescheduleModal = false" class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">
             Cancel
           </button>
           <button
             @click="submitReschedule"
             :disabled="isSubmittingReschedule || !!rescheduleConflictWarning"
-            class="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-[13px] font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50"
+            class="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-[13px] font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
           >
             Confirm Reschedule
           </button>
@@ -1546,7 +2118,7 @@ const getStatusBadgeClass = (status: string) => {
         <div>
           <h3 class="text-lg font-bold text-slate-900">Cancel Examination Schedule?</h3>
           <p class="text-[13px] text-slate-500 mt-1">
-            Are you sure you want to cancel <strong class="text-slate-800">{{ selectedExamForAction.title }}</strong>? This will notify faculty invigilators and change status to Cancelled.
+            Are you sure you want to cancel <strong class="text-slate-800">{{ selectedExamForAction.title }}</strong>? This will notify faculty invigilators and update status to Cancelled.
           </p>
         </div>
 
@@ -1561,13 +2133,13 @@ const getStatusBadgeClass = (status: string) => {
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-2">
-          <button @click="showCancelModal = false" class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl">
+          <button @click="showCancelModal = false" class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">
             Go Back
           </button>
           <button
             @click="submitCancelExam"
             :disabled="isSubmittingCancel"
-            class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-[13px] font-bold rounded-xl shadow-xs transition-colors"
+            class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-[13px] font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
           >
             Confirm Cancellation
           </button>
@@ -1577,7 +2149,7 @@ const getStatusBadgeClass = (status: string) => {
 
 
     <!-- ══════════════════════════════════════════════════
-         DETAILS DRAWER / MODAL
+         DETAILS MODAL
     ══════════════════════════════════════════════════ -->
     <div
       v-if="showDetailsModal && selectedItem"
@@ -1591,14 +2163,14 @@ const getStatusBadgeClass = (status: string) => {
           <div>
             <span
               class="px-2.5 py-0.5 rounded text-[11px] font-bold font-mono uppercase inline-block mb-1.5"
-              :class="selectedItem.sourceType === 'exam' ? 'bg-indigo-100 text-[#5138ed]' : 'bg-blue-100 text-blue-700'"
+              :class="selectedItem.sourceType === 'exam' ? (selectedItem.isPublished ? 'bg-indigo-100 text-[#5138ed]' : 'bg-slate-200 text-slate-700') : 'bg-blue-100 text-blue-700'"
             >
-              {{ selectedItem.sourceType === 'exam' ? 'DEPARTMENT EXAM' : (selectedItem.category || 'ACADEMIC EVENT') }}
+              {{ selectedItem.sourceType === 'exam' ? (selectedItem.isPublished ? 'PUBLISHED EXAM' : 'DRAFT EXAM') : (selectedItem.category || 'ACADEMIC EVENT') }}
             </span>
             <h3 class="text-lg font-bold text-slate-900 leading-snug">{{ selectedItem.title }}</h3>
-            <p v-if="selectedItem.courseName" class="text-[13px] text-slate-500">{{ selectedItem.courseName }}</p>
+            <p v-if="selectedItem.courseName" class="text-[13px] text-slate-500">{{ selectedItem.courseCode }}: {{ selectedItem.courseName }}</p>
           </div>
-          <button @click="showDetailsModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+          <button @click="showDetailsModal = false" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
@@ -1615,16 +2187,20 @@ const getStatusBadgeClass = (status: string) => {
               {{ selectedItem.time }} <span v-if="selectedItem.endTime">— {{ selectedItem.endTime }}</span>
             </span>
           </div>
+          <div v-if="selectedItem.section">
+            <span class="text-slate-400 font-bold block uppercase text-[10px]">Section</span>
+            <span class="font-bold text-slate-800">{{ selectedItem.section }}</span>
+          </div>
           <div v-if="selectedItem.room">
             <span class="text-slate-400 font-bold block uppercase text-[10px]">Room / Venue</span>
             <span class="font-bold text-slate-800">{{ selectedItem.room }}</span>
           </div>
           <div v-if="selectedItem.instructor">
-            <span class="text-slate-400 font-bold block uppercase text-[10px]">Lead Faculty</span>
+            <span class="text-slate-400 font-bold block uppercase text-[10px]">Assigned Faculty</span>
             <span class="font-bold text-slate-800">{{ selectedItem.instructor }}</span>
           </div>
           <div>
-            <span class="text-slate-400 font-bold block uppercase text-[10px]">Status</span>
+            <span class="text-slate-400 font-bold block uppercase text-[10px]">Publication Status</span>
             <span :class="[getStatusBadgeClass(selectedItem.status), 'px-2 py-0.5 rounded text-[11px] font-bold inline-block capitalize mt-0.5']">
               {{ selectedItem.status }}
             </span>
@@ -1632,6 +2208,10 @@ const getStatusBadgeClass = (status: string) => {
           <div v-if="selectedItem.sourceType === 'exam' && selectedItem.rawItem?.total_marks">
             <span class="text-slate-400 font-bold block uppercase text-[10px]">Total Marks</span>
             <span class="font-bold text-slate-800">{{ selectedItem.rawItem.total_marks }} pts</span>
+          </div>
+          <div v-if="selectedItem.sourceType === 'exam' && selectedItem.duration">
+            <span class="text-slate-400 font-bold block uppercase text-[10px]">Duration</span>
+            <span class="font-bold text-slate-800">{{ selectedItem.duration }}</span>
           </div>
         </div>
 
@@ -1642,26 +2222,33 @@ const getStatusBadgeClass = (status: string) => {
         </div>
 
         <!-- Action Controls for Exams -->
-        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 flex-wrap">
           <button
             @click="showDetailsModal = false"
-            class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+            class="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
           >
             Close
           </button>
           
           <template v-if="selectedItem.sourceType === 'exam'">
             <button
+              v-if="selectedItem.rawItem?.can_publish"
+              @click="openPublishModal(selectedItem.rawItem)"
+              class="px-4 py-2 text-[13px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Publish Exam
+            </button>
+            <button
               v-if="selectedItem.rawItem?.can_edit"
               @click="openRescheduleModal(selectedItem.rawItem)"
-              class="px-4 py-2 text-[13px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors"
+              class="px-4 py-2 text-[13px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors cursor-pointer"
             >
               Reschedule
             </button>
             <button
               v-if="selectedItem.rawItem?.can_cancel"
               @click="openCancelModal(selectedItem.rawItem)"
-              class="px-4 py-2 text-[13px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors"
+              class="px-4 py-2 text-[13px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
             >
               Cancel Exam
             </button>
@@ -1692,7 +2279,7 @@ const getStatusBadgeClass = (status: string) => {
           :class="toast.type === 'success' ? 'bg-emerald-400' : (toast.type === 'error' ? 'bg-rose-400' : 'bg-blue-400')"
         ></span>
         <p class="text-[13px] font-medium leading-snug">{{ toast.message }}</p>
-        <button @click="toast.show = false" class="text-slate-400 hover:text-white ml-auto">
+        <button @click="toast.show = false" class="text-slate-400 hover:text-white ml-auto cursor-pointer">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>

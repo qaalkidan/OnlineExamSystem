@@ -639,7 +639,7 @@ class ExamController extends Controller
     /**
      * Schedule conflict detection helper for pre-flight and submission validation.
      */
-    private function checkSchedulingConflict(?int $deptId, string $courseCode, ?string $scheduledAt, int $durationMinutes, $excludeExamId = null, ?string $room = null): ?array
+    private function checkSchedulingConflict(?int $deptId, string $courseCode, ?string $scheduledAt, int $durationMinutes, $excludeExamId = null, ?string $room = null, $instructorId = null): ?array
     {
         if (!$scheduledAt) {
             return null;
@@ -685,6 +685,18 @@ class ExamController extends Controller
                         'message'       => "Room Double-Booking: {$cleanRoom} is already assigned to \"{$exam->title}\" ({$exam->course_code}) at {$existingStart->format('h:i A')}.",
                     ];
                 }
+
+                if ($instructorId && (int)$exam->user_id === (int)$instructorId) {
+                    $instName = $exam->instructor?->name ?? 'The assigned faculty';
+                    return [
+                        'conflict_type' => 'instructor',
+                        'exam_id'       => $exam->id,
+                        'title'         => $exam->title,
+                        'instructor'    => $instName,
+                        'scheduled_at'  => $existingStart->format('M d, Y • h:i A'),
+                        'message'       => "Instructor Collision: {$instName} is already assigned to \"{$exam->title}\" ({$exam->course_code}) at {$existingStart->format('h:i A')}.",
+                    ];
+                }
             }
         }
 
@@ -703,6 +715,7 @@ class ExamController extends Controller
             'scheduled_at'     => 'required|date',
             'duration_minutes' => 'required|integer|min:5|max:360',
             'room'             => 'nullable|string',
+            'instructor_id'    => 'nullable|integer',
             'exclude_id'       => 'nullable|integer',
         ]);
 
@@ -712,7 +725,8 @@ class ExamController extends Controller
             $request->scheduled_at,
             (int)$request->duration_minutes,
             $request->exclude_id,
-            $request->room
+            $request->room,
+            $request->instructor_id
         );
 
         if ($conflict) {
@@ -751,11 +765,16 @@ class ExamController extends Controller
         $now = Carbon::now();
         $totalExams = $allDeptExams->count();
         $scheduledCount = 0;
+        $publishedCount = 0;
         $upcomingCount = 0;
         $completedCount = 0;
 
         foreach ($allDeptExams as $e) {
             $computed = $this->determineComputedStatus($e);
+            $rawStatus = strtolower($e->status ?? '');
+            if ($rawStatus === 'published' || $computed === 'Published') {
+                $publishedCount++;
+            }
             if (in_array($computed, ['Scheduled', 'Published'])) {
                 $scheduledCount++;
             }
@@ -769,11 +788,13 @@ class ExamController extends Controller
 
         $conflictsMap = $this->detectExamConflicts($allDeptExams);
 
-        $examEvents = $allDeptExams->map(function ($e) use ($conflictsMap, $activeYear, $activeSemester) {
+        $examEvents = $allDeptExams->map(function ($e) use ($conflictsMap, $activeYear, $activeSemester, $dept) {
             $duration = $e->duration_minutes ?? 60;
             $start = $e->scheduled_at ? Carbon::parse($e->scheduled_at) : null;
             $end = $start ? $start->copy()->addMinutes($duration) : null;
             $computedStatus = $this->determineComputedStatus($e);
+            $rawStatus = strtolower($e->status ?? '');
+            $isPublished = $rawStatus === 'published' || $computedStatus === 'Published';
 
             return [
                 'id'               => 'exam-' . $e->id,
@@ -783,10 +804,13 @@ class ExamController extends Controller
                 'code'             => $this->formatExamCode($e),
                 'course_code'      => $e->course_code ?: ($e->course?->code ?? 'N/A'),
                 'course_name'      => $e->course_name ?: ($e->course?->title ?? 'Course'),
+                'department_name'  => $dept?->name ?? 'Department',
+                'department_code'  => $dept?->code ?? 'CS',
+                'instructor_id'    => $e->user_id,
                 'instructor_name'  => $e->instructor?->name ?? 'Unassigned Faculty',
                 'instructor_email' => $e->instructor?->email ?? '',
                 'room'             => $e->settings['room'] ?? 'Room 101',
-                'section'          => $e->section ?? '',
+                'section'          => $e->section ?: ($e->settings['section'] ?? 'All Sections'),
                 'exam_type'        => $this->determineExamType($e),
                 'start'            => $start ? $start->toIso8601String() : null,
                 'end'              => $end ? $end->toIso8601String() : null,
@@ -798,13 +822,16 @@ class ExamController extends Controller
                 'duration_minutes' => $duration,
                 'total_marks'      => $e->total_marks ?? 100,
                 'status'           => $computedStatus,
-                'raw_status'       => strtolower($e->status ?? ''),
+                'raw_status'       => $rawStatus,
+                'is_published'     => $isPublished,
+                'published_at'     => $e->published_at ? $e->published_at->format('M d, Y • h:i A') : null,
                 'has_conflict'     => isset($conflictsMap[$e->id]),
                 'conflict_reason'  => $conflictsMap[$e->id] ?? null,
                 'semester'         => $e->settings['semester'] ?? ($e->course?->semester ?? $activeSemester),
                 'academic_year'    => $e->settings['academic_year'] ?? $activeYear,
                 'color'            => isset($conflictsMap[$e->id]) ? '#ef4444' : '#5138ed',
                 'can_edit'         => !in_array($computedStatus, ['Completed', 'Cancelled']),
+                'can_publish'      => !$isPublished && !in_array($computedStatus, ['Completed', 'Cancelled']),
                 'can_cancel'       => $computedStatus !== 'Cancelled',
             ];
         });
@@ -835,7 +862,7 @@ class ExamController extends Controller
 
         // Available filter options
         $deptCourses = Course::where('department_id', $deptId)
-            ->select('id', 'title', 'code', 'credits', 'level', 'semester')
+            ->select('id', 'title', 'code', 'credits', 'level', 'semester', 'section')
             ->orderBy('title')
             ->get();
 
@@ -845,12 +872,20 @@ class ExamController extends Controller
             ->orderBy('name')
             ->get();
 
+        $distinctSections = collect(['All Sections', 'Section A', 'Section B', 'Section C'])
+            ->merge($allDeptExams->pluck('section')->filter())
+            ->merge($deptCourses->pluck('section')->filter())
+            ->unique()
+            ->values()
+            ->all();
+
         return response()->json([
             'status'          => 'success',
             'exams'           => $examEvents,
             'academic_events' => $academicEvents,
             'stats'           => [
                 'total'     => $totalExams,
+                'published' => $publishedCount,
                 'scheduled' => $scheduledCount,
                 'upcoming'  => $upcomingCount,
                 'conflicts' => count($conflictsMap),
@@ -868,6 +903,7 @@ class ExamController extends Controller
             ],
             'courses'         => $deptCourses,
             'instructors'     => $deptInstructors,
+            'sections'        => $distinctSections,
         ]);
     }
 
@@ -890,6 +926,7 @@ class ExamController extends Controller
             'room'             => 'nullable|string|max:100',
             'section'          => 'nullable|string|max:100',
             'description'      => 'nullable|string',
+            'publish_now'      => 'nullable|boolean',
         ]);
 
         // Security check: Verify that course belongs to this department
@@ -903,27 +940,38 @@ class ExamController extends Controller
             ], 422);
         }
 
+        $instructorId = $request->instructor_id ?: ($course->instructor_id ?: $headId);
+
         // Conflict check
-        $conflict = $this->checkSchedulingConflict($deptId, $request->course_code, $request->scheduled_at, (int)$request->duration_minutes, null, $request->room);
+        $conflict = $this->checkSchedulingConflict(
+            $deptId,
+            $request->course_code,
+            $request->scheduled_at,
+            (int)$request->duration_minutes,
+            null,
+            $request->room,
+            $instructorId
+        );
+
         if ($conflict) {
             return response()->json([
                 'message' => $conflict['message']
             ], 422);
         }
 
-        $instructorId = $request->instructor_id ?: ($course->instructor_id ?: $headId);
+        $shouldPublish = filter_var($request->input('publish_now', true), FILTER_VALIDATE_BOOLEAN);
 
         $exam = Exam::create([
             'user_id'          => $instructorId,
             'course_code'      => $course->code,
             'course_name'      => $course->title,
-            'section'          => $request->section ?: $course->section,
+            'section'          => $request->section ?: ($course->section ?: 'All Sections'),
             'title'            => trim($request->title),
             'duration_minutes' => (int) $request->duration_minutes,
             'total_marks'      => (int) $request->total_marks,
-            'status'           => 'published',
+            'status'           => $shouldPublish ? 'published' : 'draft',
             'scheduled_at'     => Carbon::parse($request->scheduled_at),
-            'published_at'     => now(),
+            'published_at'     => $shouldPublish ? now() : null,
             'description'      => $request->description,
             'settings'         => [
                 'department_id' => $deptId,
@@ -931,24 +979,29 @@ class ExamController extends Controller
                 'semester'      => $course->semester,
                 'year_level'    => $course->level,
                 'room'          => $request->room ?: null,
+                'section'       => $request->section ?: ($course->section ?: 'All Sections'),
             ],
         ]);
 
         LogActivity::record(
             'Created',
             'Examinations',
-            "Scheduled exam \"{$exam->title}\" ({$exam->course_code}) for Department ID {$deptId}"
+            "Scheduled exam \"{$exam->title}\" ({$exam->course_code}) for Department ID {$deptId}" . ($shouldPublish ? ' [Published]' : ' [Draft]')
         );
 
-        try {
-            \App\Services\DepartmentNotificationService::notifyExamPublished($exam);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning("Could not dispatch exam published notification: " . $e->getMessage());
+        if ($shouldPublish) {
+            try {
+                \App\Services\DepartmentNotificationService::notifyExamPublished($exam);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Could not dispatch exam published notification: " . $e->getMessage());
+            }
         }
 
         return response()->json([
             'status'  => 'success',
-            'message' => 'Examination scheduled successfully',
+            'message' => $shouldPublish
+                ? 'Examination scheduled and published successfully! Visible to students.'
+                : 'Examination draft schedule saved successfully.',
             'data'    => $exam
         ], 201);
     }
@@ -1019,6 +1072,76 @@ class ExamController extends Controller
         return response()->json([
             'status'  => 'success',
             'message' => 'Examination updated successfully',
+            'data'    => $exam
+        ]);
+    }
+
+    /**
+     * Publish an examination schedule to make it visible to eligible students.
+     */
+    public function publish(Request $request, $id): JsonResponse
+    {
+        $deptId = $this->resolveDeptId($request);
+        $headId = $request->user()->id;
+
+        $exam = $this->buildDeptExamsQuery($deptId, $headId)->findOrFail($id);
+
+        if (in_array(strtolower($exam->status), ['completed', 'cancelled'])) {
+            return response()->json([
+                'message' => 'Completed or cancelled examinations cannot be published.'
+            ], 422);
+        }
+
+        if (!$exam->scheduled_at) {
+            return response()->json([
+                'message' => 'Please set a valid scheduled date and start time before publishing this examination.'
+            ], 422);
+        }
+
+        if (!$exam->duration_minutes || $exam->duration_minutes <= 0) {
+            return response()->json([
+                'message' => 'Please set a valid exam duration in minutes before publishing.'
+            ], 422);
+        }
+
+        // Check conflicts before publishing
+        $conflict = $this->checkSchedulingConflict(
+            $deptId,
+            $exam->course_code,
+            $exam->scheduled_at->toIso8601String(),
+            (int)$exam->duration_minutes,
+            $exam->id,
+            $exam->settings['room'] ?? null,
+            $exam->user_id
+        );
+
+        if ($conflict) {
+            return response()->json([
+                'message' => 'Cannot publish exam due to scheduling collision: ' . $conflict['message'],
+                'conflict' => $conflict
+            ], 422);
+        }
+
+        $exam->update([
+            'status'       => 'published',
+            'published_at' => now(),
+        ]);
+
+        LogActivity::record(
+            'Published',
+            'Examinations',
+            "Published exam schedule for \"{$exam->title}\" ({$exam->course_code}) on {$exam->scheduled_at->format('M d, Y')}"
+        );
+
+        try {
+            \App\Services\DepartmentNotificationService::notifyExamPublished($exam);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Could not dispatch exam published notification: " . $e->getMessage());
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Examination \"{$exam->title}\" successfully published! It is now visible to eligible students on their portal.",
             'data'    => $exam
         ]);
     }

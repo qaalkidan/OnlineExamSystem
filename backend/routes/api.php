@@ -162,6 +162,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance', 'password.
         Route::post('exams', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'store']);
         Route::get('exams/{id}', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'show']);
         Route::match(['put', 'post'], 'exams/{id}', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'update']);
+        Route::post('exams/{id}/publish', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'publish']);
         Route::post('exams/{id}/cancel', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'cancel']);
         Route::post('exams/{id}/assign-instructor', [\App\Http\Controllers\Api\V1\DeptHead\ExamController::class, 'assignInstructor']);
         Route::get('results/export', [\App\Http\Controllers\Api\V1\DeptHead\ResultController::class, 'export']);
@@ -271,6 +272,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance', 'password.
 
         Route::get('/dashboard', [StudentExamController::class, 'dashboard']);
         Route::get('/exams',     [StudentExamController::class, 'index']);
+        Route::get('/schedule',  [StudentExamController::class, 'schedule']);
+        Route::get('/schedule/{id}', [StudentExamController::class, 'showSchedule']);
         Route::post('/exams/{exam}/start',  [StudentExamController::class, 'start']);
         Route::post('/exams/{exam}/submit', [StudentExamController::class, 'submit']);
         Route::get('/results',              [StudentExamController::class, 'results']);

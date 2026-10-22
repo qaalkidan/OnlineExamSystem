@@ -890,7 +890,7 @@ const currentDay = new Date().toLocaleDateString('en-US', {
               @click="router.push('/dept-head/schedule')"
               class="font-bold text-[#5138ed] hover:underline cursor-pointer"
             >
-              Academic Calendar →
+              Exam Schedule →
             </button>
           </div>
         </div>

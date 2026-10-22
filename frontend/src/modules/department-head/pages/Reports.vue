@@ -531,41 +531,6 @@ onUnmounted(() => {
 
       <!-- Reporting Controls Toolbar -->
       <div class="flex flex-wrap items-center gap-2.5">
-        <!-- Academic Year Dropdown -->
-        <select
-          v-model="selectedAcademicYear"
-          @change="onFilterChange"
-          class="text-[12px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2 min-h-[42px] focus:outline-none focus:border-[#5138ed] cursor-pointer shadow-2xs hover:border-slate-300 transition-colors"
-          title="Filter by Academic Year"
-        >
-          <option value="all">All Academic Years</option>
-          <option v-for="yr in filterOptions.academic_years" :key="yr" :value="yr">Year {{ yr }}</option>
-        </select>
-
-        <!-- Semester Dropdown -->
-        <select
-          v-model="selectedSemester"
-          @change="onFilterChange"
-          class="text-[12px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2 min-h-[42px] focus:outline-none focus:border-[#5138ed] cursor-pointer shadow-2xs hover:border-slate-300 transition-colors"
-          title="Filter by Semester"
-        >
-          <option value="all">All Semesters</option>
-          <option v-for="sem in filterOptions.semesters" :key="sem" :value="sem">{{ sem }}</option>
-        </select>
-
-        <!-- Period Selector -->
-        <select
-          v-model="selectedPeriod"
-          @change="onFilterChange"
-          class="text-[12px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2 min-h-[42px] focus:outline-none focus:border-[#5138ed] cursor-pointer shadow-2xs hover:border-slate-300 transition-colors"
-          title="Filter by Reporting Period"
-        >
-          <option value="This Semester">This Semester</option>
-          <option value="Last 30 Days">Last 30 Days</option>
-          <option value="This Academic Year">This Academic Year</option>
-          <option value="All Time">All Time</option>
-        </select>
-
         <!-- Refresh Data Button -->
         <button
           @click="fetchReportData(true)"
@@ -1152,7 +1117,7 @@ onUnmounted(() => {
               @click="router.push('/dept-head/schedule')"
               class="w-full py-2 px-3 text-[12px] font-bold text-[#5138ed] hover:bg-white rounded-xl transition-all text-left flex items-center justify-between cursor-pointer"
             >
-              <span>View Academic Calendar &amp; Schedule</span>
+              <span>View Exam Schedule</span>
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
             <button

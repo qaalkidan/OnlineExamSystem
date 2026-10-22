@@ -171,6 +171,11 @@ export const routes: Array<RouteRecordRaw> = [
     component: () => import('../modules/student/views/MyExams.vue')
   },
   {
+    path: '/student/schedule',
+    name: 'StudentExamSchedule',
+    component: () => import('../modules/student/views/ExamSchedule.vue')
+  },
+  {
     path: '/student/exam/take',
     name: 'StudentExamTake',
     component: () => import('../modules/student/views/ExamTake.vue')

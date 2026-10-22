@@ -1492,4 +1492,374 @@ class StudentExamController extends Controller
 
         return [$colA, $colB];
     }
+
+    /**
+     * Get authoritative examination schedules for the authenticated student.
+     * Enforces strict authorization: only schedules belonging to the student's
+     * enrolled courses, department, year level, and section.
+     * Drafts are NEVER returned to students.
+     */
+    public function schedule(Request $request): JsonResponse
+    {
+        $student = $request->user();
+        if (!$student || $student->role !== 'student') {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $this->autoFinalizeExpiredAttempts($student);
+
+        // Fetch exams relevant to student using the security boundary
+        $query = $this->getStudentScheduleQuery($student)
+            ->with(['course', 'instructor:id,name,email'])
+            ->orderBy('scheduled_at', 'asc');
+
+        // Optional server-side filtering
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('course_code', 'like', "%{$search}%")
+                  ->orWhere('course_name', 'like', "%{$search}%")
+                  ->orWhereHas('instructor', function ($iq) use ($search) {
+                      $iq->where('name', 'like', "%{$search}%")
+                         ->orWhere('email', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($request->filled('course') && $request->course !== 'all') {
+            $query->where(function ($q) use ($request) {
+                $q->where('course_code', $request->course)
+                  ->orWhere('course_name', $request->course);
+            });
+        }
+
+        if ($request->filled('semester') && $request->semester !== 'all') {
+            $sem = $request->semester;
+            $query->where(function ($q) use ($sem) {
+                $q->where('settings->semester', $sem)
+                  ->orWhereHas('course', function ($cq) use ($sem) {
+                      $cq->where('semester', $sem);
+                  });
+            });
+        }
+
+        if ($request->filled('section') && $request->section !== 'all') {
+            $sec = $request->section;
+            $query->where(function ($q) use ($sec) {
+                $q->where('section', $sec)
+                  ->orWhere('settings->section', $sec);
+            });
+        }
+
+        $allMatching = $query->get();
+
+        // Get student attempts to determine completion status
+        $attempts = ExamAttempt::where('user_id', $student->id)
+            ->whereIn('exam_id', $allMatching->pluck('id'))
+            ->get()
+            ->keyBy('exam_id');
+
+        $now = Carbon::now();
+
+        // Transform records into authoritative schedule format
+        $schedules = $allMatching->map(function ($exam) use ($attempts, $now) {
+            $attempt = $attempts->get($exam->id);
+            $attemptStatus = $attempt ? $attempt->status : null;
+            $duration = $exam->duration_minutes ?? 60;
+            $start = $exam->scheduled_at ? Carbon::parse($exam->scheduled_at) : null;
+            $end = $start ? $start->copy()->addMinutes($duration) : null;
+
+            // Determine authoritative display status
+            $rawStatus = strtolower($exam->status ?? '');
+            if ($rawStatus === 'cancelled' || $exam->cancelled_at !== null) {
+                $displayStatus = 'Cancelled';
+            } elseif ($attempt && in_array($attempt->status, ['submitted', 'graded', 'published'])) {
+                $displayStatus = 'Completed';
+            } elseif ($rawStatus === 'completed') {
+                $displayStatus = 'Completed';
+            } elseif ($end && $now->gt($end)) {
+                $displayStatus = 'Completed';
+            } elseif ($start && $end && $now->between($start, $end)) {
+                $displayStatus = 'Active';
+            } elseif ($rawStatus === 'published') {
+                $displayStatus = 'Published';
+            } else {
+                $displayStatus = 'Scheduled';
+            }
+
+            $examCode = $this->formatExamCode($exam);
+            $examType = $this->determineExamType($exam);
+            $durationFormatted = $this->formatDuration($duration);
+            $sectionDisplay = $exam->section ?: ($exam->settings['section'] ?? 'All Sections');
+
+            return [
+                'id'                => $exam->id,
+                'title'             => $exam->title,
+                'code'              => $examCode,
+                'course_code'       => $exam->course_code ?: ($exam->course?->code ?? 'N/A'),
+                'course_name'       => $exam->course_name ?: ($exam->course?->title ?? 'Course'),
+                'instructor_name'   => $exam->instructor?->name ?? 'Unassigned Faculty',
+                'instructor_email'  => $exam->instructor?->email ?? '',
+                'section'           => $sectionDisplay,
+                'date'              => $start ? $start->format('Y-m-d') : null,
+                'date_formatted'    => $start ? $start->format('Y-m-d') : 'Unscheduled',
+                'start_time'        => $start ? $start->format('h:i A') : 'TBD',
+                'end_time'          => $end ? $end->format('h:i A') : 'TBD',
+                'time_range'        => $start && $end ? ($start->format('h:i A') . ' - ' . $end->format('h:i A')) : 'TBD',
+                'duration'          => $durationFormatted,
+                'duration_minutes'  => $duration,
+                'exam_type'         => $examType,
+                'total_marks'       => $exam->total_marks ?? 100,
+                'status'            => $displayStatus,
+                'raw_status'        => $rawStatus,
+                'room'              => $exam->settings['room'] ?? 'Room 101',
+                'semester'          => $exam->settings['semester'] ?? ($exam->course?->semester ?? 'Semester 1'),
+                'academic_year'     => $exam->settings['academic_year'] ?? '2025/2026',
+                'description'       => $exam->description ?? '',
+                'instructions'      => $exam->settings['instructions'] ?? $exam->description ?? '',
+                'allow_calculator'  => (bool)($exam->settings['allowCalculator'] ?? false),
+                'attempt_status'    => $attemptStatus,
+                'attempt_id'        => $attempt ? $attempt->id : null,
+                'questions_count'   => $exam->questions()->count(),
+            ];
+        });
+
+        // Filter options based on student's actual dataset
+        $semesters = $schedules->pluck('semester')->filter()->unique()->values();
+        $courses = $schedules->map(function ($s) {
+            return [
+                'code' => $s['course_code'],
+                'name' => $s['course_name'],
+            ];
+        })->unique('code')->values();
+
+        $sections = $schedules->pluck('section')->filter()->unique()->values();
+
+        return response()->json([
+            'status'         => 'success',
+            'data'           => $schedules,
+            'filter_options' => [
+                'semesters' => $semesters,
+                'courses'   => $courses,
+                'sections'  => $sections,
+                'statuses'  => ['Scheduled', 'Published', 'Completed', 'Cancelled'],
+            ],
+            'student' => [
+                'name'        => $student->name,
+                'department'  => $student->department?->name,
+                'year_level'  => $student->year_level,
+                'section'     => $student->section,
+            ],
+        ]);
+    }
+
+    /**
+     * Show single schedule detail for an authorized exam.
+     */
+    public function showSchedule(Request $request, $id): JsonResponse
+    {
+        $student = $request->user();
+        if (!$student || $student->role !== 'student') {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $exam = $this->getStudentScheduleQuery($student)
+            ->with(['course', 'instructor:id,name,email'])
+            ->find($id);
+
+        if (!$exam) {
+            return response()->json(['message' => 'Examination schedule not found or access denied.'], 404);
+        }
+
+        $attempt = ExamAttempt::where('user_id', $student->id)
+            ->where('exam_id', $exam->id)
+            ->first();
+
+        $now = Carbon::now();
+        $duration = $exam->duration_minutes ?? 60;
+        $start = $exam->scheduled_at ? Carbon::parse($exam->scheduled_at) : null;
+        $end = $start ? $start->copy()->addMinutes($duration) : null;
+
+        $rawStatus = strtolower($exam->status ?? '');
+        if ($rawStatus === 'cancelled' || $exam->cancelled_at !== null) {
+            $displayStatus = 'Cancelled';
+        } elseif ($attempt && in_array($attempt->status, ['submitted', 'graded', 'published'])) {
+            $displayStatus = 'Completed';
+        } elseif ($rawStatus === 'completed') {
+            $displayStatus = 'Completed';
+        } elseif ($end && $now->gt($end)) {
+            $displayStatus = 'Completed';
+        } elseif ($start && $end && $now->between($start, $end)) {
+            $displayStatus = 'Active';
+        } elseif ($rawStatus === 'published') {
+            $displayStatus = 'Published';
+        } else {
+            $displayStatus = 'Scheduled';
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'id'                => $exam->id,
+                'title'             => $exam->title,
+                'code'              => $this->formatExamCode($exam),
+                'course_code'       => $exam->course_code ?: ($exam->course?->code ?? 'N/A'),
+                'course_name'       => $exam->course_name ?: ($exam->course?->title ?? 'Course'),
+                'instructor_name'   => $exam->instructor?->name ?? 'Unassigned Faculty',
+                'instructor_email'  => $exam->instructor?->email ?? '',
+                'section'           => $exam->section ?: ($exam->settings['section'] ?? 'All Sections'),
+                'date'              => $start ? $start->format('Y-m-d') : null,
+                'date_formatted'    => $start ? $start->format('Y-m-d') : 'Unscheduled',
+                'start_time'        => $start ? $start->format('h:i A') : 'TBD',
+                'end_time'          => $end ? $end->format('h:i A') : 'TBD',
+                'time_range'        => $start && $end ? ($start->format('h:i A') . ' - ' . $end->format('h:i A')) : 'TBD',
+                'duration'          => $this->formatDuration($duration),
+                'duration_minutes'  => $duration,
+                'exam_type'         => $this->determineExamType($exam),
+                'total_marks'       => $exam->total_marks ?? 100,
+                'status'            => $displayStatus,
+                'raw_status'        => $rawStatus,
+                'room'              => $exam->settings['room'] ?? 'Room 101',
+                'semester'          => $exam->settings['semester'] ?? ($exam->course?->semester ?? 'Semester 1'),
+                'academic_year'     => $exam->settings['academic_year'] ?? '2025/2026',
+                'description'       => $exam->description ?? '',
+                'instructions'      => $exam->settings['instructions'] ?? $exam->description ?? '',
+                'allow_calculator'  => (bool)($exam->settings['allowCalculator'] ?? false),
+                'attempt_status'    => $attempt?->status,
+                'attempt_id'        => $attempt?->id,
+                'questions_count'   => $exam->questions()->count(),
+            ]
+        ]);
+    }
+
+    /**
+     * Build base query for examination schedules visible to a student.
+     * Strictly scopes by student department, section, and year level.
+     * Drafts are strictly excluded.
+     */
+    public function getStudentScheduleQuery($student)
+    {
+        $studentSec = trim($student->section ?? '');
+        $cleanStudentSec = strtoupper(trim(preg_replace('/^section\s*/i', '', $studentSec)));
+        $yearNum = preg_replace('/[^0-9]/', '', $student->year_level ?? '');
+
+        $allowedYearLevels = array_unique(array_filter([
+            $student->year_level,
+            trim($student->year_level ?? ''),
+        ]));
+        $yearWords = [
+            '1' => ['1st Year', '1st year', 'Year 1', 'year 1', '1', 'First Year', 'first year', '1st', 'Year-1'],
+            '2' => ['2nd Year', '2nd year', 'Year 2', 'year 2', '2', 'Second Year', 'second year', '2nd', 'Year-2'],
+            '3' => ['3rd Year', '3rd year', 'Year 3', 'year 3', '3', 'Third Year', 'third year', '3rd', 'Year-3'],
+            '4' => ['4th Year', '4th year', 'Year 4', 'year 4', '4', 'Fourth Year', 'fourth year', '4th', 'Year-4'],
+            '5' => ['5th Year', '5th year', 'Year 5', 'year 5', '5', 'Fifth Year', 'fifth year', '5th', 'Year-5'],
+        ];
+        if ($yearNum && isset($yearWords[$yearNum])) {
+            $allowedYearLevels = array_unique(array_merge($allowedYearLevels, $yearWords[$yearNum]));
+        }
+
+        $allowedSections = [
+            '', 'Both', 'both', 'Both Sections', 'both sections', 'BOTH SECTIONS',
+            'All', 'all', 'All Sections', 'all sections', 'ALL SECTIONS',
+            'Section A and B', 'Section A & B', 'Section A, B', 'A and B', 'A & B', 'A, B'
+        ];
+        if ($studentSec !== '') {
+            $allowedSections[] = $studentSec;
+        }
+        if ($cleanStudentSec !== '') {
+            $allowedSections[] = $cleanStudentSec;
+            $allowedSections[] = strtolower($cleanStudentSec);
+            $allowedSections[] = "Section $cleanStudentSec";
+            $allowedSections[] = "section " . strtolower($cleanStudentSec);
+            $allowedSections[] = "SECTION $cleanStudentSec";
+        }
+        $allowedSections = array_unique($allowedSections);
+
+        return Exam::where('status', '!=', 'draft')
+            ->where(function ($query) use ($allowedSections, $cleanStudentSec, $studentSec) {
+                $query->whereNull('section')
+                      ->orWhere('section', '')
+                      ->orWhereIn('section', $allowedSections)
+                      ->orWhereRaw("LOWER(TRIM(section)) IN ('all', 'all sections', 'both', 'both sections', 'section a and b', 'section a & b', 'a and b', 'a & b', 'section a, b', 'a, b', 'a,b')");
+
+                if ($cleanStudentSec !== '') {
+                    $query->orWhereRaw("LOWER(TRIM(REPLACE(section, 'Section', ''))) = ?", [strtolower($cleanStudentSec)])
+                          ->orWhereRaw("LOWER(TRIM(section)) = ?", [strtolower($studentSec)])
+                          ->orWhereRaw("LOWER(TRIM(section)) = ?", ['section ' . strtolower($cleanStudentSec)]);
+                }
+            })
+            ->where(function ($query) use ($student, $allowedYearLevels) {
+                // 1. Match via direct student enrollment in exam_student
+                $query->whereHas('students', function ($sq) use ($student) {
+                    $sq->where('users.id', $student->id);
+                })
+                // 2. OR match via Instructor's department & year_level
+                ->orWhereHas('instructor', function ($q) use ($student, $allowedYearLevels) {
+                    if ($student->department_id) {
+                        $q->where('department_id', $student->department_id);
+                    }
+                    if (!empty($allowedYearLevels)) {
+                        $q->where(function ($yq) use ($allowedYearLevels) {
+                            $yq->whereNull('year_level')
+                               ->orWhere('year_level', '')
+                               ->orWhere('year_level', 'None')
+                               ->orWhereIn('year_level', $allowedYearLevels);
+                        });
+                    }
+                })
+                // 3. OR match via Exam's course department & level
+                ->orWhereHas('course', function ($q) use ($student, $allowedYearLevels) {
+                    if ($student->department_id) {
+                        $q->where('department_id', $student->department_id);
+                    }
+                    if (!empty($allowedYearLevels)) {
+                        $q->where(function ($yq) use ($allowedYearLevels) {
+                            $yq->whereNull('level')
+                               ->orWhere('level', '')
+                               ->orWhereIn('level', $allowedYearLevels);
+                        });
+                    }
+                })
+                // 4. OR match via direct course code if assigned
+                ->when($student->course_code, function ($cq) use ($student) {
+                    $cq->orWhere('course_code', $student->course_code);
+                });
+            });
+    }
+
+    protected function formatExamCode($exam): string
+    {
+        if (!empty($exam->settings['exam_code'])) {
+            return $exam->settings['exam_code'];
+        }
+        $year = $exam->scheduled_at ? $exam->scheduled_at->format('Y') : ($exam->created_at ? $exam->created_at->format('Y') : date('Y'));
+        return 'EXM-' . $year . '-' . str_pad((string)$exam->id, 3, '0', STR_PAD_LEFT);
+    }
+
+    protected function formatDuration(?int $minutes): string
+    {
+        if (!$minutes || $minutes <= 0) return '60m';
+        $hours = intdiv($minutes, 60);
+        $remMinutes = $minutes % 60;
+        if ($hours > 0 && $remMinutes > 0) {
+            return "{$hours}h {$remMinutes}m";
+        } elseif ($hours > 0) {
+            return "{$hours}h";
+        }
+        return "{$remMinutes}m";
+    }
+
+    protected function determineExamType($exam): string
+    {
+        if (!empty($exam->settings['exam_type'])) {
+            return ucfirst($exam->settings['exam_type']);
+        }
+        $title = strtolower($exam->title ?? '');
+        if (str_contains($title, 'final')) return 'Final';
+        if (str_contains($title, 'quiz')) return 'Quiz';
+        if (str_contains($title, 'practical') || str_contains($title, 'lab')) return 'Practical';
+        if (str_contains($title, 'assignment') || str_contains($title, 'test')) return 'Quiz';
+        return 'Midterm';
+    }
 }

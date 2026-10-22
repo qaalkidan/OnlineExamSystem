@@ -19,7 +19,6 @@ import ResultReviewModal from '../components/ResultReviewModal.vue'
 import DownloadTranscriptModal from '../components/DownloadTranscriptModal.vue'
 import ProfileModal from '../components/ProfileModal.vue'
 import StudentSidebar from '../components/StudentSidebar.vue'
-import TodayExamCard from '../components/TodayExamCard.vue'
 
 // Store & Router
 const examStore = useStudentExamStore()
@@ -93,42 +92,10 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleTabFocus)
 })
 
-// Today's Exam Logic — show ready/ongoing window and exclude already submitted exams
-const todayExams = computed(() => {
-  if (upcomingExams.value.length === 0) return []
-  const now = currentTime.value
-  const TEN_MIN = 10 * 60 * 1000
-
-  // Find all exams that are in the ready/ongoing window and not completed
-  return upcomingExams.value.filter(exam => {
-    // 1. Exclude already completed/submitted attempts
-    if (exam.attemptStatus === 'submitted' || exam.attemptStatus === 'graded' || exam.attemptStatus === 'published' || (exam as any).submitted_at) {
-      return false
-    }
-
-    // 2. If in_progress or explicitly marked Ready by backend, show it immediately
-    if (exam.attemptStatus === 'in_progress' || exam.status === 'Ready') {
-      return true
-    }
-
-    // 3. Check scheduled time window
-    const rawDate = (exam as any).scheduledAt || exam.scheduledDate
-    if (!rawDate) return true // Published exam without strict schedule is ready now!
-
-    const startMs = new Date(rawDate).getTime()
-    const endMs = startMs + (exam.durationMinutes * 60 * 1000)
-    // Show card 10 minutes before start until exam ends
-    return now >= startMs - TEN_MIN && now < endMs
-  })
-})
-
 const filteredUpcomingExams = computed(() => {
-  const nonSubmitted = upcomingExams.value.filter(exam => 
+  return upcomingExams.value.filter(exam => 
     !['submitted', 'graded', 'published'].includes(exam.attemptStatus as string)
   )
-  if (todayExams.value.length === 0) return nonSubmitted
-  const todayIds = new Set(todayExams.value.map(e => e.id))
-  return nonSubmitted.filter(exam => !todayIds.has(exam.id))
 })
 
 // Stats calculation
@@ -185,7 +152,7 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
       isTranscriptOpen.value = true
       break
     case 'schedule':
-      document.getElementById('upcoming-exams-section')?.scrollIntoView({ behavior: 'smooth' })
+      router.push('/student/schedule')
       break
     case 'academic-calendar':
       document.getElementById('calendar-section')?.scrollIntoView({ behavior: 'smooth' })
@@ -227,16 +194,6 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
 
       <!-- Row 2: Quick Action Buttons Grid -->
       <QuickActions @action="handleQuickAction" />
-
-      <!-- Today's Exam Card(s) (Dynamically displayed if exams are ready/ongoing) -->
-      <div v-if="todayExams.length > 0" class="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <TodayExamCard 
-          v-for="readyExam in todayExams"
-          :key="readyExam.id"
-          :exam="readyExam" 
-          @start-exam="handleStartUpcomingExam" 
-        />
-      </div>
 
       <!-- Row 3: 3-Column Grid (Upcoming Exams, Academic Calendar, Academic Progress) -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">

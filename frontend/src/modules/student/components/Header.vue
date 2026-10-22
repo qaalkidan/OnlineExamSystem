@@ -749,6 +749,23 @@ onUnmounted(() => {
                   </div>
                 </button>
 
+                <!-- Exam Schedule -->
+                <button
+                  type="button"
+                  @click="navigateTo('/student/schedule')"
+                  class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-700 hover:bg-[#EEF0FF] hover:text-[#4F35F3] transition-colors group cursor-pointer"
+                >
+                  <div class="w-8 h-8 rounded-lg bg-[#EEF0FF] text-[#4F35F3] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  </div>
+                  <div class="flex-1">
+                    <div class="font-bold text-[#17243A] group-hover:text-[#4F35F3]">Exam Schedule</div>
+                    <div class="text-[10px] text-[#71819B] font-normal">Department exam timetable</div>
+                  </div>
+                </button>
+
                 <!-- Academic Calendar -->
                 <button
                   type="button"
