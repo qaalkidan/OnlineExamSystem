@@ -103,7 +103,7 @@ watch([loginField, selectedRole], () => {
         <!-- Background Image with Gradient Overlay -->
         <div class="absolute inset-0 z-0 ">
           <img 
-            src="../../../assets/images/imagep.png" 
+            src="../../../assets/images/wollo-campus.png" 
             alt="Wollo University" 
               class="w-full h-full object-cover object-center"
           />

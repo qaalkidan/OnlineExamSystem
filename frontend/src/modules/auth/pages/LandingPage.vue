@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../store/authStore'
 import wolloLogo from '@/assets/images/logo.png'
@@ -8,93 +8,17 @@ import campusBg from '@/assets/images/wollo-campus.png'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const loginField = ref('')
-const password = ref('')
-const showPassword = ref(false)
 const showSupportModal = ref(false)
 
-// Step 2 Form State (for Instructors)
-const selectedDepartment = ref('')
-const selectedCourse = ref('')
-const selectedSection = ref('')
-
 onMounted(async () => {
-  authStore.error = null
   await authStore.checkPublicStatus()
   if (authStore.isMaintenanceActive) {
     router.replace('/maintenance')
   }
 })
 
-// Clear error banner when user edits input
-watch([loginField, password], () => {
-  if (authStore.error) {
-    authStore.error = null
-  }
-})
-
-const handleLogin = async () => {
-  if (!loginField.value.trim() || !password.value) return
-
-  try {
-    const res = await authStore.login({
-      login: loginField.value.trim(),
-      password: password.value,
-    })
-
-    if (res?.step === 2 && authStore.pendingInstructor) {
-      const opts = authStore.pendingInstructor.assignedOptions
-      if (opts?.departments?.length) {
-        selectedDepartment.value = opts.departments[0].name
-      }
-      if (opts?.sections?.length) {
-        selectedSection.value = opts.sections[0]
-      }
-    }
-  } catch (e) {
-    if (authStore.isMaintenanceActive) {
-      router.push('/maintenance')
-    }
-  }
-}
-
-// Reactively filter available courses based on selected department for Step 2
-const availableCourses = computed(() => {
-  if (!authStore.pendingInstructor?.assignedOptions?.courses) return []
-  const allCourses = authStore.pendingInstructor.assignedOptions.courses
-  if (!selectedDepartment.value) return allCourses
-
-  const dept = authStore.pendingInstructor.assignedOptions.departments?.find(
-    (d: any) => d.name === selectedDepartment.value
-  )
-  if (!dept) return allCourses
-
-  return allCourses.filter(
-    (c: any) => c.department_id === dept.id || c.department === selectedDepartment.value
-  )
-})
-
-watch(
-  availableCourses,
-  (newCourses) => {
-    if (newCourses.length > 0 && !newCourses.some((c: any) => c.title === selectedCourse.value)) {
-      selectedCourse.value = newCourses[0].title
-    }
-  },
-  { immediate: true }
-)
-
-const handleCompleteSetup = () => {
-  if (!selectedDepartment.value || !selectedCourse.value || !selectedSection.value) return
-  authStore.completeInstructorSetup({
-    department: selectedDepartment.value,
-    course: selectedCourse.value,
-    section: selectedSection.value,
-  })
-}
-
-const cancelStep2 = () => {
-  authStore.pendingInstructor = null
+const goToLogin = () => {
+  router.push('/login')
 }
 </script>
 
@@ -134,298 +58,121 @@ const cancelStep2 = () => {
         </div>
       </div>
 
-      <!-- Right side: University Slogan -->
-      <div class="hidden sm:block text-right">
-        <span class="text-xs sm:text-sm font-medium text-white/90 tracking-wider drop-shadow-md">
+      <!-- Right side: Slogan + Top Right Login Button -->
+      <div class="flex items-center gap-4 sm:gap-6">
+        <span class="hidden md:inline-block text-xs sm:text-sm font-medium text-white/90 tracking-wider drop-shadow-md">
           Better Learning <span class="text-white/40 mx-1.5">|</span> Brighter Future
         </span>
+        <button
+          type="button"
+          @click="goToLogin"
+          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1769E0] hover:bg-[#1258be] active:bg-[#0e489e] text-white font-semibold text-xs sm:text-sm shadow-lg shadow-blue-900/30 transition-all hover:scale-[1.02] cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+          </svg>
+          <span>Log In</span>
+        </button>
       </div>
     </header>
 
     <!-- ── Main Hero Content ── -->
-    <main class="relative z-20 flex-1 flex items-center max-w-7xl mx-auto w-full px-6 sm:px-12 lg:px-16 py-6 sm:py-10">
-      <div class="w-full flex flex-col lg:flex-row items-center lg:items-center justify-between gap-8 lg:gap-14">
+    <main class="relative z-20 flex-1 flex items-center max-w-7xl mx-auto w-full px-6 sm:px-12 lg:px-16 py-8 sm:py-14">
+      <div class="w-full max-w-2xl text-left">
         
-        <!-- Left Column: Hero Text & Feature Highlights -->
-        <div class="flex-1 max-w-xl text-left">
-          
-          <!-- Welcome Badge -->
-          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/50 border border-blue-400/50 text-white text-xs font-semibold backdrop-blur-md mb-4 shadow-sm">
-            <svg class="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 3L1 9L12 15L21 10.09V17H23V9M5 13.18V17.18C5 19.94 8.13 22 12 22C15.87 22 19 19.94 19 17.18V13.18L12 17L5 13.18Z" />
-            </svg>
-            <span>Welcome to Wollo University</span>
-          </div>
-
-          <!-- Main Heading: High-contrast, vibrant, and razor-sharp -->
-          <h2 class="text-3xl sm:text-4xl lg:text-[3.25rem] font-extrabold text-white tracking-tight leading-[1.12] mb-4 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
-            Online <span class="text-amber-400 drop-shadow-[0_2px_10px_rgba(245,158,11,0.5)]">Exam</span> System
-          </h2>
-
-          <!-- Description: High visibility -->
-          <p class="text-xs sm:text-sm lg:text-base text-white/95 leading-relaxed mb-6 sm:mb-8 max-w-md font-normal drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-            Secure, reliable and easy way to take your exams. Access your exams anytime, anywhere.
-          </p>
-
-          <!-- 3 Feature Highlights: Frosted glass panels for 100% clarity -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 pt-1 max-w-lg">
-            <!-- Feature 1: Secure -->
-            <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg transition-all">
-              <div class="w-9 h-9 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2 shadow-xs">
-                <svg class="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <h3 class="text-xs sm:text-sm font-bold text-white mb-0.5 drop-shadow-sm">Secure</h3>
-              <p class="text-[10px] sm:text-xs text-white/90 leading-snug">Your data is protected with advanced security.</p>
-            </div>
-
-            <!-- Feature 2: Fast & Reliable -->
-            <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg transition-all">
-              <div class="w-9 h-9 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2 shadow-xs">
-                <svg class="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <h3 class="text-xs sm:text-sm font-bold text-white mb-0.5 drop-shadow-sm">Fast & Reliable</h3>
-              <p class="text-[10px] sm:text-xs text-white/90 leading-snug">A smooth and stable exam experience.</p>
-            </div>
-
-            <!-- Feature 3: Any Device -->
-            <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg transition-all">
-              <div class="w-9 h-9 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2 shadow-xs">
-                <svg class="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 class="text-xs sm:text-sm font-bold text-white mb-0.5 drop-shadow-sm">Any Device</h3>
-              <p class="text-[10px] sm:text-xs text-white/90 leading-snug">Access from computer, tablet or mobile.</p>
-            </div>
-          </div>
+        <!-- Welcome Badge -->
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/50 border border-blue-400/50 text-white text-xs font-semibold backdrop-blur-md mb-4 shadow-sm">
+          <svg class="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 3L1 9L12 15L21 10.09V17H23V9M5 13.18V17.18C5 19.94 8.13 22 12 22C15.87 22 19 19.94 19 17.18V13.18L12 17L5 13.18Z" />
+          </svg>
+          <span>Welcome to Wollo University</span>
         </div>
 
-        <!-- Right Column: Login Card -->
-        <div class="w-full sm:w-[360px] md:w-[380px] lg:w-[400px] shrink-0">
-          <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 transition-all text-slate-800">
-            
-            <!-- ── STEP 1: LOGIN FORM ── -->
-            <template v-if="!authStore.pendingInstructor">
-              <!-- Card Header -->
-              <div class="mb-5">
-                <h2 class="text-2xl font-bold text-slate-800 tracking-tight mb-1">Welcome Back</h2>
-                <p class="text-xs text-slate-500 font-medium">Log in to your account to continue</p>
-              </div>
+        <!-- Main Heading: High-contrast, vibrant, and razor-sharp -->
+        <h2 class="text-3xl sm:text-5xl lg:text-[3.5rem] font-extrabold text-white tracking-tight leading-[1.12] mb-5 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+          Online <span class="text-amber-400 drop-shadow-[0_2px_10px_rgba(245,158,11,0.5)]">Exam</span> System
+        </h2>
 
-              <!-- Error Banner -->
-              <div
-                v-if="authStore.error"
-                class="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-600 text-xs rounded-xl flex items-center gap-2"
-              >
-                <svg class="w-4 h-4 shrink-0 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span class="font-medium leading-tight">{{ authStore.error }}</span>
-              </div>
+        <!-- Description: High visibility -->
+        <p class="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed mb-8 max-w-xl font-normal drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
+          Secure, reliable and easy way to take your examinations. Access scheduled assessments anytime, anywhere across university departments.
+        </p>
 
-              <!-- Form -->
-              <form @submit.prevent="handleLogin" class="space-y-4">
-                
-                <!-- Username or Student ID -->
-                <div>
-                  <label for="username-input" class="sr-only">Username or Student ID</label>
-                  <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
-                    <input
-                      id="username-input"
-                      type="text"
-                      v-model="loginField"
-                      placeholder="Username or Student ID"
-                      autocomplete="username"
-                      required
-                      class="block w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#1769E0] focus:ring-2 focus:ring-[#1769E0]/20 transition-all font-medium"
-                    />
-                  </div>
-                </div>
+        <!-- Call to Action Buttons -->
+        <div class="flex flex-wrap items-center gap-4 mb-10 sm:mb-12">
+          <button
+            type="button"
+            @click="goToLogin"
+            class="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-[#1769E0] hover:bg-[#1258be] active:bg-[#0e489e] text-white font-bold text-sm shadow-xl shadow-blue-900/40 transition-all hover:scale-[1.02] cursor-pointer"
+          >
+            <span>Enter Examination Portal</span>
+            <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </button>
 
-                <!-- Password -->
-                <div>
-                  <label for="password-input" class="sr-only">Password</label>
-                  <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    </div>
-                    <input
-                      id="password-input"
-                      :type="showPassword ? 'text' : 'password'"
-                      v-model="password"
-                      placeholder="Password"
-                      autocomplete="current-password"
-                      required
-                      class="block w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#1769E0] focus:ring-2 focus:ring-[#1769E0]/20 transition-all font-medium"
-                    />
-                    <!-- Toggle Password Visibility -->
-                    <button
-                      type="button"
-                      @click="showPassword = !showPassword"
-                      class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
-                      aria-label="Toggle password visibility"
-                    >
-                      <svg v-if="!showPassword" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+          <button
+            type="button"
+            @click="showSupportModal = true"
+            class="inline-flex items-center gap-2 px-5 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 backdrop-blur-md text-white font-semibold text-sm transition-all cursor-pointer"
+          >
+            <svg class="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Need Help?</span>
+          </button>
+        </div>
 
-                <!-- Submit Button -->
-                <div class="pt-1">
-                  <button
-                    type="submit"
-                    :disabled="authStore.isLoading"
-                    class="w-full py-2.5 sm:py-3 px-4 rounded-xl bg-[#1769E0] hover:bg-[#1258be] active:bg-[#0e489e] text-white font-semibold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <svg v-if="!authStore.isLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    <svg v-else class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>{{ authStore.isLoading ? 'Logging In...' : 'Log In' }}</span>
-                  </button>
-                </div>
-              </form>
+        <!-- 3 Feature Highlights: Frosted glass panels for 100% clarity -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 max-w-2xl">
+          <!-- Feature 1: Secure -->
+          <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-4 shadow-lg transition-all">
+            <div class="w-10 h-10 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2.5 shadow-xs">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <h3 class="text-sm font-bold text-white mb-0.5 drop-shadow-sm">Secure</h3>
+            <p class="text-xs text-white/90 leading-snug">Your data is protected with enterprise grade security.</p>
+          </div>
 
-              <!-- Divider: Need Help? (Crisp visible line + Blue clickable link on same row) -->
-              <div class="flex items-center gap-3 my-4">
-                <div class="h-px bg-slate-300 flex-1"></div>
-                <button
-                  type="button"
-                  @click="showSupportModal = true"
-                  class="text-xs text-[#1769E0] font-semibold hover:underline shrink-0 whitespace-nowrap cursor-pointer"
-                >
-                  Need Help?
-                </button>
-              </div>
+          <!-- Feature 2: Fast & Reliable -->
+          <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-4 shadow-lg transition-all">
+            <div class="w-10 h-10 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2.5 shadow-xs">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h3 class="text-sm font-bold text-white mb-0.5 drop-shadow-sm">Fast & Reliable</h3>
+            <p class="text-xs text-white/90 leading-snug">A smooth and stable examination experience.</p>
+          </div>
 
-              <!-- Contact Support Link -->
-              <div class="text-center pt-0.5">
-                <button
-                  type="button"
-                  @click="showSupportModal = true"
-                  class="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#1769E0] transition-colors cursor-pointer"
-                >
-                  <svg class="w-4 h-4 text-[#1769E0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Contact Support</span>
-                </button>
-              </div>
-            </template>
-
-            <!-- ── STEP 2: INSTRUCTOR COURSE ASSIGNMENT SELECTION ── -->
-            <template v-else>
-              <div class="mb-5">
-                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-[#1769E0] text-xs font-semibold rounded-full mb-2">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  <span>Instructor Assignment</span>
-                </div>
-                <h2 class="text-xl font-bold text-slate-800 tracking-tight">Select Teaching Context</h2>
-                <p class="text-xs text-slate-400 mt-1">Confirm your department, course, and section.</p>
-              </div>
-
-              <div class="space-y-3.5">
-                <!-- Department Selection -->
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Department</label>
-                  <select
-                    v-model="selectedDepartment"
-                    class="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769E0]/20 focus:border-[#1769E0] transition-all font-medium"
-                  >
-                    <option
-                      v-for="dept in authStore.pendingInstructor?.assignedOptions?.departments || []"
-                      :key="dept.id"
-                      :value="dept.name"
-                    >
-                      {{ dept.name }}
-                    </option>
-                  </select>
-                </div>
-
-                <!-- Course Selection -->
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Course</label>
-                  <select
-                    v-model="selectedCourse"
-                    class="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769E0]/20 focus:border-[#1769E0] transition-all font-medium"
-                  >
-                    <option
-                      v-for="course in availableCourses"
-                      :key="course.id"
-                      :value="course.title"
-                    >
-                      {{ course.title }} ({{ course.code }})
-                    </option>
-                  </select>
-                </div>
-
-                <!-- Section Selection -->
-                <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Section</label>
-                  <select
-                    v-model="selectedSection"
-                    class="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769E0]/20 focus:border-[#1769E0] transition-all font-medium"
-                  >
-                    <option
-                      v-for="sec in authStore.pendingInstructor?.assignedOptions?.sections || []"
-                      :key="sec"
-                      :value="sec"
-                    >
-                      {{ sec }}
-                    </option>
-                  </select>
-                </div>
-
-                <!-- Step 2 Actions -->
-                <div class="flex gap-2.5 pt-2">
-                  <button
-                    type="button"
-                    @click="cancelStep2"
-                    class="flex-1 py-2.5 px-3 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    @click="handleCompleteSetup"
-                    class="flex-2 py-2.5 px-4 bg-[#1769E0] hover:bg-[#1258be] text-white rounded-xl text-xs font-semibold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Enter Portal</span>
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </template>
-
+          <!-- Feature 3: Any Device -->
+          <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-4 shadow-lg transition-all">
+            <div class="w-10 h-10 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2.5 shadow-xs">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h3 class="text-sm font-bold text-white mb-0.5 drop-shadow-sm">Any Device</h3>
+            <p class="text-xs text-white/90 leading-snug">Access from desktop, laptop, tablet, or mobile.</p>
           </div>
         </div>
 
       </div>
     </main>
+
+    <!-- ── Footer ── -->
+    <footer class="relative z-20 w-full px-6 sm:px-12 lg:px-16 py-4 border-t border-white/10 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/75">
+      <p>&copy; {{ new Date().getFullYear() }} Wollo University. All rights reserved.</p>
+      <button
+        type="button"
+        @click="showSupportModal = true"
+        class="hover:text-white transition-colors cursor-pointer"
+      >
+        ICT Directorate Support & Helpdesk
+      </button>
+    </footer>
 
     <!-- ── Contact Support Modal ── -->
     <Transition name="fade">
