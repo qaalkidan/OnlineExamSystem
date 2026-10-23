@@ -9,19 +9,19 @@ const router = useRouter()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 
-// ── Active Tab ──
-type ViewTab = 'exams' | 'students' | 'courses' | 'submissions'
-const activeTab = ref<ViewTab>('exams')
+// ── Active View Tab ──
+type ViewTab = 'students' | 'exams' | 'courses' | 'submissions'
+const activeTab = ref<ViewTab>('students')
 
-// ── Search & Filter State ──
+// ── Search & Comprehensive Filter State ──
 const search = ref('')
 const searchDebounced = ref('')
 let searchTimeout: any = null
 
+const yearLevelFilter = ref('all')
 const semesterFilter = ref('all')
-const academicYearFilter = ref('all')
+const sectionFilter = ref('all')
 const courseFilter = ref('all')
-const instructorFilter = ref('all')
 const statusFilter = ref('all')
 const gradeFilter = ref('all')
 
@@ -45,10 +45,10 @@ const showToast = (msg: string) => {
 
 // ── Department & KPIs Data ──
 const departmentInfo = ref({
-  name: 'Computer Science',
-  code: 'CS',
+  name: 'Department',
+  code: 'DEPT',
   head_name: 'Department Head',
-  academic_year: '2028',
+  academic_year: '2026',
   semester: 'Second Semester',
   total_courses: 0,
   total_students: 0,
@@ -68,31 +68,12 @@ const statsData = ref({
   courses_evaluated: 0,
 })
 
-const gradeDistribution = ref<Record<string, number>>({
-  'A+': 0, 'A': 0, 'A-': 0,
-  'B+': 0, 'B': 0, 'B-': 0,
-  'C+': 0, 'C': 0,
-  'D': 0, 'F': 0,
-})
-
-const coursePerformanceList = ref<any[]>([])
-
-const semesterSubmissionsSummary = ref({
-  stats: {
-    total_instructors: 0,
-    submitted: 0,
-    approved: 0,
-    pending: 0,
-    reopened: 0,
-  },
-  recent: [] as any[],
-})
+const studentResultsList = ref<any[]>([])
+const allStudentsCount = ref(0)
 
 const resultsExamsList = ref<any[]>([])
 const allExamsCount = ref(0)
-
-const studentResultsList = ref<any[]>([])
-const allStudentsCount = ref(0)
+const coursePerformanceList = ref<any[]>([])
 
 const pagination = ref({
   current_page: 1,
@@ -103,15 +84,18 @@ const pagination = ref({
 
 const filterOptions = ref({
   courses: [] as { code: string; title: string }[],
-  instructors: [] as { id: number; name: string; email: string }[],
-  semesters: ['First Semester', 'Second Semester'],
-  academic_years: ['2028', '2027', '2026', '2025'],
+  sections: [] as string[],
+  year_levels: ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'],
+  assigned_semester: 'Second Semester',
+  semesters: ['Second Semester'],
   grades: ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'F'],
   statuses: ['published', 'graded', 'submitted', 'pending', 'in_progress'],
 })
 
-// ── Insights Visibility Toggle ──
-const showAnalytics = ref(true)
+// Super Admin assigned semester (static from Settings)
+const assignedSemester = computed(() => {
+  return departmentInfo.value.semester || filterOptions.value.assigned_semester || settingsStore.semester || 'Second Semester'
+})
 
 // ── Modals & Drawers State ──
 const showExamDetailModal = ref(false)
@@ -141,7 +125,7 @@ watch(search, (newVal) => {
 })
 
 // ── Watch Filter Changes ──
-watch([semesterFilter, academicYearFilter, courseFilter, instructorFilter, statusFilter, gradeFilter, perPage], () => {
+watch([yearLevelFilter, semesterFilter, sectionFilter, courseFilter, statusFilter, gradeFilter, perPage], () => {
   currentPage.value = 1
   fetchResults()
 })
@@ -159,14 +143,17 @@ const fetchResults = async () => {
     const params: any = {
       page: currentPage.value,
       per_page: perPage.value,
-      view_mode: activeTab.value === 'students' ? 'students' : 'exams',
+      view_mode: activeTab.value,
     }
 
     if (searchDebounced.value.trim()) params.search = searchDebounced.value.trim()
+    if (yearLevelFilter.value !== 'all') {
+      params.year_level = yearLevelFilter.value
+      params.academic_year = yearLevelFilter.value
+    }
     if (semesterFilter.value !== 'all') params.semester = semesterFilter.value
-    if (academicYearFilter.value !== 'all') params.academic_year = academicYearFilter.value
+    if (sectionFilter.value !== 'all') params.section = sectionFilter.value
     if (courseFilter.value !== 'all') params.course_code = courseFilter.value
-    if (instructorFilter.value !== 'all') params.instructor_id = instructorFilter.value
     if (statusFilter.value !== 'all') params.status = statusFilter.value
     if (gradeFilter.value !== 'all') params.grade = gradeFilter.value
 
@@ -175,16 +162,14 @@ const fetchResults = async () => {
       const d = res.data.data
       if (d.department) departmentInfo.value = d.department
       if (d.stats) statsData.value = d.stats
-      if (d.grade_distribution) gradeDistribution.value = d.grade_distribution
       if (d.course_performance) coursePerformanceList.value = d.course_performance
-      if (d.semester_submissions_summary) semesterSubmissionsSummary.value = d.semester_submissions_summary
       if (d.filter_options) filterOptions.value = d.filter_options
-
-      resultsExamsList.value = d.results || []
-      allExamsCount.value = d.all_exams_count || 0
 
       studentResultsList.value = d.student_results || []
       allStudentsCount.value = d.all_students_count || 0
+
+      resultsExamsList.value = d.results || []
+      allExamsCount.value = d.all_exams_count || 0
 
       if (d.pagination) pagination.value = d.pagination
     }
@@ -193,31 +178,6 @@ const fetchResults = async () => {
     errorMessage.value = err?.response?.data?.message || 'Failed to load department academic results. Please retry.'
   } finally {
     isLoading.value = false
-  }
-}
-
-// ── Open Exam Student Details ──
-const openExamResults = async (exam: any) => {
-  selectedExam.value = exam
-  showExamDetailModal.value = true
-  isLoadingExamDetails.value = true
-  examStudentResults.value = []
-  examStats.value = null
-
-  try {
-    const res = await apiClient.get(`/dept-head/results/${exam.id}`)
-    if (res.data?.data) {
-      examStudentResults.value = res.data.data.students || []
-      examStats.value = res.data.data.stats || null
-      if (res.data.data.exam) {
-        selectedExam.value = { ...selectedExam.value, ...res.data.data.exam }
-      }
-    }
-  } catch (err: any) {
-    console.error('Failed to load exam student results:', err)
-    alert(err?.response?.data?.message || 'Unable to retrieve students for this exam.')
-  } finally {
-    isLoadingExamDetails.value = false
   }
 }
 
@@ -244,6 +204,31 @@ const openAttemptDetails = async (attemptId: number) => {
     showAttemptDetailModal.value = false
   } finally {
     isLoadingAttemptDetails.value = false
+  }
+}
+
+// ── Open Exam Student Details ──
+const openExamResults = async (exam: any) => {
+  selectedExam.value = exam
+  showExamDetailModal.value = true
+  isLoadingExamDetails.value = true
+  examStudentResults.value = []
+  examStats.value = null
+
+  try {
+    const res = await apiClient.get(`/dept-head/results/${exam.id}`)
+    if (res.data?.data) {
+      examStudentResults.value = res.data.data.students || []
+      examStats.value = res.data.data.stats || null
+      if (res.data.data.exam) {
+        selectedExam.value = { ...selectedExam.value, ...res.data.data.exam }
+      }
+    }
+  } catch (err: any) {
+    console.error('Failed to load exam student results:', err)
+    alert(err?.response?.data?.message || 'Unable to retrieve students for this exam.')
+  } finally {
+    isLoadingExamDetails.value = false
   }
 }
 
@@ -279,7 +264,12 @@ const exportResults = async (format: 'pdf' | 'excel' | 'csv') => {
   isExporting.value = true
   try {
     const params: any = { format }
+    if (yearLevelFilter.value !== 'all') {
+      params.year_level = yearLevelFilter.value
+      params.academic_year = yearLevelFilter.value
+    }
     if (semesterFilter.value !== 'all') params.semester = semesterFilter.value
+    if (sectionFilter.value !== 'all') params.section = sectionFilter.value
     if (courseFilter.value !== 'all') params.course_code = courseFilter.value
     if (statusFilter.value !== 'all') params.status = statusFilter.value
     if (gradeFilter.value !== 'all') params.grade = gradeFilter.value
@@ -326,12 +316,25 @@ const printSheet = () => {
 const resetFilters = () => {
   search.value = ''
   searchDebounced.value = ''
+  yearLevelFilter.value = 'all'
   semesterFilter.value = 'all'
-  academicYearFilter.value = 'all'
+  sectionFilter.value = 'all'
   courseFilter.value = 'all'
-  instructorFilter.value = 'all'
   statusFilter.value = 'all'
   gradeFilter.value = 'all'
+  currentPage.value = 1
+  fetchResults()
+}
+
+// Remove single filter
+const removeFilter = (key: string) => {
+  if (key === 'search') { search.value = ''; searchDebounced.value = '' }
+  if (key === 'year_level') yearLevelFilter.value = 'all'
+  if (key === 'semester') semesterFilter.value = 'all'
+  if (key === 'section') sectionFilter.value = 'all'
+  if (key === 'course') courseFilter.value = 'all'
+  if (key === 'status') statusFilter.value = 'all'
+  if (key === 'grade') gradeFilter.value = 'all'
   currentPage.value = 1
   fetchResults()
 }
@@ -339,10 +342,10 @@ const resetFilters = () => {
 const activeFiltersCount = computed(() => {
   let count = 0
   if (searchDebounced.value.trim()) count++
+  if (yearLevelFilter.value !== 'all') count++
   if (semesterFilter.value !== 'all') count++
-  if (academicYearFilter.value !== 'all') count++
+  if (sectionFilter.value !== 'all') count++
   if (courseFilter.value !== 'all') count++
-  if (instructorFilter.value !== 'all') count++
   if (statusFilter.value !== 'all') count++
   if (gradeFilter.value !== 'all') count++
   return count
@@ -366,15 +369,15 @@ const changePage = (p: number | string) => {
   }
 }
 
-// ── Badges & Helpers ──
+// ── Status & Grade Styling Badges ──
 const statusBadge = (s: string) => {
   const status = (s || '').toLowerCase()
   if (status === 'published') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  if (status === 'graded') return 'bg-indigo-50 text-[#5138ed] border-indigo-200'
+  if (status.includes('graded') || status.includes('unpublished')) return 'bg-indigo-50 text-[#5138ed] border-indigo-200'
   if (status === 'completed') return 'bg-sky-50 text-sky-700 border-sky-200'
   if (status === 'submitted') return 'bg-blue-50 text-blue-700 border-blue-200'
   if (status === 'pending') return 'bg-amber-50 text-amber-700 border-amber-200'
-  if (status === 'in_progress') return 'bg-slate-100 text-slate-600 border-slate-200'
+  if (status === 'in_progress' || status === 'in progress') return 'bg-slate-100 text-slate-600 border-slate-200'
   return 'bg-slate-100 text-slate-600 border-slate-200'
 }
 
@@ -385,7 +388,7 @@ const gradeBadge = (g: string) => {
   if (grade.startsWith('C')) return 'bg-amber-50 text-amber-700 border-amber-200 font-bold'
   if (grade.startsWith('D')) return 'bg-orange-50 text-orange-700 border-orange-200 font-bold'
   if (grade === 'F') return 'bg-rose-50 text-rose-700 border-rose-200 font-black'
-  return 'bg-slate-100 text-slate-600 border-slate-200'
+  return 'bg-slate-100 text-slate-500 border-slate-200 font-medium'
 }
 
 const getInitials = (name: string) => {
@@ -563,7 +566,7 @@ onMounted(() => {
         </div>
         <div>
           <span class="text-[10px] font-bold uppercase text-slate-400 block">Active Semester</span>
-          <span class="text-xs sm:text-sm font-black text-[#5138ed]">{{ departmentInfo.semester }}</span>
+          <span class="text-xs sm:text-sm font-black text-[#5138ed]">{{ assignedSemester }}</span>
         </div>
         <div>
           <span class="text-[10px] font-bold uppercase text-slate-400 block">Dept Courses</span>
@@ -624,528 +627,369 @@ onMounted(() => {
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- 4. ACADEMIC PERFORMANCE & INSIGHTS ACCORDION                         -->
-    <!-- ════════════════════════════════════════════════════════════════════ -->
-    <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <svg class="w-5 h-5 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-          <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide">Academic Performance & Analytics</h3>
-        </div>
-        <button
-          @click="showAnalytics = !showAnalytics"
-          class="text-xs font-bold text-[#5138ed] hover:underline flex items-center gap-1"
-        >
-          <span>{{ showAnalytics ? 'Collapse Analytics' : 'Expand Analytics' }}</span>
-          <svg :class="['w-3.5 h-3.5 transition-transform duration-200', showAnalytics ? 'rotate-180' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-        </button>
-      </div>
-
-      <div v-show="showAnalytics" class="grid grid-cols-1 lg:grid-cols-3 gap-5 pt-2 border-t border-slate-100">
-        
-        <!-- A. Grade Distribution Card -->
-        <div class="bg-slate-50/70 border border-slate-200/60 rounded-2xl p-4 space-y-3">
-          <div class="flex items-center justify-between">
-            <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Grade Distribution</h4>
-            <span class="text-[10px] font-bold text-slate-500">{{ statsData.total_attempts }} Total Grades</span>
-          </div>
-
-          <div class="space-y-2 pt-1">
-            <div v-for="(cnt, grade) in gradeDistribution" :key="grade" class="flex items-center gap-3 text-xs">
-              <span :class="[gradeBadge(grade), 'w-7 py-0.5 rounded text-center text-[11px] font-bold border shrink-0']">
-                {{ grade }}
-              </span>
-              <div class="flex-1 bg-slate-200 rounded-full h-2 overflow-hidden">
-                <div
-                  class="h-full rounded-full transition-all duration-300"
-                  :class="grade.startsWith('A') ? 'bg-emerald-500' : (grade.startsWith('B') ? 'bg-sky-500' : (grade.startsWith('C') ? 'bg-amber-500' : (grade === 'D' ? 'bg-orange-500' : 'bg-rose-500')))"
-                  :style="{ width: `${statsData.total_attempts > 0 ? (cnt / statsData.total_attempts) * 100 : 0}%` }"
-                ></div>
-              </div>
-              <span class="w-8 text-right font-bold text-slate-700 text-[11px]">{{ cnt }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- B. Course Performance Summary -->
-        <div class="bg-slate-50/70 border border-slate-200/60 rounded-2xl p-4 space-y-3">
-          <div class="flex items-center justify-between">
-            <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Evaluated Course Overview</h4>
-            <span class="text-[10px] font-bold text-indigo-600">{{ coursePerformanceList.length }} Courses</span>
-          </div>
-
-          <div v-if="coursePerformanceList.length === 0" class="py-6 text-center text-slate-400 text-xs">
-            No course performance records available yet.
-          </div>
-
-          <div v-else class="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
-            <div
-              v-for="cp in coursePerformanceList"
-              :key="cp.course_code"
-              class="bg-white p-3 rounded-xl border border-slate-200/70 shadow-xs flex items-center justify-between gap-3"
-            >
-              <div class="min-w-0">
-                <span class="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-indigo-50 text-[#5138ed] rounded border border-indigo-200">
-                  {{ cp.course_code }}
-                </span>
-                <p class="text-xs font-bold text-slate-900 truncate mt-0.5">{{ cp.course_name }}</p>
-                <p class="text-[10px] text-slate-500 mt-0.5">{{ cp.total_attempts }} attempts &bull; Avg: {{ cp.average_score }}%</p>
-              </div>
-              <div class="text-right shrink-0">
-                <span class="text-xs font-black text-emerald-600 block">{{ cp.pass_rate }}%</span>
-                <span class="text-[10px] font-bold text-slate-400">Pass Rate</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- C. Semester Submissions & Faculty Workflow Card -->
-        <div class="bg-slate-50/70 border border-slate-200/60 rounded-2xl p-4 space-y-3 flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between">
-              <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Faculty Semester Submissions</h4>
-              <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {{ semesterSubmissionsSummary.stats.approved }} Approved
-              </span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 mt-3 text-center">
-              <div class="bg-white p-2.5 rounded-xl border border-slate-200/60">
-                <span class="text-[10px] font-bold text-slate-400 block">Submitted</span>
-                <span class="text-base font-black text-indigo-600">{{ semesterSubmissionsSummary.stats.submitted }}</span>
-              </div>
-              <div class="bg-white p-2.5 rounded-xl border border-slate-200/60">
-                <span class="text-[10px] font-bold text-slate-400 block">Pending</span>
-                <span class="text-base font-black text-amber-600">{{ semesterSubmissionsSummary.stats.pending }}</span>
-              </div>
-            </div>
-
-            <p class="text-[11px] text-slate-500 font-medium mt-3 leading-relaxed">
-              Instructors submit semester grades through the institutional submission workflow for final Department Head validation.
-            </p>
-          </div>
-
-          <button
-            @click="router.push('/dept-head/semester-submissions')"
-            class="w-full mt-2 py-2.5 px-3 bg-[#5138ed] hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-          >
-            <span>Open Semester Submissions Center</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-          </button>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- 5. TABS & FILTER BAR                                                 -->
+    <!-- 4. STUDENT EXAMINATION RESULTS SECTION & COMPREHENSIVE FILTER PANEL  -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden space-y-4 p-4 sm:p-5">
       
-      <!-- Nav Tabs -->
-      <div class="flex items-center gap-2 border-b border-slate-100 pb-3 overflow-x-auto">
-        <button
-          @click="activeTab = 'exams'"
-          :class="[
-            'px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 flex items-center gap-2',
-            activeTab === 'exams'
-              ? 'bg-[#5138ed] text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          ]"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-          <span>By Examination ({{ allExamsCount }})</span>
-        </button>
-
-        <button
-          @click="activeTab = 'students'"
-          :class="[
-            'px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 flex items-center gap-2',
-            activeTab === 'students'
-              ? 'bg-[#5138ed] text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          ]"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-          <span>By Student Attempt ({{ allStudentsCount }})</span>
-        </button>
-
-        <button
-          @click="activeTab = 'courses'"
-          :class="[
-            'px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 flex items-center gap-2',
-            activeTab === 'courses'
-              ? 'bg-[#5138ed] text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          ]"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-          <span>Course Breakdown ({{ coursePerformanceList.length }})</span>
-        </button>
-      </div>
-
-      <!-- Search & Filters Row -->
-      <div class="flex flex-col lg:flex-row lg:items-center gap-3">
-        <!-- Search Input -->
-        <div class="relative flex-1">
-          <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input
-            v-model="search"
-            type="text"
-            :placeholder="activeTab === 'students' ? 'Search by student name, ID, course or exam...' : 'Search results by exam title, code, course or instructor...'"
-            class="w-full pl-9 pr-4 py-2.5 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white placeholder:text-slate-400"
-          />
+      <!-- Top Title & View Tabs -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-black text-slate-900 tracking-tight">Student Examination Results</h2>
+          <p class="text-xs text-slate-400">Detailed student marks, grades, and examination attempts breakdown</p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2.5">
-          <!-- Semester Filter -->
-          <select
-            v-model="semesterFilter"
-            class="px-3 py-2 text-xs sm:text-sm font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed]"
-          >
-            <option value="all">All Semesters</option>
-            <option v-for="s in filterOptions.semesters" :key="s" :value="s">{{ s }}</option>
-          </select>
-
-          <!-- Course Filter -->
-          <select
-            v-model="courseFilter"
-            class="px-3 py-2 text-xs sm:text-sm font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed]"
-          >
-            <option value="all">All Courses</option>
-            <option v-for="c in filterOptions.courses" :key="c.code" :value="c.code">{{ c.code }} — {{ c.title }}</option>
-          </select>
-
-          <!-- Status Filter -->
-          <select
-            v-model="statusFilter"
-            class="px-3 py-2 text-xs sm:text-sm font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed]"
-          >
-            <option value="all">All Status</option>
-            <option value="published">Published</option>
-            <option value="graded">Graded</option>
-            <option value="submitted">Submitted</option>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-          </select>
-
-          <!-- Grade Filter (when on student tab) -->
-          <select
-            v-if="activeTab === 'students'"
-            v-model="gradeFilter"
-            class="px-3 py-2 text-xs sm:text-sm font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed]"
-          >
-            <option value="all">All Grades</option>
-            <option v-for="g in filterOptions.grades" :key="g" :value="g">Grade {{ g }}</option>
-          </select>
-
-          <!-- Reset Filter Button -->
+        <div class="flex items-center gap-2 overflow-x-auto">
+          <!-- By Student Attempt Tab (Primary) -->
           <button
-            v-if="activeFiltersCount > 0"
-            @click="resetFilters"
-            class="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition-colors"
+            @click="activeTab = 'students'"
+            :class="[
+              'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2',
+              activeTab === 'students'
+                ? 'bg-[#5138ed] text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            ]"
           >
-            Clear ({{ activeFiltersCount }})
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            <span>By Student Attempt ({{ allStudentsCount }})</span>
+          </button>
+
+          <!-- By Examination Tab -->
+          <button
+            @click="activeTab = 'exams'"
+            :class="[
+              'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2',
+              activeTab === 'exams'
+                ? 'bg-[#5138ed] text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            <span>By Examination ({{ allExamsCount }})</span>
+          </button>
+
+          <!-- Course Breakdown Tab -->
+          <button
+            @click="activeTab = 'courses'"
+            :class="[
+              'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2',
+              activeTab === 'courses'
+                ? 'bg-[#5138ed] text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+            <span>Courses ({{ coursePerformanceList.length }})</span>
           </button>
         </div>
       </div>
 
-      <!-- Active Filters Chips -->
-      <div v-if="activeFiltersCount > 0" class="flex flex-wrap items-center gap-2 pt-1 text-xs">
-        <span class="text-slate-400 font-bold text-[10px] uppercase">Active Filters:</span>
-        <span v-if="searchDebounced" class="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 flex items-center gap-1.5 font-medium">
-          Query: "{{ searchDebounced }}"
-          <button @click="search = ''" class="text-slate-400 hover:text-slate-600">✕</button>
-        </span>
-        <span v-if="semesterFilter !== 'all'" class="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 flex items-center gap-1.5 font-medium">
-          Semester: {{ semesterFilter }}
-          <button @click="semesterFilter = 'all'" class="text-slate-400 hover:text-slate-600">✕</button>
-        </span>
-        <span v-if="courseFilter !== 'all'" class="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 flex items-center gap-1.5 font-medium">
-          Course: {{ courseFilter }}
-          <button @click="courseFilter = 'all'" class="text-slate-400 hover:text-slate-600">✕</button>
-        </span>
-        <span v-if="statusFilter !== 'all'" class="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 flex items-center gap-1.5 font-medium capitalize">
-          Status: {{ statusFilter }}
-          <button @click="statusFilter = 'all'" class="text-slate-400 hover:text-slate-600">✕</button>
-        </span>
-        <span v-if="gradeFilter !== 'all'" class="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 flex items-center gap-1.5 font-medium">
-          Grade: {{ gradeFilter }}
-          <button @click="gradeFilter = 'all'" class="text-slate-400 hover:text-slate-600">✕</button>
-        </span>
-      </div>
-
-      <!-- ════════════════════════════════════════════════════════════════════ -->
-      <!-- TAB CONTENT 1: BY EXAMINATION                                        -->
-      <!-- ════════════════════════════════════════════════════════════════════ -->
-      <div v-if="activeTab === 'exams'">
-        <!-- Loading Skeleton -->
-        <div v-if="isLoading" class="p-12 text-center text-slate-500">
-          <div class="inline-block animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mb-3"></div>
-          <p class="text-xs sm:text-sm font-medium">Loading department examinations and evaluation data...</p>
-        </div>
-
-        <template v-else>
-          <!-- Desktop Table View -->
-          <div class="hidden md:block overflow-x-auto min-w-0 w-full border border-slate-100 rounded-2xl">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50/80 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
-              <tr>
-                <th class="px-5 py-3.5">Exam Title & Code</th>
-                <th class="px-4 py-3.5">Course</th>
-                <th class="px-4 py-3.5">Lead Faculty</th>
-                <th class="px-4 py-3.5 text-center">Submissions</th>
-                <th class="px-4 py-3.5 text-center">Avg Score</th>
-                <th class="px-4 py-3.5 text-center">Pass Rate</th>
-                <th class="px-4 py-3.5 text-center">Status</th>
-                <th class="px-5 py-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr v-if="resultsExamsList.length === 0">
-                <td colspan="8" class="p-12 text-center text-slate-400">
-                  <svg class="w-12 h-12 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  <p class="text-sm font-bold text-slate-600">No examination results found</p>
-                  <p class="text-xs text-slate-400 mt-1">Try adjusting your filters or search terms.</p>
-                </td>
-              </tr>
-              <tr v-for="r in resultsExamsList" :key="r.id" class="hover:bg-slate-50/60 transition-colors">
-                <!-- Exam Title & Code -->
-                <td class="px-5 py-4">
-                  <span class="block text-xs sm:text-sm font-bold text-slate-900">{{ r.title }}</span>
-                  <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 text-[#5138ed] border border-indigo-200 mt-1">
-                    {{ r.code }}
-                  </span>
-                </td>
-
-                <!-- Course -->
-                <td class="px-4 py-4">
-                  <span class="block font-bold text-slate-800">{{ r.course_name }}</span>
-                  <span class="text-[11px] text-slate-400 font-mono">{{ r.course_code }}</span>
-                </td>
-
-                <!-- Faculty -->
-                <td class="px-4 py-4">
-                  <div class="flex items-center gap-2">
-                    <div :class="['w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0', getAvatarColor(r.instructor_id || 0)]">
-                      {{ getInitials(r.instructor_name) }}
-                    </div>
-                    <span class="font-medium text-slate-700 truncate max-w-[140px]">{{ r.instructor_name }}</span>
-                  </div>
-                </td>
-
-                <!-- Submissions -->
-                <td class="px-4 py-4 text-center">
-                  <span class="font-bold text-slate-900">{{ r.submitted_count }} / {{ r.total_students }}</span>
-                  <span class="block text-[10px] text-slate-400 mt-0.5">{{ r.graded_count }} graded</span>
-                </td>
-
-                <!-- Avg Score -->
-                <td class="px-4 py-4 text-center">
-                  <span v-if="r.average_pct !== null" class="font-black text-slate-900">{{ r.average_pct }}%</span>
-                  <span v-else class="text-slate-400">—</span>
-                </td>
-
-                <!-- Pass Rate -->
-                <td class="px-4 py-4 text-center">
-                  <span v-if="r.pass_rate !== null" class="font-black text-emerald-600">{{ r.pass_rate }}%</span>
-                  <span v-else class="text-slate-400">—</span>
-                </td>
-
-                <!-- Status -->
-                <td class="px-4 py-4 text-center">
-                  <span :class="[statusBadge(r.status), 'px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize']">
-                    {{ r.status }}
-                  </span>
-                </td>
-
-                <!-- Actions -->
-                <td class="px-5 py-4 text-right">
-                  <div class="flex items-center justify-end gap-2">
-                    <button
-                      @click="openExamResults(r)"
-                      class="px-3 py-1.5 rounded-lg text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                      title="View enrolled students scores"
-                    >
-                      View Scores
-                    </button>
-                    <button
-                      v-if="r.status !== 'Published' && r.submitted_count > 0"
-                      @click="promptPublishExam(r)"
-                      class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
-                      title="Publish results across department"
-                    >
-                      Publish
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-          <!-- Mobile Cards View -->
-          <div class="md:hidden divide-y divide-slate-100 border border-slate-100 rounded-2xl">
-            <div v-if="resultsExamsList.length === 0" class="p-8 text-center text-slate-400 text-xs">
-              No examination results found.
-            </div>
-            <div v-for="r in resultsExamsList" :key="r.id" class="p-4 space-y-3">
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
-                  <h4 class="text-sm font-bold text-slate-900 break-words">{{ r.title }}</h4>
-                  <span class="inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-indigo-50 text-[#5138ed] border border-indigo-200 mt-1">
-                    {{ r.code }}
-                  </span>
-                </div>
-                <span :class="[statusBadge(r.status), 'px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize shrink-0']">
-                  {{ r.status }}
-                </span>
-              </div>
-
-              <div class="bg-slate-50 p-2.5 rounded-xl space-y-1 text-xs text-slate-600">
-                <div class="flex justify-between">
-                  <span class="text-slate-400">Course:</span>
-                  <span class="font-bold text-slate-800 text-right">{{ r.course_name }} ({{ r.course_code }})</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-slate-400">Lead Faculty:</span>
-                  <span class="font-medium text-slate-700">{{ r.instructor_name }}</span>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-3 gap-2 text-center text-xs">
-                <div class="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100">
-                  <span class="text-[10px] text-slate-400 block">Submissions</span>
-                  <span class="font-bold text-slate-900">{{ r.submitted_count }} / {{ r.total_students }}</span>
-                </div>
-                <div class="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100">
-                  <span class="text-[10px] text-slate-400 block">Avg Score</span>
-                  <span class="font-bold text-slate-900">{{ r.average_pct !== null ? `${r.average_pct}%` : '—' }}</span>
-                </div>
-                <div class="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100">
-                  <span class="text-[10px] text-emerald-600 block">Pass Rate</span>
-                  <span class="font-bold text-emerald-700">{{ r.pass_rate !== null ? `${r.pass_rate}%` : '—' }}</span>
-                </div>
-              </div>
-
-              <div class="flex items-center gap-2 pt-1">
-                <button
-                  @click="openExamResults(r)"
-                  class="flex-1 py-2 text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors text-center"
-                >
-                  View Student Scores
-                </button>
-                <button
-                  v-if="r.status !== 'Published' && r.submitted_count > 0"
-                  @click="promptPublishExam(r)"
-                  class="px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors"
-                >
-                  Publish
-                </button>
-              </div>
-            </div>
+      <!-- ── Comprehensive Filter Panel ── -->
+      <div class="bg-slate-50/70 border border-slate-200/70 rounded-2xl p-3.5 space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          
+          <!-- 1. Search Query -->
+          <div class="relative lg:col-span-2">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input
+              v-model="search"
+              type="text"
+              placeholder="Search by Student ID, Student Name, Course, Exam..."
+              class="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white text-slate-800 placeholder:text-slate-400 shadow-2xs"
+            />
           </div>
-        </template>
+
+          <!-- 2. Year Level Filter (1st Year, 2nd Year, 3rd Year, 4th Year, 5th Year) -->
+          <div>
+            <select
+              v-model="yearLevelFilter"
+              class="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed] shadow-2xs"
+            >
+              <option value="all">All Year Levels</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+              <option value="5th Year">5th Year</option>
+            </select>
+          </div>
+
+          <!-- 3. Semester Filter (Integrated with Super Admin assigned semester) -->
+          <div>
+            <select
+              v-model="semesterFilter"
+              class="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed] shadow-2xs"
+            >
+              <option value="all">All Semesters</option>
+              <option :value="assignedSemester">{{ assignedSemester }}</option>
+            </select>
+          </div>
+
+          <!-- 4. Section Filter -->
+          <div>
+            <select
+              v-model="sectionFilter"
+              class="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed] shadow-2xs"
+            >
+              <option value="all">All Sections</option>
+              <option v-for="sec in filterOptions.sections" :key="sec" :value="sec">{{ sec }}</option>
+            </select>
+          </div>
+
+          <!-- 5. Course Filter -->
+          <div>
+            <select
+              v-model="courseFilter"
+              class="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed] shadow-2xs truncate"
+            >
+              <option value="all">All Courses</option>
+              <option v-for="c in filterOptions.courses" :key="c.code" :value="c.code">{{ c.code }} — {{ c.title }}</option>
+            </select>
+          </div>
+
+          <!-- 6. Result Status Filter -->
+          <div>
+            <select
+              v-model="statusFilter"
+              class="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed] shadow-2xs"
+            >
+              <option value="all">All Result Status</option>
+              <option value="published">Published</option>
+              <option value="graded">Graded (Unpublished)</option>
+              <option value="pending">Pending</option>
+              <option value="submitted">Submitted</option>
+              <option value="in_progress">In Progress</option>
+            </select>
+          </div>
+
+          <!-- 7. Grade Filter -->
+          <div class="flex items-center gap-2">
+            <select
+              v-model="gradeFilter"
+              class="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed] shadow-2xs"
+            >
+              <option value="all">All Letter Grades</option>
+              <option v-for="g in filterOptions.grades" :key="g" :value="g">Grade {{ g }}</option>
+            </select>
+
+            <!-- Reset Filters -->
+            <button
+              v-if="activeFiltersCount > 0"
+              @click="resetFilters"
+              class="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition-colors shrink-0 shadow-2xs flex items-center gap-1"
+              title="Reset all filters"
+            >
+              <span>Clear</span>
+              <span class="w-4 h-4 rounded-full bg-rose-100 text-rose-700 text-[10px] flex items-center justify-center font-bold">{{ activeFiltersCount }}</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Active Filter Badges & Count Strip -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/50 text-xs">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Active:</span>
+
+            <span v-if="activeFiltersCount === 0" class="text-slate-400 italic text-[11px]">No active filters applied</span>
+
+            <span v-if="searchDebounced" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] font-medium">
+              Search: "{{ searchDebounced }}"
+              <button @click="removeFilter('search')" class="hover:text-indigo-900 ml-0.5">✕</button>
+            </span>
+
+            <span v-if="yearLevelFilter !== 'all'" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] font-medium">
+              Year Level: {{ yearLevelFilter }}
+              <button @click="removeFilter('year_level')" class="hover:text-indigo-900 ml-0.5">✕</button>
+            </span>
+
+            <span v-if="semesterFilter !== 'all'" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] font-medium">
+              Semester: {{ semesterFilter }}
+              <button @click="removeFilter('semester')" class="hover:text-indigo-900 ml-0.5">✕</button>
+            </span>
+
+            <span v-if="sectionFilter !== 'all'" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] font-medium">
+              Section: {{ sectionFilter }}
+              <button @click="removeFilter('section')" class="hover:text-indigo-900 ml-0.5">✕</button>
+            </span>
+
+            <span v-if="courseFilter !== 'all'" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] font-medium">
+              Course: {{ courseFilter }}
+              <button @click="removeFilter('course')" class="hover:text-indigo-900 ml-0.5">✕</button>
+            </span>
+
+            <span v-if="statusFilter !== 'all'" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] font-medium capitalize">
+              Status: {{ statusFilter }}
+              <button @click="removeFilter('status')" class="hover:text-indigo-900 ml-0.5">✕</button>
+            </span>
+
+            <span v-if="gradeFilter !== 'all'" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[#5138ed] text-[11px] font-medium">
+              Grade: {{ gradeFilter }}
+              <button @click="removeFilter('grade')" class="hover:text-indigo-900 ml-0.5">✕</button>
+            </span>
+          </div>
+
+          <!-- Total matching records count badge -->
+          <div class="text-right">
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              {{ pagination.total }} matching {{ activeTab === 'exams' ? 'exams' : 'student records' }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- ════════════════════════════════════════════════════════════════════ -->
-      <!-- TAB CONTENT 2: BY STUDENT ATTEMPT                                    -->
+      <!-- TAB CONTENT 1: BY STUDENT ATTEMPT (PRIMARY 14 COLUMNS)               -->
       <!-- ════════════════════════════════════════════════════════════════════ -->
-      <div v-else-if="activeTab === 'students'">
+      <div v-if="activeTab === 'students'">
         <!-- Loading Skeleton -->
         <div v-if="isLoading" class="p-12 text-center text-slate-500">
           <div class="inline-block animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mb-3"></div>
-          <p class="text-xs sm:text-sm font-medium">Loading individual student evaluation records...</p>
+          <p class="text-xs sm:text-sm font-medium">Loading department student examination results...</p>
         </div>
 
         <template v-else>
-          <!-- Desktop Table View -->
+          <!-- Desktop Table View (Exact 14 Columns) -->
           <div class="hidden md:block overflow-x-auto min-w-0 w-full border border-slate-100 rounded-2xl">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50/80 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
-              <tr>
-                <th class="px-5 py-3.5">Student Details</th>
-                <th class="px-4 py-3.5">Course</th>
-                <th class="px-4 py-3.5">Exam Title</th>
-                <th class="px-4 py-3.5 text-center">Score / Max</th>
-                <th class="px-4 py-3.5 text-center">Percentage</th>
-                <th class="px-4 py-3.5 text-center">Grade</th>
-                <th class="px-4 py-3.5 text-center">Status</th>
-                <th class="px-5 py-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr v-if="studentResultsList.length === 0">
-                <td colspan="8" class="p-12 text-center text-slate-400">
-                  <svg class="w-12 h-12 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                  <p class="text-sm font-bold text-slate-600">No student results found</p>
-                  <p class="text-xs text-slate-400 mt-1">Adjust search or filter parameters.</p>
-                </td>
-              </tr>
-              <tr v-for="s in studentResultsList" :key="s.id" class="hover:bg-slate-50/60 transition-colors">
-                <!-- Student Details -->
-                <td class="px-5 py-4">
-                  <div class="flex items-center gap-3">
-                    <div :class="['w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0', getAvatarColor(s.student_id || 0)]">
-                      {{ getInitials(s.student_name) }}
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50/80 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
+                <tr>
+                  <th class="px-3.5 py-3.5 text-center" style="width: 35px;">No.</th>
+                  <th class="px-3.5 py-3.5" style="width: 95px;">Student ID</th>
+                  <th class="px-4 py-3.5">Student Name</th>
+                  <th class="px-3 py-3.5" style="width: 75px;">Course Code</th>
+                  <th class="px-3.5 py-3.5">Course Name</th>
+                  <th class="px-3 py-3.5 text-center" style="width: 75px;">Section</th>
+                  <th class="px-3.5 py-3.5 text-center" style="width: 80px;">Year Level</th>
+                  <th class="px-3.5 py-3.5 text-center" style="width: 80px;">Semester</th>
+                  <th class="px-4 py-3.5">Exam</th>
+                  <th class="px-3 py-3.5 text-center" style="width: 60px;">Total</th>
+                  <th class="px-3.5 py-3.5 text-center" style="width: 75px;">Obtained</th>
+                  <th class="px-3.5 py-3.5 text-center" style="width: 55px;">Grade</th>
+                  <th class="px-3.5 py-3.5 text-center" style="width: 95px;">Status</th>
+                  <th class="px-4 py-3.5 text-right" style="width: 85px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-if="studentResultsList.length === 0">
+                  <td colspan="14" class="p-12 text-center text-slate-400">
+                    <svg class="w-12 h-12 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    <p class="text-sm font-bold text-slate-600">No student results found</p>
+                    <p class="text-xs text-slate-400 mt-1">Try adjusting your filters or search terms.</p>
+                  </td>
+                </tr>
+
+                <tr v-for="s in studentResultsList" :key="s.id" class="hover:bg-slate-50/60 transition-colors">
+                  <!-- 1. No. -->
+                  <td class="px-3.5 py-4 text-center text-slate-400 font-bold">
+                    {{ s.no }}
+                  </td>
+
+                  <!-- 2. Student ID -->
+                  <td class="px-3.5 py-4">
+                    <span class="font-mono text-xs font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 block truncate">
+                      {{ s.student_id }}
+                    </span>
+                  </td>
+
+                  <!-- 3. Student Name -->
+                  <td class="px-4 py-4">
+                    <div class="flex items-center gap-2.5">
+                      <div :class="['w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0', getAvatarColor(s.student_db_id || 0)]">
+                        {{ getInitials(s.student_name) }}
+                      </div>
+                      <div class="min-w-0">
+                        <span class="block font-bold text-slate-900 truncate">{{ s.student_name }}</span>
+                        <span class="block text-[10px] text-slate-400 truncate">{{ s.student_email }}</span>
+                      </div>
                     </div>
-                    <div class="min-w-0">
-                      <span class="block font-bold text-slate-900 truncate">{{ s.student_name }}</span>
-                      <span class="block font-mono text-[11px] text-slate-400">{{ s.student_reg_no }}</span>
-                    </div>
-                  </div>
-                </td>
+                  </td>
 
-                <!-- Course -->
-                <td class="px-4 py-4">
-                  <span class="block font-bold text-slate-800">{{ s.course_name }}</span>
-                  <span class="text-[11px] font-mono text-slate-400">{{ s.course_code }}</span>
-                </td>
+                  <!-- 4. Course Code -->
+                  <td class="px-3 py-4">
+                    <span class="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-indigo-50 text-[#5138ed] rounded border border-indigo-200">
+                      {{ s.course_code }}
+                    </span>
+                  </td>
 
-                <!-- Exam Title -->
-                <td class="px-4 py-4">
-                  <span class="block font-medium text-slate-800">{{ s.exam_title }}</span>
-                  <span class="text-[10px] text-slate-400">{{ s.exam_code }}</span>
-                </td>
+                  <!-- 5. Course Name -->
+                  <td class="px-3.5 py-4">
+                    <span class="font-medium text-slate-800 line-clamp-1" :title="s.course_name">
+                      {{ s.course_name }}
+                    </span>
+                  </td>
 
-                <!-- Score / Total -->
-                <td class="px-4 py-4 text-center font-bold text-slate-900">
-                  {{ s.score !== null ? `${s.score} / ${s.total_marks}` : '—' }}
-                </td>
+                  <!-- 6. Section -->
+                  <td class="px-3.5 py-4 text-center">
+                    <span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                      {{ s.section }}
+                    </span>
+                  </td>
 
-                <!-- Percentage -->
-                <td class="px-4 py-4 text-center font-black text-slate-900">
-                  {{ s.percentage !== null ? `${s.percentage}%` : '—' }}
-                </td>
+                  <!-- 7. Year Level (1st Year, 2nd Year, etc.) -->
+                  <td class="px-3.5 py-4 text-center">
+                    <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-[#5138ed] border border-indigo-200 text-[10px] font-bold whitespace-nowrap">
+                      {{ s.year_level || s.student_year || '1st Year' }}
+                    </span>
+                  </td>
 
-                <!-- Grade -->
-                <td class="px-4 py-4 text-center">
-                  <span :class="[gradeBadge(s.grade), 'px-2 py-0.5 rounded text-[11px] border']">
-                    {{ s.grade }}
-                  </span>
-                </td>
+                  <!-- 8. Semester -->
+                  <td class="px-3.5 py-4 text-center font-medium text-slate-700 text-[11px] truncate">
+                    {{ s.semester }}
+                  </td>
 
-                <!-- Status -->
-                <td class="px-4 py-4 text-center">
-                  <span :class="[statusBadge(s.status), 'px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize']">
-                    {{ s.status }}
-                  </span>
-                </td>
+                  <!-- 9. Exam -->
+                  <td class="px-4 py-4">
+                    <span class="block font-medium text-slate-900 line-clamp-1" :title="s.exam_title">
+                      {{ s.exam_title }}
+                    </span>
+                    <span class="text-[10px] font-mono text-slate-400">{{ s.exam_code }}</span>
+                  </td>
 
-                <!-- Actions -->
-                <td class="px-5 py-4 text-right">
-                  <button
-                    @click="openAttemptDetails(s.attempt_id)"
-                    class="px-3 py-1.5 rounded-lg text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                  >
-                    View Attempt
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  <!-- 10. Total Marks -->
+                  <td class="px-3.5 py-4 text-center font-bold text-slate-500">
+                    {{ s.total_marks }}
+                  </td>
+
+                  <!-- 11. Obtained Marks -->
+                  <td class="px-3.5 py-4 text-center">
+                    <span v-if="s.is_graded && s.obtained_marks !== null" class="font-black text-slate-900 text-xs">
+                      {{ s.obtained_marks }} pts
+                    </span>
+                    <span v-else class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                      Pending
+                    </span>
+                  </td>
+
+                  <!-- 12. Grade -->
+                  <td class="px-3.5 py-4 text-center">
+                    <span v-if="s.is_graded" :class="[gradeBadge(s.grade), 'px-2 py-0.5 rounded text-[11px] border']">
+                      {{ s.grade }}
+                    </span>
+                    <span v-else class="text-slate-400">—</span>
+                  </td>
+
+                  <!-- 13. Result Status -->
+                  <td class="px-3.5 py-4 text-center">
+                    <span :class="[statusBadge(s.status), 'px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize block whitespace-nowrap']">
+                      {{ s.status }}
+                    </span>
+                  </td>
+
+                  <!-- 14. Actions -->
+                  <td class="px-4 py-4 text-right">
+                    <button
+                      @click="openAttemptDetails(s.attempt_id)"
+                      class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 transition-colors inline-flex items-center gap-1 shadow-2xs"
+                      title="Inspect student examination submission & answers"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                      <span>View</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <!-- Mobile Cards View for Students -->
           <div class="md:hidden divide-y divide-slate-100 border border-slate-100 rounded-2xl">
@@ -1155,12 +999,12 @@ onMounted(() => {
             <div v-for="s in studentResultsList" :key="s.id" class="p-4 space-y-3">
               <div class="flex items-start justify-between gap-2">
                 <div class="flex items-center gap-2.5">
-                  <div :class="['w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0', getAvatarColor(s.student_id || 0)]">
+                  <div :class="['w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0', getAvatarColor(s.student_db_id || 0)]">
                     {{ getInitials(s.student_name) }}
                   </div>
                   <div>
                     <h4 class="text-xs font-bold text-slate-900">{{ s.student_name }}</h4>
-                    <p class="text-[10px] font-mono text-slate-400">{{ s.student_reg_no }}</p>
+                    <p class="text-[10px] font-mono text-slate-500">{{ s.student_id }}</p>
                   </div>
                 </div>
                 <span :class="[gradeBadge(s.grade), 'px-2 py-0.5 rounded text-[11px] border shrink-0']">
@@ -1178,8 +1022,24 @@ onMounted(() => {
                   <span class="font-medium text-slate-700">{{ s.exam_title }}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-slate-400">Score:</span>
-                  <span class="font-bold text-slate-900">{{ s.score !== null ? `${s.score}/${s.total_marks} (${s.percentage}%)` : '—' }}</span>
+                  <span class="text-slate-400">Year Level & Section:</span>
+                  <span class="font-medium text-slate-700">{{ s.year_level || s.student_year }} &bull; {{ s.section }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Semester:</span>
+                  <span class="font-medium text-slate-700">{{ s.semester }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Obtained / Total:</span>
+                  <span class="font-bold text-slate-900">
+                    {{ s.is_graded && s.obtained_marks !== null ? `${s.obtained_marks} / ${s.total_marks} (${s.percentage}%)` : 'Not Graded' }}
+                  </span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Status:</span>
+                  <span :class="[statusBadge(s.status), 'px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize']">
+                    {{ s.status }}
+                  </span>
                 </div>
               </div>
 
@@ -1187,7 +1047,7 @@ onMounted(() => {
                 @click="openAttemptDetails(s.attempt_id)"
                 class="w-full py-2 text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors text-center"
               >
-                View Full Attempt Breakdown
+                View Full Details & Answers
               </button>
             </div>
           </div>
@@ -1195,7 +1055,97 @@ onMounted(() => {
       </div>
 
       <!-- ════════════════════════════════════════════════════════════════════ -->
-      <!-- TAB CONTENT 3: COURSE PERFORMANCE BREAKDOWN                          -->
+      <!-- TAB CONTENT 2: BY EXAMINATION                                        -->
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+      <div v-else-if="activeTab === 'exams'">
+        <div v-if="isLoading" class="p-12 text-center text-slate-500">
+          <div class="inline-block animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mb-3"></div>
+          <p class="text-xs sm:text-sm font-medium">Loading department examinations...</p>
+        </div>
+
+        <template v-else>
+          <div class="hidden md:block overflow-x-auto min-w-0 w-full border border-slate-100 rounded-2xl">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50/80 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
+                <tr>
+                  <th class="px-5 py-3.5">Exam Title & Code</th>
+                  <th class="px-4 py-3.5">Course</th>
+                  <th class="px-4 py-3.5">Lead Faculty</th>
+                  <th class="px-4 py-3.5 text-center">Submissions</th>
+                  <th class="px-4 py-3.5 text-center">Avg Score</th>
+                  <th class="px-4 py-3.5 text-center">Pass Rate</th>
+                  <th class="px-4 py-3.5 text-center">Status</th>
+                  <th class="px-5 py-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-if="resultsExamsList.length === 0">
+                  <td colspan="8" class="p-12 text-center text-slate-400">
+                    No examination results found.
+                  </td>
+                </tr>
+                <tr v-for="r in resultsExamsList" :key="r.id" class="hover:bg-slate-50/60 transition-colors">
+                  <td class="px-5 py-4">
+                    <span class="block text-xs sm:text-sm font-bold text-slate-900">{{ r.title }}</span>
+                    <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 text-[#5138ed] border border-indigo-200 mt-1">
+                      {{ r.code }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-4">
+                    <span class="block font-bold text-slate-800">{{ r.course_name }}</span>
+                    <span class="text-[11px] text-slate-400 font-mono">{{ r.course_code }}</span>
+                  </td>
+                  <td class="px-4 py-4">
+                    <div class="flex items-center gap-2">
+                      <div :class="['w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0', getAvatarColor(r.instructor_id || 0)]">
+                        {{ getInitials(r.instructor_name) }}
+                      </div>
+                      <span class="font-medium text-slate-700 truncate max-w-[140px]">{{ r.instructor_name }}</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-4 text-center">
+                    <span class="font-bold text-slate-900">{{ r.submitted_count }} / {{ r.total_students }}</span>
+                    <span class="block text-[10px] text-slate-400 mt-0.5">{{ r.graded_count }} graded</span>
+                  </td>
+                  <td class="px-4 py-4 text-center">
+                    <span v-if="r.average_pct !== null" class="font-black text-slate-900">{{ r.average_pct }}%</span>
+                    <span v-else class="text-slate-400">—</span>
+                  </td>
+                  <td class="px-4 py-4 text-center">
+                    <span v-if="r.pass_rate !== null" class="font-black text-emerald-600">{{ r.pass_rate }}%</span>
+                    <span v-else class="text-slate-400">—</span>
+                  </td>
+                  <td class="px-4 py-4 text-center">
+                    <span :class="[statusBadge(r.status), 'px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize']">
+                      {{ r.status }}
+                    </span>
+                  </td>
+                  <td class="px-5 py-4 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                      <button
+                        @click="openExamResults(r)"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                      >
+                        View Scores
+                      </button>
+                      <button
+                        v-if="r.status !== 'Published' && r.submitted_count > 0"
+                        @click="promptPublishExam(r)"
+                        class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                      >
+                        Publish
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+      <!-- TAB CONTENT 3: COURSE BREAKDOWN                                      -->
       <!-- ════════════════════════════════════════════════════════════════════ -->
       <div v-else-if="activeTab === 'courses'">
         <div v-if="coursePerformanceList.length === 0" class="p-12 text-center text-slate-400">
@@ -1248,66 +1198,9 @@ onMounted(() => {
               @click="courseFilter = cp.course_code; activeTab = 'students'"
               class="w-full py-2 text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors text-center"
             >
-              View Course Student Results
+              Filter Student Results by this Course
             </button>
           </div>
-        </div>
-      </div>
-
-      <!-- ════════════════════════════════════════════════════════════════════ -->
-      <!-- TAB CONTENT 4: FACULTY SUBMISSIONS MONITORING                        -->
-      <!-- ════════════════════════════════════════════════════════════════════ -->
-      <div v-else-if="activeTab === 'submissions'" class="space-y-4">
-        <div class="flex items-center justify-between">
-          <p class="text-xs text-slate-500">
-            Monitoring faculty result submission obligations for semester close-out.
-          </p>
-          <button
-            @click="router.push('/dept-head/semester-submissions')"
-            class="px-3.5 py-1.5 bg-[#5138ed] text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-colors"
-          >
-            Manage Semester Submissions
-          </button>
-        </div>
-
-        <div class="overflow-x-auto border border-slate-100 rounded-2xl">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50/80 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
-              <tr>
-                <th class="px-5 py-3.5">Faculty Member</th>
-                <th class="px-4 py-3.5">Academic Period</th>
-                <th class="px-4 py-3.5">Department</th>
-                <th class="px-4 py-3.5">Section</th>
-                <th class="px-4 py-3.5 text-center">Status</th>
-                <th class="px-5 py-3.5 text-right">Submitted Date</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr v-if="semesterSubmissionsSummary.recent.length === 0">
-                <td colspan="6" class="p-8 text-center text-slate-400">
-                  No instructor submissions found for this period.
-                </td>
-              </tr>
-              <tr v-for="sub in semesterSubmissionsSummary.recent" :key="sub.id" class="hover:bg-slate-50/60">
-                <td class="px-5 py-3.5">
-                  <span class="block font-bold text-slate-900">{{ sub.instructor_name }}</span>
-                  <span class="block text-[11px] text-slate-400">{{ sub.instructor_email }}</span>
-                </td>
-                <td class="px-4 py-3.5">
-                  <span class="font-bold text-slate-800">{{ sub.semester }}</span>
-                  <span class="block text-[10px] text-slate-400">{{ sub.academic_year }}</span>
-                </td>
-                <td class="px-4 py-3.5 text-slate-700 font-medium">{{ sub.department }}</td>
-                <td class="px-4 py-3.5 font-bold text-slate-700">Section {{ sub.section }}</td>
-                <td class="px-4 py-3.5 text-center">
-                  <span :class="[statusBadge(sub.status), 'px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize']">
-                    {{ sub.status }}
-                  </span>
-                </td>
-                <td class="px-5 py-3.5 text-right text-slate-500 font-medium">{{ sub.submitted_at }}</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
 
@@ -1373,7 +1266,191 @@ onMounted(() => {
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- MODAL 1: EXAM STUDENT RESULTS MODAL                                  -->
+    <!-- MODAL 1: VIEW DETAILS MODAL (STUDENT ATTEMPT AUDIT)                   -->
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <div
+        v-if="showAttemptDetailModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
+      >
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+          
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
+            <div>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 text-[#5138ed] border border-indigo-200">
+                Examination Result Audit
+              </span>
+              <h3 class="text-base font-black text-slate-900 mt-1">Student Performance Inspection</h3>
+              <p class="text-xs text-slate-500 font-medium mt-0.5">{{ selectedExamForAttempt?.title }}</p>
+            </div>
+            <button
+              @click="showAttemptDetailModal = false"
+              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 text-lg transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="p-5 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-5">
+            <div v-if="isLoadingAttemptDetails" class="py-12 text-center text-slate-500">
+              <div class="inline-block animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mb-3"></div>
+              <p class="text-xs font-medium">Retrieving attempt details and answers...</p>
+            </div>
+
+            <div v-else class="space-y-5">
+              
+              <!-- Student Profile & Score Summary Card -->
+              <div class="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-[#5138ed] flex items-center justify-center font-black text-base shrink-0">
+                    {{ getInitials(selectedStudent?.name || '') }}
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-black text-slate-900">{{ selectedStudent?.name }}</h4>
+                    <p class="text-xs font-mono text-slate-600 font-bold">
+                      Student ID: {{ selectedStudent?.student_id }}
+                    </p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">
+                      {{ selectedStudent?.email }} &bull; {{ selectedStudent?.year_level }} &bull; {{ selectedStudent?.section }} &bull; {{ selectedStudent?.department }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-indigo-100 shadow-xs">
+                  <div class="text-center px-2">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Score</span>
+                    <span class="text-base font-black text-slate-900">
+                      {{ selectedAttempt?.score !== null ? `${selectedAttempt?.score} / ${selectedAttempt?.total_marks}` : 'Not Graded' }}
+                    </span>
+                  </div>
+                  <div class="text-center px-2 border-l border-slate-100">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Grade</span>
+                    <span :class="[gradeBadge(selectedAttempt?.grade || ''), 'px-2 py-0.5 rounded text-xs font-black inline-block mt-0.5']">
+                      {{ selectedAttempt?.grade || 'Pending' }}
+                    </span>
+                  </div>
+                  <div class="text-center px-2 border-l border-slate-100">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold block">GPA (4.0)</span>
+                    <span class="text-sm font-black text-[#5138ed]">{{ Number(selectedAttempt?.grade_point || 0).toFixed(2) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Examination Metadata Strip -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-xs">
+                <div>
+                  <span class="text-[10px] uppercase font-bold text-slate-400 block">Course</span>
+                  <span class="font-bold text-slate-800">{{ selectedExamForAttempt?.course_code }}</span>
+                </div>
+                <div>
+                  <span class="text-[10px] uppercase font-bold text-slate-400 block">Academic Term</span>
+                  <span class="font-bold text-slate-800">{{ selectedExamForAttempt?.semester }}</span>
+                </div>
+                <div>
+                  <span class="text-[10px] uppercase font-bold text-slate-400 block">Lead Instructor</span>
+                  <span class="font-bold text-slate-800">{{ selectedExamForAttempt?.instructor_name }}</span>
+                </div>
+                <div>
+                  <span class="text-[10px] uppercase font-bold text-slate-400 block">Submission Date</span>
+                  <span class="font-bold text-slate-800">{{ selectedAttempt?.submitted_at }}</span>
+                </div>
+              </div>
+
+              <!-- Question Responses Breakdown -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Questions & Student Submission Review ({{ attemptQuestions.length }} Items)
+                  </h4>
+                  <span class="text-[11px] font-bold text-indigo-600">
+                    Total: {{ selectedAttempt?.score }} / {{ selectedAttempt?.total_marks }} marks ({{ selectedAttempt?.percentage }}%)
+                  </span>
+                </div>
+
+                <div v-if="attemptQuestions.length === 0" class="p-6 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+                  No question-by-question breakdown available for this attempt.
+                </div>
+
+                <div v-else class="space-y-3">
+                  <div
+                    v-for="q in attemptQuestions"
+                    :key="q.id"
+                    class="p-4 rounded-2xl border transition-all"
+                    :class="[
+                      q.is_correct
+                        ? 'bg-emerald-50/40 border-emerald-200/80'
+                        : (q.is_partial || (q.awarded_marks > 0 && q.awarded_marks < q.max_marks))
+                          ? 'bg-amber-50/40 border-amber-200/80'
+                          : 'bg-slate-50 border-slate-200/80'
+                    ]"
+                  >
+                    <div class="flex items-center justify-between text-xs mb-2">
+                      <div class="flex items-center gap-2">
+                        <span class="font-bold text-slate-600">Question {{ q.number }} &bull; {{ q.type }}</span>
+                        <span v-if="q.has_manual_score" class="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-[#5138ed] border border-indigo-200 uppercase tracking-wider">
+                          Instructor Graded
+                        </span>
+                      </div>
+
+                      <span
+                        class="font-bold px-2 py-0.5 rounded text-[10px]"
+                        :class="[
+                          q.is_correct
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : (q.is_partial || (q.awarded_marks > 0 && q.awarded_marks < q.max_marks))
+                              ? 'bg-amber-100 text-amber-800'
+                              : (q.status_label === 'Pending Review' ? 'bg-slate-100 text-slate-700' : 'bg-rose-100 text-rose-800')
+                        ]"
+                      >
+                        {{ q.awarded_marks }} / {{ q.max_marks }} marks &bull;
+                        {{ q.is_correct ? 'Correct' : ((q.is_partial || (q.awarded_marks > 0 && q.awarded_marks < q.max_marks)) ? 'Partial Credit' : (q.status_label || 'Incorrect')) }}
+                      </span>
+                    </div>
+
+                    <p class="text-xs font-bold text-slate-900 mb-2">{{ q.text }}</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                      <div class="bg-white p-2.5 rounded-xl border border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase block">Student Answer:</span>
+                        <span class="font-bold text-slate-800 break-words">{{ q.student_answer !== null ? q.student_answer : 'No answer submitted' }}</span>
+                      </div>
+                      <div class="bg-white p-2.5 rounded-xl border border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase block">Correct Answer:</span>
+                        <span class="font-bold text-emerald-700 break-words">{{ q.correct_answer || 'Pending evaluation' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="flex items-center justify-between px-5 sm:px-6 py-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
+            <button
+              @click="printSheet"
+              class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5"
+            >
+              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              <span>Print Audit Sheet</span>
+            </button>
+            <button
+              @click="showAttemptDetailModal = false"
+              class="px-5 py-2 bg-[#5138ed] hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
+            >
+              Close
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <!-- MODAL 2: EXAM STUDENT SCORES LIST MODAL                              -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
       <div
@@ -1454,7 +1531,7 @@ onMounted(() => {
                       <span class="block font-bold text-slate-900">{{ stu.name }}</span>
                       <span class="block text-[11px] text-slate-400">{{ stu.email }}</span>
                     </td>
-                    <td class="px-4 py-3 font-mono text-slate-700">{{ stu.student_id }}</td>
+                    <td class="px-4 py-3 font-mono text-slate-700 font-bold">{{ stu.student_id }}</td>
                     <td class="px-4 py-3 text-center font-bold text-slate-900">
                       {{ stu.score !== null ? `${stu.score} / ${stu.total_marks}` : '—' }}
                     </td>
@@ -1519,130 +1596,6 @@ onMounted(() => {
     </Teleport>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- MODAL 2: STUDENT ATTEMPT DETAILS DRAWER / MODAL                      -->
-    <!-- ════════════════════════════════════════════════════════════════════ -->
-    <Teleport to="body">
-      <div
-        v-if="showAttemptDetailModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
-      >
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in zoom-in-95 duration-200">
-          
-          <!-- Header -->
-          <div class="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
-            <div>
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 text-[#5138ed] border border-indigo-200">
-                Attempt Examination Audit
-              </span>
-              <h3 class="text-base font-black text-slate-900 mt-1">Student Performance Breakdown</h3>
-              <p class="text-xs text-slate-500 font-medium mt-0.5">{{ selectedExamForAttempt?.title }}</p>
-            </div>
-            <button
-              @click="showAttemptDetailModal = false"
-              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 text-lg transition-colors"
-            >
-              ✕
-            </button>
-          </div>
-
-          <!-- Body -->
-          <div class="p-5 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-5">
-            <div v-if="isLoadingAttemptDetails" class="py-12 text-center text-slate-500">
-              <div class="inline-block animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mb-3"></div>
-              <p class="text-xs font-medium">Retrieving attempt details and answers...</p>
-            </div>
-
-            <div v-else class="space-y-5">
-              
-              <!-- Student Profile & Score Summary Card -->
-              <div class="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-[#5138ed] flex items-center justify-center font-black text-base shrink-0">
-                    {{ getInitials(selectedStudent?.name || '') }}
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-black text-slate-900">{{ selectedStudent?.name }}</h4>
-                    <p class="text-xs font-mono text-slate-500">{{ selectedStudent?.student_id }} &bull; {{ selectedStudent?.email }}</p>
-                    <p class="text-[11px] text-slate-400 mt-0.5">{{ selectedStudent?.year_level }} &bull; Section {{ selectedStudent?.section }}</p>
-                  </div>
-                </div>
-
-                <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-indigo-100 shadow-xs">
-                  <div class="text-center px-2">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Score</span>
-                    <span class="text-base font-black text-slate-900">{{ selectedAttempt?.score }} / {{ selectedAttempt?.total_marks }}</span>
-                  </div>
-                  <div class="text-center px-2 border-l border-slate-100">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Grade</span>
-                    <span :class="[gradeBadge(selectedAttempt?.grade || ''), 'px-2 py-0.5 rounded text-xs font-black inline-block mt-0.5']">
-                      {{ selectedAttempt?.grade }}
-                    </span>
-                  </div>
-                  <div class="text-center px-2 border-l border-slate-100">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold block">GPA (4.0)</span>
-                    <span class="text-sm font-black text-[#5138ed]">{{ selectedAttempt?.grade_point?.toFixed(2) }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Question Responses Breakdown -->
-              <div class="space-y-3">
-                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Questions & Evaluation Review ({{ attemptQuestions.length }} Items)
-                </h4>
-
-                <div v-if="attemptQuestions.length === 0" class="p-6 text-center text-slate-400 text-xs border border-dashed rounded-xl">
-                  No question-by-question breakdown available for this attempt.
-                </div>
-
-                <div v-else class="space-y-3">
-                  <div
-                    v-for="q in attemptQuestions"
-                    :key="q.id"
-                    class="p-4 rounded-2xl border transition-all"
-                    :class="q.is_correct ? 'bg-emerald-50/30 border-emerald-200/80' : 'bg-slate-50 border-slate-200/80'"
-                  >
-                    <div class="flex items-center justify-between text-xs mb-2">
-                      <span class="font-bold text-slate-500">Question {{ q.number }} &bull; {{ q.type }}</span>
-                      <span class="font-bold" :class="q.is_correct ? 'text-emerald-700' : 'text-slate-600'">
-                        {{ q.awarded_marks }} / {{ q.max_marks }} marks
-                      </span>
-                    </div>
-
-                    <p class="text-xs font-bold text-slate-900 mb-2">{{ q.text }}</p>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
-                      <div class="bg-white p-2.5 rounded-xl border border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase block">Student Answer:</span>
-                        <span class="font-bold text-slate-800 break-words">{{ q.student_answer !== null ? q.student_answer : 'No answer submitted' }}</span>
-                      </div>
-                      <div class="bg-white p-2.5 rounded-xl border border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase block">Correct Answer:</span>
-                        <span class="font-bold text-emerald-700 break-words">{{ q.correct_answer || 'Pending evaluation' }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="flex items-center justify-end px-5 sm:px-6 py-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
-            <button
-              @click="showAttemptDetailModal = false"
-              class="px-5 py-2 bg-[#5138ed] hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors"
-            >
-              Close Audit
-            </button>
-          </div>
-
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- ════════════════════════════════════════════════════════════════════ -->
     <!-- MODAL 3: PUBLISH RESULTS CONFIRMATION MODAL                          -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
@@ -1692,17 +1645,27 @@ onMounted(() => {
 
 <style scoped>
 @media print {
-  body * {
-    visibility: hidden;
+  /* Hide non-table UI when printing official sheet */
+  button, nav, aside, header, .export-menu-container {
+    display: none !important;
   }
-  table, table * {
-    visibility: visible;
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 9pt;
   }
   table {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px !important;
+  }
+  th {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: bold !important;
   }
 }
 </style>

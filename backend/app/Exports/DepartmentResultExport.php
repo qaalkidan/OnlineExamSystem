@@ -30,20 +30,20 @@ class DepartmentResultExport implements FromCollection, WithHeadings, WithMappin
     {
         return [
             '#',
-            'Student Name',
             'Student ID',
-            'Student Email',
+            'Student Name',
             'Course Code',
             'Course Title',
-            'Exam Code',
+            'Section',
+            'Year Level',
+            'Semester',
             'Exam Title',
+            'Exam Code',
             'Score Earned',
             'Total Marks',
             'Percentage (%)',
             'Grade',
-            'Status',
-            'Semester',
-            'Academic Year',
+            'Result Status',
             'Submission Date',
         ];
     }
@@ -53,37 +53,37 @@ class DepartmentResultExport implements FromCollection, WithHeadings, WithMappin
         $this->index++;
 
         $studentName = $row['student_name'] ?? 'N/A';
-        $studentRegNo = $row['student_reg_no'] ?? ($row['student_id_str'] ?? 'N/A');
-        $studentEmail = $row['student_email'] ?? 'N/A';
+        $studentRegNo = $row['student_id'] ?? ($row['student_reg_no'] ?? 'N/A');
         $courseCode = $row['course_code'] ?? 'N/A';
         $courseName = $row['course_name'] ?? 'N/A';
-        $examCode = $row['exam_code'] ?? 'N/A';
+        $section = $row['section'] ?? 'Section A';
+        $yearLevel = $row['year_level'] ?? ($row['academic_year'] ?? '1st Year');
+        $semester = $row['semester'] ?? 'Semester 1';
         $examTitle = $row['exam_title'] ?? 'N/A';
+        $examCode = $row['exam_code'] ?? 'N/A';
         $score = $row['score'] !== null ? $row['score'] : 'N/A';
         $totalMarks = $row['total_marks'] ?? 100;
         $percentage = $row['percentage'] !== null ? ($row['percentage'] . '%') : 'N/A';
-        $grade = $row['grade'] ?? 'N/A';
+        $grade = $row['grade'] ?? 'Pending';
         $status = ucfirst($row['status'] ?? 'Pending');
-        $semester = $row['semester'] ?? 'Semester 1';
-        $academicYear = $row['academic_year'] ?? '2025/2026';
         $submittedAt = $row['submitted_at'] ?? 'N/A';
 
         return [
             $this->index,
-            $studentName,
             $studentRegNo,
-            $studentEmail,
+            $studentName,
             $courseCode,
             $courseName,
-            $examCode,
+            $section,
+            $yearLevel,
+            $semester,
             $examTitle,
+            $examCode,
             $score,
             $totalMarks,
             $percentage,
             $grade,
             $status,
-            $semester,
-            $academicYear,
             $submittedAt,
         ];
     }

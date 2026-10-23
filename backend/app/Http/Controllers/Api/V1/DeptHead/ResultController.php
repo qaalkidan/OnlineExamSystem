@@ -37,6 +37,11 @@ class ResultController extends Controller
             return $dept->id;
         }
 
+        // If user is admin and explicitly passes department_id for preview
+        if ($user->role === 'admin' && $request->filled('department_id')) {
+            return (int)$request->department_id;
+        }
+
         return null;
     }
 
@@ -78,9 +83,10 @@ class ResultController extends Controller
         if ($pct >= 80) return 'A-';
         if ($pct >= 75) return 'B+';
         if ($pct >= 70) return 'B';
-        if ($pct >= 65) return 'C+';
-        if ($pct >= 60) return 'C';
-        if ($pct >= 50) return 'D';
+        if ($pct >= 65) return 'B-';
+        if ($pct >= 60) return 'C+';
+        if ($pct >= 50) return 'C';
+        if ($pct >= 40) return 'D';
         return 'F';
     }
 
@@ -94,141 +100,467 @@ class ResultController extends Controller
         if ($pct >= 80) return 3.75;
         if ($pct >= 75) return 3.5;
         if ($pct >= 70) return 3.0;
-        if ($pct >= 65) return 2.5;
-        if ($pct >= 60) return 2.0;
-        if ($pct >= 50) return 1.0;
+        if ($pct >= 65) return 2.75;
+        if ($pct >= 60) return 2.5;
+        if ($pct >= 50) return 2.0;
+        if ($pct >= 40) return 1.0;
+        return 0.0;
+    }
+
+    /**
+     * Compute auto-grade score for a specific question given student answers.
+     * Accurately supports Multiple Choice, True/False, and Matching questions.
+     */
+    private function computeQuestionAutoScore($q, $studentAns): float
+    {
+        if ($studentAns === null || $studentAns === '') {
+            return 0.0;
+        }
+
+        $type = strtolower($q->type ?? '');
+
+        if ($type === 'matching') {
+            $options = $q->options ?? [];
+            if (is_string($options)) $options = json_decode($options, true) ?? [];
+            if (empty($options)) return 0.0;
+
+            // 1. Parse correct_answers map
+            $correctAnswers = null;
+            if (!empty($q->question_data['correct_answers'])) {
+                $correctAnswers = $q->question_data['correct_answers'];
+            } elseif (!empty($q->correct_answer)) {
+                $correctAnswers = [];
+                foreach (explode(',', $q->correct_answer) as $part) {
+                    $p = explode('-', $part, 2);
+                    if (count($p) === 2) {
+                        $correctAnswers[trim($p[0])] = strtoupper(trim($p[1]));
+                    }
+                }
+            }
+
+            // 2. Parse student selections
+            $studentPairs = [];
+            if (is_string($studentAns)) {
+                $decoded = json_decode($studentAns, true);
+                if (is_array($decoded)) {
+                    $studentPairs = $decoded;
+                } else {
+                    foreach (explode(',', $studentAns) as $part) {
+                        $pieces = explode(':', $part, 2);
+                        if (count($pieces) === 2) {
+                            $studentPairs[trim($pieces[0])] = strtoupper(trim($pieces[1]));
+                        }
+                    }
+                }
+            } elseif (is_array($studentAns)) {
+                $studentPairs = $studentAns;
+            }
+
+            $colACounter = 0;
+            $correctMatchCount = 0;
+            foreach ($options as $i => $opt) {
+                $leftText = strip_tags(trim($opt['left'] ?? ''));
+                if ($leftText === '') continue;
+
+                $colACounter++;
+                $colAKey = (string)$colACounter;
+                $expectedLetter = isset($correctAnswers[$colAKey])
+                    ? strtoupper($correctAnswers[$colAKey])
+                    : ($correctAnswers[(string)$i] ?? chr(65 + $i));
+
+                $studentMatch = $studentPairs[(string)$i]
+                    ?? ($studentPairs[$colAKey]
+                    ?? ($studentPairs[chr(65 + $i)]
+                    ?? ''));
+
+                if ($studentMatch !== '' && strtoupper(trim((string)$studentMatch)) === strtoupper(trim((string)$expectedLetter))) {
+                    $correctMatchCount++;
+                }
+            }
+
+            if ($colACounter === 0) $colACounter = count($options);
+            $marksPerItem = (float)($q->marks_per_item ?? 0);
+            if ($marksPerItem <= 0 && $colACounter > 0) {
+                $marksPerItem = round($q->marks / $colACounter, 2);
+            }
+
+            return (float)round($correctMatchCount * $marksPerItem, 2);
+        }
+
+        if ($type === 'true_false' || $type === 'true-false') {
+            $cRaw = strtolower(trim((string)$q->correct_answer));
+            $isTrue = in_array($cRaw, ['true', 'a', '1', 'yes', 'correct']);
+            $sRaw = strtolower(trim((string)$studentAns));
+            $sTrue = in_array($sRaw, ['true', 'a', '1', 'yes', 'correct']);
+            $sFalse = in_array($sRaw, ['false', 'b', '0', 'no', 'incorrect']);
+            if (($isTrue && $sTrue) || (!$isTrue && $sFalse)) {
+                return (float)$q->marks;
+            }
+            return 0.0;
+        }
+
+        if ($type === 'multiple_choice') {
+            $cRaw = strtolower(trim((string)$q->correct_answer));
+            $sRaw = strtolower(trim((string)$studentAns));
+            if ($cRaw === $sRaw) {
+                return (float)$q->marks;
+            }
+            $options = $q->options ?? [];
+            if (is_string($options)) $options = json_decode($options, true) ?? [];
+            if (strlen($cRaw) === 1 && ctype_alpha($cRaw)) {
+                $letterIdx = ord($cRaw) - 97;
+                if (isset($options[$letterIdx])) {
+                    $optText = strtolower(trim(strip_tags((string)$options[$letterIdx])));
+                    if ($sRaw === $optText) {
+                        return (float)$q->marks;
+                    }
+                }
+            }
+            return 0.0;
+        }
+
         return 0.0;
     }
 
     /**
      * Main results endpoint:
-     * Returns department academic performance, KPIs, exam performance list,
-     * individual student results list, grade distribution, course performance,
-     * and semester submission monitoring.
+     * Returns department academic performance, dynamic KPIs, exam performance list,
+     * individual student results list (with 14 columns metadata), grade distribution,
+     * course performance, and semester submission monitoring.
      */
     public function index(Request $request): JsonResponse
     {
         $deptId = $this->resolveDeptId($request);
+        if (!$deptId) {
+            return response()->json([
+                'message' => 'Unauthorized: Authenticated user is not assigned to manage any academic department.'
+            ], 403);
+        }
+
         $user = $request->user();
         $dept = Department::find($deptId);
+        $deptName = $dept ? $dept->name : 'Department';
+        $deptCode = $dept ? ($dept->code ?: 'DEPT') : 'DEPT';
 
-        // Fetch real system academic period settings
-        $settingsYear = SystemSetting::where('key', 'academicYear')->value('value') ?? '2028';
-        $settingsSemester = SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester';
+        // Fetch real Super Admin assigned system settings
+        $settingsYear = SystemSetting::where('key', 'academicYear')->value('value') ?? '2026';
+        $assignedSemester = SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester';
 
         // Department courses & students
         $courses = Course::where('department_id', $deptId)->get();
-        $deptCourseCodes = $courses->pluck('code')->filter()->toArray();
+        $deptCourseCodes = $courses->pluck('code')->filter()->unique()->toArray();
 
-        $deptStudents = User::where('role', 'student')
-            ->where(function ($q) use ($deptId) {
-                if ($deptId) {
-                    $q->where('department_id', $deptId);
-                }
-            })->get();
-
+        $deptStudents = User::where('role', 'student')->where('department_id', $deptId)->get();
         $totalStudentsCount = $deptStudents->count();
-        if ($totalStudentsCount === 0) {
-            $totalStudentsCount = User::where('role', 'student')->count();
-        }
 
         // Department instructors
-        $deptInstructors = User::where(function ($q) use ($deptId) {
-            if ($deptId) {
-                $q->where('department_id', $deptId);
-            }
-            $q->whereIn('role', ['instructor', 'dept_head']);
-        })->get(['id', 'name', 'email']);
+        $deptInstructors = User::where('department_id', $deptId)
+            ->whereIn('role', ['instructor', 'dept_head'])
+            ->get(['id', 'name', 'email']);
+        $deptInstructorIds = $deptInstructors->pluck('id');
 
-        // Base department exams query
+        // Base department exams query (strictly scoped to this department)
         $allDeptExams = $this->buildDeptExamsQuery($deptId, $user->id)
-            ->with(['instructor', 'course', 'attempts.student'])
+            ->with(['instructor', 'course', 'questions'])
             ->withCount(['questions', 'attempts'])
             ->latest('id')
             ->get();
 
         $allDeptExamIds = $allDeptExams->pluck('id');
+
+        // STRICT Department Attempts Query:
+        // Excludes all attempts from students of unrelated departments
         $allAttempts = ExamAttempt::whereIn('exam_id', $allDeptExamIds)
-            ->with(['exam.course', 'student'])
+            ->where(function ($q) use ($deptId) {
+                $q->whereHas('student', function ($s) use ($deptId) {
+                    $s->where('department_id', $deptId)->orWhereNull('department_id');
+                });
+            })
+            ->with(['exam.course', 'exam.instructor', 'student.department'])
+            ->latest('id')
             ->get();
 
-        // ── Real KPI Metrics ──
-        $completedExams = $allDeptExams->filter(function ($e) {
-            return in_array(strtolower($e->status ?? ''), ['completed', 'published']) || $e->attempts_count > 0;
-        })->count();
+        // Map all attempts into rich student result objects
+        $allStudentRows = $allAttempts->map(function ($att) use ($settingsYear, $assignedSemester) {
+            $student = $att->student;
+            $exam = $att->exam;
 
-        $studentIdsWithResults = $allAttempts->pluck('user_id')->filter()->unique();
-        $totalStudentsWithResults = $studentIdsWithResults->count();
+            $courseCode = $exam?->course_code ?: ($exam?->course?->code ?? 'N/A');
+            $courseName = $exam?->course_name ?: ($exam?->course?->title ?? 'General Course');
+            $examCode = $exam?->settings['exam_code'] ?? ('EXM-' . ($exam?->scheduled_at ? $exam->scheduled_at->format('Y') : date('Y')) . '-' . str_pad((string)($exam?->id ?? 0), 3, '0', STR_PAD_LEFT));
 
-        $publishedAttempts = $allAttempts->where('status', 'published')->count();
-        $pendingAttempts = $allAttempts->filter(function ($a) {
-            return in_array(strtolower($a->status ?? ''), ['submitted', 'in_progress', 'pending', 'graded']) && strtolower($a->status ?? '') !== 'published';
-        })->count();
+            // Institutional Student ID
+            $officialStudentId = $student?->id_no ?: ($student?->student_id ?: ('WU/' . str_pad((string)$att->user_id, 5, '0', STR_PAD_LEFT) . '/16'));
 
-        $gradedAttempts = $allAttempts->filter(function ($a) {
-            return $a->percentage !== null && in_array(strtolower($a->status ?? ''), ['graded', 'published', 'completed', 'submitted']);
+            // Section resolution
+            $sec = $student?->section ?: ($exam?->section ?: ($exam?->settings['section'] ?? 'Section A'));
+            if (strtolower($sec) === 'both sections' || strtolower($sec) === 'all') {
+                $sec = $student?->section ?: 'Section A';
+            }
+
+            // Student Year Level (1st Year, 2nd Year, 3rd Year, 4th Year, 5th Year)
+            $yearLevel = $student?->year_level ?: ($exam?->settings['year_level'] ?? '1st Year');
+
+            // Academic Year resolution
+            $academicYear = $exam?->settings['academic_year'] ?? ($student?->academic_year ?? $settingsYear);
+
+            // Semester resolution: integrates with Super Admin assigned semester
+            $semester = $exam?->settings['semester'] ?? ($exam?->course?->semester ?? ($student?->semester ?? $assignedSemester));
+
+            // Score and grading calculation with instructor manual score support
+            $totalMarks = (float)($att->total_marks ?? ($exam?->total_marks ?? 100));
+            $rawStatus = strtolower($att->status ?? 'submitted');
+            $score = $att->score !== null ? (float)$att->score : null;
+            $pct = $att->percentage !== null ? (float)$att->percentage : null;
+
+            $ans = $att->answers ?? [];
+            if (is_string($ans)) $ans = json_decode($ans, true) ?? [];
+            $manualScores = $ans['_manual_scores'] ?? ($ans['manual_scores'] ?? []);
+
+            if (!empty($manualScores) && ($score === null || $pct === null)) {
+                $manualTotal = (float)array_sum($manualScores);
+                $score = $score !== null ? max($score, $manualTotal) : $manualTotal;
+                $pct = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0.0;
+            } elseif ($score !== null && $pct === null) {
+                $pct = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0.0;
+            }
+
+            $isGraded = ($score !== null) && in_array($rawStatus, ['graded', 'published', 'completed', 'submitted']);
+            $grade = $isGraded ? ($att->grade ?: $this->calculateGrade($pct ?? 0.0)) : 'Pending';
+            $gradePoint = $isGraded ? $this->calculateGradePoint($pct ?? 0.0) : 0.0;
+
+            // Result Display Status
+            $displayStatus = 'Pending';
+            if ($rawStatus === 'published') {
+                $displayStatus = 'Published';
+            } elseif ($rawStatus === 'graded' || ($isGraded && $rawStatus !== 'published')) {
+                $displayStatus = 'Graded (Unpublished)';
+            } elseif ($rawStatus === 'in_progress') {
+                $displayStatus = 'In Progress';
+            } elseif ($rawStatus === 'submitted') {
+                $displayStatus = $isGraded ? 'Graded (Unpublished)' : 'Pending';
+            }
+
+            return [
+                'id'              => $att->id,
+                'attempt_id'      => $att->id,
+                'student_id'      => $officialStudentId, // Column 2
+                'student_db_id'   => $att->user_id,
+                'student_name'    => $student?->name ?? 'Student', // Column 3
+                'student_reg_no'  => $officialStudentId,
+                'student_email'   => $student?->email ?? '',
+                'student_year'    => $yearLevel,
+                'year_level'      => $yearLevel, // Column 7: Year Level
+                'course_code'     => $courseCode, // Column 4
+                'course_name'     => $courseName, // Column 5
+                'section'         => $sec, // Column 6
+                'academic_year'   => $academicYear,
+                'semester'        => $semester, // Column 8
+                'exam_title'      => $exam?->title ?? 'Examination', // Column 9
+                'exam_code'       => $examCode,
+                'exam_id'         => $exam?->id,
+                'total_marks'     => $totalMarks, // Column 10
+                'obtained_marks'  => $score, // Column 11: score when graded, null if pending
+                'score'           => $score,
+                'percentage'      => $pct,
+                'grade'           => $grade, // Column 12: letter grade
+                'grade_point'     => $gradePoint,
+                'status'          => $displayStatus, // Column 13: status badge
+                'raw_status'      => $rawStatus,
+                'is_graded'       => $isGraded,
+                'is_published'    => $rawStatus === 'published',
+                'instructor_name' => $exam?->instructor?->name ?? 'Faculty Member',
+                'instructor_id'   => $exam?->user_id,
+                'submitted_at'    => $att->submitted_at ? $att->submitted_at->format('M d, Y h:i A') : ($att->created_at ? $att->created_at->format('M d, Y') : 'N/A'),
+            ];
         });
 
-        $avgScore = $gradedAttempts->count() > 0 ? round($gradedAttempts->avg('percentage'), 1) : 0.0;
-        $passedAttempts = $gradedAttempts->filter(fn($a) => (float)$a->percentage >= 50)->count();
-        $failedAttempts = $gradedAttempts->filter(fn($a) => (float)$a->percentage < 50)->count();
-        $passRate = $gradedAttempts->count() > 0 ? round(($passedAttempts / $gradedAttempts->count()) * 100, 1) : 0.0;
+        // ── Apply Comprehensive Filters to Student Results ──
+        $filteredStudentResults = $allStudentRows->filter(function ($row) use ($request) {
+            // General query search
+            $search = strtolower(trim((string)$request->get('search', '')));
+            if ($search !== '') {
+                $fields = [
+                    $row['student_name'],
+                    $row['student_id'],
+                    $row['student_email'],
+                    $row['course_code'],
+                    $row['course_name'],
+                    $row['exam_title'],
+                    $row['exam_code'],
+                    $row['section'],
+                    $row['year_level'],
+                ];
+                $matched = false;
+                foreach ($fields as $f) {
+                    if (str_contains(strtolower((string)$f), $search)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+                if (!$matched) return false;
+            }
 
-        // ── Real Grade Distribution ──
-        $gradeDistribution = [
+            // Student ID filter
+            if ($request->filled('student_id') && strtolower($request->student_id) !== 'all') {
+                $reqId = strtolower(trim((string)$request->student_id));
+                if (!str_contains(strtolower($row['student_id']), $reqId) && (string)$row['student_db_id'] !== $reqId) {
+                    return false;
+                }
+            }
+
+            // Student Name filter
+            if ($request->filled('student_name') && strtolower($request->student_name) !== 'all') {
+                $reqName = strtolower(trim((string)$request->student_name));
+                if (!str_contains(strtolower($row['student_name']), $reqName)) {
+                    return false;
+                }
+            }
+
+            // Year Level filter (1st Year, 2nd Year, 3rd Year, 4th Year, 5th Year)
+            $reqYearLevel = $request->get('year_level') ?? $request->get('academic_year');
+            if ($reqYearLevel && strtolower($reqYearLevel) !== 'all') {
+                $reqNorm = strtolower(trim((string)$reqYearLevel));
+                $rowNorm = strtolower(trim((string)$row['year_level']));
+                if ($rowNorm !== $reqNorm && !str_contains($rowNorm, $reqNorm)) {
+                    return false;
+                }
+            }
+
+            // Semester filter (integrated with Super Admin assigned semester)
+            if ($request->filled('semester') && strtolower($request->semester) !== 'all') {
+                if (strtolower($row['semester']) !== strtolower(trim((string)$request->semester))) {
+                    return false;
+                }
+            }
+
+            // Section filter
+            if ($request->filled('section') && strtolower($request->section) !== 'all') {
+                $reqSec = strtolower(trim((string)$request->section));
+                $rowSec = strtolower(trim((string)$row['section']));
+                $normReq = str_replace('section ', '', $reqSec);
+                $normRow = str_replace('section ', '', $rowSec);
+                if ($normReq !== $normRow && $rowSec !== $reqSec) {
+                    return false;
+                }
+            }
+
+            // Course filter
+            if ($request->filled('course_code') && strtolower($request->course_code) !== 'all') {
+                if (strtolower($row['course_code']) !== strtolower(trim((string)$request->course_code))) {
+                    return false;
+                }
+            }
+
+            // Result Status filter
+            if ($request->filled('status') && strtolower($request->status) !== 'all') {
+                $reqStatus = strtolower(trim((string)$request->status));
+                $rowStatus = strtolower($row['status']);
+                $rawStatus = strtolower($row['raw_status']);
+
+                if ($reqStatus === 'published') {
+                    if ($rowStatus !== 'published') return false;
+                } elseif ($reqStatus === 'graded') {
+                    if (!str_contains($rowStatus, 'graded') && $row['is_graded'] !== true) return false;
+                } elseif ($reqStatus === 'pending') {
+                    if ($rowStatus !== 'pending' && $rowStatus !== 'submitted' && $row['is_graded'] === true && $rowStatus === 'published') return false;
+                } elseif ($reqStatus === 'in_progress') {
+                    if ($rawStatus !== 'in_progress' && $rowStatus !== 'in progress') return false;
+                } else {
+                    if (!str_contains($rowStatus, $reqStatus) && !str_contains($rawStatus, $reqStatus)) return false;
+                }
+            }
+
+            // Grade filter
+            if ($request->filled('grade') && strtolower($request->grade) !== 'all') {
+                if (strtoupper($row['grade']) !== strtoupper(trim((string)$request->grade))) {
+                    return false;
+                }
+            }
+
+            // Exam ID filter
+            if ($request->filled('exam_id') && strtolower($request->exam_id) !== 'all') {
+                if ((string)$row['exam_id'] !== (string)$request->exam_id) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->values();
+
+        // ── Real Dynamic KPIs Reflecting Active Filter Scope ──
+        $scopedEvaluatedStudents = $filteredStudentResults->pluck('student_db_id')->unique()->count();
+        $scopedTotalSubmissions = $filteredStudentResults->count();
+        $scopedPublishedResults = $filteredStudentResults->where('status', 'Published')->count();
+        $scopedPendingGrading = $filteredStudentResults->where('status', '!=', 'Published')->count();
+
+        $scopedGraded = $filteredStudentResults->filter(fn($r) => $r['is_graded'] && $r['percentage'] !== null);
+        $scopedAvgScore = $scopedGraded->count() > 0 ? round($scopedGraded->avg('percentage'), 1) : 0.0;
+        $scopedPassed = $scopedGraded->filter(fn($r) => (float)$r['percentage'] >= 50)->count();
+        $scopedFailed = $scopedGraded->filter(fn($r) => (float)$r['percentage'] < 50)->count();
+        $scopedPassRate = $scopedGraded->count() > 0 ? round(($scopedPassed / $scopedGraded->count()) * 100, 1) : 0.0;
+
+        // Dynamic Grade Distribution reflecting active filter scope
+        $scopedGradeDistribution = [
             'A+' => 0, 'A' => 0, 'A-' => 0,
             'B+' => 0, 'B' => 0, 'B-' => 0,
             'C+' => 0, 'C' => 0,
             'D'  => 0, 'F' => 0,
         ];
-
-        foreach ($allAttempts as $att) {
-            $g = trim(strtoupper($att->grade ?? ''));
-            if (isset($gradeDistribution[$g])) {
-                $gradeDistribution[$g]++;
-            } elseif ($att->percentage !== null) {
-                $gCalc = $this->calculateGrade((float)$att->percentage);
-                if (isset($gradeDistribution[$gCalc])) {
-                    $gradeDistribution[$gCalc]++;
-                }
+        foreach ($filteredStudentResults as $r) {
+            $g = trim(strtoupper($r['grade']));
+            if (isset($scopedGradeDistribution[$g])) {
+                $scopedGradeDistribution[$g]++;
             }
         }
 
-        // ── Real Course Performance Breakdown ──
-        $coursePerformance = [];
-        $attemptsByCourse = $allAttempts->groupBy(function ($att) {
-            return $att->exam->course_code ?? ($att->exam->course->code ?? 'N/A');
-        });
+        // Dynamic Course Performance breakdown reflecting active filter scope
+        $scopedCoursePerformance = [];
+        $byCourse = $filteredStudentResults->groupBy('course_code');
+        foreach ($byCourse as $cCode => $items) {
+            $first = $items->first();
+            $cGraded = $items->filter(fn($r) => $r['is_graded'] && $r['percentage'] !== null);
+            $cAvg = $cGraded->count() > 0 ? round($cGraded->avg('percentage'), 1) : 0.0;
+            $cPassCount = $cGraded->filter(fn($r) => (float)$r['percentage'] >= 50)->count();
+            $cPass = $cGraded->count() > 0 ? round(($cPassCount / $cGraded->count()) * 100, 1) : 0.0;
+            $cMax = $cGraded->count() > 0 ? $cGraded->max('score') : 0;
+            $cMin = $cGraded->count() > 0 ? $cGraded->min('score') : 0;
+            $pendingInCourse = $items->where('status', '!=', 'Published')->count();
 
-        foreach ($attemptsByCourse as $code => $courseAtts) {
-            $firstExam = $courseAtts->first()?->exam;
-            $courseTitle = $firstExam?->course_name ?: ($firstExam?->course?->title ?? $code);
-            $cCredits = $firstExam?->course?->credits ?? 3;
-            $courseGraded = $courseAtts->filter(fn($a) => $a->percentage !== null);
-            $cAvg = $courseGraded->count() > 0 ? round($courseGraded->avg('percentage'), 1) : 0.0;
-            $cPassCount = $courseGraded->filter(fn($a) => (float)$a->percentage >= 50)->count();
-            $cPassRate = $courseGraded->count() > 0 ? round(($cPassCount / $courseGraded->count()) * 100, 1) : 0.0;
-            $cMax = $courseGraded->max('score') ?? 0;
-            $cMin = $courseGraded->min('score') ?? 0;
-            $pendingInCourse = $courseAtts->where('status', '!=', 'published')->count();
-
-            $coursePerformance[] = [
-                'course_code'    => $code,
-                'course_name'    => $courseTitle,
-                'credits'        => $cCredits,
-                'total_attempts' => $courseAtts->count(),
+            $scopedCoursePerformance[] = [
+                'course_code'    => $cCode,
+                'course_name'    => $first['course_name'] ?? $cCode,
+                'credits'        => 3,
+                'total_attempts' => $items->count(),
                 'average_score'  => $cAvg,
-                'pass_rate'      => $cPassRate,
+                'pass_rate'      => $cPass,
                 'highest_score'  => $cMax,
                 'lowest_score'   => $cMin,
                 'pending_count'  => $pendingInCourse,
-                'status'         => $pendingInCourse === 0 && $courseAtts->count() > 0 ? 'Published' : ($courseAtts->count() > 0 ? 'In Review' : 'No Submissions'),
+                'status'         => $pendingInCourse === 0 && $items->count() > 0 ? 'Published' : ($items->count() > 0 ? 'In Review' : 'No Submissions'),
             ];
         }
 
+        // If no filter matched courses but department has courses, list them with zero counts
+        if (empty($scopedCoursePerformance) && $courses->isNotEmpty() && !$request->filled('course_code')) {
+            foreach ($courses as $c) {
+                $scopedCoursePerformance[] = [
+                    'course_code'    => $c->code,
+                    'course_name'    => $c->title,
+                    'credits'        => $c->credits ?? 3,
+                    'total_attempts' => 0,
+                    'average_score'  => 0.0,
+                    'pass_rate'      => 0.0,
+                    'highest_score'  => 0,
+                    'lowest_score'   => 0,
+                    'pending_count'  => 0,
+                    'status'         => 'No Submissions',
+                ];
+            }
+        }
+
         // ── Real Semester Submissions Summary ──
-        $instructorIds = $deptInstructors->pluck('id');
-        $deptSubmissions = SemesterSubmission::whereIn('instructor_id', $instructorIds)->with('instructor')->get();
+        $deptSubmissions = SemesterSubmission::whereIn('instructor_id', $deptInstructorIds)->with('instructor')->get();
         $subStats = [
             'total_instructors' => $deptInstructors->count(),
             'submitted'         => $deptSubmissions->whereIn('status', ['submitted', 'approved'])->count(),
@@ -251,7 +583,7 @@ class ResultController extends Controller
             ];
         });
 
-        // ── Build Filtered Exams (Exam-Level View) ──
+        // ── Filtered Exams (Exam-Level View) ──
         $filteredExams = $allDeptExams->filter(function ($exam) use ($request) {
             $search = strtolower(trim((string)$request->get('search', '')));
             if ($search !== '') {
@@ -280,35 +612,6 @@ class ResultController extends Controller
             if ($request->filled('course_code') && $request->course_code !== 'all') {
                 $cCode = $exam->course_code ?: ($exam->course->code ?? '');
                 if (strtolower($cCode) !== strtolower($request->course_code)) {
-                    return false;
-                }
-            }
-
-            if ($request->filled('instructor_id') && $request->instructor_id !== 'all') {
-                if ((string)$exam->user_id !== (string)$request->instructor_id) {
-                    return false;
-                }
-            }
-
-            if ($request->filled('status') && $request->status !== 'all') {
-                $reqStatus = strtolower($request->status);
-                $examAttempts = $exam->attempts;
-                $subCount = $examAttempts->count();
-                $pubCount = $examAttempts->where('status', 'published')->count();
-                $gradCount = $examAttempts->whereIn('status', ['graded', 'published'])->count();
-
-                $computedStatus = 'draft';
-                if ($subCount > 0 && $pubCount === $subCount) {
-                    $computedStatus = 'published';
-                } elseif ($subCount > 0 && $gradCount === $subCount) {
-                    $computedStatus = 'graded';
-                } elseif ($subCount > 0) {
-                    $computedStatus = 'pending';
-                } elseif (in_array(strtolower($exam->status ?? ''), ['completed', 'published'])) {
-                    $computedStatus = 'completed';
-                }
-
-                if ($computedStatus !== $reqStatus && strtolower($exam->status ?? '') !== $reqStatus) {
                     return false;
                 }
             }
@@ -367,152 +670,83 @@ class ResultController extends Controller
             ];
         })->values();
 
-        // ── Build Filtered Student Attempts (Student-Level View) ──
-        $allStudentAttempts = $allAttempts->map(function ($att) {
-            $student = $att->student;
-            $exam = $att->exam;
-            $courseCode = $exam?->course_code ?: ($exam?->course?->code ?? 'N/A');
-            $courseName = $exam?->course_name ?: ($exam?->course?->title ?? 'General Course');
-            $examCode = $exam?->settings['exam_code'] ?? ('EXM-' . ($exam?->scheduled_at ? $exam->scheduled_at->format('Y') : date('Y')) . '-' . str_pad((string)($exam?->id ?? 0), 3, '0', STR_PAD_LEFT));
+        // ── Real Distinct Filter Options from Department Database ──
+        $studentSections = User::where('role', 'student')->where('department_id', $deptId)->whereNotNull('section')->pluck('section');
+        $examSections = $allDeptExams->map(fn($e) => $e->section ?: ($e->settings['section'] ?? null))->filter();
+        $courseSections = $courses->pluck('section')->filter();
+        $distinctSections = $studentSections->merge($examSections)->merge($courseSections)
+            ->map(fn($s) => trim((string)$s))
+            ->filter(fn($s) => $s !== '' && strtolower($s) !== 'both sections' && strtolower($s) !== 'all')
+            ->unique()->sort()->values()->toArray();
+        if (empty($distinctSections)) {
+            $distinctSections = ['Section A', 'Section B'];
+        }
 
-            $pct = $att->percentage !== null ? (float)$att->percentage : null;
-            $grade = $att->grade ?: ($pct !== null ? $this->calculateGrade($pct) : 'Pending');
-            $gradePoint = $pct !== null ? $this->calculateGradePoint($pct) : 0.0;
-
-            return [
-                'id'              => $att->id,
-                'attempt_id'      => $att->id,
-                'exam_id'         => $att->exam_id,
-                'exam_title'      => $exam?->title ?? 'Exam',
-                'exam_code'       => $examCode,
-                'course_name'     => $courseName,
-                'course_code'     => $courseCode,
-                'student_id'      => $att->user_id,
-                'student_name'    => $student?->name ?? 'Student',
-                'student_reg_no'  => $student?->student_id ?: ('UGR/' . str_pad((string)$att->user_id, 5, '0', STR_PAD_LEFT) . '/16'),
-                'student_email'   => $student?->email ?? '',
-                'student_year'    => $student?->year_level ?? '1st Year',
-                'student_section' => $student?->section ?? 'A',
-                'instructor_name' => $exam?->instructor?->name ?? 'Faculty Member',
-                'instructor_id'   => $exam?->user_id,
-                'score'           => $att->score,
-                'total_marks'     => $att->total_marks ?? ($exam?->total_marks ?? 100),
-                'percentage'      => $pct,
-                'grade'           => $grade,
-                'grade_point'     => $gradePoint,
-                'status'          => ucfirst($att->status ?? 'submitted'),
-                'submitted_at'    => $att->submitted_at ? $att->submitted_at->format('M d, Y h:i A') : ($att->created_at ? $att->created_at->format('M d, Y') : 'N/A'),
-                'semester'        => $exam?->settings['semester'] ?? ($exam?->course?->semester ?? 'Semester 1'),
-                'academic_year'   => $exam?->settings['academic_year'] ?? '2025/2026',
-            ];
-        });
-
-        // Filter student attempts
-        $filteredStudentAttempts = $allStudentAttempts->filter(function ($row) use ($request) {
-            $search = strtolower(trim((string)$request->get('search', '')));
-            if ($search !== '') {
-                $sName = strtolower($row['student_name']);
-                $sReg = strtolower($row['student_reg_no']);
-                $cName = strtolower($row['course_name']);
-                $cCode = strtolower($row['course_code']);
-                $eTitle = strtolower($row['exam_title']);
-                $eCode = strtolower($row['exam_code']);
-
-                if (!str_contains($sName, $search) &&
-                    !str_contains($sReg, $search) &&
-                    !str_contains($cName, $search) &&
-                    !str_contains($cCode, $search) &&
-                    !str_contains($eTitle, $search) &&
-                    !str_contains($eCode, $search)) {
-                    return false;
-                }
-            }
-
-            if ($request->filled('semester') && $request->semester !== 'all') {
-                if (strtolower($row['semester']) !== strtolower($request->semester)) {
-                    return false;
-                }
-            }
-
-            if ($request->filled('course_code') && $request->course_code !== 'all') {
-                if (strtolower($row['course_code']) !== strtolower($request->course_code)) {
-                    return false;
-                }
-            }
-
-            if ($request->filled('grade') && $request->grade !== 'all') {
-                if (strtoupper($row['grade']) !== strtoupper($request->grade)) {
-                    return false;
-                }
-            }
-
-            if ($request->filled('status') && $request->status !== 'all') {
-                if (strtolower($row['status']) !== strtolower($request->status)) {
-                    return false;
-                }
-            }
-
-            return true;
-        })->values();
-
-        // Server-side pagination
+        // ── Server-Side Pagination ──
         $page = max(1, (int)$request->get('page', 1));
         $perPage = max(5, min(100, (int)$request->get('per_page', 10)));
-        $viewMode = $request->get('view_mode', 'exams'); // 'exams' | 'students'
+        $viewMode = $request->get('view_mode', 'students'); // 'students' is default primary
 
+        $totalAttemptsCount = $filteredStudentResults->count();
         $totalExamsCount = $resultsExams->count();
-        $totalAttemptsCount = $filteredStudentAttempts->count();
+
+        $paginatedStudentSlice = $filteredStudentResults->slice(($page - 1) * $perPage, $perPage)->values();
+        // Number sequentially based on page
+        $paginatedStudents = $paginatedStudentSlice->map(function ($row, $i) use ($page, $perPage) {
+            $row['no'] = ($page - 1) * $perPage + $i + 1;
+            return $row;
+        });
 
         $paginatedExams = $resultsExams->slice(($page - 1) * $perPage, $perPage)->values();
-        $paginatedAttempts = $filteredStudentAttempts->slice(($page - 1) * $perPage, $perPage)->values();
 
         return response()->json([
             'data' => [
                 'department' => [
-                    'name'            => $dept->name ?? 'Computer Science',
-                    'code'            => $dept->code ?? 'CS',
+                    'name'            => $deptName,
+                    'code'            => $deptCode,
                     'head_name'       => $user->name,
                     'academic_year'   => $settingsYear,
-                    'semester'        => $settingsSemester,
+                    'semester'        => $assignedSemester,
                     'total_courses'   => count($deptCourseCodes),
                     'total_students'  => $totalStudentsCount,
                 ],
                 'stats' => [
                     'total_exams'                => $allDeptExams->count(),
-                    'completed_exams'            => $completedExams,
-                    'total_students_with_results'=> $totalStudentsWithResults,
-                    'total_attempts'             => $allAttempts->count(),
-                    'published_results'          => $publishedAttempts,
-                    'pending_results'            => $pendingAttempts,
-                    'average_score'              => $avgScore,
-                    'pass_rate'                  => $passRate,
-                    'passed_count'               => $passedAttempts,
-                    'failed_count'               => $failedAttempts,
-                    'courses_evaluated'          => count($coursePerformance),
+                    'completed_exams'            => $allDeptExams->filter(fn($e) => in_array(strtolower($e->status ?? ''), ['completed', 'published']))->count(),
+                    'total_students_with_results'=> $scopedEvaluatedStudents,
+                    'total_attempts'             => $scopedTotalSubmissions,
+                    'published_results'          => $scopedPublishedResults,
+                    'pending_results'            => $scopedPendingGrading,
+                    'average_score'              => $scopedAvgScore,
+                    'pass_rate'                  => $scopedPassRate,
+                    'passed_count'               => $scopedPassed,
+                    'failed_count'               => $scopedFailed,
+                    'courses_evaluated'          => count($scopedCoursePerformance),
                 ],
-                'grade_distribution'            => $gradeDistribution,
-                'course_performance'            => $coursePerformance,
+                'grade_distribution'            => $scopedGradeDistribution,
+                'course_performance'            => $scopedCoursePerformance,
                 'semester_submissions_summary'  => [
                     'stats'   => $subStats,
                     'recent'  => $recentSubmissions,
                 ],
+                'student_results'               => $paginatedStudents,
+                'all_students_count'            => $totalAttemptsCount,
                 'results'                       => $paginatedExams,
                 'all_exams_count'               => $totalExamsCount,
-                'student_results'               => $paginatedAttempts,
-                'all_students_count'            => $totalAttemptsCount,
                 'pagination' => [
                     'current_page' => $page,
                     'per_page'     => $perPage,
-                    'total'        => $viewMode === 'students' ? $totalAttemptsCount : $totalExamsCount,
-                    'last_page'    => max(1, (int)ceil(($viewMode === 'students' ? $totalAttemptsCount : $totalExamsCount) / $perPage)),
+                    'total'        => $viewMode === 'exams' ? $totalExamsCount : $totalAttemptsCount,
+                    'last_page'    => max(1, (int)ceil(($viewMode === 'exams' ? $totalExamsCount : $totalAttemptsCount) / $perPage)),
                 ],
                 'filter_options' => [
-                    'courses' => $courses->map(fn($c) => ['code' => $c->code, 'title' => $c->title])->values(),
-                    'instructors' => $deptInstructors->map(fn($i) => ['id' => $i->id, 'name' => $i->name, 'email' => $i->email])->values(),
-                    'semesters' => ['First Semester', 'Second Semester'],
-                    'academic_years' => [$settingsYear, '2027', '2026', '2025'],
-                    'grades' => ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'F'],
-                    'statuses' => ['published', 'graded', 'submitted', 'pending', 'in_progress'],
+                    'courses'           => $courses->map(fn($c) => ['code' => $c->code, 'title' => $c->title])->values(),
+                    'sections'          => $distinctSections,
+                    'year_levels'       => ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'],
+                    'assigned_semester' => $assignedSemester,
+                    'semesters'         => [$assignedSemester],
+                    'grades'            => ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'F'],
+                    'statuses'          => ['published', 'graded', 'submitted', 'pending', 'in_progress'],
                 ],
             ]
         ]);
@@ -531,42 +765,69 @@ class ResultController extends Controller
             ->with(['instructor', 'course', 'questions'])
             ->findOrFail($examId);
 
-        $attempts = ExamAttempt::where('exam_id', $examId)->with(['student', 'exam'])->get();
-
-        // Get students relevant to department or exam
-        $students = User::where('role', 'student')
-            ->when($deptId, fn($q, $d) => $q->where('department_id', $d))
+        $attempts = ExamAttempt::where('exam_id', $examId)
+            ->where(function ($q) use ($deptId) {
+                $q->whereHas('student', function ($s) use ($deptId) {
+                    $s->where('department_id', $deptId)->orWhereNull('department_id');
+                });
+            })
+            ->with(['student', 'exam'])
             ->get();
 
-        if ($students->isEmpty()) {
-            $students = User::where('role', 'student')->get();
-        }
-
-        $studentResults = $attempts->map(function ($attempt) use ($exam) {
+        $studentResults = $attempts->map(function ($attempt, $idx) use ($exam) {
             $stu = $attempt->student ?: User::find($attempt->user_id);
+            $totalMarks = (float)($attempt->total_marks ?? ($exam->total_marks ?? 100));
+            $rawStatus = strtolower($attempt->status ?? 'submitted');
+            $score = $attempt->score !== null ? (float)$attempt->score : null;
             $pct = $attempt->percentage !== null ? (float)$attempt->percentage : null;
-            $grade = $attempt->grade ?: ($pct !== null ? $this->calculateGrade($pct) : 'Pending');
+
+            $ans = $attempt->answers ?? [];
+            if (is_string($ans)) $ans = json_decode($ans, true) ?? [];
+            $manualScores = $ans['_manual_scores'] ?? ($ans['manual_scores'] ?? []);
+
+            if (!empty($manualScores) && ($score === null || $pct === null)) {
+                $manualTotal = (float)array_sum($manualScores);
+                $score = $score !== null ? max($score, $manualTotal) : $manualTotal;
+                $pct = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0.0;
+            } elseif ($score !== null && $pct === null) {
+                $pct = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0.0;
+            }
+
+            $isGraded = ($score !== null) && in_array($rawStatus, ['graded', 'published', 'completed', 'submitted']);
+            $grade = $isGraded ? ($attempt->grade ?: $this->calculateGrade($pct ?? 0.0)) : 'Pending';
+
+            $displayStatus = 'Pending';
+            if ($rawStatus === 'published') {
+                $displayStatus = 'Published';
+            } elseif ($rawStatus === 'graded' || ($isGraded && $rawStatus !== 'published')) {
+                $displayStatus = 'Graded (Unpublished)';
+            } elseif ($rawStatus === 'in_progress') {
+                $displayStatus = 'In Progress';
+            }
 
             return [
+                'no'           => $idx + 1,
                 'id'           => $stu?->id ?? $attempt->user_id,
                 'attempt_id'   => $attempt->id,
                 'name'         => $stu?->name ?? 'Student',
-                'student_id'   => $stu?->student_id ?? ('UGR/' . str_pad((string)$attempt->user_id, 5, '0', STR_PAD_LEFT) . '/16'),
+                'student_id'   => $stu?->id_no ?: ($stu?->student_id ?: ('WU/' . str_pad((string)$attempt->user_id, 5, '0', STR_PAD_LEFT) . '/16')),
                 'email'        => $stu?->email ?? '',
                 'year_level'   => $stu?->year_level ?? '1st Year',
-                'section'      => $stu?->section ?? 'A',
-                'score'        => $attempt->score,
+                'section'      => $stu?->section ?? 'Section A',
+                'score'        => $isGraded ? $attempt->score : null,
                 'total_marks'  => $attempt->total_marks ?? ($exam->total_marks ?? 100),
                 'percentage'   => $pct,
                 'grade'        => $grade,
-                'status'       => ucfirst($attempt->status ?? 'submitted'),
+                'status'       => $displayStatus,
+                'is_published' => $rawStatus === 'published',
                 'submitted_at' => $attempt->submitted_at ? $attempt->submitted_at->format('M d, Y h:i A') : 'N/A',
             ];
         });
 
-        $passCount = $attempts->filter(fn($a) => (float)($a->percentage ?? 0) >= 50)->count();
-        $failCount = $attempts->filter(fn($a) => (float)($a->percentage ?? 0) < 50 && $a->percentage !== null)->count();
-        $avgScore = $attempts->count() > 0 ? round($attempts->avg('percentage'), 1) : 0.0;
+        $graded = $attempts->filter(fn($a) => $a->percentage !== null);
+        $passCount = $graded->filter(fn($a) => (float)($a->percentage ?? 0) >= 50)->count();
+        $failCount = $graded->filter(fn($a) => (float)($a->percentage ?? 0) < 50)->count();
+        $avgScore = $graded->count() > 0 ? round($graded->avg('percentage'), 1) : 0.0;
 
         return response()->json([
             'data' => [
@@ -586,10 +847,10 @@ class ResultController extends Controller
                 ],
                 'stats' => [
                     'total_attempts'  => $attempts->count(),
-                    'passed_count'   => $passCount,
-                    'failed_count'   => $failCount,
-                    'pass_rate'      => $attempts->count() > 0 ? round(($passCount / $attempts->count()) * 100, 1) : 0.0,
-                    'average_score'  => $avgScore,
+                    'passed_count'    => $passCount,
+                    'failed_count'    => $failCount,
+                    'pass_rate'       => $attempts->count() > 0 ? round(($passCount / $attempts->count()) * 100, 1) : 0.0,
+                    'average_score'   => $avgScore,
                 ],
                 'students' => $studentResults,
             ]
@@ -604,7 +865,7 @@ class ResultController extends Controller
         $deptId = $this->resolveDeptId($request);
         $user = $request->user();
 
-        $attempt = ExamAttempt::with(['exam.course', 'exam.instructor', 'exam.questions', 'student'])
+        $attempt = ExamAttempt::with(['exam.course', 'exam.instructor', 'exam.questions', 'student.department'])
             ->findOrFail($attemptId);
 
         $exam = $attempt->exam;
@@ -619,63 +880,134 @@ class ResultController extends Controller
         }
 
         $student = $attempt->student;
+        if ($student && $student->department_id && $deptId && $student->department_id != $deptId) {
+            return response()->json(['message' => 'Unauthorized: Student belongs to another department.'], 403);
+        }
+
         $rawQuestions = $exam->questions ?? collect();
         $answers = $attempt->answers ?? [];
         if (is_string($answers)) {
             $answers = json_decode($answers, true) ?? [];
         }
 
-        // Parse questions and compare student answers with correct answers
-        $questionBreakdown = $rawQuestions->map(function ($q, $idx) use ($answers) {
-            $qId = (string)$q->id;
-            $studentAns = $answers[$qId] ?? null;
-            $correct = $q->correct_answer;
-            $isCorrect = false;
+        // Real manual scores assigned by instructor: stored in _manual_scores or manual_scores
+        $manualScores = $answers['_manual_scores'] ?? ($answers['manual_scores'] ?? []);
 
-            if ($studentAns !== null && $correct !== null) {
-                $isCorrect = strtolower(trim((string)$studentAns)) === strtolower(trim((string)$correct));
+        // Parse questions, accurately factoring in instructor manual scores and question types
+        $questionBreakdown = $rawQuestions->map(function ($q, $idx) use ($answers, $manualScores) {
+            $qId = (string)$q->id;
+            $studentAns = $answers[$qId] ?? ($answers[$q->id] ?? null);
+            $correct = $q->correct_answer ?: ($q->sample_answer ?? '');
+            $maxMarks = (float)($q->marks ?? 0);
+            $type = strtolower($q->type ?? 'multiple_choice');
+
+            // Check if instructor assigned a manual score for this question (fill_blank, short_answer, etc.)
+            $hasManualScore = isset($manualScores[$qId]) || isset($manualScores[$q->id]);
+            $manualScoreVal = $hasManualScore ? (float)($manualScores[$qId] ?? $manualScores[$q->id]) : null;
+
+            $awardedMarks = 0.0;
+            $isManualGraded = false;
+
+            if ($hasManualScore) {
+                // Directly award the instructor-assigned manual score
+                $awardedMarks = (float)$manualScoreVal;
+                $isManualGraded = true;
+            } elseif (in_array($type, ['multiple_choice', 'true_false', 'true-false', 'matching'])) {
+                // Auto-grade objective questions accurately
+                $awardedMarks = $this->computeQuestionAutoScore($q, $studentAns);
+            } elseif (in_array($type, ['fill_blank', 'fill_in_blank', 'fill_in_the_blank', 'blank_space'])) {
+                // Exact string match check for fill in blank if not manually overridden
+                if ($studentAns !== null && !empty($correct)) {
+                    $cNorm = strtolower(trim(strip_tags((string)$correct)));
+                    $sNorm = strtolower(trim(strip_tags((string)$studentAns)));
+                    if ($cNorm !== '' && $cNorm === $sNorm) {
+                        $awardedMarks = $maxMarks;
+                    }
+                }
+            }
+
+            // Cap awarded marks between 0 and max question marks
+            $awardedMarks = min($maxMarks, max(0.0, round($awardedMarks, 2)));
+            $isCorrect = ($maxMarks > 0 && $awardedMarks >= $maxMarks);
+            $isPartial = ($maxMarks > 0 && $awardedMarks > 0 && $awardedMarks < $maxMarks);
+
+            $statusLabel = 'Incorrect';
+            if ($isCorrect) {
+                $statusLabel = 'Correct';
+            } elseif ($isPartial) {
+                $statusLabel = 'Partial Credit';
+            } elseif ($hasManualScore) {
+                $statusLabel = 'Incorrect';
+            } elseif (in_array($type, ['short_answer', 'essay', 'fill_blank', 'fill_in_blank', 'fill_in_the_blank', 'blank_space', 'code'])) {
+                $statusLabel = 'Pending Review';
             }
 
             return [
-                'id'             => $q->id,
-                'number'         => $idx + 1,
-                'type'           => $q->type,
-                'instruction'    => $q->instruction,
-                'text'           => strip_tags($q->text ?? ''),
-                'options'        => $q->options,
-                'student_answer' => $studentAns,
-                'correct_answer' => $correct,
-                'is_correct'     => $isCorrect,
-                'awarded_marks'  => $isCorrect ? $q->marks : 0,
-                'max_marks'      => $q->marks,
+                'id'               => $q->id,
+                'number'           => $idx + 1,
+                'type'             => $q->type ?? 'Multiple Choice',
+                'instruction'      => $q->instruction ?? '',
+                'text'             => strip_tags($q->text ?? ($q->title ?? 'Question')),
+                'options'          => $q->options,
+                'student_answer'   => is_array($studentAns) ? json_encode($studentAns) : ($studentAns ?? 'No answer submitted'),
+                'correct_answer'   => $correct ?: 'Pending evaluation',
+                'is_correct'       => $isCorrect,
+                'is_partial'       => $isPartial,
+                'has_manual_score' => $hasManualScore,
+                'manual_score'     => $manualScoreVal,
+                'is_manual_graded' => $isManualGraded,
+                'awarded_marks'    => $awardedMarks,
+                'max_marks'        => $maxMarks,
+                'status_label'     => $statusLabel,
             ];
         });
 
-        $pct = $attempt->percentage !== null ? (float)$attempt->percentage : 0.0;
-        $grade = $attempt->grade ?: $this->calculateGrade($pct);
+        // Dynamic accurate total score calculation based on all awarded marks
+        $totalCalculatedScore = round($questionBreakdown->sum('awarded_marks'), 2);
+        $totalMarks = (float)($attempt->total_marks ?? ($exam->total_marks ?? 100));
+        $pct = $totalMarks > 0 ? round(($totalCalculatedScore / $totalMarks) * 100, 1) : 0.0;
+        $grade = $this->calculateGrade($pct);
         $gradePoint = $this->calculateGradePoint($pct);
+
+        // Keep attempt score in DB permanently in sync if it was null or differed
+        if ($attempt->score === null || (float)$attempt->score !== $totalCalculatedScore || $attempt->percentage === null) {
+            $attempt->update([
+                'score'      => $totalCalculatedScore,
+                'percentage' => $pct,
+                'grade'      => $grade,
+            ]);
+        }
+
+        $displayStatus = ucfirst($attempt->status ?? 'submitted');
+        if ($attempt->status === 'graded') {
+            $displayStatus = 'Graded (Unpublished)';
+        } elseif ($attempt->status === 'published') {
+            $displayStatus = 'Published';
+        }
+
+        $officialStudentId = $student?->id_no ?: ($student?->student_id ?: ('WU/' . str_pad((string)$attempt->user_id, 5, '0', STR_PAD_LEFT) . '/16'));
 
         return response()->json([
             'data' => [
                 'attempt' => [
                     'id'           => $attempt->id,
-                    'score'        => $attempt->score,
-                    'total_marks'  => $attempt->total_marks ?? $exam->total_marks,
+                    'score'        => $totalCalculatedScore,
+                    'total_marks'  => $totalMarks,
                     'percentage'   => $pct,
                     'grade'        => $grade,
                     'grade_point'  => $gradePoint,
-                    'status'       => ucfirst($attempt->status ?? 'submitted'),
+                    'status'       => $displayStatus,
                     'started_at'   => $attempt->started_at ? $attempt->started_at->format('M d, Y h:i A') : 'N/A',
                     'submitted_at' => $attempt->submitted_at ? $attempt->submitted_at->format('M d, Y h:i A') : 'N/A',
                 ],
                 'student' => [
                     'id'         => $student?->id,
                     'name'       => $student?->name ?? 'Student',
-                    'student_id' => $student?->student_id ?: ('UGR/' . str_pad((string)$attempt->user_id, 5, '0', STR_PAD_LEFT) . '/16'),
+                    'student_id' => $officialStudentId,
                     'email'      => $student?->email ?? '',
                     'year_level' => $student?->year_level ?? '1st Year',
-                    'section'    => $student?->section ?? 'A',
-                    'department' => $student?->department?->name ?? 'Computer Science',
+                    'section'    => $student?->section ?? 'Section A',
+                    'department' => $student?->department?->name ?? ($exam->department?->name ?? 'Department'),
                 ],
                 'exam' => [
                     'id'              => $exam->id,
@@ -688,6 +1020,7 @@ class ResultController extends Controller
                     'total_marks'     => $exam->total_marks,
                     'duration'        => $exam->duration_minutes . ' min',
                     'semester'        => $exam->settings['semester'] ?? ($exam->course->semester ?? 'Semester 1'),
+                    'academic_year'   => $exam->settings['academic_year'] ?? '2025/2026',
                 ],
                 'questions' => $questionBreakdown,
             ]
@@ -735,113 +1068,246 @@ class ResultController extends Controller
 
     /**
      * Institutional Multi-Format Export (Excel, PDF, CSV)
+     * strictly scoped to Department Head's department and respecting active filters.
      */
     public function export(Request $request)
     {
         $deptId = $this->resolveDeptId($request);
+        if (!$deptId) {
+            return response()->json(['message' => 'Unauthorized: No department assigned.'], 403);
+        }
+
         $user = $request->user();
         $dept = Department::find($deptId);
-        $deptName = $dept ? $dept->name : 'Computer Science';
+        $deptName = $dept ? $dept->name : 'Department';
+        $deptCode = $dept ? ($dept->code ?: 'DEPT') : 'DEPT';
+        $assignedSemester = SystemSetting::where('key', 'semester')->value('value') ?? 'Second Semester';
 
         $format = strtolower($request->get('format', 'excel'));
 
         $exams = $this->buildDeptExamsQuery($deptId, $user->id)
-            ->with(['instructor', 'course', 'attempts.student'])
+            ->with(['instructor', 'course'])
             ->get();
 
         $allAttempts = ExamAttempt::whereIn('exam_id', $exams->pluck('id'))
-            ->with(['exam.course', 'student'])
+            ->where(function ($q) use ($deptId) {
+                $q->whereHas('student', function ($s) use ($deptId) {
+                    $s->where('department_id', $deptId)->orWhereNull('department_id');
+                });
+            })
+            ->with(['exam.course', 'student.department'])
+            ->latest('id')
             ->get();
 
-        $rows = $allAttempts->map(function ($att) {
+        // Map and filter identically to index()
+        $rows = $allAttempts->map(function ($att) use ($assignedSemester) {
             $student = $att->student;
             $exam = $att->exam;
             $courseCode = $exam?->course_code ?: ($exam?->course?->code ?? 'N/A');
             $courseName = $exam?->course_name ?: ($exam?->course?->title ?? 'General Course');
             $examCode = $exam?->settings['exam_code'] ?? ('EXM-' . ($exam?->scheduled_at ? $exam->scheduled_at->format('Y') : date('Y')) . '-' . str_pad((string)($exam?->id ?? 0), 3, '0', STR_PAD_LEFT));
+
+            $officialStudentId = $student?->id_no ?: ($student?->student_id ?: ('WU/' . str_pad((string)$att->user_id, 5, '0', STR_PAD_LEFT) . '/16'));
+
+            $sec = $student?->section ?: ($exam?->section ?: ($exam?->settings['section'] ?? 'Section A'));
+            if (strtolower($sec) === 'both sections' || strtolower($sec) === 'all') {
+                $sec = $student?->section ?: 'Section A';
+            }
+
+            $yearLevel = $student?->year_level ?: ($exam?->settings['year_level'] ?? '1st Year');
+            $semester = $exam?->settings['semester'] ?? ($exam?->course?->semester ?? ($student?->semester ?? $assignedSemester));
+
+            $totalMarks = $att->total_marks ?? ($exam?->total_marks ?? 100);
+            $rawStatus = strtolower($att->status ?? 'submitted');
+            $score = $att->score !== null ? (float)$att->score : null;
             $pct = $att->percentage !== null ? (float)$att->percentage : null;
-            $grade = $att->grade ?: ($pct !== null ? $this->calculateGrade($pct) : 'Pending');
+
+            $ans = $att->answers ?? [];
+            if (is_string($ans)) $ans = json_decode($ans, true) ?? [];
+            $manualScores = $ans['_manual_scores'] ?? ($ans['manual_scores'] ?? []);
+
+            if (!empty($manualScores) && ($score === null || $pct === null)) {
+                $manualTotal = (float)array_sum($manualScores);
+                $score = $score !== null ? max($score, $manualTotal) : $manualTotal;
+                $pct = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0.0;
+            } elseif ($score !== null && $pct === null) {
+                $pct = $totalMarks > 0 ? round(($score / $totalMarks) * 100, 1) : 0.0;
+            }
+
+            $isGraded = ($score !== null) && in_array($rawStatus, ['graded', 'published', 'completed', 'submitted']);
+            $grade = $isGraded ? ($att->grade ?: $this->calculateGrade($pct ?? 0.0)) : 'Pending';
+
+            $displayStatus = 'Pending';
+            if ($rawStatus === 'published') {
+                $displayStatus = 'Published';
+            } elseif ($rawStatus === 'graded' || ($isGraded && $rawStatus !== 'published')) {
+                $displayStatus = 'Graded (Unpublished)';
+            } elseif ($rawStatus === 'in_progress') {
+                $displayStatus = 'In Progress';
+            }
 
             return [
                 'student_name'   => $student?->name ?? 'Student',
-                'student_reg_no' => $student?->student_id ?: ('UGR/' . str_pad((string)$att->user_id, 5, '0', STR_PAD_LEFT) . '/16'),
+                'student_id'     => $officialStudentId,
+                'student_reg_no' => $officialStudentId,
                 'student_email'  => $student?->email ?? '',
                 'course_code'    => $courseCode,
                 'course_name'    => $courseName,
+                'section'        => $sec,
+                'year_level'     => $yearLevel,
+                'semester'       => $semester,
                 'exam_code'      => $examCode,
                 'exam_title'     => $exam?->title ?? 'Exam',
-                'score'          => $att->score,
-                'total_marks'    => $att->total_marks ?? ($exam?->total_marks ?? 100),
+                'score'          => $score,
+                'total_marks'    => $totalMarks,
                 'percentage'     => $pct,
                 'grade'          => $grade,
-                'status'         => ucfirst($att->status ?? 'submitted'),
-                'semester'       => $exam?->settings['semester'] ?? ($exam?->course->semester ?? 'Semester 1'),
-                'academic_year'  => $exam?->settings['academic_year'] ?? '2025/2026',
+                'status'         => $displayStatus,
+                'raw_status'     => $rawStatus,
+                'is_graded'      => $isGraded,
                 'submitted_at'   => $att->submitted_at ? $att->submitted_at->format('M d, Y h:i A') : 'N/A',
             ];
         });
+
+        // Apply filters
+        $filteredRows = $rows->filter(function ($row) use ($request) {
+            $search = strtolower(trim((string)$request->get('search', '')));
+            if ($search !== '') {
+                $matched = str_contains(strtolower($row['student_name']), $search) ||
+                           str_contains(strtolower($row['student_id']), $search) ||
+                           str_contains(strtolower($row['course_code']), $search) ||
+                           str_contains(strtolower($row['course_name']), $search) ||
+                           str_contains(strtolower($row['exam_title']), $search);
+                if (!$matched) return false;
+            }
+
+            if ($request->filled('student_id') && strtolower($request->student_id) !== 'all') {
+                if (!str_contains(strtolower($row['student_id']), strtolower(trim((string)$request->student_id)))) {
+                    return false;
+                }
+            }
+
+            $reqYearLevel = $request->get('year_level') ?? $request->get('academic_year');
+            if ($reqYearLevel && strtolower($reqYearLevel) !== 'all') {
+                $reqNorm = strtolower(trim((string)$reqYearLevel));
+                $rowNorm = strtolower(trim((string)$row['year_level']));
+                if ($rowNorm !== $reqNorm && !str_contains($rowNorm, $reqNorm)) {
+                    return false;
+                }
+            }
+
+            if ($request->filled('semester') && strtolower($request->semester) !== 'all') {
+                if (strtolower($row['semester']) !== strtolower(trim((string)$request->semester))) {
+                    return false;
+                }
+            }
+
+            if ($request->filled('section') && strtolower($request->section) !== 'all') {
+                $reqSec = str_replace('section ', '', strtolower(trim((string)$request->section)));
+                $rowSec = str_replace('section ', '', strtolower(trim((string)$row['section'])));
+                if ($reqSec !== $rowSec) return false;
+            }
+
+            if ($request->filled('course_code') && strtolower($request->course_code) !== 'all') {
+                if (strtolower($row['course_code']) !== strtolower(trim((string)$request->course_code))) {
+                    return false;
+                }
+            }
+
+            if ($request->filled('status') && strtolower($request->status) !== 'all') {
+                $reqStatus = strtolower(trim((string)$request->status));
+                if (!str_contains(strtolower($row['status']), $reqStatus) && !str_contains(strtolower($row['raw_status']), $reqStatus)) {
+                    return false;
+                }
+            }
+
+            if ($request->filled('grade') && strtolower($request->grade) !== 'all') {
+                if (strtoupper($row['grade']) !== strtoupper(trim((string)$request->grade))) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->values();
 
         $timestamp = Carbon::now()->format('Y-m-d_His');
         $safeDept = preg_replace('/[^A-Za-z0-9_\-]/', '_', strtolower($deptName));
         $baseFileName = "{$safeDept}_department_results_{$timestamp}";
 
-        // 1. PDF Export (Dompdf with inline institutional layout)
+        // Active filters description for export banner
+        $activeFilterDesc = [];
+        $reqYearLevel = $request->get('year_level') ?? $request->get('academic_year');
+        if ($reqYearLevel && $reqYearLevel !== 'all') $activeFilterDesc[] = "Year Level: {$reqYearLevel}";
+        if ($request->filled('semester') && $request->semester !== 'all') $activeFilterDesc[] = "Semester: {$request->semester}";
+        if ($request->filled('section') && $request->section !== 'all') $activeFilterDesc[] = "Section: {$request->section}";
+        if ($request->filled('course_code') && $request->course_code !== 'all') $activeFilterDesc[] = "Course: {$request->course_code}";
+        if ($request->filled('status') && $request->status !== 'all') $activeFilterDesc[] = "Status: {$request->status}";
+        if ($request->filled('grade') && $request->grade !== 'all') $activeFilterDesc[] = "Grade: {$request->grade}";
+        $filterSummaryText = !empty($activeFilterDesc) ? implode(' | ', $activeFilterDesc) : 'All Department Records';
+
+        // 1. PDF Export (Dompdf with official university layout and Department Head sign-off)
         if ($format === 'pdf') {
             $formattedDate = Carbon::now()->format('F d, Y \a\t h:i A');
             $html = '<!DOCTYPE html><html><head><meta charset="utf-8">';
-            $html .= '<title>Wollo University - Academic Results Report</title>';
+            $html .= '<title>Wollo University - Official Results Report</title>';
             $html .= '<style>
                 @page { margin: 20px 25px; }
                 body { font-family: "DejaVu Sans", sans-serif; font-size: 8px; color: #1e293b; line-height: 1.3; }
-                .header { text-align: center; border-bottom: 2px solid #5138ed; padding-bottom: 10px; margin-bottom: 12px; }
+                .header { text-align: center; border-bottom: 2px solid #5138ed; padding-bottom: 8px; margin-bottom: 10px; }
                 .logo-text { font-size: 15px; font-weight: bold; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }
-                .sub-title { font-size: 10px; color: #5138ed; font-weight: bold; margin-top: 3px; }
-                .meta { font-size: 8px; color: #64748b; margin-top: 5px; }
-                .dept-banner { background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; margin-bottom: 12px; border-radius: 4px; }
+                .sub-title { font-size: 10px; color: #5138ed; font-weight: bold; margin-top: 2px; }
+                .meta { font-size: 7.5px; color: #64748b; margin-top: 4px; }
+                .dept-banner { background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; margin-bottom: 10px; border-radius: 4px; }
                 .dept-banner table { width: 100%; border: none; }
-                .dept-banner td { padding: 2px 4px; font-size: 8.5px; }
+                .dept-banner td { padding: 2px 4px; font-size: 8px; }
                 table.data { width: 100%; border-collapse: collapse; margin-top: 5px; }
-                table.data th { background: #5138ed; color: #ffffff; font-weight: bold; padding: 6px 4px; text-align: left; font-size: 7.5px; text-transform: uppercase; }
-                table.data td { padding: 5px 4px; border-bottom: 1px solid #e2e8f0; font-size: 7.5px; }
+                table.data th { background: #5138ed; color: #ffffff; font-weight: bold; padding: 5px 3px; text-align: left; font-size: 7px; text-transform: uppercase; }
+                table.data td { padding: 4px 3px; border-bottom: 1px solid #e2e8f0; font-size: 7px; }
                 table.data tr:nth-child(even) { background-color: #f8fafc; }
                 .grade-a { color: #059669; font-weight: bold; }
                 .grade-b { color: #2563eb; font-weight: bold; }
                 .grade-c { color: #d97706; font-weight: bold; }
                 .grade-f { color: #dc2626; font-weight: bold; }
-                .badge-published { background: #dcfce7; color: #166534; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
-                .badge-pending { background: #fef3c7; color: #92400e; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
-                .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 7.5px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px; }
+                .badge-published { background: #dcfce7; color: #166534; padding: 1.5px 3px; border-radius: 3px; font-weight: bold; }
+                .badge-pending { background: #fef3c7; color: #92400e; padding: 1.5px 3px; border-radius: 3px; font-weight: bold; }
+                .sign-off { margin-top: 18px; border-top: 1px dashed #cbd5e1; padding-top: 12px; }
+                .sign-off table { width: 100%; border: none; }
+                .sign-off td { font-size: 8px; padding: 4px 8px; vertical-align: top; }
+                .seal-box { border: 1px dashed #94a3b8; width: 85px; height: 50px; text-align: center; line-height: 50px; color: #94a3b8; font-size: 7px; text-transform: uppercase; font-weight: bold; margin: 0 auto; border-radius: 4px; }
+                .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 7px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 3px; }
             </style></head><body>';
 
             $html .= '<div class="header">';
             $html .= '<div class="logo-text">Wollo University</div>';
-            $html .= '<div class="sub-title">DEPARTMENT RESULTS & ACADEMIC PERFORMANCE REPORT</div>';
-            $html .= '<div class="meta">Official Examination Results &bull; Generated: ' . $formattedDate . ' &bull; Department Head: ' . htmlspecialchars($user->name) . '</div>';
+            $html .= '<div class="sub-title">DEPARTMENT OF ' . strtoupper(htmlspecialchars($deptName)) . ' (' . htmlspecialchars($deptCode) . ')</div>';
+            $html .= '<div class="meta">OFFICIAL EXAMINATION RESULTS REPORT &bull; Generated: ' . $formattedDate . ' &bull; Department Head: ' . htmlspecialchars($user->name) . '</div>';
             $html .= '</div>';
 
             $html .= '<div class="dept-banner"><table><tr>';
-            $html .= '<td><strong>Department:</strong> ' . htmlspecialchars($deptName) . '</td>';
-            $html .= '<td><strong>Total Submissions:</strong> ' . $rows->count() . '</td>';
-            $html .= '<td><strong>Exported By:</strong> ' . htmlspecialchars($user->name) . '</td>';
+            $html .= '<td><strong>Department:</strong> ' . htmlspecialchars($deptName) . ' (' . htmlspecialchars($deptCode) . ')</td>';
+            $html .= '<td><strong>Active Filters:</strong> ' . htmlspecialchars($filterSummaryText) . '</td>';
+            $html .= '<td><strong>Total Records:</strong> ' . $filteredRows->count() . '</td>';
             $html .= '</tr></table></div>';
 
             $html .= '<table class="data"><thead><tr>';
-            $html .= '<th style="width: 20px;">#</th>';
+            $html .= '<th style="width: 15px;">#</th>';
+            $html .= '<th style="width: 60px;">Student ID</th>';
             $html .= '<th>Student Name</th>';
-            $html .= '<th style="width: 65px;">Student ID</th>';
             $html .= '<th style="width: 45px;">Course</th>';
+            $html .= '<th style="width: 35px;">Section</th>';
+            $html .= '<th style="width: 45px;">Year Level</th>';
+            $html .= '<th style="width: 50px;">Semester</th>';
             $html .= '<th>Exam Title</th>';
             $html .= '<th style="width: 35px; text-align: center;">Score</th>';
-            $html .= '<th style="width: 30px; text-align: center;">%</th>';
+            $html .= '<th style="width: 25px; text-align: center;">%</th>';
             $html .= '<th style="width: 25px; text-align: center;">Grade</th>';
-            $html .= '<th style="width: 50px; text-align: center;">Status</th>';
-            $html .= '<th style="width: 65px;">Submitted</th>';
+            $html .= '<th style="width: 55px; text-align: center;">Status</th>';
             $html .= '</tr></thead><tbody>';
 
-            if ($rows->isEmpty()) {
-                $html .= '<tr><td colspan="10" style="text-align: center; padding: 15px; color: #94a3b8;">No student examination results found.</td></tr>';
+            if ($filteredRows->isEmpty()) {
+                $html .= '<tr><td colspan="12" style="text-align: center; padding: 15px; color: #94a3b8;">No examination results found matching the selected filter criteria.</td></tr>';
             } else {
-                foreach ($rows as $i => $r) {
+                foreach ($filteredRows as $i => $r) {
                     $gradeClass = 'grade-f';
                     if (str_starts_with($r['grade'], 'A')) $gradeClass = 'grade-a';
                     elseif (str_starts_with($r['grade'], 'B')) $gradeClass = 'grade-b';
@@ -854,21 +1320,31 @@ class ResultController extends Controller
 
                     $html .= '<tr>';
                     $html .= '<td>' . ($i + 1) . '</td>';
+                    $html .= '<td style="font-family: monospace;">' . htmlspecialchars($r['student_id']) . '</td>';
                     $html .= '<td><strong>' . htmlspecialchars($r['student_name']) . '</strong></td>';
-                    $html .= '<td>' . htmlspecialchars($r['student_reg_no']) . '</td>';
                     $html .= '<td>' . htmlspecialchars($r['course_code']) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($r['section']) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($r['year_level']) . '</td>';
+                    $html .= '<td>' . htmlspecialchars($r['semester']) . '</td>';
                     $html .= '<td>' . htmlspecialchars($r['exam_title']) . '</td>';
                     $html .= '<td style="text-align: center;">' . ($r['score'] !== null ? $r['score'] . '/' . $r['total_marks'] : '—') . '</td>';
                     $html .= '<td style="text-align: center;">' . ($r['percentage'] !== null ? $r['percentage'] . '%' : '—') . '</td>';
                     $html .= '<td style="text-align: center;" class="' . $gradeClass . '">' . htmlspecialchars($r['grade']) . '</td>';
                     $html .= '<td style="text-align: center;">' . $statusBadge . '</td>';
-                    $html .= '<td>' . htmlspecialchars($r['submitted_at']) . '</td>';
                     $html .= '</tr>';
                 }
             }
 
             $html .= '</tbody></table>';
-            $html .= '<div class="footer">Wollo University Online Examination System &bull; Confidential Department Document &bull; Generated by Department Head</div>';
+
+            // Official Department Head sign-off footer
+            $html .= '<div class="sign-off"><table><tr>';
+            $html .= '<td style="width: 35%;"><strong>Prepared & Verified By:</strong><br><br>' . htmlspecialchars($user->name) . '<br>Head, Department of ' . htmlspecialchars($deptName) . '<br>Signature: __________________________</td>';
+            $html .= '<td style="width: 30%; text-align: center;"><strong>Institutional Stamp:</strong><br><br><div class="seal-box">Official Seal</div></td>';
+            $html .= '<td style="width: 35%; text-align: right;"><strong>Academic Commission Approval:</strong><br><br>Date: __________________________<br>Registrar Endorsement: ____________</td>';
+            $html .= '</tr></table></div>';
+
+            $html .= '<div class="footer">Wollo University Examination Management Portal &bull; Confidential Department Document &bull; Authorized Access Only</div>';
             $html .= '</body></html>';
 
             $options = new Options();
@@ -881,7 +1357,16 @@ class ResultController extends Controller
             $dompdf->setPaper('A4', 'landscape');
             $dompdf->render();
 
-            \App\Helpers\LogActivity::record('Exported', 'Results', "Exported {$rows->count()} results records as PDF ({$deptName})");
+            ActivityLog::create([
+                'department_id' => $deptId,
+                'user_id'       => $user->id,
+                'actor_role'    => 'dept_head',
+                'action'        => "Exported {$filteredRows->count()} examination results as PDF ({$deptName})",
+                'type'          => 'export',
+                'module'        => 'Results',
+                'details'       => "Department Head generated PDF results report with filters: {$filterSummaryText}",
+                'log_status'    => 'success',
+            ]);
 
             return response()->json([
                 'filename'  => $baseFileName . '.pdf',
@@ -893,29 +1378,28 @@ class ResultController extends Controller
         // 2. CSV Export
         if ($format === 'csv') {
             $filename = "{$baseFileName}.csv";
-            $headers = ['#', 'Student Name', 'Student ID', 'Student Email', 'Course Code', 'Course Title', 'Exam Code', 'Exam Title', 'Score', 'Total Marks', 'Percentage', 'Grade', 'Status', 'Semester', 'Academic Year', 'Submitted Date'];
-            
+            $headers = ['#', 'Student ID', 'Student Name', 'Course Code', 'Course Title', 'Section', 'Year Level', 'Semester', 'Exam Title', 'Score Earned', 'Total Marks', 'Percentage (%)', 'Grade', 'Result Status', 'Submitted Date'];
+
             $handle = fopen('php://memory', 'r+');
             fputs($handle, "\xEF\xBB\xBF");
             fputcsv($handle, $headers);
 
-            foreach ($rows as $idx => $r) {
+            foreach ($filteredRows as $idx => $r) {
                 fputcsv($handle, [
                     $idx + 1,
+                    $r['student_id'],
                     $r['student_name'],
-                    $r['student_reg_no'],
-                    $r['student_email'],
                     $r['course_code'],
                     $r['course_name'],
-                    $r['exam_code'],
+                    $r['section'],
+                    $r['year_level'],
+                    $r['semester'],
                     $r['exam_title'],
                     $r['score'] !== null ? $r['score'] : 'N/A',
                     $r['total_marks'],
                     $r['percentage'] !== null ? ($r['percentage'] . '%') : 'N/A',
                     $r['grade'],
                     $r['status'],
-                    $r['semester'],
-                    $r['academic_year'],
                     $r['submitted_at'],
                 ]);
             }
@@ -924,7 +1408,16 @@ class ResultController extends Controller
             $csvContent = stream_get_contents($handle);
             fclose($handle);
 
-            \App\Helpers\LogActivity::record('Exported', 'Results', "Exported {$rows->count()} results records as CSV ({$deptName})");
+            ActivityLog::create([
+                'department_id' => $deptId,
+                'user_id'       => $user->id,
+                'actor_role'    => 'dept_head',
+                'action'        => "Exported {$filteredRows->count()} examination results as CSV ({$deptName})",
+                'type'          => 'export',
+                'module'        => 'Results',
+                'details'       => "Department Head exported CSV results spreadsheet with filters: {$filterSummaryText}",
+                'log_status'    => 'success',
+            ]);
 
             return response()->json([
                 'filename'  => $filename,
@@ -935,9 +1428,18 @@ class ResultController extends Controller
 
         // 3. Excel Export (Default)
         $filename = "{$baseFileName}.xlsx";
-        $excelBinary = Excel::raw(new DepartmentResultExport($rows), \Maatwebsite\Excel\Excel::XLSX);
+        $excelBinary = Excel::raw(new DepartmentResultExport($filteredRows), \Maatwebsite\Excel\Excel::XLSX);
 
-        \App\Helpers\LogActivity::record('Exported', 'Results', "Exported {$rows->count()} results records as Excel ({$deptName})");
+        ActivityLog::create([
+            'department_id' => $deptId,
+            'user_id'       => $user->id,
+            'actor_role'    => 'dept_head',
+            'action'        => "Exported {$filteredRows->count()} examination results as Excel ({$deptName})",
+            'type'          => 'export',
+            'module'        => 'Results',
+            'details'       => "Department Head exported Excel results workbook with filters: {$filterSummaryText}",
+            'log_status'    => 'success',
+        ]);
 
         return response()->json([
             'filename'  => $filename,
