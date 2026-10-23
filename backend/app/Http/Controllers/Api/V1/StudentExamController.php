@@ -394,16 +394,57 @@ class StudentExamController extends Controller
                 ], 403);
             }
 
-            // Resume existing attempt — return questions again
-            $questions = $exam->questions()->get()->map(function ($q) {
+            // Retrieve saved question order if available
+            $savedOrder = $existingAttempt->question_order 
+                ?? ($existingAttempt->answers['_question_order'] ?? null);
+            $savedOptionOrder = $existingAttempt->option_order 
+                ?? ($existingAttempt->answers['_option_order'] ?? null);
+
+            $allQuestions = $exam->questions()->get();
+            $isShuffleQuestions = $this->isShuffleQuestionsEnabled($exam);
+            $isShuffleAnswers = $this->isShuffleAnswersEnabled($exam);
+
+            if (!empty($savedOrder) && is_array($savedOrder)) {
+                $orderedQuestions = $this->orderQuestionsByIds($allQuestions, $savedOrder);
+            } elseif ($isShuffleQuestions) {
+                // If attempt was created before shuffle was persisted, shuffle and persist now
+                $orderedQuestions = $this->shuffleExamQuestions($allQuestions);
+                $orderIds = $orderedQuestions->pluck('id')->map(fn($id) => (int)$id)->all();
+                $existingAttempt->question_order = $orderIds;
+                $answers = $existingAttempt->answers ?? [];
+                $answers['_question_order'] = $orderIds;
+                $existingAttempt->answers = $answers;
+                $existingAttempt->save();
+            } else {
+                $orderedQuestions = $allQuestions;
+            }
+
+            $currentOptionOrders = is_array($savedOptionOrder) ? $savedOptionOrder : [];
+            $optionOrdersUpdated = false;
+
+            // Resume existing attempt — return questions in consistent attempt order
+            $questions = $orderedQuestions->map(function ($q) use (&$currentOptionOrders, &$optionOrdersUpdated, $isShuffleAnswers) {
                 $isMatching = $q->type === 'matching' || strtolower((string)$q->type) === 'matching';
                 [$colA, $colB] = $this->extractMatchingColumns($q);
+
+                $options = !$isMatching ? ($q->options ?? []) : [];
+                if (!$isMatching && !empty($options) && count($options) > 1) {
+                    if (!empty($currentOptionOrders[$q->id])) {
+                        $options = $this->applyOptionOrder($options, $currentOptionOrders[$q->id]);
+                    } elseif ($isShuffleAnswers) {
+                        $res = $this->shuffleQuestionOptions($options);
+                        $options = $res['options'];
+                        $currentOptionOrders[$q->id] = $res['order_map'];
+                        $optionOrdersUpdated = true;
+                    }
+                }
+
                 return [
                     'id'          => $q->id,
                     'instruction' => $q->instruction,
                     'text'        => $q->text,
                     'type'        => $this->mapQuestionType($q->type),
-                    'options'     => !$isMatching ? ($q->options ?? []) : [],
+                    'options'     => $options,
                     'pairs'       => $isMatching ? $this->extractMatchingPairs($q) : null,
                     'columnA'     => $isMatching ? $colA : null,
                     'columnB'     => $isMatching ? $colB : null,
@@ -411,8 +452,25 @@ class StudentExamController extends Controller
                 ];
             });
 
+            if ($optionOrdersUpdated) {
+                $existingAttempt->option_order = $currentOptionOrders;
+                $ans = $existingAttempt->answers ?? [];
+                $ans['_option_order'] = $currentOptionOrders;
+                $existingAttempt->answers = $ans;
+            }
+
             $existingAttempt->last_heartbeat_at = now();
             $existingAttempt->save();
+
+            // Filter internal metadata keys from saved_answers
+            $cleanSavedAnswers = $existingAttempt->answers ?? [];
+            if (is_array($cleanSavedAnswers)) {
+                $cleanSavedAnswers = array_filter(
+                    $cleanSavedAnswers,
+                    fn($k) => !str_starts_with((string)$k, '_'),
+                    ARRAY_FILTER_USE_KEY
+                );
+            }
 
             return response()->json([
                 'data' => [
@@ -423,7 +481,7 @@ class StudentExamController extends Controller
                     'duration_minutes'   => $exam->duration_minutes,
                     'total_marks'        => $exam->total_marks,
                     'started_at'         => $existingAttempt->started_at->toISOString(),
-                    'saved_answers'      => $existingAttempt->answers ?? [],
+                    'saved_answers'      => $cleanSavedAnswers,
                     'extra_time_seconds' => $existingAttempt->extra_time_seconds ?? 0,
                     'adjusted_deadline'  => $existingAttempt->getAdjustedDeadline()?->toIso8601String(),
                     'remaining_seconds'  => $remainingSeconds,
@@ -457,7 +515,46 @@ class StudentExamController extends Controller
             }
         }
 
-        // Create new attempt
+        $allQuestions = $exam->questions()->get();
+        $isShuffleQuestions = $this->isShuffleQuestionsEnabled($exam);
+        $isShuffleAnswers = $this->isShuffleAnswersEnabled($exam);
+
+        if ($isShuffleQuestions) {
+            $orderedQuestions = $this->shuffleExamQuestions($allQuestions);
+            $questionOrder = $orderedQuestions->pluck('id')->map(fn($id) => (int)$id)->all();
+        } else {
+            $orderedQuestions = $allQuestions;
+            $questionOrder = $allQuestions->pluck('id')->map(fn($id) => (int)$id)->all();
+        }
+
+        $attemptOptionOrder = [];
+
+        // Return questions in the attempt's assigned order WITHOUT correct_answer
+        $questions = $orderedQuestions->map(function ($q) use ($isShuffleAnswers, &$attemptOptionOrder) {
+            $isMatching = $q->type === 'matching' || strtolower((string)$q->type) === 'matching';
+            [$colA, $colB] = $this->extractMatchingColumns($q);
+
+            $options = !$isMatching ? ($q->options ?? []) : [];
+            if (!$isMatching && !empty($options) && count($options) > 1 && $isShuffleAnswers) {
+                $res = $this->shuffleQuestionOptions($options);
+                $options = $res['options'];
+                $attemptOptionOrder[$q->id] = $res['order_map'];
+            }
+
+            return [
+                'id'          => $q->id,
+                'instruction' => $q->instruction,
+                'text'        => $q->text,
+                'type'        => $this->mapQuestionType($q->type),
+                'options'     => $options,
+                'pairs'       => $isMatching ? $this->extractMatchingPairs($q) : null,
+                'columnA'     => $isMatching ? $colA : null,
+                'columnB'     => $isMatching ? $colB : null,
+                'marks'       => $q->marks,
+            ];
+        });
+
+        // Create new attempt with deterministic question order and option order
         $attempt = ExamAttempt::create([
             'exam_id'            => $exam->id,
             'user_id'            => $student->id,
@@ -466,6 +563,12 @@ class StudentExamController extends Controller
             'started_at'         => now(),
             'last_heartbeat_at'  => now(),
             'extra_time_seconds' => 0,
+            'question_order'     => $questionOrder,
+            'option_order'       => $attemptOptionOrder,
+            'answers'            => [
+                '_question_order' => $questionOrder,
+                '_option_order'   => $attemptOptionOrder,
+            ],
         ]);
 
         \App\Helpers\LogActivity::record(
@@ -473,23 +576,6 @@ class StudentExamController extends Controller
             'Examinations',
             "Student {$student->name} started attempt on \"{$exam->title}\"."
         );
-
-        // Return questions WITHOUT correct_answer
-        $questions = $exam->questions()->get()->map(function ($q) {
-            $isMatching = $q->type === 'matching' || strtolower((string)$q->type) === 'matching';
-            [$colA, $colB] = $this->extractMatchingColumns($q);
-            return [
-                'id'          => $q->id,
-                'instruction' => $q->instruction,
-                'text'        => $q->text,
-                'type'        => $this->mapQuestionType($q->type),
-                'options'     => !$isMatching ? ($q->options ?? []) : [],
-                'pairs'       => $isMatching ? $this->extractMatchingPairs($q) : null,
-                'columnA'     => $isMatching ? $colA : null,
-                'columnB'     => $isMatching ? $colB : null,
-                'marks'       => $q->marks,
-            ];
-        });
 
         return response()->json([
             'data' => [
@@ -601,6 +687,20 @@ class StudentExamController extends Controller
             $answers = json_decode($answers, true) ?? [];
         }
 
+        // Preserve _question_order and _option_order in answers
+        if (!isset($answers['_question_order'])) {
+            $order = $attempt->question_order ?? ($attempt->answers['_question_order'] ?? null);
+            if (!empty($order)) {
+                $answers['_question_order'] = $order;
+            }
+        }
+        if (!isset($answers['_option_order'])) {
+            $optOrder = $attempt->option_order ?? ($attempt->answers['_option_order'] ?? null);
+            if (!empty($optOrder)) {
+                $answers['_option_order'] = $optOrder;
+            }
+        }
+
         $questions = $exam ? $exam->questions()->get() : collect();
 
         // Question types that can be auto-graded
@@ -683,7 +783,8 @@ class StudentExamController extends Controller
                         $isCorrect = $this->isTrueFalseCorrect($studentAnswer, $q->correct_answer);
                     } else {
                         // MCQ: match letter, option text, index, or option prefix
-                        $isCorrect = $this->gradeMultipleChoice($studentAnswer, $q);
+                        $optOrder = $attempt->option_order[$q->id] ?? ($answers['_option_order'][$q->id] ?? null);
+                        $isCorrect = $this->gradeMultipleChoice($studentAnswer, $q, $optOrder);
                     }
                 }
 
@@ -759,13 +860,15 @@ class StudentExamController extends Controller
         $submittedAt      = $attempt->submitted_at ?? ($adjustedDeadline && $adjustedDeadline->isPast() ? $adjustedDeadline : now());
 
         $attempt->update([
-            'score'        => $autoScore,
-            'total_marks'  => $totalPossible > 0 ? $totalPossible : ($exam?->total_marks ?? 0),
-            'percentage'   => $percentage,
-            'grade'        => $grade,
-            'status'       => $status,
-            'answers'      => $answers,
-            'submitted_at' => $submittedAt,
+            'score'          => $autoScore,
+            'total_marks'    => $totalPossible > 0 ? $totalPossible : ($exam?->total_marks ?? 0),
+            'percentage'     => $percentage,
+            'grade'          => $grade,
+            'status'         => $status,
+            'answers'        => $answers,
+            'question_order' => $attempt->question_order ?? ($answers['_question_order'] ?? null),
+            'option_order'   => $attempt->option_order ?? ($answers['_option_order'] ?? null),
+            'submitted_at'   => $submittedAt,
         ]);
 
         return [
@@ -821,8 +924,9 @@ class StudentExamController extends Controller
      * 3. Numeric index (0, 1, 2...)
      * 4. Option prefixed strings ("Option A", "A. Text")
      * 5. Options marked is_correct in database
+     * Supports shuffled options via $optionOrder mapping.
      */
-    private function gradeMultipleChoice($studentAnswer, $q): bool
+    private function gradeMultipleChoice($studentAnswer, $q, ?array $optionOrder = null): bool
     {
         $studentAns = strtoupper(trim((string)$studentAnswer)); // e.g. "A", "B", "C"
         $correctAns = trim((string)$q->correct_answer);
@@ -831,17 +935,28 @@ class StudentExamController extends Controller
             return false;
         }
 
-        // 1. Direct letter comparison (e.g. "A" === "A")
-        if (strtoupper($correctAns) === $studentAns) {
-            return true;
-        }
-
         $options = $q->options ?? [];
         $studentIdx = ord($studentAns) - 65; // A -> 0, B -> 1, C -> 2...
 
-        // 2. If correct_answer matches the text of the option selected by the student
-        if ($studentIdx >= 0 && isset($options[$studentIdx])) {
-            $opt = $options[$studentIdx];
+        // If options were shuffled for this student attempt, map student's shuffled index to original index
+        $originalIdx = $studentIdx;
+        if (!empty($optionOrder) && isset($optionOrder[$studentIdx])) {
+            $originalIdx = (int)$optionOrder[$studentIdx];
+        }
+
+        // 1. Direct letter comparison if not shuffled, or mapped letter if shuffled
+        if (empty($optionOrder) && strtoupper($correctAns) === $studentAns) {
+            return true;
+        } elseif (!empty($optionOrder) && $originalIdx >= 0) {
+            $originalLetter = chr(65 + $originalIdx);
+            if (strtoupper($correctAns) === $originalLetter) {
+                return true;
+            }
+        }
+
+        // 2. If correct_answer matches the text of the original option chosen by the student
+        if ($originalIdx >= 0 && isset($options[$originalIdx])) {
+            $opt = $options[$originalIdx];
             $optText = is_array($opt) ? ($opt['text'] ?? $opt['label'] ?? '') : (string)$opt;
             $cleanOptText = strtolower(trim(strip_tags((string)$optText)));
             $cleanCorrect = strtolower(trim(strip_tags((string)$correctAns)));
@@ -850,13 +965,13 @@ class StudentExamController extends Controller
             }
         }
 
-        // 3. If correct_answer matches an option text in the options array, compare its index with studentIdx
+        // 3. If correct_answer matches an option text in the options array, compare its index with originalIdx
         foreach ($options as $optIdx => $opt) {
             $optText = is_array($opt) ? ($opt['text'] ?? $opt['label'] ?? '') : (string)$opt;
             $cleanOptText = strtolower(trim(strip_tags((string)$optText)));
             $cleanCorrect = strtolower(trim(strip_tags((string)$correctAns)));
             if ($cleanOptText !== '' && $cleanOptText === $cleanCorrect) {
-                if ($optIdx === $studentIdx) {
+                if ($optIdx === $originalIdx) {
                     return true;
                 }
             }
@@ -865,20 +980,22 @@ class StudentExamController extends Controller
         // 4. If correct_answer is a numeric index (0 -> A, 1 -> B, etc.)
         if (is_numeric($correctAns)) {
             $cIdx = (int)$correctAns;
-            if ($cIdx === $studentIdx || $cIdx === ($studentIdx + 1)) {
+            if ($cIdx === $originalIdx || $cIdx === ($originalIdx + 1)) {
                 return true;
             }
         }
 
         // 5. If correct_answer has a prefix like "Option A" or "A. Some text" or "A) ..."
         if (preg_match('/^(?:Option\s*)?([A-Za-z])[\.\)\:\s]/i', $correctAns, $matches)) {
-            if (strtoupper($matches[1]) === $studentAns) {
+            $targetLetter = strtoupper($matches[1]);
+            $targetIdx = ord($targetLetter) - 65;
+            if ($targetIdx === $originalIdx) {
                 return true;
             }
         }
 
         // 6. If options list has is_correct flag
-        if ($studentIdx >= 0 && isset($options[$studentIdx]) && is_array($options[$studentIdx]) && !empty($options[$studentIdx]['is_correct'])) {
+        if ($originalIdx >= 0 && isset($options[$originalIdx]) && is_array($options[$originalIdx]) && !empty($options[$originalIdx]['is_correct'])) {
             return true;
         }
 
@@ -1017,7 +1134,8 @@ class StudentExamController extends Controller
                             $res = $this->gradeMatchingPartial((string)$studentAnswer, $pairs, 1, $correctAnswers);
                             $isCorrect = $res['all_correct'];
                         } else {
-                            $isCorrect = $this->gradeMultipleChoice($studentAnswer, $q);
+                            $optOrder = $attempt->option_order[$q->id] ?? ($storedAnswers['_option_order'][$q->id] ?? null);
+                            $isCorrect = $this->gradeMultipleChoice($studentAnswer, $q, $optOrder);
                         }
                     }
 
@@ -1111,15 +1229,20 @@ class StudentExamController extends Controller
             }
         }
 
-        // Sort: first by instruction group order, then by id within the group
-        $sortedQuestions = $rawQuestions->sort(function ($a, $b) use ($instructionOrder) {
-            $instA = trim($a->instruction ?? '');
-            $instB = trim($b->instruction ?? '');
-            $orderA = $instructionOrder[$instA] ?? 9999;
-            $orderB = $instructionOrder[$instB] ?? 9999;
-            if ($orderA !== $orderB) return $orderA <=> $orderB;
-            return $a->id <=> $b->id; // ascending creation order within group
-        })->values();
+        $savedOrder = $attempt->question_order ?? ($answers['_question_order'] ?? null);
+        if (!empty($savedOrder) && is_array($savedOrder)) {
+            $sortedQuestions = $this->orderQuestionsByIds($rawQuestions, $savedOrder);
+        } else {
+            // Sort: first by instruction group order, then by id within the group
+            $sortedQuestions = $rawQuestions->sort(function ($a, $b) use ($instructionOrder) {
+                $instA = trim($a->instruction ?? '');
+                $instB = trim($b->instruction ?? '');
+                $orderA = $instructionOrder[$instA] ?? 9999;
+                $orderB = $instructionOrder[$instB] ?? 9999;
+                if ($orderA !== $orderB) return $orderA <=> $orderB;
+                return $a->id <=> $b->id; // ascending creation order within group
+            })->values();
+        }
 
         $totalQuestionsCount = $sortedQuestions->count();
         $attemptedCount = 0;
@@ -1182,7 +1305,12 @@ class StudentExamController extends Controller
 
             if ($typeKey === 'multiple_choice') {
                 $rawOptions = $q->options ?? [];
-                foreach ($rawOptions as $optIdx => $opt) {
+                $optOrder = $attempt->option_order[$q->id] ?? ($answers['_option_order'][$q->id] ?? null);
+                $displayOptions = (!empty($optOrder) && is_array($optOrder))
+                    ? $this->applyOptionOrder($rawOptions, $optOrder)
+                    : $rawOptions;
+
+                foreach ($displayOptions as $optIdx => $opt) {
                     $letter = chr(65 + $optIdx);
                     $optText = is_array($opt) ? ($opt['text'] ?? '') : (string)$opt;
                     $cleanText = strip_tags($optText);
@@ -1192,11 +1320,25 @@ class StudentExamController extends Controller
                 $correctLetter = strtoupper(trim((string)$q->correct_answer));
                 $studentLetter = strtoupper(trim((string)$studentAns));
 
-                $isCorrect = ($isAnswered && $this->gradeMultipleChoice($studentAns, $q));
+                $isCorrect = ($isAnswered && $this->gradeMultipleChoice($studentAns, $q, $optOrder));
                 $earnedMarks = $isCorrect ? $qMarks : 0;
 
-                // Find full text
-                $correctOpt = collect($optionsList)->firstWhere('label', $correctLetter);
+                // Find full text matching shuffled options
+                $correctOpt = null;
+                if (!empty($optOrder) && is_array($optOrder)) {
+                    $corrLetter = strtoupper(trim((string)$q->correct_answer));
+                    if (strlen($corrLetter) === 1 && $corrLetter >= 'A' && $corrLetter <= 'Z') {
+                        $origCorrIdx = ord($corrLetter) - 65;
+                        $shuffledCorrIdx = array_search($origCorrIdx, $optOrder, true);
+                        if ($shuffledCorrIdx !== false) {
+                            $shuffledLetter = chr(65 + $shuffledCorrIdx);
+                            $correctOpt = collect($optionsList)->firstWhere('label', $shuffledLetter);
+                        }
+                    }
+                }
+                if (!$correctOpt) {
+                    $correctOpt = collect($optionsList)->firstWhere('label', $correctLetter);
+                }
                 if (!$correctOpt) {
                     $cleanCorr = strtolower(trim(strip_tags((string)$q->correct_answer)));
                     $correctOpt = collect($optionsList)->first(fn($o) => strtolower(trim($o['text'])) === $cleanCorr);
@@ -1556,6 +1698,155 @@ class StudentExamController extends Controller
         }
 
         return [$colA, $colB];
+    }
+
+    /**
+     * Determine if question shuffling is enabled for this exam.
+     */
+    protected function isShuffleQuestionsEnabled(Exam $exam): bool
+    {
+        $settings = $exam->settings;
+        if (is_string($settings)) {
+            $settings = json_decode($settings, true) ?: [];
+        }
+        if (!is_array($settings)) {
+            return false;
+        }
+
+        $val = $settings['shuffleQuestions'] ?? $settings['shuffle_questions'] ?? null;
+        if ($val === null) {
+            return false;
+        }
+
+        return filter_var($val, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Determine if answer options shuffling is enabled for this exam.
+     */
+    protected function isShuffleAnswersEnabled(Exam $exam): bool
+    {
+        $settings = $exam->settings;
+        if (is_string($settings)) {
+            $settings = json_decode($settings, true) ?: [];
+        }
+        if (!is_array($settings)) {
+            return false;
+        }
+
+        $val = $settings['shuffleAnswers'] ?? $settings['shuffle_answers'] ?? $settings['shuffle_options'] ?? null;
+        if ($val === null) {
+            return false;
+        }
+
+        return filter_var($val, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Shuffle multiple choice options and return the shuffled options along with the index mapping.
+     * Returns: ['options' => array, 'order_map' => array]
+     * order_map maps new_index => original_index.
+     */
+    protected function shuffleQuestionOptions(array $rawOptions): array
+    {
+        $count = count($rawOptions);
+        if ($count <= 1) {
+            return [
+                'options'   => array_values($rawOptions),
+                'order_map' => range(0, max(0, $count - 1)),
+            ];
+        }
+
+        $indices = range(0, $count - 1);
+        shuffle($indices);
+
+        // Ensure it doesn't accidentally match the original order if count > 1
+        if ($indices === range(0, $count - 1)) {
+            $indices = array_reverse($indices);
+        }
+
+        $shuffledOptions = [];
+        $orderMap = [];
+
+        $rawList = array_values($rawOptions);
+        foreach ($indices as $newIdx => $origIdx) {
+            $shuffledOptions[] = $rawList[$origIdx];
+            $orderMap[$newIdx] = (int)$origIdx;
+        }
+
+        return [
+            'options'   => $shuffledOptions,
+            'order_map' => $orderMap,
+        ];
+    }
+
+    /**
+     * Reorder options according to a saved order map (new_index => original_index).
+     */
+    protected function applyOptionOrder(array $rawOptions, array $orderIndices): array
+    {
+        $rawList = array_values($rawOptions);
+        $reordered = [];
+
+        foreach ($orderIndices as $origIdx) {
+            $origIdx = (int)$origIdx;
+            if (isset($rawList[$origIdx])) {
+                $reordered[] = $rawList[$origIdx];
+            }
+        }
+
+        // If any options weren't included (e.g. added later), append them
+        $usedIndices = array_map('intval', array_values($orderIndices));
+        foreach ($rawList as $idx => $opt) {
+            if (!in_array($idx, $usedIndices, true)) {
+                $reordered[] = $opt;
+            }
+        }
+
+        return !empty($reordered) ? $reordered : $rawList;
+    }
+
+    /**
+     * Randomize the question sequence for a student attempt.
+     */
+    protected function shuffleExamQuestions(\Illuminate\Support\Collection $questions): \Illuminate\Support\Collection
+    {
+        if ($questions->count() <= 1) {
+            return $questions;
+        }
+
+        $shuffled = $questions->shuffle()->values();
+
+        // Ensure the shuffled order is different from the original order if count > 1
+        if ($questions->count() > 1 && $shuffled->pluck('id')->all() === $questions->pluck('id')->all()) {
+            $shuffled = $questions->reverse()->values();
+        }
+
+        return $shuffled;
+    }
+
+    /**
+     * Order a collection of questions according to a saved array of question IDs.
+     */
+    protected function orderQuestionsByIds(\Illuminate\Support\Collection $questions, array $orderIds): \Illuminate\Support\Collection
+    {
+        $byId = $questions->keyBy('id');
+        $ordered = collect();
+
+        foreach ($orderIds as $id) {
+            $intId = (int)$id;
+            if ($byId->has($intId)) {
+                $ordered->push($byId->get($intId));
+                $byId->forget($intId);
+            }
+        }
+
+        // Append any remaining questions (e.g. added after attempt was started)
+        foreach ($byId as $remaining) {
+            $ordered->push($remaining);
+        }
+
+        return $ordered->values();
     }
 
     /**

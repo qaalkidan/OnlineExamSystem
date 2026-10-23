@@ -906,26 +906,26 @@ defineExpose({
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div class="px-3.5 py-2.5 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100">
                     <span class="text-xs font-medium text-slate-600">Shuffle Questions</span>
-                    <span class="text-xs font-bold" :class="selectedExam.settings.shuffle_questions ? 'text-emerald-700' : 'text-slate-400'">
-                      {{ selectedExam.settings.shuffle_questions ? 'Enabled' : 'Disabled' }}
+                    <span class="text-xs font-bold" :class="(selectedExam.settings.shuffle_questions ?? selectedExam.settings.shuffleQuestions) ? 'text-emerald-700' : 'text-slate-400'">
+                      {{ (selectedExam.settings.shuffle_questions ?? selectedExam.settings.shuffleQuestions) ? 'Enabled' : 'Disabled' }}
                     </span>
                   </div>
                   <div class="px-3.5 py-2.5 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100">
                     <span class="text-xs font-medium text-slate-600">Allow Calculator</span>
-                    <span class="text-xs font-bold" :class="selectedExam.settings.allow_calculator ? 'text-emerald-700' : 'text-slate-400'">
-                      {{ selectedExam.settings.allow_calculator ? 'Enabled' : 'Disabled' }}
+                    <span class="text-xs font-bold" :class="(selectedExam.settings.allow_calculator ?? selectedExam.settings.allowCalculator) ? 'text-emerald-700' : 'text-slate-400'">
+                      {{ (selectedExam.settings.allow_calculator ?? selectedExam.settings.allowCalculator) ? 'Enabled' : 'Disabled' }}
                     </span>
                   </div>
                   <div class="px-3.5 py-2.5 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100">
                     <span class="text-xs font-medium text-slate-600">Tab Monitoring</span>
-                    <span class="text-xs font-bold" :class="selectedExam.settings.enable_browser_tab_monitoring ? 'text-emerald-700' : 'text-slate-400'">
-                      {{ selectedExam.settings.enable_browser_tab_monitoring ? 'Enabled' : 'Disabled' }}
+                    <span class="text-xs font-bold" :class="(selectedExam.settings.enable_browser_tab_monitoring ?? selectedExam.settings.enableBrowserTabMonitoring) ? 'text-emerald-700' : 'text-slate-400'">
+                      {{ (selectedExam.settings.enable_browser_tab_monitoring ?? selectedExam.settings.enableBrowserTabMonitoring) ? 'Enabled' : 'Disabled' }}
                     </span>
                   </div>
                   <div class="px-3.5 py-2.5 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100">
                     <span class="text-xs font-medium text-slate-600">Release Results</span>
-                    <span class="text-xs font-bold" :class="selectedExam.settings.show_results_after ? 'text-emerald-700' : 'text-slate-400'">
-                      {{ selectedExam.settings.show_results_after ? 'Enabled' : 'Disabled' }}
+                    <span class="text-xs font-bold" :class="(selectedExam.settings.show_results_after ?? selectedExam.settings.showResultsAfter) ? 'text-emerald-700' : 'text-slate-400'">
+                      {{ (selectedExam.settings.show_results_after ?? selectedExam.settings.showResultsAfter) ? 'Enabled' : 'Disabled' }}
                     </span>
                   </div>
                 </div>

@@ -22,6 +22,8 @@ class ExamAttempt extends Model
         'last_heartbeat_at',
         'is_cancelled',
         'answers',
+        'question_order',
+        'option_order',
         'started_at',
         'submitted_at',
     ];
@@ -30,6 +32,8 @@ class ExamAttempt extends Model
     {
         return [
             'answers'            => 'array',
+            'question_order'     => 'array',
+            'option_order'       => 'array',
             'percentage'         => 'decimal:2',
             'started_at'         => 'datetime',
             'submitted_at'       => 'datetime',

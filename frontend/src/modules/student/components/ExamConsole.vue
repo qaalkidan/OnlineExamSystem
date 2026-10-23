@@ -32,7 +32,14 @@ const groupQuestionsByInstruction = (qs: Question[]) => {
   return [...grouped, ...noInstructionQs]
 }
 
-const questions = ref<Question[]>(groupQuestionsByInstruction(props.exam.questions))
+const isShuffleQuestions = computed(() => {
+  const s = (props.exam as any).settings || {}
+  return Boolean(s.shuffleQuestions ?? s.shuffle_questions)
+})
+
+const questions = ref<Question[]>(
+  isShuffleQuestions.value ? props.exam.questions : groupQuestionsByInstruction(props.exam.questions)
+)
 const currentIndex = ref<number>(0)
 const answers = ref<Record<number, string>>({})
 const matchingAnswers = ref<Record<number, Record<number, string>>>({}) // for matching questions: qId -> {pairIndex -> selectedRight}
@@ -190,14 +197,162 @@ const handleOnline = () => {
   }, 2000)
 }
 
-// Exam settings
+// Exam settings safely parsed
 const settings = ref<Record<string, any>>((props.exam as any).settings || {})
 
+const parsedSettings = computed(() => {
+  let s = (props.exam as any)?.settings || settings.value
+  if (typeof s === 'string') {
+    try { s = JSON.parse(s) } catch { s = {} }
+  }
+  return s && typeof s === 'object' ? s : {}
+})
+
 const isCalculatorAllowed = computed(() => {
-  const s = (props.exam as any)?.settings || settings.value || {}
+  const s = parsedSettings.value
   const val = s.allowCalculator ?? s.allow_calculator
   return val === true || val === 1 || val === '1' || val === 'true'
 })
+
+const isFullscreenEnabled = computed(() => {
+  const s = parsedSettings.value
+  const val = s.enableFullscreenMode ?? s.enable_fullscreen_mode
+  return val === true || val === 1 || val === '1' || val === 'true'
+})
+
+const isTabMonitoringEnabled = computed(() => {
+  const s = parsedSettings.value
+  const val = s.enableBrowserTabMonitoring ?? s.enable_browser_tab_monitoring
+  return val === true || val === 1 || val === '1' || val === 'true'
+})
+
+const isShowReviewScreenEnabled = computed(() => {
+  const s = parsedSettings.value
+  const val = s.showReviewScreen ?? s.show_review_screen
+  if (val === undefined || val === null) return true
+  return val === true || val === 1 || val === '1' || val === 'true'
+})
+
+// Review Screen State
+const showReviewModal = ref<boolean>(false)
+const reviewFilter = ref<'all' | 'unanswered' | 'flagged'>('all')
+
+const filteredReviewQuestions = computed(() => {
+  return questions.value.map((q, idx) => ({ q, index: idx })).filter(({ q }) => {
+    if (reviewFilter.value === 'unanswered') {
+      return !isQuestionAnswered(q.id)
+    }
+    if (reviewFilter.value === 'flagged') {
+      return Boolean(flagged.value[q.id])
+    }
+    return true
+  })
+})
+
+const answeredQuestionsCount = computed(() => {
+  return questions.value.filter((q: any) => isQuestionAnswered(q.id)).length
+})
+
+const unansweredQuestionsCount = computed(() => {
+  return Math.max(0, questions.value.length - answeredQuestionsCount.value)
+})
+
+const flaggedQuestionsCount = computed(() => {
+  return Object.values(flagged.value).filter(Boolean).length
+})
+
+const jumpToQuestionFromReview = (index: number) => {
+  showReviewModal.value = false
+  goToQuestion(index)
+}
+
+const handleInitiateSubmit = () => {
+  if (isShowReviewScreenEnabled.value) {
+    showReviewModal.value = true
+  } else {
+    showConfirmSubmit.value = true
+  }
+}
+
+const getAnswerSummaryText = (q: Question): string => {
+  const ans = answers.value[q.id]
+  if (!isQuestionAnswered(q.id)) return 'Not answered yet'
+  if (q.type === 'multiple_choice' || q.type === 'multiple-choice') {
+    return `Selected: Option ${ans}`
+  }
+  if (q.type === 'true_false' || q.type === 'true-false') {
+    return ans === 'A' ? 'Selected: True' : 'Selected: False'
+  }
+  if (q.type === 'matching') {
+    const pairs = (q as any).pairs || (q as any).options || []
+    const answeredCount = Object.keys(matchingAnswers.value[q.id] || {}).length
+    return `${answeredCount} of ${pairs.length} pairs matched`
+  }
+  const str = String(ans).trim()
+  return str.length > 35 ? `Answer: "${str.slice(0, 35)}..."` : `Answer: "${str}"`
+}
+
+// Fullscreen & Proctor Monitoring
+const isFullscreen = ref<boolean>(false)
+const showFullscreenPrompt = ref<boolean>(false)
+const showFullscreenExitWarning = ref<boolean>(false)
+const fullscreenExits = ref<number>(0)
+
+const showTabSwitchWarning = ref<boolean>(false)
+const lastSwitchType = ref<'tab' | 'window'>('tab')
+
+const enterFullscreen = async () => {
+  try {
+    const docEl = document.documentElement as any
+    if (docEl.requestFullscreen) {
+      await docEl.requestFullscreen()
+    } else if (docEl.webkitRequestFullscreen) {
+      await docEl.webkitRequestFullscreen()
+    } else if (docEl.msRequestFullscreen) {
+      await docEl.msRequestFullscreen()
+    }
+    isFullscreen.value = true
+    showFullscreenPrompt.value = false
+    showFullscreenExitWarning.value = false
+  } catch (err) {
+    console.warn("Fullscreen request error:", err)
+    showFullscreenPrompt.value = false
+  }
+}
+
+const exitFullscreen = () => {
+  try {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
+  } catch {}
+}
+
+const handleFullscreenChange = () => {
+  const inFull = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement)
+  isFullscreen.value = inFull
+  if (isFullscreenEnabled.value && !inFull && !isSubmitting.value && !isCancelled.value && !isOffline.value) {
+    fullscreenExits.value++
+    showFullscreenExitWarning.value = true
+  }
+}
+
+const handleVisibilityChange = () => {
+  if (!isTabMonitoringEnabled.value) return
+  if (document.hidden) {
+    tabSwitches.value++
+    lastSwitchType.value = 'tab'
+    showTabSwitchWarning.value = true
+  }
+}
+
+const handleWindowBlur = () => {
+  if (!isTabMonitoringEnabled.value) return
+  if (isSubmitting.value || isCancelled.value || showFullscreenPrompt.value) return
+  tabSwitches.value++
+  lastSwitchType.value = 'window'
+  showTabSwitchWarning.value = true
+}
 
 const activeQuestion = computed(() => questions.value[currentIndex.value])
 
@@ -313,6 +468,21 @@ onMounted(() => {
   // Register connection monitoring events
   window.addEventListener('offline', handleOffline)
   window.addEventListener('online', handleOnline)
+
+  // Fullscreen enforcement
+  if (isFullscreenEnabled.value) {
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+      showFullscreenPrompt.value = true
+    }
+  }
+
+  // Browser Tab & Window monitoring
+  if (isTabMonitoringEnabled.value) {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleWindowBlur)
+  }
 })
 
 onUnmounted(() => {
@@ -322,26 +492,17 @@ onUnmounted(() => {
   if (reconnectVerifyTimeout) clearTimeout(reconnectVerifyTimeout)
   window.removeEventListener('offline', handleOffline)
   window.removeEventListener('online', handleOnline)
-})
 
-// Monitor screen tab focus switches to enforce academic integrity rules
-const handleVisibilityChange = () => {
-  if (document.hidden) {
-    tabSwitches.value++
-    if (tabSwitches.value >= 3) {
-      alert("SECURITY VIOLATION LOGGED:\nYou have switched tabs or lost focus 3 times. This attempt has been logged and sent to Dr. Abraham Getahun.")
-    } else {
-      alert(`ACADEMIC INTEGRITY WARNING:\nTab switches or window changes are strictly logged by Wollo University proctors.\nWarning count: ${tabSwitches.value}/3`)
-    }
+  if (isFullscreenEnabled.value) {
+    document.removeEventListener('fullscreenchange', handleFullscreenChange)
+    document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+    exitFullscreen()
   }
-}
 
-onMounted(() => {
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  if (isTabMonitoringEnabled.value) {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.removeEventListener('blur', handleWindowBlur)
+  }
 })
 
 
@@ -499,12 +660,19 @@ const triggerAutoSubmit = () => {
   isAutoSubmitting.value = true
   isSubmitting.value = true
   showConfirmSubmit.value = false
+  showReviewModal.value = false
+  if (isFullscreenEnabled.value) {
+    exitFullscreen()
+  }
   processAndSubmit(true)
 }
 
 const processAndSubmit = (isAuto = false) => {
   if (!isAuto && isSubmitting.value) return
   isSubmitting.value = true
+  if (isFullscreenEnabled.value) {
+    exitFullscreen()
+  }
 
   let correctCount = 0
   questions.value.forEach(q => {
@@ -529,6 +697,9 @@ const processAndSubmit = (isAuto = false) => {
 
 const confirmCancel = () => {
   if (confirm("Are you sure you want to exit the Exam Console? Your current draft options will be saved, but the countdown continues.")) {
+    if (isFullscreenEnabled.value) {
+      exitFullscreen()
+    }
     emit('cancel')
   }
 }
@@ -626,7 +797,7 @@ const confirmCancel = () => {
         </div>
 
         <button
-          @click="showConfirmSubmit = true"
+          @click="handleInitiateSubmit"
           :disabled="isSubmitting"
           class="rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 sm:px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/10 active:scale-[0.98] min-h-[38px] sm:min-h-[40px] flex items-center justify-center"
         >
@@ -1006,7 +1177,7 @@ const confirmCancel = () => {
             <button
               v-else
               type="button"
-              @click="showConfirmSubmit = true"
+              @click="handleInitiateSubmit"
               class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition-colors min-h-[44px] cursor-pointer touch-manipulation select-none"
             >
               <span>Finish & Submit</span>
@@ -1018,8 +1189,250 @@ const confirmCancel = () => {
       </div>
     </div>
 
+    <!-- ── Interactive Examination Review Screen Modal ──────────────────────── -->
+    <Transition name="fade">
+      <div
+        v-if="showReviewModal"
+        class="fixed inset-0 z-[220] flex items-center justify-center bg-slate-950/90 p-3 sm:p-6 backdrop-blur-md overflow-y-auto"
+      >
+        <div class="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl text-slate-100 overflow-hidden my-auto">
+          <!-- Modal Header -->
+          <div class="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 px-6 py-4 shrink-0">
+            <div class="flex items-center gap-3">
+              <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-white">Examination Review Sheet</h3>
+                <p class="text-xs text-slate-400">Review your responses before final submission. Click on any question to revise it.</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-1.5 border border-slate-700">
+                <svg class="h-3.5 w-3.5 text-rose-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span class="font-mono text-xs font-bold text-white">{{ formatTime(secondsRemaining) }}</span>
+              </div>
+              <button
+                @click="showReviewModal = false"
+                class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                title="Return to Exam"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Stats Summary Row -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 sm:p-6 border-b border-slate-800/60 bg-slate-900/60 shrink-0">
+            <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-center">
+              <p class="text-[11px] font-medium text-slate-400">Total Questions</p>
+              <p class="text-xl font-bold text-white mt-0.5">{{ questions.length }}</p>
+            </div>
+            <div class="rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3 text-center">
+              <p class="text-[11px] font-medium text-emerald-400">Answered</p>
+              <p class="text-xl font-bold text-emerald-400 mt-0.5">{{ answeredQuestionsCount }}</p>
+            </div>
+            <div class="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3 text-center">
+              <p class="text-[11px] font-medium text-rose-400">Unanswered</p>
+              <p class="text-xl font-bold text-rose-400 mt-0.5">{{ unansweredQuestionsCount }}</p>
+            </div>
+            <div class="rounded-xl border border-amber-900/40 bg-amber-950/20 p-3 text-center">
+              <p class="text-[11px] font-medium text-amber-400">Flagged</p>
+              <p class="text-xl font-bold text-amber-400 mt-0.5">{{ flaggedQuestionsCount }}</p>
+            </div>
+          </div>
+
+          <!-- Filter Tabs -->
+          <div class="flex items-center gap-2 px-6 pt-4 pb-2 border-b border-slate-800/40 shrink-0">
+            <button
+              @click="reviewFilter = 'all'"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              :class="reviewFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-800/60 text-slate-400 hover:text-white'"
+            >
+              All ({{ questions.length }})
+            </button>
+            <button
+              @click="reviewFilter = 'unanswered'"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              :class="reviewFilter === 'unanswered' ? 'bg-rose-600 text-white' : 'bg-slate-800/60 text-slate-400 hover:text-white'"
+            >
+              Unanswered ({{ unansweredQuestionsCount }})
+            </button>
+            <button
+              @click="reviewFilter = 'flagged'"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              :class="reviewFilter === 'flagged' ? 'bg-amber-600 text-white' : 'bg-slate-800/60 text-slate-400 hover:text-white'"
+            >
+              Flagged ({{ flaggedQuestionsCount }})
+            </button>
+          </div>
+
+          <!-- Question List (Scrollable Area) -->
+          <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
+            <div
+              v-for="{ q, index } in filteredReviewQuestions"
+              :key="q.id"
+              class="rounded-xl border border-slate-800 bg-slate-950/50 p-4 hover:border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+            >
+              <div class="flex items-start gap-3 min-w-0">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 border border-slate-700 font-mono text-xs font-bold text-white">
+                  {{ index + 1 }}
+                </span>
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 mb-1">
+                    <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                      {{ q.type ? q.type.replace('_', ' ') : 'Question' }}
+                    </span>
+                    <span
+                      v-if="flagged[q.id]"
+                      class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center gap-1"
+                    >
+                      🚩 Flagged
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-300 line-clamp-1">
+                    {{ q.text?.replace(/<[^>]*>?/gm, '') || 'Question prompt' }}
+                  </p>
+                  <p class="text-[11px] mt-1 font-mono" :class="isQuestionAnswered(q.id) ? 'text-emerald-400' : 'text-rose-400'">
+                    {{ isQuestionAnswered(q.id) ? '✓ ' + getAnswerSummaryText(q) : '⚠️ Unanswered' }}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                @click="jumpToQuestionFromReview(index)"
+                class="shrink-0 self-end sm:self-center px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5"
+              >
+                <span>{{ isQuestionAnswered(q.id) ? 'Review / Edit' : 'Answer Now' }}</span>
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+              </button>
+            </div>
+
+            <div v-if="filteredReviewQuestions.length === 0" class="text-center py-12 text-slate-500">
+              <p class="text-sm">No questions match the current filter.</p>
+            </div>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/80 px-6 py-4 shrink-0">
+            <button
+              @click="showReviewModal = false"
+              class="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 hover:text-white transition-colors"
+            >
+              ← Return to Examination
+            </button>
+
+            <button
+              @click="() => { showReviewModal = false; showConfirmSubmit = true }"
+              class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+            >
+              <span>Proceed to Final Submit</span>
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Fullscreen Entry Prompt Modal ───────────────────────────────────── -->
+    <Transition name="fade">
+      <div
+        v-if="showFullscreenPrompt"
+        class="fixed inset-0 z-[250] flex items-center justify-center bg-slate-950/95 p-4 backdrop-blur-md"
+      >
+        <div class="relative w-full max-w-md rounded-2xl border border-indigo-500/40 bg-slate-900 p-8 text-center shadow-2xl">
+          <div class="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center mx-auto mb-5 text-indigo-400">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-2">Fullscreen Mode Required</h3>
+          <p class="text-xs text-slate-300 leading-relaxed mb-6">
+            This examination is configured to require Fullscreen Mode. In order to begin and maintain examination integrity, please enter fullscreen mode now.
+          </p>
+          <button
+            type="button"
+            @click="enterFullscreen"
+            class="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3 px-4 text-xs font-bold text-white shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
+          >
+            <span>Enter Fullscreen & Begin Exam</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Fullscreen Exit Warning Modal ────────────────────────────────────── -->
+    <Transition name="fade">
+      <div
+        v-if="showFullscreenExitWarning"
+        class="fixed inset-0 z-[250] flex items-center justify-center bg-slate-950/95 p-4 backdrop-blur-md"
+      >
+        <div class="relative w-full max-w-md rounded-2xl border border-rose-500/50 bg-slate-900 p-8 text-center shadow-2xl">
+          <div class="w-16 h-16 rounded-full bg-rose-500/20 flex items-center justify-center mx-auto mb-5 text-rose-400">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-rose-400 mb-2">Security Alert: Fullscreen Exited!</h3>
+          <p class="text-xs text-slate-300 leading-relaxed mb-4">
+            You have exited fullscreen mode. Wollo University proctoring tracks fullscreen exits and logs all disruptions.
+          </p>
+          <div class="bg-rose-950/40 border border-rose-900/40 rounded-xl p-3 mb-6 font-mono text-xs text-rose-300">
+            Exit Violations Logged: <strong class="text-white">{{ fullscreenExits }}</strong>
+          </div>
+          <button
+            type="button"
+            @click="enterFullscreen"
+            class="w-full rounded-xl bg-rose-600 hover:bg-rose-700 py-3 px-4 text-xs font-bold text-white shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center gap-2"
+          >
+            <span>Re-enter Fullscreen Immediately</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Tab / Window Switch Warning Modal ────────────────────────────────── -->
+    <Transition name="fade">
+      <div
+        v-if="showTabSwitchWarning"
+        class="fixed inset-0 z-[240] flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-md"
+      >
+        <div class="relative w-full max-w-md rounded-2xl border border-amber-500/50 bg-slate-900 p-8 text-center shadow-2xl">
+          <div class="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-5 text-amber-400">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-amber-400 mb-2">
+            {{ lastSwitchType === 'window' ? 'Window Switch Detected!' : 'Tab Switch Detected!' }}
+          </h3>
+          <p class="text-xs text-slate-300 leading-relaxed mb-4">
+            Academic Integrity Warning: Moving away from the examination window or switching browser tabs is strictly monitored.
+          </p>
+          <div class="bg-amber-950/40 border border-amber-900/40 rounded-xl p-3 mb-6 font-mono text-xs text-amber-300">
+            Switch Violations Logged: <strong class="text-white">{{ tabSwitches }}</strong> / 3
+            <p v-if="tabSwitches >= 3" class="text-rose-400 text-[11px] mt-1 font-bold">
+              Maximum warning threshold reached. This incident is recorded in your proctor report.
+            </p>
+          </div>
+          <button
+            type="button"
+            @click="showTabSwitchWarning = false"
+            class="w-full rounded-xl bg-amber-600 hover:bg-amber-700 py-3 px-4 text-xs font-bold text-white shadow-lg shadow-amber-600/20 transition-all"
+          >
+            I Understand, Return to Exam
+          </button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Submit Confirmation Dialog Drawer -->
-    <div v-if="showConfirmSubmit" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md">
+    <div v-if="showConfirmSubmit" class="fixed inset-0 z-[230] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md">
       <div class="relative w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 md:p-8 shadow-2xl text-slate-100 animate-in fade-in zoom-in-95">
         <h3 class="text-xl font-extrabold text-white">Academic Response Submission</h3>
         <p class="mt-2 text-xs text-slate-400">
