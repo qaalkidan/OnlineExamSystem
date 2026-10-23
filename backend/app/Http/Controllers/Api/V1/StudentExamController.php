@@ -84,76 +84,143 @@ class StudentExamController extends Controller
         $student = $request->user();
         $this->autoFinalizeExpiredAttempts($student);
 
-        // Get all published/scheduled exams for the student's department & year_level & section
+        // Get all published/scheduled exams for the student's department, year_level & section
         $exams = $this->getAvailableExamsQuery($student)
-            ->with('instructor:id,name')
-            ->latest('scheduled_at')
+            ->with(['instructor:id,name,email', 'course:id,title,code,credits,level,semester'])
+            ->orderBy('scheduled_at', 'asc')
             ->get();
 
         // Get all attempts by this student, keyed by exam_id
         $attempts = ExamAttempt::where('user_id', $student->id)
+            ->whereIn('exam_id', $exams->pluck('id'))
             ->get()
             ->keyBy('exam_id');
 
+        $now = Carbon::now();
+        $todayStart = $now->copy()->startOfDay();
         $upcomingExams = [];
 
         foreach ($exams as $exam) {
-            $attempt = $attempts->get($exam->id);
-            $attemptStatus = $attempt ? $attempt->status : null; // null | 'in_progress' | 'submitted' | 'graded' | 'published'
-
-            // Exclude exams the student has already submitted/graded/published (fully completed)
-            if ($attempt && (in_array($attempt->status, ['submitted', 'graded', 'published']) || $attempt->submitted_at !== null)) {
+            $rawStatus = strtolower($exam->status ?? '');
+            if ($rawStatus === 'cancelled' || $exam->cancelled_at !== null) {
                 continue;
             }
 
-            // Exclude exams whose scheduled end time has already elapsed if student never attempted it
-            if ($exam->scheduled_at) {
-                $now = Carbon::now();
-                $examStart = $exam->scheduled_at;
-                $examEnd = $exam->scheduled_at->copy()->addMinutes($exam->duration_minutes);
-                if ($now->gte($examEnd) && $attemptStatus !== 'in_progress') {
+            $attempt = $attempts->get($exam->id);
+            $attemptStatus = $attempt ? $attempt->status : null; // null | 'in_progress' | 'submitted' | 'graded' | 'published'
+
+            $duration = $exam->duration_minutes ?? 60;
+            $start = $exam->scheduled_at ? Carbon::parse($exam->scheduled_at) : null;
+            $end = $start ? $start->copy()->addMinutes($duration) : null;
+
+            $isSubmitted = $attempt && (in_array($attempt->status, ['submitted', 'graded', 'published']) || $attempt->submitted_at !== null);
+            $isExpired = $end && $now->gte($end) && $attemptStatus !== 'in_progress';
+
+            // Filter out exams that expired in the past without an attempt before today
+            if ($isExpired && !$isSubmitted) {
+                // If scheduled before today, omit from active upcoming dashboard cards
+                if ($start && $start->lt($todayStart)) {
                     continue;
                 }
             }
 
-            $scheduledIso = $exam->scheduled_at ? $exam->scheduled_at->toISOString() : null;
-
-            // Determine status for student UI (Ready if currently in ongoing window or in progress)
-            $status = 'Upcoming';
+            // Determine authoritative display status for student UI
             if ($attemptStatus === 'in_progress') {
-                $status = 'Ready';
-            } elseif ($exam->scheduled_at) {
-                $now = Carbon::now();
-                $examStart = $exam->scheduled_at;
-                $examEnd = $exam->scheduled_at->copy()->addMinutes($exam->duration_minutes);
-                if ($now->gte($examStart) && $now->lt($examEnd)) {
-                    $status = 'Ready';
+                $status = 'In Progress';
+            } elseif ($isSubmitted) {
+                $status = 'Completed';
+            } elseif ($start && $end && $now->between($start, $end)) {
+                $status = 'Available Now';
+            } elseif ($start && $now->lt($start)) {
+                $diffMinutes = $now->diffInMinutes($start, false);
+                if ($diffMinutes <= 30) {
+                    $status = 'Starting Soon';
+                } else {
+                    $status = 'Upcoming';
                 }
+            } elseif ($isExpired) {
+                $status = 'Closed';
             } else {
-                $status = 'Ready';
+                $status = 'Available Now';
             }
 
+            $scheduledIso = $start ? $start->toIso8601String() : null;
+            $endIso = $end ? $end->toIso8601String() : null;
+            $examType = $this->determineExamType($exam);
+            $examCode = $this->formatExamCode($exam);
+            $durationFormatted = $this->formatDuration($duration);
+            $sectionDisplay = $exam->section ?: ($exam->settings['section'] ?? 'All Sections');
+
             $upcomingExams[] = [
-                'id'              => $exam->id,
-                'courseCode'      => $exam->course_code,
-                'courseName'      => $exam->course_name,
-                'instructor'      => $exam->instructor->name ?? 'Unknown',
-                'examType'        => $exam->title,
-                'scheduledAt'     => $scheduledIso,
-                'scheduledDate'   => $scheduledIso, // legacy alias
-                'startTime'       => $exam->scheduled_at ? $exam->scheduled_at->format('h:i A') : 'TBD',
-                'durationMinutes' => $exam->duration_minutes,
-                'totalMarks'      => $exam->total_marks,
-                'totalQuestions'  => $exam->questions()->count(),
-                'status'          => $status,
-                // Attempt tracking — allows card to show Continue vs Start
-                'attemptStatus'   => $attemptStatus, // null or 'in_progress'
-                'attemptId'       => $attempt ? $attempt->id : null,
-                'attemptStartedAt' => ($attempt && $attempt->started_at) ? $attempt->started_at->toISOString() : null,
+                'id'                 => $exam->id,
+                'title'              => $exam->title,
+                'examTitle'          => $exam->title,
+                'code'               => $examCode,
+                'examCode'           => $examCode,
+                'examType'           => $examType,
+                'exam_type'          => $examType,
+                'courseCode'         => $exam->course_code ?: ($exam->course?->code ?? 'N/A'),
+                'course_code'        => $exam->course_code ?: ($exam->course?->code ?? 'N/A'),
+                'courseName'         => $exam->course_name ?: ($exam->course?->title ?? 'Course'),
+                'course_name'        => $exam->course_name ?: ($exam->course?->title ?? 'Course'),
+                'instructor'         => $exam->instructor->name ?? 'Unassigned Faculty',
+                'instructor_name'    => $exam->instructor->name ?? 'Unassigned Faculty',
+                'instructor_email'   => $exam->instructor->email ?? '',
+                'section'            => $sectionDisplay,
+                'scheduledAt'        => $scheduledIso,
+                'scheduled_at'       => $scheduledIso,
+                'scheduledDate'      => $scheduledIso,
+                'endAt'              => $endIso,
+                'end_at'             => $endIso,
+                'date'               => $start ? $start->format('M d, Y') : 'TBD',
+                'startTime'          => $start ? $start->format('h:i A') : 'TBD',
+                'start_time'         => $start ? $start->format('h:i A') : 'TBD',
+                'endTime'            => $end ? $end->format('h:i A') : 'TBD',
+                'end_time'           => $end ? $end->format('h:i A') : 'TBD',
+                'timeRange'          => $start && $end ? ($start->format('h:i A') . ' - ' . $end->format('h:i A')) : 'Flexible Window',
+                'durationMinutes'    => $duration,
+                'duration_minutes'   => $duration,
+                'duration'           => $durationFormatted,
+                'totalMarks'         => $exam->total_marks ?? 100,
+                'total_marks'        => $exam->total_marks ?? 100,
+                'totalQuestions'     => $exam->questions()->count(),
+                'total_questions'    => $exam->questions()->count(),
+                'status'             => $status,
+                'raw_status'         => $rawStatus,
+                'room'               => $exam->settings['room'] ?? 'Online Examination Portal',
+                'instructions'       => $exam->settings['instructions'] ?? $exam->description ?? '',
+                'description'        => $exam->description ?? '',
+                'allowCalculator'    => (bool)($exam->settings['allowCalculator'] ?? false),
+                'allow_calculator'   => (bool)($exam->settings['allowCalculator'] ?? false),
+                'attemptStatus'      => $attemptStatus,
+                'attempt_status'     => $attemptStatus,
+                'attemptId'          => $attempt ? $attempt->id : null,
+                'attempt_id'         => $attempt ? $attempt->id : null,
+                'attemptStartedAt'   => ($attempt && $attempt->started_at) ? $attempt->started_at->toIso8601String() : null,
+                'attempt_started_at' => ($attempt && $attempt->started_at) ? $attempt->started_at->toIso8601String() : null,
+                'isResultPublished'  => $attempt ? ($attempt->status === 'published' || ($exam->results_published ?? false)) : false,
             ];
         }
 
-        // active_exam is now derived from upcoming_exams (in_progress) for backward compat
+        // Priority sort: In Progress -> Available Now -> Starting Soon -> Upcoming (chronological) -> Completed -> Closed
+        usort($upcomingExams, function ($a, $b) {
+            $priority = [
+                'In Progress'   => 1,
+                'Available Now' => 2,
+                'Starting Soon' => 3,
+                'Upcoming'      => 4,
+                'Completed'     => 5,
+                'Closed'        => 6,
+            ];
+            $pa = $priority[$a['status']] ?? 99;
+            $pb = $priority[$b['status']] ?? 99;
+            if ($pa !== $pb) {
+                return $pa <=> $pb;
+            }
+            return ($a['scheduledAt'] ?? '') <=> ($b['scheduledAt'] ?? '');
+        });
+
+        // active_exam is derived from in_progress exam for backward compatibility
         $activeExamData = null;
         foreach ($upcomingExams as $e) {
             if ($e['attemptStatus'] === 'in_progress') {
@@ -164,7 +231,7 @@ class StudentExamController extends Controller
                     'courseName'      => $e['courseName'],
                     'examTitle'       => $e['examType'],
                     'instructor'      => $e['instructor'],
-                    'date'            => $e['scheduledAt'] ? Carbon::parse($e['scheduledAt'])->format('M d, Y') : now()->format('M d, Y'),
+                    'date'            => $e['date'],
                     'time'            => $e['startTime'],
                     'durationMinutes' => $e['durationMinutes'],
                     'totalMarks'      => $e['totalMarks'],
@@ -174,10 +241,15 @@ class StudentExamController extends Controller
             }
         }
 
+        $serverTime = Carbon::now()->toIso8601String();
+
         return response()->json([
-            'data' => [
+            'status'      => 'success',
+            'server_time' => $serverTime,
+            'data'        => [
                 'active_exam'    => $activeExamData,
                 'upcoming_exams' => $upcomingExams,
+                'server_time'    => $serverTime,
             ]
         ]);
     }

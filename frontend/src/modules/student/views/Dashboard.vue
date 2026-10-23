@@ -19,6 +19,7 @@ import ResultReviewModal from '../components/ResultReviewModal.vue'
 import DownloadTranscriptModal from '../components/DownloadTranscriptModal.vue'
 import ProfileModal from '../components/ProfileModal.vue'
 import StudentSidebar from '../components/StudentSidebar.vue'
+import ExamDetailsModal from '../components/ExamDetailsModal.vue'
 
 // Store & Router
 const examStore = useStudentExamStore()
@@ -34,6 +35,7 @@ const activeExam = computed(() => examStore.activeExam)
 
 // Overlay controller states
 const selectedResultForReview = ref<RecentResult | null>(null)
+const selectedExamForDetails = ref<any | null>(null)
 const isNotificationsOpen = ref<boolean>(false)
 const windowRef = window
 const isTranscriptOpen = ref<boolean>(false)
@@ -133,6 +135,30 @@ const handleStartUpcomingExam = async (examId: number) => {
   }
 }
 
+const handleContinueUpcomingExam = async (examId: number) => {
+  try {
+    await examStore.startExam(examId)
+    router.push('/student/exam/take')
+  } catch (err: any) {
+    windowRef.alert(err.message || 'Failed to continue exam')
+  }
+}
+
+const handleViewResult = (exam: any) => {
+  if (exam.attemptId || exam.attempt_id) {
+    router.push(`/student/results/${exam.attemptId || exam.attempt_id}`)
+  } else {
+    router.push('/student/results')
+  }
+}
+
+const handleRetryExams = async () => {
+  await Promise.all([
+    examStore.fetchExams(),
+    examStore.fetchDashboard()
+  ])
+}
+
 // Quick Action Click Router
 const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-results' | 'schedule' | 'academic-calendar' | 'update-profile') => {
   switch (actionKey) {
@@ -195,24 +221,30 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
       <!-- Row 2: Quick Action Buttons Grid -->
       <QuickActions @action="handleQuickAction" />
 
-      <!-- Row 3: 3-Column Grid (Upcoming Exams, Academic Calendar, Academic Progress) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-        <!-- Col 1: Upcoming Exams -->
-        <div id="upcoming-exams-section" class="h-full">
-          <UpcomingExams
-            :exams="filteredUpcomingExams"
-            @start-exam="handleStartUpcomingExam"
-            @view-details="(exam) => upcomingGuidelines = exam"
-          />
-        </div>
+      <!-- Row 3: Dedicated Upcoming Exams Dynamic Section (Immediately Below Quick Actions) -->
+      <div id="upcoming-exams-section" class="w-full">
+        <UpcomingExams
+          :exams="upcomingExams"
+          :serverTime="examStore.serverTime"
+          :isLoading="examStore.isLoading"
+          :error="examStore.error"
+          @start-exam="handleStartUpcomingExam"
+          @continue-exam="handleContinueUpcomingExam"
+          @view-details="(exam) => selectedExamForDetails = exam"
+          @view-result="handleViewResult"
+          @retry="handleRetryExams"
+        />
+      </div>
 
-        <!-- Col 2: Academic Calendar -->
+      <!-- Row 4: Academic Calendar & Progress Stats (Lower Dashboard Content) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        <!-- Col 1: Academic Calendar -->
         <div id="calendar-section" class="h-full">
           <CalendarSection :events="sampleCalendarEvents" />
         </div>
 
-        <!-- Col 3: Academic Progress -->
-        <div class="h-full md:col-span-2 lg:col-span-1">
+        <!-- Col 2: Academic Progress -->
+        <div class="h-full">
           <ProgressStats
             :profile="profile"
             :completedCount="completedCount"
@@ -344,6 +376,15 @@ const handleQuickAction = (actionKey: 'take-exam' | 'view-results' | 'download-r
         profile = updated;
         windowRef.alert('SUCCESS:\nYour registry credentials have been updated successfully.');
       }"
+    />
+
+    <!-- Dedicated Examination Details & Instructions Modal -->
+    <ExamDetailsModal
+      v-if="selectedExamForDetails"
+      :exam="selectedExamForDetails"
+      @close="selectedExamForDetails = null"
+      @start-exam="(id) => { selectedExamForDetails = null; handleStartUpcomingExam(id) }"
+      @continue-exam="(id) => { selectedExamForDetails = null; handleContinueUpcomingExam(id) }"
     />
 
   </div>

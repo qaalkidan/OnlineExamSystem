@@ -17,8 +17,9 @@ export const useStudentExamStore = defineStore('studentExam', () => {
   })
 
   // Exam data
+  const serverTime = ref<string>(new Date().toISOString())
   const activeExam = ref<ActiveExam | null>(null)
-  const upcomingExams = ref<UpcomingExam[]>([])
+  const upcomingExams = ref<any[]>([])
   const results = ref<RecentResult[]>([])
 
   /**
@@ -69,27 +70,44 @@ export const useStudentExamStore = defineStore('studentExam', () => {
         activeExam.value = null
       }
 
-      // Map upcoming exams — exclude any that are already submitted, graded, or published
-      upcomingExams.value = (data.upcoming_exams || [])
-        .filter((e: any) => !['submitted', 'graded', 'published'].includes(e.attemptStatus))
-        .map((e: any) => ({
-          id: e.id,
-          courseCode: e.courseCode,
-          courseName: e.courseName,
-          instructor: e.instructor,
-          examType: e.examType,
-          scheduledAt: e.scheduledAt || e.scheduledDate || null, // ISO string
-          scheduledDate: e.scheduledAt || e.scheduledDate || null, // legacy alias
-          startTime: e.startTime,
-          durationMinutes: e.durationMinutes,
-          totalQuestions: e.totalQuestions,
-          totalMarks: e.totalMarks,
-          status: e.status as 'Soon' | 'Pending' | 'Ready' | 'Upcoming',
-          // Attempt tracking — drives Ready Card button state
-          attemptStatus: e.attemptStatus as 'in_progress' | null | undefined,
-          attemptId: e.attemptId as number | null | undefined,
-          attemptStartedAt: e.attemptStartedAt as string | null | undefined,
-        }))
+      // Server time synchronization
+      serverTime.value = response.data?.server_time || data.server_time || new Date().toISOString()
+
+      // Map upcoming exams with comprehensive attributes
+      upcomingExams.value = (data.upcoming_exams || []).map((e: any) => ({
+        id: e.id,
+        title: e.title || e.examTitle || e.examType,
+        examTitle: e.title || e.examTitle || e.examType,
+        code: e.code || e.examCode,
+        examCode: e.code || e.examCode,
+        courseCode: e.courseCode || e.course_code,
+        courseName: e.courseName || e.course_name,
+        instructor: e.instructor || e.instructor_name || 'Unassigned Faculty',
+        instructorEmail: e.instructor_email || e.instructorEmail || '',
+        section: e.section || 'All Sections',
+        examType: e.examType || e.exam_type,
+        scheduledAt: e.scheduledAt || e.scheduled_at || e.scheduledDate || null,
+        scheduledDate: e.scheduledAt || e.scheduled_at || e.scheduledDate || null,
+        endAt: e.endAt || e.end_at || null,
+        date: e.date,
+        startTime: e.startTime || e.start_time,
+        endTime: e.endTime || e.end_time,
+        timeRange: e.timeRange || e.time_range,
+        durationMinutes: e.durationMinutes || e.duration_minutes || 60,
+        duration: e.duration || `${e.durationMinutes || 60}m`,
+        totalMarks: e.totalMarks || e.total_marks || 100,
+        totalQuestions: e.totalQuestions || e.total_questions || 0,
+        status: e.status,
+        rawStatus: e.raw_status || e.rawStatus,
+        room: e.room || 'Online Portal',
+        instructions: e.instructions || e.description || '',
+        description: e.description || '',
+        allowCalculator: Boolean(e.allowCalculator || e.allow_calculator),
+        attemptStatus: e.attemptStatus || e.attempt_status || null,
+        attemptId: e.attemptId || e.attempt_id || null,
+        attemptStartedAt: e.attemptStartedAt || e.attempt_started_at || null,
+        isResultPublished: Boolean(e.isResultPublished || e.is_result_published),
+      }))
     } catch (err: any) {
       console.error('Failed to fetch student exams', err)
       usingMockData.value = false
@@ -355,6 +373,7 @@ export const useStudentExamStore = defineStore('studentExam', () => {
     usingMockData,
     dashboardStats,
     activeExam,
+    serverTime,
     upcomingExams,
     results,
     fetchDashboard,
