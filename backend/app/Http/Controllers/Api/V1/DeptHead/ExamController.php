@@ -476,7 +476,7 @@ class ExamController extends Controller
                 'has_conflict'            => isset($conflictsMap[$exam->id]),
                 'conflict_reason'         => $conflictsMap[$exam->id] ?? null,
                 'can_edit'                => !in_array($displayStatus, ['Completed', 'Cancelled']),
-                'can_cancel'              => $displayStatus !== 'Cancelled',
+                'can_cancel'              => !in_array(strtolower($displayStatus), ['completed', 'cancelled']),
                 'can_publish'             => $displayStatus !== 'Published' && !in_array($displayStatus, ['Completed', 'Cancelled']),
                 'settings'                => $exam->settings ?? [],
             ];
@@ -532,17 +532,46 @@ class ExamController extends Controller
         $duration = $exam->duration_minutes ?? 60;
         $endTime = $exam->scheduled_at ? $exam->scheduled_at->copy()->addMinutes($duration)->format('h:i A') : 'TBD';
 
-        // Questions preview
+        // Questions preview - strictly without answer keys as requested by Department Head
         $questionsList = $exam->questions->values()->map(function ($q, $index) {
             $rawType = $q->type ?: 'multiple_choice';
             $displayType = match($rawType) {
-                'multiple_choice' => 'MCQ',
+                'multiple_choice' => 'Multiple Choice',
                 'true_false'      => 'True/False',
                 'short_answer'    => 'Short Answer',
                 'matching'        => 'Matching',
                 'fill_in_the_blank', 'fill_in_blank' => 'Fill in the Blanks',
+                'essay'           => 'Essay',
                 default           => ucfirst(str_replace('_', ' ', $rawType)),
             };
+
+            // Clean options to NOT leak correct answers or is_correct flags
+            $options = [];
+            if (is_array($q->options)) {
+                foreach ($q->options as $optIdx => $opt) {
+                    if (is_array($opt)) {
+                        $options[] = [
+                            'text' => $opt['text'] ?? $opt['option'] ?? $opt['title'] ?? '',
+                            'id'   => $opt['id'] ?? $optIdx,
+                        ];
+                    } else {
+                        $options[] = (string)$opt;
+                    }
+                }
+            } elseif ($rawType === 'true_false') {
+                $options = ['True', 'False'];
+            }
+
+            // Matching column pairs without matching keys
+            $matchingPairs = [];
+            if ($rawType === 'matching' && !empty($q->question_data['pairs'])) {
+                foreach ($q->question_data['pairs'] as $pair) {
+                    $matchingPairs[] = [
+                        'premise' => $pair['premise'] ?? $pair['left'] ?? '',
+                        'response' => $pair['response'] ?? $pair['right'] ?? '',
+                    ];
+                }
+            }
 
             return [
                 'id'              => $q->id,
@@ -550,12 +579,18 @@ class ExamController extends Controller
                 'type'            => $displayType,
                 'full_type'       => $displayType,
                 'raw_type'        => $rawType,
+                'title'           => $q->title,
                 'text'            => $q->text ?: ($q->title ?: 'Question #' . ($index + 1)),
+                'description'     => $q->description,
+                'instruction'     => $q->instruction ?: ($rawType === 'multiple_choice' ? 'Select the single best answer.' : ''),
                 'marks'           => $q->marks ?? 5,
-                'instruction'     => $q->instruction ?: ($rawType === 'multiple_choice' ? 'Choose the correct answer from options below.' : ''),
-                'options'         => $q->options ?? [],
-                'correct_answer'  => $q->correct_answer,
-                'expected_answer' => $q->correct_answer ?: 'SELECT',
+                'difficulty'      => ucfirst(strtolower($q->difficulty ?: 'Medium')),
+                'chapter'         => $q->chapter,
+                'topic'           => $q->topic,
+                'image_url'       => $q->image_url,
+                'options'         => $options,
+                'matching_pairs'  => $matchingPairs,
+                'question_data'   => $q->question_data ?? [],
             ];
         });
 
@@ -599,13 +634,27 @@ class ExamController extends Controller
         $semester = $settings['semester'] ?? ($exam->semester ?? 'Second Semester');
         $section = $settings['section'] ?? ($exam->section ?? 'All Sections');
 
+        $instructorObj = $exam->instructor ? [
+            'id'                  => $exam->instructor->id,
+            'name'                => $exam->instructor->name,
+            'email'               => $exam->instructor->email,
+            'id_no'               => $exam->instructor->id_no ?? ('FAC-' . str_pad($exam->instructor->id, 4, '0', STR_PAD_LEFT)),
+            'phone'               => $exam->instructor->phone ?? 'Not specified',
+            'role'                => ucfirst($exam->instructor->role ?? 'Instructor'),
+            'department'          => $exam->instructor->department?->name ?? ($dept?->name ?? 'Civil Engineering'),
+            'department_code'     => $exam->instructor->department?->code ?? ($dept?->code ?? 'CV001'),
+            'profile_picture_url' => $exam->instructor->profile_picture_url ?? null,
+        ] : null;
+
         $formattedDetail = [
             'id'                 => $exam->id,
             'title'              => $exam->title,
             'code'               => $this->formatExamCode($exam),
+            'description'        => $exam->description ?: 'No additional exam description or special instructions provided by faculty.',
             'courseName'         => $exam->course_name ?: ($exam->course->title ?? 'General Course'),
             'courseCode'         => $exam->course_code ?: ($exam->course->code ?? 'N/A'),
             'courseCredits'      => $exam->course->credits ?? null,
+            'courseCategory'     => $exam->course->category ?? 'Core Department Course',
             'departmentName'     => $exam->course?->department?->name ?? ($dept?->name ?? 'Civil Engineering'),
             'departmentCode'     => $exam->course?->department?->code ?? ($dept?->code ?? 'CV001'),
             'academicYear'       => $academicYear,
@@ -613,21 +662,29 @@ class ExamController extends Controller
             'semester'           => $semester,
             'section'            => $section,
             'type'               => $this->determineExamType($exam),
+            'scheduled_at'       => $exam->scheduled_at ? $exam->scheduled_at->toIso8601String() : null,
             'date'               => $exam->scheduled_at ? $exam->scheduled_at->format('M d, Y') : 'Unscheduled',
             'time'               => $exam->scheduled_at ? $exam->scheduled_at->format('h:i A') : 'Flexible Window',
             'endTime'            => $endTime,
             'duration'           => $this->formatDuration($duration),
             'duration_minutes'   => $duration,
             'questions'          => $exam->questions->count(),
+            'total_marks'        => $exam->total_marks ?? 100,
             'marks'              => $exam->total_marks ?? 100,
+            'passing_marks'      => $settings['passing_marks'] ?? (int)round(($exam->total_marks ?? 100) * 0.5),
+            'passing_percentage' => $settings['passing_percentage'] ?? 50,
+            'room'               => $settings['room'] ?? 'Exam Hall / TBA',
+            'invigilator'        => $settings['invigilator'] ?? null,
             'status'             => $displayStatus,
             'raw_status'         => strtolower($exam->status ?? ''),
+            'instructor'         => $instructorObj,
             'instructorName'     => $exam->instructor->name ?? 'Unassigned Faculty',
             'instructorEmail'    => $exam->instructor->email ?? '',
             'instructorId'       => $exam->user_id,
             'createdByName'      => $createdByName,
             'createdAtFormatted' => $exam->created_at ? $exam->created_at->format('M d, Y h:i A') : '',
             'updatedAtFormatted' => $exam->updated_at ? $exam->updated_at->format('M d, Y h:i A') : '',
+            'publishedAtFormatted' => $exam->published_at ? $exam->published_at->format('M d, Y h:i A') : null,
             'cancelledAt'        => $exam->cancelled_at ? $exam->cancelled_at->format('M d, Y h:i A') : null,
             'cancelledByName'    => $exam->cancelledBy?->name ?? null,
             'cancellationReason' => $exam->cancellation_reason,
@@ -637,7 +694,7 @@ class ExamController extends Controller
             'averageScore'       => $avgScore,
             'passRate'           => $passRate,
             'can_edit'           => !in_array($displayStatus, ['Completed', 'Cancelled']),
-            'can_cancel'         => $displayStatus !== 'Cancelled',
+            'can_cancel'         => !in_array(strtolower($displayStatus), ['completed', 'cancelled']),
             'settings'           => [
                 'shuffleQuestions'           => (bool)($settings['shuffleQuestions'] ?? $settings['shuffle_questions'] ?? true),
                 'showReviewScreen'           => (bool)($settings['showReviewScreen'] ?? $settings['examReviewGroup'] ?? true),
@@ -907,7 +964,7 @@ class ExamController extends Controller
                 'color'            => isset($conflictsMap[$e->id]) ? '#ef4444' : '#5138ed',
                 'can_edit'         => !in_array($computedStatus, ['Completed', 'Cancelled']),
                 'can_publish'      => !$isPublished && !in_array($computedStatus, ['Completed', 'Cancelled']),
-                'can_cancel'       => $computedStatus !== 'Cancelled',
+                'can_cancel'       => !in_array(strtolower($computedStatus), ['completed', 'cancelled']),
             ];
         });
 
@@ -1230,6 +1287,14 @@ class ExamController extends Controller
         $headId = $request->user()->id;
 
         $exam = $this->buildDeptExamsQuery($deptId, $headId)->findOrFail($id);
+
+        $computedStatus = $this->determineComputedStatus($exam);
+        if (in_array(strtolower($computedStatus), ['completed', 'cancelled'])) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Completed or already cancelled examinations cannot be cancelled.'
+            ], 422);
+        }
 
         $request->validate([
             'reason' => 'nullable|string|max:500',

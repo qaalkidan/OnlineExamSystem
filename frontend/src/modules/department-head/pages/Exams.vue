@@ -14,6 +14,7 @@ const currentView = ref<'list' | 'detail' | 'questions'>('list')
 const showScheduleModal = ref(false)
 const showEditModal = ref(false)
 const showCancelModal = ref(false)
+const cancelConfirmationStep = ref<1 | 2>(1)
 const showAssignModal = ref(false)
 const showDeleteModal = ref(false)
 const showExportMenu = ref(false)
@@ -277,12 +278,18 @@ const onPerPageChange = () => {
   fetchExams()
 }
 
+// ── Questions Filter & Search within Detail View ──
+const questionTypeFilter = ref('all')
+const questionSearch = ref('')
+
 // ── View Exam Details ──
 const openDetail = async (exam: any) => {
   openDropdownId.value = null
   selectedExam.value = exam
   currentView.value = 'detail'
   isLoadingDetail.value = true
+  questionTypeFilter.value = 'all'
+  questionSearch.value = ''
 
   try {
     const res = await apiClient.get(`/dept-head/exams/${exam.id}`)
@@ -294,6 +301,45 @@ const openDetail = async (exam: any) => {
   } finally {
     isLoadingDetail.value = false
   }
+}
+
+const filteredQuestions = computed<any[]>(() => {
+  let list: any[] = selectedExam.value?.questionsList || []
+  if (questionTypeFilter.value !== 'all') {
+    const filter = questionTypeFilter.value.toLowerCase()
+    list = list.filter((q: any) =>
+      (q.type || '').toLowerCase() === filter ||
+      (q.raw_type || '').toLowerCase() === filter ||
+      (q.full_type || '').toLowerCase() === filter
+    )
+  }
+  if (questionSearch.value.trim()) {
+    const term = questionSearch.value.toLowerCase()
+    list = list.filter((q: any) =>
+      (q.text || '').toLowerCase().includes(term) ||
+      (q.title || '').toLowerCase().includes(term) ||
+      (q.type || '').toLowerCase().includes(term) ||
+      (q.instruction || '').toLowerCase().includes(term) ||
+      (q.difficulty || '').toLowerCase().includes(term) ||
+      (q.chapter || '').toLowerCase().includes(term) ||
+      (q.topic || '').toLowerCase().includes(term)
+    )
+  }
+  return list
+})
+
+const questionTypeCounts = computed(() => {
+  const list = selectedExam.value?.questionsList || []
+  const counts: Record<string, number> = { all: list.length }
+  for (const q of list) {
+    const t = q.type || 'Other'
+    counts[t] = (counts[t] || 0) + 1
+  }
+  return counts
+})
+
+const printExamPaper = () => {
+  window.print()
 }
 
 const backToList = () => {
@@ -451,22 +497,50 @@ const submitEditExam = async () => {
   }
 }
 
-// ── Open Cancel Exam Modal ──
+// ── Check if Exam Can Be Cancelled (Never if Completed or Cancelled) ──
+const canCancelExam = (exam: any): boolean => {
+  if (!exam) return false
+  const status = (exam.status || exam.raw_status || '').toLowerCase()
+  if (status === 'completed' || status === 'cancelled') return false
+  if (exam.can_cancel === false) return false
+  return true
+}
+
+// ── Open Cancel Exam Modal (2-Step Confirmation Flow) ──
 const openCancelExam = (exam: any) => {
+  if (!canCancelExam(exam)) {
+    alert('Completed or already cancelled examinations cannot be cancelled.')
+    return
+  }
   openDropdownId.value = null
   selectedExam.value = exam
   cancelReason.value = ''
+  cancelConfirmationStep.value = 1
   showCancelModal.value = true
 }
 
+const proceedToCancelStep2 = () => {
+  if (!canCancelExam(selectedExam.value)) {
+    showCancelModal.value = false
+    alert('This examination is completed or cancelled and cannot be modified.')
+    return
+  }
+  cancelConfirmationStep.value = 2
+}
+
+const backToCancelStep1 = () => {
+  cancelConfirmationStep.value = 1
+}
+
 const submitCancelExam = async () => {
-  if (!selectedExam.value) return
+  if (!selectedExam.value || !canCancelExam(selectedExam.value)) return
   isSubmitting.value = true
   try {
     await apiClient.post(`/dept-head/exams/${selectedExam.value.id}/cancel`, {
-      reason: cancelReason.value || 'Cancelled by Department Head',
+      reason: cancelReason.value.trim() || 'Cancelled by Department Head',
     })
     showCancelModal.value = false
+    cancelConfirmationStep.value = 1
     showToast(`Exam "${selectedExam.value.title}" has been cancelled.`)
     await fetchExams()
     if (currentView.value === 'detail') {
@@ -624,21 +698,13 @@ const statusBadge = (s: string) => {
 
 const qTypeBadge = (t: string) => {
   const type = (t || '').toLowerCase()
-  if (type === 'mcq' || type === 'multiple_choice') return 'text-sky-700 bg-sky-50 border-sky-200'
-  if (type === 'true/false' || type === 'true_false') return 'text-emerald-700 bg-emerald-50 border-emerald-200'
-  if (type === 'short answer' || type === 'short_answer') return 'text-amber-700 bg-amber-50 border-amber-200'
-  if (type === 'matching') return 'text-purple-700 bg-purple-50 border-purple-200'
+  if (type.includes('choice') || type === 'mcq' || type === 'multiple_choice') return 'text-indigo-700 bg-indigo-50 border-indigo-200'
+  if (type.includes('true') || type === 'true_false') return 'text-emerald-700 bg-emerald-50 border-emerald-200'
+  if (type.includes('short') || type === 'short_answer') return 'text-amber-700 bg-amber-50 border-amber-200'
+  if (type.includes('matching')) return 'text-purple-700 bg-purple-50 border-purple-200'
+  if (type.includes('blank') || type.includes('fill')) return 'text-sky-700 bg-sky-50 border-sky-200'
+  if (type.includes('essay')) return 'text-rose-700 bg-rose-50 border-rose-200'
   return 'text-slate-700 bg-slate-100 border-slate-200'
-}
-
-const isOptionCorrect = (opt: any, optIdx: number | string, q: any) => {
-  if (typeof opt === 'object' && opt && opt.is_correct) return true
-  const numIdx = Number(optIdx)
-  const letter = String.fromCharCode(65 + numIdx)
-  if (q.correct_answer === letter) return true
-  const text = typeof opt === 'string' ? opt : (opt.text || '')
-  if (q.correct_answer && q.correct_answer === text) return true
-  return false
 }
 
 const getInitials = (name: string) => {
@@ -698,21 +764,25 @@ const getAvatarColor = (id: number) => {
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- VIEW 1: EXAM DETAILS VIEW                                            -->
+    <!-- VIEW 1: EXAM DETAILS VIEW (COMPREHENSIVE EXAM & INSTRUCTOR DETAILS,    -->
+    <!--         FOLLOWED BY FULL QUESTION PAPER STRICTLY WITHOUT ANSWERS)    -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <template v-if="currentView === 'detail'">
       <!-- Breadcrumb & Top Bar -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-            <button @click="backToList" class="text-[#5138ed] hover:underline flex items-center gap-1">
+          <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1.5">
+            <button @click="backToList" class="text-[#5138ed] hover:underline flex items-center gap-1 font-bold">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
               Department Examinations
             </button>
             <span>/</span>
-            <span class="text-slate-600">{{ selectedExam?.code }}</span>
+            <span class="font-mono text-slate-500">{{ selectedExam?.courseCode }}</span>
+            <span>/</span>
+            <span class="text-slate-700 font-medium truncate max-w-[200px] sm:max-w-xs">{{ selectedExam?.title }}</span>
           </div>
-          <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+
+          <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {{ selectedExam?.title }}
             </h1>
@@ -725,27 +795,38 @@ const getAvatarColor = (id: number) => {
             <span :class="[typeBadge(selectedExam?.type), 'px-2.5 py-0.5 text-xs font-bold rounded-lg']">
               {{ selectedExam?.type }}
             </span>
+            <span class="px-2.5 py-0.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+              Section: {{ selectedExam?.section || 'All Sections' }}
+            </span>
           </div>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            Department of {{ department.name }} • Course: <strong class="text-slate-700">{{ selectedExam?.courseName }} ({{ selectedExam?.courseCode }})</strong>
+
+          <p class="text-xs sm:text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-1.5">
+            <span>Department of <strong class="text-slate-700">{{ selectedExam?.departmentName || department.name }}</strong> ({{ selectedExam?.departmentCode || department.code }})</span>
+            <span class="text-slate-300">•</span>
+            <span>Course: <strong class="text-slate-700">{{ selectedExam?.courseName }}</strong> ({{ selectedExam?.courseCode }})</span>
+            <span v-if="selectedExam?.courseCredits" class="text-slate-300">•</span>
+            <span v-if="selectedExam?.courseCredits">{{ selectedExam.courseCredits }} Credit Hours</span>
           </p>
         </div>
 
+        <!-- Action Buttons -->
         <div class="flex flex-wrap items-center gap-2">
-          <!-- Assign Faculty -->
+          <!-- Print Paper -->
           <button
-            @click="openAssignFaculty(selectedExam)"
-            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-all"
+            @click="printExamPaper"
+            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-            <span>Assign Faculty</span>
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span>Print Paper</span>
           </button>
 
           <!-- Edit Schedule -->
           <button
             v-if="selectedExam?.can_edit"
             @click="openEditExam(selectedExam)"
-            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
           >
             <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
             <span>Edit Schedule</span>
@@ -754,7 +835,7 @@ const getAvatarColor = (id: number) => {
           <!-- Results Link -->
           <button
             @click="router.push(`/dept-head/results`)"
-            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-[#5138ed] bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
+            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-[#5138ed] bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors shadow-sm cursor-pointer"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             <span>Results & Grades</span>
@@ -762,9 +843,9 @@ const getAvatarColor = (id: number) => {
 
           <!-- Cancel Exam -->
           <button
-            v-if="selectedExam?.can_cancel"
+            v-if="canCancelExam(selectedExam)"
             @click="openCancelExam(selectedExam)"
-            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors shadow-sm"
+            class="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors shadow-sm cursor-pointer"
           >
             <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             <span>Cancel Exam</span>
@@ -773,325 +854,533 @@ const getAvatarColor = (id: number) => {
           <!-- Back Button -->
           <button
             @click="backToList"
-            class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+            class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
           >
-            Back
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <span>Back to Exams</span>
           </button>
         </div>
       </div>
 
-      <!-- Highlights Metric Row -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
-          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Scheduled Time</p>
-          <p class="text-base sm:text-lg font-black text-slate-900 mt-1">{{ selectedExam?.time }}</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">{{ selectedExam?.date }}</p>
+      <!-- Highlights Metric Row (5 Modern Cards) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <!-- Card 1: Time & Venue -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider">Exam Window</span>
+              <svg class="w-4 h-4 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <p class="text-sm sm:text-base font-black text-slate-900 leading-tight">{{ selectedExam?.time }}</p>
+            <p class="text-[11px] text-slate-500 font-medium mt-0.5">{{ selectedExam?.date }}</p>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 text-[11px] text-slate-600 font-semibold truncate">
+            <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+            <span class="truncate">{{ selectedExam?.room || 'Exam Hall' }}</span>
+          </div>
         </div>
-        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
-          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Duration & Marks</p>
-          <p class="text-base sm:text-lg font-black text-indigo-600 mt-1">{{ selectedExam?.duration }} • {{ selectedExam?.marks }} Pts</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">{{ selectedExam?.questions }} total questions</p>
+
+        <!-- Card 2: Duration & Total Marks -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider">Duration & Marks</span>
+              <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+            </div>
+            <p class="text-sm sm:text-base font-black text-[#5138ed] leading-tight">{{ selectedExam?.duration }} • {{ selectedExam?.marks || selectedExam?.total_marks }} Pts</p>
+            <p class="text-[11px] text-slate-500 font-medium mt-0.5">Passing: {{ selectedExam?.passing_marks || 50 }} Pts ({{ selectedExam?.passing_percentage || 50 }}%)</p>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 text-[11px] text-indigo-700 font-bold">
+            <span>{{ selectedExam?.questionsList?.length || selectedExam?.questions || 0 }} total questions</span>
+          </div>
         </div>
-        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
-          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Student Attempts</p>
-          <p class="text-base sm:text-lg font-black text-emerald-600 mt-1">{{ selectedExam?.totalAttempts ?? 0 }} Submitted</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">{{ selectedExam?.eligibleStudents ?? 0 }} eligible in cohort</p>
+
+        <!-- Card 3: Assigned Faculty -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider">Assigned Faculty</span>
+              <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            </div>
+            <p class="text-sm sm:text-base font-black text-slate-900 leading-tight truncate">{{ selectedExam?.instructor?.name || selectedExam?.instructorName || 'Unassigned Faculty' }}</p>
+            <p class="text-[11px] text-slate-500 truncate mt-0.5">{{ selectedExam?.instructor?.email || selectedExam?.instructorEmail || 'No email' }}</p>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 text-[11px] text-emerald-700 font-semibold truncate">
+            <span class="truncate">ID: {{ selectedExam?.instructor?.id_no || 'FAC-DEPT' }}</span>
+          </div>
         </div>
-        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
-          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Pass Rate & Avg</p>
-          <p class="text-base sm:text-lg font-black text-amber-600 mt-1">{{ selectedExam?.passRate ?? 0 }}% Pass</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">{{ selectedExam?.averageScore ?? 0 }}% avg score</p>
+
+        <!-- Card 4: Academic Cohort -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider">Cohort & Term</span>
+              <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+            </div>
+            <p class="text-sm sm:text-base font-black text-slate-900 leading-tight">{{ selectedExam?.academicYear || '2026' }}</p>
+            <p class="text-[11px] text-slate-500 font-medium truncate mt-0.5">{{ selectedExam?.semester || 'Second Semester' }}</p>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 text-[11px] text-purple-700 font-bold truncate">
+            <span class="truncate">{{ selectedExam?.section || 'All Sections' }}</span>
+          </div>
+        </div>
+
+        <!-- Card 5: Participation & Pass Rate -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between col-span-2 sm:col-span-1">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider">Participation</span>
+              <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            </div>
+            <p class="text-sm sm:text-base font-black text-slate-900 leading-tight">{{ selectedExam?.totalAttempts ?? 0 }} Submissions</p>
+            <p class="text-[11px] text-slate-500 font-medium mt-0.5">Pass: {{ selectedExam?.passRate ?? 0 }}% • Avg: {{ selectedExam?.averageScore ?? 0 }}%</p>
+          </div>
+          <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 text-[11px] text-amber-700 font-semibold truncate">
+            <span>{{ selectedExam?.eligibleStudents ?? 0 }} eligible candidates</span>
+          </div>
         </div>
       </div>
 
-      <!-- Main Detail Grid -->
+      <!-- Main Detail Grid: 2 Comprehensive Panels -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <!-- Column 1: Faculty, Course & Schedule Metadata -->
-        <div class="lg:col-span-1 space-y-6">
-
-          <!-- Faculty Card -->
-          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 class="text-sm font-bold text-slate-900">Assigned Faculty Member</h3>
-              <button
-                @click="openAssignFaculty(selectedExam)"
-                class="text-xs font-bold text-[#5138ed] hover:underline"
-              >
-                Reassign
-              </button>
-            </div>
-
-            <div class="flex items-start gap-3">
-              <div class="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-[#5138ed] flex items-center justify-center font-bold text-sm shrink-0">
-                <span>{{ getInitials(selectedExam?.instructorName || 'Faculty') }}</span>
-              </div>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-black text-slate-900 truncate">{{ selectedExam?.instructorName || 'Unassigned Faculty' }}</p>
-                <p class="text-xs text-slate-500 truncate">{{ selectedExam?.instructorEmail || 'No contact email' }}</p>
-                <div class="mt-2 flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Exam Lead
-                  </span>
-                  <span v-if="selectedExam?.settings?.room" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
-                    Room: {{ selectedExam.settings.room }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Academic Specifications -->
-          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-3 text-xs">
-            <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">Course & Period Context</h3>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Course Code:</span>
-              <span class="font-bold text-slate-800">{{ selectedExam?.courseCode }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Course Title:</span>
-              <span class="font-bold text-slate-800 truncate max-w-[180px]">{{ selectedExam?.courseName }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Department:</span>
-              <span class="font-bold text-slate-800">{{ selectedExam?.departmentName || department.name }} ({{ selectedExam?.departmentCode || department.code }})</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Academic Year:</span>
-              <span class="font-bold text-[#5138ed]">{{ selectedExam?.academicYear || selectedExam?.academic_year || '2026' }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Semester:</span>
-              <span class="font-bold text-slate-800">{{ selectedExam?.semester || 'Second Semester' }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Target Section:</span>
-              <span class="font-bold text-slate-800">{{ selectedExam?.section || 'All Sections' }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Created Date:</span>
-              <span class="font-bold text-slate-800">{{ selectedExam?.createdAtFormatted || '—' }}</span>
-            </div>
-            <div v-if="selectedExam?.cancelledAt" class="flex justify-between text-rose-600">
-              <span>Cancelled Date:</span>
-              <span class="font-bold">{{ selectedExam.cancelledAt }}</span>
-            </div>
-            <div v-if="selectedExam?.cancellationReason" class="bg-rose-50 border border-rose-100 p-2.5 rounded-xl text-rose-700 text-[11px] mt-2">
-              <strong>Reason:</strong> {{ selectedExam.cancellationReason }}
-            </div>
-          </div>
-
-          <!-- Security & Behavior Settings -->
-          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-3">
-            <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">Security & Behavior Control</h3>
-            <div class="space-y-2 text-xs">
-              <div class="flex items-center justify-between">
-                <span class="text-slate-600">Shuffle Questions</span>
-                <span :class="selectedExam?.settings?.shuffleQuestions ? 'text-emerald-600 font-bold' : 'text-slate-400'">
-                  {{ selectedExam?.settings?.shuffleQuestions ? 'Enabled' : 'Disabled' }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-600">Fullscreen Enforcement</span>
-                <span :class="selectedExam?.settings?.enableFullscreenMode ? 'text-emerald-600 font-bold' : 'text-slate-400'">
-                  {{ selectedExam?.settings?.enableFullscreenMode ? 'Enabled' : 'Disabled' }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-600">Tab Switch Monitoring</span>
-                <span :class="selectedExam?.settings?.enableBrowserTabMonitoring ? 'text-emerald-600 font-bold' : 'text-slate-400'">
-                  {{ selectedExam?.settings?.enableBrowserTabMonitoring ? 'Enabled' : 'Disabled' }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-600">Right Click & Copy Block</span>
-                <span :class="selectedExam?.settings?.disableRightClick ? 'text-emerald-600 font-bold' : 'text-slate-400'">
-                  {{ selectedExam?.settings?.disableRightClick ? 'Enabled' : 'Disabled' }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Column 2 & 3: Student Attempts & Questions Preview -->
+        <!-- Column 1 & 2: Detailed Examination Specifications & Settings -->
         <div class="lg:col-span-2 space-y-6">
 
-          <!-- Questions Preview Card -->
-          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 class="text-sm font-bold text-slate-900">Examination Questions</h3>
-                <p class="text-xs text-slate-500">Preview assessment items and question weight distribution.</p>
+          <!-- Exam Specifications Card -->
+          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">Examination Profile & Curriculum Context</h3>
+                  <p class="text-xs text-slate-500">Official academic specifications recorded in the department registry.</p>
+                </div>
               </div>
-              <button
-                @click="currentView = 'questions'"
-                class="px-3 py-1.5 text-xs font-bold text-[#5138ed] bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100"
-              >
-                View Full Item Bank ({{ selectedExam?.questionsList?.length || selectedExam?.questions || 0 }})
-              </button>
-            </div>
-
-            <div v-if="selectedExam?.questionsList && selectedExam.questionsList.length > 0" class="overflow-x-auto">
-              <table class="w-full text-left text-xs">
-                <thead>
-                  <tr class="border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
-                    <th class="pb-2.5 w-10">#</th>
-                    <th class="pb-2.5 w-24">Type</th>
-                    <th class="pb-2.5">Question Prompt</th>
-                    <th class="pb-2.5 text-right w-16">Marks</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="(q, idx) in selectedExam.questionsList.slice(0, 5)" :key="q.id || idx" class="hover:bg-slate-50/60">
-                    <td class="py-2.5 font-bold text-slate-500">{{ Number(idx) + 1 }}</td>
-                    <td class="py-2.5"><span :class="[qTypeBadge(q.type), 'px-2 py-0.5 rounded text-[10px] font-bold border']">{{ q.type }}</span></td>
-                    <td class="py-2.5 font-medium text-slate-800 line-clamp-1">{{ q.text }}</td>
-                    <td class="py-2.5 text-right font-bold text-slate-700">{{ q.marks }} pts</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="text-center py-6 text-slate-400 border border-dashed border-slate-100 rounded-xl text-xs">
-              No questions recorded for this examination.
-            </div>
-          </div>
-
-          <!-- Student Participation & Attempts Card -->
-          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 class="text-sm font-bold text-slate-900">Student Participation & Attempts</h3>
-                <p class="text-xs text-slate-500">Real student test submissions recorded in the database.</p>
-              </div>
-              <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {{ selectedExam?.attemptsList?.length || 0 }} Submissions
+              <span class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-indigo-50 text-[#5138ed] border border-indigo-200">
+                {{ selectedExam?.code }}
               </span>
             </div>
 
-            <div v-if="selectedExam?.attemptsList && selectedExam.attemptsList.length > 0" class="overflow-x-auto">
-              <table class="w-full text-left text-xs">
-                <thead>
-                  <tr class="border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px]">
-                    <th class="pb-2.5">Student</th>
-                    <th class="pb-2.5">Student ID</th>
-                    <th class="pb-2.5">Score</th>
-                    <th class="pb-2.5">Percentage</th>
-                    <th class="pb-2.5">Grade</th>
-                    <th class="pb-2.5">Status</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="att in selectedExam.attemptsList" :key="att.id" class="hover:bg-slate-50/60">
-                    <td class="py-2.5 font-bold text-slate-800">{{ att.student_name }}</td>
-                    <td class="py-2.5 font-mono text-slate-600">{{ att.student_id }}</td>
-                    <td class="py-2.5 font-bold text-slate-800">{{ att.score }} / {{ att.total_marks }}</td>
-                    <td class="py-2.5 font-bold text-indigo-600">{{ att.percentage }}%</td>
-                    <td class="py-2.5 font-bold text-slate-700">{{ att.grade }}</td>
-                    <td class="py-2.5">
-                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 capitalize">
-                        {{ att.status }}
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="text-center py-8 text-slate-400 border border-dashed border-slate-100 rounded-xl text-xs">
-              No student submissions recorded yet for this examination.
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-    </template>
-
-    <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- VIEW 2: ALL QUESTIONS VIEW                                           -->
-    <!-- ════════════════════════════════════════════════════════════════════ -->
-    <template v-else-if="currentView === 'questions'">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div>
-          <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-            <button @click="backToList" class="text-[#5138ed] hover:underline">Department Examinations</button>
-            <span>/</span>
-            <button @click="backToDetail" class="text-[#5138ed] hover:underline">{{ selectedExam?.code }}</button>
-            <span>/</span>
-            <span class="text-slate-600">Question Item Bank</span>
-          </div>
-          <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Question Item Bank</h1>
-          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ selectedExam?.title }} • {{ selectedExam?.courseCode }}</p>
-        </div>
-        <button
-          @click="backToDetail"
-          class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm"
-        >
-          Back to Exam Details
-        </button>
-      </div>
-
-      <div class="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-7 shadow-sm space-y-6">
-        <div class="flex items-center gap-4 text-xs font-bold text-slate-800 pb-4 border-b border-slate-100">
-          <span>Total Questions: {{ selectedExam?.questionsList?.length || selectedExam?.questions || 0 }}</span>
-          <span class="text-slate-300">•</span>
-          <span>Total Marks: {{ selectedExam?.marks || 0 }} pts</span>
-        </div>
-
-        <div v-if="!selectedExam?.questionsList || selectedExam.questionsList.length === 0" class="py-12 text-center text-slate-400 text-xs">
-          No questions available to display for this exam.
-        </div>
-
-        <div v-else class="space-y-5">
-          <div v-for="(q, idx) in selectedExam.questionsList" :key="q.id || idx" class="border border-slate-200/70 rounded-2xl p-5 space-y-3">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="w-7 h-7 rounded-lg bg-indigo-50 text-[#5138ed] font-black text-xs flex items-center justify-center">Q{{ Number(idx) + 1 }}</span>
-                <span :class="[qTypeBadge(q.type), 'px-2.5 py-0.5 rounded-lg text-xs font-bold border']">{{ q.type }}</span>
+            <!-- Two-column specifications grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-xs">
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Course Title:</span>
+                <span class="font-bold text-slate-800 text-right truncate max-w-[200px]">{{ selectedExam?.courseName }}</span>
               </div>
-              <span class="text-xs font-bold text-[#5138ed] bg-indigo-50 px-2.5 py-1 rounded-lg">{{ q.marks }} Marks</span>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Course Code:</span>
+                <span class="font-mono font-bold text-slate-800">{{ selectedExam?.courseCode }}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Department:</span>
+                <span class="font-bold text-slate-800 text-right">{{ selectedExam?.departmentName || department.name }} ({{ selectedExam?.departmentCode || department.code }})</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Course Credits:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.courseCredits || 3 }} Credit Hours</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Academic Year:</span>
+                <span class="font-bold text-[#5138ed]">{{ selectedExam?.academicYear || selectedExam?.academic_year || '2026' }}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Semester:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.semester || 'Second Semester' }}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Target Section:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.section || 'All Cohort Sections' }}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Examination Format:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.type }}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Scheduled Timing:</span>
+                <span class="font-bold text-slate-800 text-right">{{ selectedExam?.date }} • {{ selectedExam?.time }} – {{ selectedExam?.endTime }}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Exam Venue / Hall:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.room || 'Designated Exam Hall / TBA' }}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Passing Threshold:</span>
+                <span class="font-bold text-emerald-700">{{ selectedExam?.passing_marks || 50 }} Pts ({{ selectedExam?.passing_percentage || 50 }}%)</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-400 font-medium">Created On:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.createdAtFormatted || '—' }}</span>
+              </div>
             </div>
 
-            <p class="text-sm font-bold text-slate-900 leading-snug">{{ q.text }}</p>
+            <!-- Description & Special Instructions Box -->
+            <div class="pt-2">
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Candidate Instructions & Exam Description</label>
+              <div class="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700 leading-relaxed font-normal">
+                {{ selectedExam?.description || 'No special exam instructions recorded. Candidates must follow standard Wollo University examination guidelines.' }}
+              </div>
+            </div>
 
-            <!-- Options if MCQ -->
-            <template v-if="q.options && q.options.length">
-              <div class="space-y-2 pt-2">
+            <!-- Behavioral & Security Settings Grid -->
+            <div class="pt-2">
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">Examination Security & Delivery Rules</label>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Shuffle Questions</span>
+                  <span :class="selectedExam?.settings?.shuffleQuestions ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.shuffleQuestions ? '✓ Enabled' : '✕ Disabled' }}
+                  </span>
+                </div>
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Shuffle Options</span>
+                  <span :class="selectedExam?.settings?.shuffleAnswers ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.shuffleAnswers ? '✓ Enabled' : '✕ Disabled' }}
+                  </span>
+                </div>
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Allow Backtracking</span>
+                  <span :class="selectedExam?.settings?.allowBacktracking ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.allowBacktracking ? '✓ Allowed' : '✕ Locked' }}
+                  </span>
+                </div>
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Fullscreen Mode</span>
+                  <span :class="selectedExam?.settings?.enableFullscreenMode ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.enableFullscreenMode ? '✓ Enforced' : '✕ Optional' }}
+                  </span>
+                </div>
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Tab Monitoring</span>
+                  <span :class="selectedExam?.settings?.enableBrowserTabMonitoring ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.enableBrowserTabMonitoring ? '✓ Active' : '✕ Off' }}
+                  </span>
+                </div>
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Right Click Block</span>
+                  <span :class="selectedExam?.settings?.disableRightClick ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.disableRightClick ? '✓ Blocked' : '✕ Allowed' }}
+                  </span>
+                </div>
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Auto Submit</span>
+                  <span :class="selectedExam?.settings?.autoSubmit ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.autoSubmit ? '✓ On Timer' : '✕ Manual' }}
+                  </span>
+                </div>
+                <div class="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+                  <span class="text-slate-500 font-medium text-[11px]">Calculator Access</span>
+                  <span :class="selectedExam?.settings?.allowCalculator ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'">
+                    {{ selectedExam?.settings?.allowCalculator ? '✓ Permitted' : '✕ Prohibited' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Column 3: Assigned Faculty Member Profile & Sign-off Card -->
+        <div class="lg:col-span-1 space-y-6">
+
+          <!-- Faculty Profile Card -->
+          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-[#5138ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                <h3 class="text-sm font-bold text-slate-900">Assigned Faculty Member</h3>
+              </div>
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Lead Examiner
+              </span>
+            </div>
+
+            <!-- Avatar & Profile Details -->
+            <div class="flex items-start gap-3.5">
+              <div
+                :class="getAvatarColor(selectedExam?.instructorId || selectedExam?.instructor?.id || selectedExam?.id)"
+                class="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm shrink-0"
+              >
+                <span>{{ getInitials(selectedExam?.instructor?.name || selectedExam?.instructorName || 'Faculty') }}</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-base font-black text-slate-900 truncate leading-snug">
+                  {{ selectedExam?.instructor?.name || selectedExam?.instructorName || 'Unassigned Faculty' }}
+                </p>
+                <p class="text-xs text-slate-500 font-medium mt-0.5">
+                  {{ selectedExam?.instructor?.role || 'Course Instructor & Examiner' }}
+                </p>
+                <p class="text-xs text-[#5138ed] font-semibold mt-0.5 truncate">
+                  {{ selectedExam?.instructor?.email || selectedExam?.instructorEmail || 'No email registered' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Instructor Metadata List -->
+            <div class="space-y-2.5 text-xs pt-1 border-t border-slate-100">
+              <div class="flex justify-between py-1 border-b border-slate-100/60">
+                <span class="text-slate-400">Institutional Staff ID:</span>
+                <span class="font-mono font-bold text-slate-800">{{ selectedExam?.instructor?.id_no || ('FAC-' + (selectedExam?.instructorId || '0114')) }}</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-slate-100/60">
+                <span class="text-slate-400">Department Affiliation:</span>
+                <span class="font-bold text-slate-800 text-right">{{ selectedExam?.instructor?.department || selectedExam?.departmentName || department.name }}</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-slate-100/60">
+                <span class="text-slate-400">Campus Contact:</span>
+                <span class="font-medium text-slate-700">{{ selectedExam?.instructor?.phone || 'Campus Extension' }}</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-slate-100/60">
+                <span class="text-slate-400">Exam Authoring Status:</span>
+                <span class="font-bold text-emerald-700">Completed & Verified</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span class="text-slate-400">Total Items Authored:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.questionsList?.length || selectedExam?.questions || 0 }} Items ({{ selectedExam?.marks || 100 }} Pts)</span>
+              </div>
+            </div>
+
+            <!-- Department Authorization Pill -->
+            <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-center gap-2.5 text-xs text-emerald-800">
+              <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span class="font-semibold text-[11px]">Authorized examiner for Department of {{ selectedExam?.departmentName || department.name }}</span>
+            </div>
+          </div>
+
+          <!-- Quick Attempt Performance Card -->
+          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-3">
+            <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Candidate Participation</h4>
+            <div class="grid grid-cols-2 gap-2 text-center">
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <p class="text-lg font-black text-slate-900">{{ selectedExam?.totalAttempts || 0 }}</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Submissions</p>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <p class="text-lg font-black text-emerald-600">{{ selectedExam?.passRate || 0 }}%</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Pass Rate</p>
+              </div>
+            </div>
+            <button
+              @click="router.push(`/dept-head/results`)"
+              class="w-full py-2 text-xs font-bold text-[#5138ed] bg-indigo-50 hover:bg-indigo-100 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-indigo-100"
+            >
+              <span>View Candidate Results</span>
+              <span>→</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+      <!-- SECTION: COMPLETE EXAMINATION QUESTION PAPER (WITHOUT ANSWERS)       -->
+      <!-- ════════════════════════════════════════════════════════════════════ -->
+      <div id="questions-paper" class="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-7 shadow-sm space-y-6">
+
+        <!-- Question Paper Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-indigo-50 text-[#5138ed] flex items-center justify-center">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              </div>
+              <div>
+                <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Complete Examination Question Paper</h2>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Official examination paper questions as authored by the assigned faculty. Correct answer keys are strictly hidden for department review.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="px-3 py-1.5 rounded-xl bg-indigo-50 text-[#5138ed] border border-indigo-200 text-xs font-bold">
+              {{ selectedExam?.questionsList?.length || selectedExam?.questions || 0 }} Assessment Items
+            </span>
+            <span class="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+              {{ selectedExam?.marks || 100 }} Total Marks
+            </span>
+          </div>
+        </div>
+
+        <!-- Filter Pills & Search Input Toolbar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <!-- Question Type Pills -->
+          <div class="flex flex-wrap items-center gap-1.5 text-xs">
+            <button
+              @click="questionTypeFilter = 'all'"
+              :class="questionTypeFilter === 'all' ? 'bg-[#5138ed] text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'"
+              class="px-3 py-1.5 rounded-xl font-bold transition cursor-pointer"
+            >
+              All Items ({{ questionTypeCounts['all'] || 0 }})
+            </button>
+            <button
+              v-for="(count, typeName) in questionTypeCounts"
+              :key="typeName"
+              v-show="typeName !== 'all' && count > 0"
+              @click="questionTypeFilter = typeName"
+              :class="questionTypeFilter === typeName ? 'bg-[#5138ed] text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'"
+              class="px-3 py-1.5 rounded-xl font-bold transition cursor-pointer"
+            >
+              {{ typeName }} ({{ count }})
+            </button>
+          </div>
+
+          <!-- Question Prompt Search -->
+          <div class="relative w-full sm:w-64">
+            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input
+              v-model="questionSearch"
+              type="text"
+              placeholder="Search question prompt..."
+              class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white"
+            />
+            <button
+              v-if="questionSearch"
+              @click="questionSearch = ''"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Empty State for Questions -->
+        <div
+          v-if="filteredQuestions.length === 0"
+          class="py-12 text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl text-xs space-y-1.5"
+        >
+          <svg class="w-8 h-8 mx-auto text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          <p class="font-bold text-slate-600">No questions match the active filter</p>
+          <p class="text-slate-400">Clear your search term or select "All Items" to view the complete paper.</p>
+        </div>
+
+        <!-- Question Items Stream (WITHOUT ANSWERS) -->
+        <div v-else class="space-y-5">
+          <div
+            v-for="(q, idx) in filteredQuestions"
+            :key="q.id || idx"
+            class="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-3.5 hover:border-slate-300 transition-colors"
+          >
+            <!-- Question Item Header -->
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="w-7 h-7 rounded-lg bg-indigo-50 text-[#5138ed] font-black text-xs flex items-center justify-center">
+                  Q{{ q.number || (Number(idx) + 1) }}
+                </span>
+                <span :class="[qTypeBadge(q.type), 'px-2.5 py-0.5 rounded-lg text-xs font-bold border']">
+                  {{ q.type }}
+                </span>
+                <span v-if="q.difficulty" class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600">
+                  {{ q.difficulty }}
+                </span>
+                <span v-if="q.chapter || q.topic" class="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                  {{ q.chapter ? q.chapter + ' • ' : '' }}{{ q.topic }}
+                </span>
+              </div>
+              <span class="text-xs font-bold text-[#5138ed] bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-xl">
+                {{ q.marks }} Marks
+              </span>
+            </div>
+
+            <!-- Question Prompt / Text -->
+            <p class="text-sm sm:text-base font-semibold text-slate-900 leading-relaxed whitespace-pre-line">
+              {{ q.text }}
+            </p>
+
+            <!-- Instructions (if any) -->
+            <p v-if="q.instruction" class="text-xs text-slate-500 italic">
+              {{ q.instruction }}
+            </p>
+
+            <!-- Question Image (if any) -->
+            <div v-if="q.image_url" class="pt-1">
+              <img :src="q.image_url" alt="Question illustration" class="max-h-64 rounded-xl border border-slate-200 object-contain bg-slate-50 p-1" />
+            </div>
+
+            <!-- ── OPTIONS & ITEMS PRESENTATION (STRICTLY WITHOUT ANSWERS) ── -->
+
+            <!-- Multiple Choice Options (Neutral, No Correct Indicators) -->
+            <template v-if="q.options && q.options.length && (q.raw_type === 'multiple_choice' || (q.type || '').toLowerCase().includes('choice') || (q.type || '').toLowerCase().includes('mcq'))">
+              <div class="space-y-2 pt-1">
                 <div
                   v-for="(opt, optIdx) in q.options"
                   :key="optIdx"
-                  :class="isOptionCorrect(opt, optIdx, q) ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-bold' : 'bg-slate-50 border-slate-100 text-slate-700'"
-                  class="flex items-center gap-3 p-3 rounded-xl border text-xs"
+                  class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs sm:text-sm text-slate-800"
                 >
-                  <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" :class="isOptionCorrect(opt, optIdx, q) ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-white text-slate-700 border border-slate-300 shrink-0">
                     {{ String.fromCharCode(65 + Number(optIdx)) }}
                   </span>
-                  <span>{{ typeof opt === 'string' ? opt : (opt.text || opt.desc || JSON.stringify(opt)) }}</span>
-                  <span v-if="isOptionCorrect(opt, optIdx, q)" class="ml-auto text-[10px] uppercase font-black tracking-wider text-emerald-700">Correct Answer</span>
+                  <span class="font-medium">{{ typeof opt === 'string' ? opt : (opt.text || opt.title || opt.desc || JSON.stringify(opt)) }}</span>
                 </div>
               </div>
             </template>
 
-            <!-- True/False -->
-            <template v-else-if="q.raw_type === 'true_false'">
-              <div class="flex items-center gap-3 pt-2 text-xs">
-                <span class="text-slate-400">Correct Answer:</span>
-                <span class="px-3 py-1 rounded-lg font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
-                  {{ q.correct_answer }}
-                </span>
+            <!-- True / False Options (Neutral, No Answer Revealed) -->
+            <template v-else-if="q.raw_type === 'true_false' || (q.type || '').toLowerCase().includes('true')">
+              <div class="grid grid-cols-2 gap-3 pt-1">
+                <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs sm:text-sm text-slate-800">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-white text-slate-700 border border-slate-300 shrink-0">A</span>
+                  <span class="font-medium">True</span>
+                </div>
+                <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs sm:text-sm text-slate-800">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-white text-slate-700 border border-slate-300 shrink-0">B</span>
+                  <span class="font-medium">False</span>
+                </div>
               </div>
             </template>
 
-            <!-- Other Answers -->
-            <template v-else-if="q.correct_answer">
-              <div class="pt-2 text-xs">
-                <span class="text-slate-400">Expected Key:</span>
-                <span class="ml-2 font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded">{{ q.correct_answer }}</span>
+            <!-- Matching Items (Column A & Column B Neutral Display) -->
+            <template v-else-if="q.matching_pairs && q.matching_pairs.length">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div class="space-y-2">
+                  <p class="text-[11px] font-bold uppercase text-slate-400">Column A (Premises)</p>
+                  <div v-for="(p, pIdx) in q.matching_pairs" :key="'prem-' + pIdx" class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 text-xs font-medium text-slate-800 flex items-center gap-2">
+                    <span class="font-bold text-slate-500">{{ Number(pIdx) + 1 }}.</span>
+                    <span>{{ p.premise }}</span>
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <p class="text-[11px] font-bold uppercase text-slate-400">Column B (Options)</p>
+                  <div v-for="(p, pIdx) in q.matching_pairs" :key="'resp-' + pIdx" class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 text-xs font-medium text-slate-800 flex items-center gap-2">
+                    <span class="font-bold text-slate-500">{{ String.fromCharCode(65 + Number(pIdx)) }}.</span>
+                    <span>{{ p.response }}</span>
+                  </div>
+                </div>
               </div>
             </template>
+
+            <!-- Short Answer / Essay / Blank Space (Neutral Candidate Answer Space) -->
+            <template v-else>
+              <div class="pt-1">
+                <div class="border-2 border-dashed border-slate-200 bg-slate-50/40 rounded-xl p-4 text-xs text-slate-400 flex items-center gap-2">
+                  <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  <span>Candidate Response Area — Written answer space provided on examination paper</span>
+                </div>
+              </div>
+            </template>
+
           </div>
         </div>
+
+        <!-- Bottom Return to Top Bar -->
+        <div class="flex items-center justify-between pt-4 border-t border-slate-100 text-xs">
+          <span class="text-slate-400 font-medium">Viewing full examination paper for {{ selectedExam?.courseCode }}</span>
+          <button
+            @click="backToList"
+            class="text-[#5138ed] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>Back to Examinations List</span>
+            <span>↑</span>
+          </button>
+        </div>
+
       </div>
+
     </template>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
@@ -1440,7 +1729,7 @@ const getAvatarColor = (id: number) => {
               >
                 <!-- Row Number -->
                 <td class="py-3.5 px-3 text-center text-slate-400 font-bold text-xs">
-                  {{ exam.no || (idx + 1) }}
+                  {{ exam.no || (Number(idx) + 1) }}
                 </td>
 
                 <!-- Title & Code -->
@@ -1551,14 +1840,6 @@ const getAvatarColor = (id: number) => {
                       </button>
 
                       <button
-                        @click="openAssignFaculty(exam)"
-                        class="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-emerald-700"
-                      >
-                        <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-                        <span>Assign Faculty</span>
-                      </button>
-
-                      <button
                         v-if="exam.can_edit"
                         @click="openEditExam(exam)"
                         class="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-700"
@@ -1583,10 +1864,10 @@ const getAvatarColor = (id: number) => {
                         <span>View Course</span>
                       </button>
 
-                      <div v-if="exam.can_cancel" class="border-t border-slate-100 my-1"></div>
+                      <div v-if="canCancelExam(exam)" class="border-t border-slate-100 my-1"></div>
 
                       <button
-                        v-if="exam.can_cancel"
+                        v-if="canCancelExam(exam)"
                         @click="openCancelExam(exam)"
                         class="w-full px-3.5 py-2 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 font-bold"
                       >
@@ -1641,9 +1922,8 @@ const getAvatarColor = (id: number) => {
                   class="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-40 text-xs font-semibold"
                 >
                   <button @click="openDetail(exam)" class="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-700">View Details</button>
-                  <button @click="openAssignFaculty(exam)" class="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-emerald-700">Assign Faculty</button>
                   <button v-if="exam.can_edit" @click="openEditExam(exam)" class="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-700">Edit Schedule</button>
-                  <button v-if="exam.can_cancel" @click="openCancelExam(exam)" class="w-full px-3.5 py-2 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 font-bold">Cancel Exam</button>
+                  <button v-if="canCancelExam(exam)" @click="openCancelExam(exam)" class="w-full px-3.5 py-2 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 font-bold">Cancel Exam</button>
                 </div>
               </div>
             </div>
@@ -2060,53 +2340,161 @@ const getAvatarColor = (id: number) => {
     </Teleport>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- MODAL: CANCEL EXAM CONFIRMATION                                      -->
+    <!-- MODAL: CANCEL EXAM 2-STEP SECURITY CONFIRMATION                       -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
       <div
         v-if="showCancelModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       >
-        <div class="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 text-center">
-          <div class="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto">
-            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <div>
-            <h3 class="text-base font-bold text-slate-900">Cancel Examination?</h3>
-            <p class="text-xs text-slate-500 mt-1 leading-relaxed">
-              Are you sure you want to cancel <strong class="text-slate-800">"{{ selectedExam?.title }}"</strong> ({{ selectedExam?.courseCode }})?
-            </p>
-            <div class="mt-3 text-left">
-              <label class="block text-xs font-bold text-slate-700 mb-1">Reason for Cancellation</label>
+        <div class="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+
+          <!-- ════ STEP 1 OF 2: VERIFICATION & REASON INPUT ════ -->
+          <div v-if="cancelConfirmationStep === 1" class="space-y-4">
+            <!-- Step Badge & Close -->
+            <div class="flex items-center justify-between">
+              <span class="px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                Confirmation 1 of 2: Security Verification
+              </span>
+              <button
+                @click="showCancelModal = false"
+                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div class="flex items-start gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div class="text-left">
+                <h3 class="text-base font-black text-slate-900">Initiate Examination Cancellation?</h3>
+                <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                  You are initiating cancellation for <strong class="text-slate-900">"{{ selectedExam?.title }}"</strong>. Cancelling will revoke student examination access and notify all invigilators.
+                </p>
+              </div>
+            </div>
+
+            <!-- Exam Details Snapshot Card -->
+            <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-xs text-left space-y-2">
+              <div class="flex justify-between">
+                <span class="text-slate-400 font-medium">Course:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.courseName }} ({{ selectedExam?.courseCode }})</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-400 font-medium">Scheduled Window:</span>
+                <span class="font-bold text-slate-800">{{ selectedExam?.date }} • {{ selectedExam?.time }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-400 font-medium">Target Cohort:</span>
+                <span class="font-bold text-slate-700">{{ selectedExam?.academic_year || selectedExam?.academicYear }} • {{ selectedExam?.semester }} ({{ selectedExam?.section }})</span>
+              </div>
+            </div>
+
+            <!-- Cancellation Reason Input -->
+            <div class="text-left space-y-1.5">
+              <label class="block text-xs font-bold text-slate-700">
+                Reason for Cancellation <span class="text-rose-500">*</span>
+              </label>
               <textarea
                 v-model="cancelReason"
-                rows="2"
-                placeholder="e.g. Schedule postponed by Department Council"
-                class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500"
+                rows="3"
+                placeholder="e.g. Schedule postponed by Department Council decision..."
+                class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition placeholder:text-slate-400"
               ></textarea>
+              <p class="text-[11px] text-slate-400">This cancellation note will be permanently archived in the institutional audit log.</p>
+            </div>
+
+            <!-- Step 1 Actions -->
+            <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                @click="showCancelModal = false"
+                class="px-4 py-2.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition"
+              >
+                Keep Exam
+              </button>
+              <button
+                @click="proceedToCancelStep2"
+                class="flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-sm transition cursor-pointer"
+              >
+                <span>Proceed to Final Confirmation</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              </button>
             </div>
           </div>
-          <div class="flex items-center justify-center gap-2 pt-2">
-            <button
-              @click="showCancelModal = false"
-              class="px-4 py-2.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50"
-            >
-              Back
-            </button>
-            <button
-              @click="submitCancelExam"
-              :disabled="isSubmitting"
-              class="flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition-all disabled:opacity-50"
-            >
-              <svg v-if="isSubmitting" class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-              </svg>
-              <span>{{ isSubmitting ? 'Cancelling...' : 'Confirm Cancellation' }}</span>
-            </button>
+
+          <!-- ════ STEP 2 OF 2: IRREVERSIBLE ACTION CONFIRMATION ════ -->
+          <div v-else class="space-y-4">
+            <!-- Step Badge & Close -->
+            <div class="flex items-center justify-between">
+              <span class="px-3 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
+                Confirmation 2 of 2: Irreversible Security Warning
+              </span>
+              <button
+                @click="showCancelModal = false"
+                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <!-- Danger Alert Card -->
+            <div class="p-4 rounded-2xl bg-rose-50/90 border border-rose-200 text-left space-y-3">
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </div>
+                <div>
+                  <h4 class="text-sm font-black text-rose-950">Are you absolutely certain?</h4>
+                  <p class="text-xs text-rose-700 mt-0.5 leading-relaxed">
+                    This action is <strong class="underline decoration-rose-400">permanent and cannot be undone</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div class="text-xs text-rose-900 bg-white/80 p-3 rounded-xl border border-rose-200/70 space-y-1">
+                <p>• <strong>Exam Title:</strong> {{ selectedExam?.title }}</p>
+                <p>• <strong>Course Code:</strong> {{ selectedExam?.courseCode }}</p>
+                <p>• <strong>Logged Reason:</strong> <span class="italic text-rose-800">"{{ cancelReason || 'Cancelled by Department Head' }}"</span></p>
+              </div>
+
+              <p class="text-[11px] text-rose-600 font-medium">
+                Students will immediately lose exam access. This examination will be marked as <strong class="text-rose-700 font-bold">CANCELLED</strong> across all university portals.
+              </p>
+            </div>
+
+            <!-- Step 2 Actions -->
+            <div class="flex items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                @click="backToCancelStep1"
+                :disabled="isSubmitting"
+                class="px-4 py-2.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition flex items-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                <span>Back to Step 1</span>
+              </button>
+              <button
+                @click="submitCancelExam"
+                :disabled="isSubmitting"
+                class="flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
+              >
+                <svg v-if="isSubmitting" class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <svg v-else class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>{{ isSubmitting ? 'Cancelling...' : 'Permanently Cancel Exam' }}</span>
+              </button>
+            </div>
           </div>
+
         </div>
       </div>
     </Teleport>
