@@ -19,7 +19,7 @@ class AuthController extends Controller
         $request->validate([
             'login'    => 'required|string',
             'password' => 'required|string',
-            'role'     => 'required|string|in:student,instructor,staff',
+            'role'     => 'nullable|string|in:student,instructor,staff',
         ]);
 
         $loginField = $request->login;
@@ -56,6 +56,17 @@ class AuthController extends Controller
         }
 
         $effectiveRole = $user->role;
+
+        // Auto-deduce role if omitted (e.g. from the universal landing page login card)
+        if (empty($requestedRole)) {
+            if ($user->role === 'admin' || $user->role === 'dept_head') {
+                $requestedRole = 'staff';
+            } elseif ($user->role === 'student') {
+                $requestedRole = 'student';
+            } elseif ($user->role === 'instructor') {
+                $requestedRole = 'instructor';
+            }
+        }
 
         // Role Validation Logic: Enforce strict role-to-dropdown alignment
         if ($user->role === 'admin') {

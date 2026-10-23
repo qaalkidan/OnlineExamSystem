@@ -87,21 +87,23 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
 
-      // Safety check: ensure authenticated role aligns with requested dropdown role
-      if (userData.role === 'admin' && credentials.role !== 'staff') {
-        const err: any = new Error('This account is registered as an Administrator. Please select the Staff option to sign in.')
-        err.response = { data: { message: err.message, errors: { login: [err.message] } } }
-        throw err
-      }
-      if (userData.role === 'student' && credentials.role !== 'student') {
-        const err: any = new Error('This account is registered as a Student. Please select the Student option to sign in.')
-        err.response = { data: { message: err.message, errors: { login: [err.message] } } }
-        throw err
-      }
-      if (userData.role === 'instructor' && credentials.role !== 'instructor') {
-        const err: any = new Error('This account is registered as an Instructor. Please select the Instructor option to sign in.')
-        err.response = { data: { message: err.message, errors: { login: [err.message] } } }
-        throw err
+      // Safety check: ensure authenticated role aligns with requested dropdown role (if role was explicitly selected)
+      if (credentials.role) {
+        if (userData.role === 'admin' && credentials.role !== 'staff') {
+          const err: any = new Error('This account is registered as an Administrator. Please select the Staff option to sign in.')
+          err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+          throw err
+        }
+        if (userData.role === 'student' && credentials.role !== 'student') {
+          const err: any = new Error('This account is registered as a Student. Please select the Student option to sign in.')
+          err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+          throw err
+        }
+        if (userData.role === 'instructor' && credentials.role !== 'instructor') {
+          const err: any = new Error('This account is registered as an Instructor. Please select the Instructor option to sign in.')
+          err.response = { data: { message: err.message, errors: { login: [err.message] } } }
+          throw err
+        }
       }
 
       // Check if user must change their temporary password first
