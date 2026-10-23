@@ -102,7 +102,7 @@ const filteredUpcomingExams = computed(() => {
 
 // Stats calculation
 const completedCount = computed(() => results.value.length)
-const remainingCount = computed(() => upcomingExams.value.length + (activeExam.value ? 1 : 0))
+const remainingCount = computed(() => filteredUpcomingExams.value.length)
 
 const averageScore = computed(() => {
   if (results.value.length === 0) return 0

@@ -116,19 +116,14 @@ class StudentExamController extends Controller
             $isSubmitted = $attempt && (in_array($attempt->status, ['submitted', 'graded', 'published']) || $attempt->submitted_at !== null);
             $isExpired = $end && $now->gte($end) && $attemptStatus !== 'in_progress';
 
-            // Filter out exams that expired in the past without an attempt before today
-            if ($isExpired && !$isSubmitted) {
-                // If scheduled before today, omit from active upcoming dashboard cards
-                if ($start && $start->lt($todayStart)) {
-                    continue;
-                }
+            // Strictly exclude completed exams and closed/expired exams from active upcoming exams
+            if ($isSubmitted || ($isExpired && $attemptStatus !== 'in_progress')) {
+                continue;
             }
 
             // Determine authoritative display status for student UI
             if ($attemptStatus === 'in_progress') {
                 $status = 'In Progress';
-            } elseif ($isSubmitted) {
-                $status = 'Completed';
             } elseif ($start && $end && $now->between($start, $end)) {
                 $status = 'Available Now';
             } elseif ($start && $now->lt($start)) {
@@ -138,8 +133,6 @@ class StudentExamController extends Controller
                 } else {
                     $status = 'Upcoming';
                 }
-            } elseif ($isExpired) {
-                $status = 'Closed';
             } else {
                 $status = 'Available Now';
             }
