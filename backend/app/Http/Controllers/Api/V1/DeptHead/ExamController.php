@@ -44,25 +44,37 @@ class ExamController extends Controller
     /**
      * Authoritative department exam query boundary:
      * strictly restricts exams to those belonging to courses, instructors,
-     * or explicit department ownership within this department.
+     * or explicit department ownership within this department, while
+     * strictly excluding courses belonging to other departments.
      */
     private function buildDeptExamsQuery(?int $deptId, int $headId)
     {
         $deptCourseCodes = [];
+        $otherDeptCourseCodes = [];
         if ($deptId) {
             $deptCourseCodes = Course::where('department_id', $deptId)->pluck('code')->filter()->toArray();
+            $otherDeptCourseCodes = Course::whereNotNull('department_id')->where('department_id', '!=', $deptId)->pluck('code')->filter()->toArray();
         }
 
-        return Exam::where(function ($q) use ($deptId, $headId, $deptCourseCodes) {
+        return Exam::where(function ($q) use ($deptId, $headId, $deptCourseCodes, $otherDeptCourseCodes) {
             if ($deptId) {
-                $q->whereHas('instructor', function ($sub) use ($deptId) {
-                    $sub->where('department_id', $deptId);
+                $q->where(function ($sub) use ($deptId, $headId, $deptCourseCodes) {
+                    $sub->whereHas('course', function ($cq) use ($deptId) {
+                        $cq->where('department_id', $deptId);
+                    });
+                    if (!empty($deptCourseCodes)) {
+                        $sub->orWhereIn('course_code', $deptCourseCodes);
+                    }
+                    $sub->orWhere('settings->department_id', $deptId)
+                        ->orWhere('user_id', $headId)
+                        ->orWhereHas('instructor', function ($iq) use ($deptId) {
+                            $iq->where('department_id', $deptId);
+                        });
                 });
-                if (!empty($deptCourseCodes)) {
-                    $q->orWhereIn('course_code', $deptCourseCodes);
+
+                if (!empty($otherDeptCourseCodes)) {
+                    $q->whereNotIn('course_code', $otherDeptCourseCodes);
                 }
-                $q->orWhere('user_id', $headId)
-                  ->orWhere('settings->department_id', $deptId);
             } else {
                 $q->where('user_id', $headId);
             }
@@ -130,7 +142,7 @@ class ExamController extends Controller
 
     /**
      * Display a listing of exams with server-side search, filtering,
-     * sorting, pagination, and real departmental statistics.
+     * sorting, pagination, and filter-reactive departmental statistics.
      */
     public function index(Request $request): JsonResponse
     {
@@ -138,65 +150,16 @@ class ExamController extends Controller
         $headId = $request->user()->id;
         $dept = $deptId ? Department::find($deptId) : null;
 
-        // Base scoped query
+        // Base scoped query (strictly department authorized)
         $baseQuery = $this->buildDeptExamsQuery($deptId, $headId);
 
-        // -------------------------------------------------------------
-        // 1. Department-wide Real KPI Statistics (unfiltered)
-        // -------------------------------------------------------------
-        $allDeptExams = (clone $baseQuery)
-            ->with(['course'])
-            ->withCount(['attempts', 'questions'])
-            ->get();
-
-        $conflictsMap = $this->detectExamConflicts($allDeptExams);
         $now = Carbon::now();
-        $totalExams = $allDeptExams->count();
-
-        $activeExams = 0;
-        $upcomingExams = 0;
-        $scheduledExams = 0;
-        $completedExams = 0;
-        $cancelledExams = 0;
-        $draftExams = 0;
-
-        foreach ($allDeptExams as $e) {
-            $status = $this->determineComputedStatus($e);
-            if ($status === 'Active') {
-                $activeExams++;
-            } elseif ($status === 'Scheduled' || $status === 'Published') {
-                $upcomingExams++;
-                $scheduledExams++;
-            } elseif ($status === 'Completed') {
-                $completedExams++;
-            } elseif ($status === 'Cancelled') {
-                $cancelledExams++;
-            } elseif ($status === 'Draft') {
-                $draftExams++;
-            }
-        }
-
-        $totalSubmissions = $allDeptExams->sum('attempts_count');
-        $coursesWithExams = $allDeptExams->pluck('course_code')->filter()->unique()->count();
-
-        $stats = [
-            'total'              => $totalExams,
-            'scheduled'          => $scheduledExams,
-            'upcoming'           => $upcomingExams,
-            'active'             => $activeExams,
-            'completed'          => $completedExams,
-            'cancelled'          => $cancelledExams,
-            'draft'              => $draftExams,
-            'conflicts'          => count($conflictsMap),
-            'total_submissions'  => $totalSubmissions,
-            'courses_with_exams' => $coursesWithExams,
-        ];
 
         // -------------------------------------------------------------
-        // 2. Dynamic Available Filter Options for this Department
+        // 1. Available Filter Options from Database
         // -------------------------------------------------------------
         $deptCourses = Course::where('department_id', $deptId)
-            ->select('id', 'title', 'code', 'credits', 'level', 'semester')
+            ->select('id', 'title', 'code', 'credits', 'level', 'semester', 'section')
             ->orderBy('title')
             ->get();
 
@@ -206,23 +169,49 @@ class ExamController extends Controller
             ->orderBy('name')
             ->get();
 
-        $availableSemesters = collect(['First Semester', 'Second Semester', 'Summer Term'])
-            ->concat($deptCourses->pluck('semester'))
-            ->concat($allDeptExams->map(fn($e) => $e->settings['semester'] ?? null))
-            ->filter()->unique()->values()->all();
+        // Distinct Academic Years across exams, events, submissions, and system setting
+        $examYears = (clone $baseQuery)->get()->map(function ($e) {
+            return $e->settings['academic_year'] ?? ($e->scheduled_at ? $e->scheduled_at->format('Y') : ($e->created_at ? $e->created_at->format('Y') : null));
+        })->filter()->values();
 
-        $availableYears = collect(['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'])
-            ->concat($deptCourses->pluck('level'))
-            ->concat($allDeptExams->map(fn($e) => $e->settings['year_level'] ?? null))
-            ->filter()->unique()->values()->all();
+        $eventYears = AcademicEvent::pluck('academic_year')->filter()->values();
+        $submissionYears = \App\Models\SemesterSubmission::pluck('academic_year')->filter()->values();
+        $sysYear = SystemSetting::where('key', 'academicYear')->value('value') ?: SystemSetting::where('key', 'academic_year')->value('value');
+        $sysSem = SystemSetting::where('key', 'semester')->value('value') ?: 'Second Semester';
+
+        $allAcademicYears = collect([$sysYear, '2026', '2025/2026', '2024/2025', '2023/2024', '2022'])
+            ->concat($examYears)
+            ->concat($eventYears)
+            ->concat($submissionYears)
+            ->filter()
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+
+        $availableSemesters = collect([$sysSem, 'First Semester', 'Second Semester', 'Summer Term'])
+            ->concat($deptCourses->pluck('semester'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $distinctSections = collect(['Section A', 'Section B', 'Section C', 'All Sections'])
+            ->concat($deptCourses->pluck('section'))
+            ->concat((clone $baseQuery)->pluck('section'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         $filterOptions = [
-            'semesters'   => $availableSemesters,
-            'year_levels' => $availableYears,
-            'courses'     => $deptCourses,
-            'instructors' => $deptInstructors,
-            'exam_types'  => ['Midterm', 'Final', 'Quiz', 'Practical', 'Assignment'],
-            'statuses'    => [
+            'academic_years' => $allAcademicYears,
+            'semesters'      => $availableSemesters,
+            'sections'       => $distinctSections,
+            'courses'        => $deptCourses,
+            'instructors'    => $deptInstructors,
+            'exam_types'     => ['Midterm', 'Final', 'Quiz', 'Practical', 'Assignment'],
+            'statuses'       => [
                 ['value' => 'all',       'label' => 'All Statuses'],
                 ['value' => 'upcoming',  'label' => 'Upcoming'],
                 ['value' => 'active',    'label' => 'Active / In Progress'],
@@ -235,13 +224,13 @@ class ExamController extends Controller
         ];
 
         // -------------------------------------------------------------
-        // 3. Search and Filtering
+        // 2. Search and Filtering
         // -------------------------------------------------------------
         $query = (clone $baseQuery)
             ->with(['instructor:id,name,email,profile_picture,role,id_no', 'course:id,title,code,credits,level,semester'])
             ->withCount(['questions', 'attempts']);
 
-        // Search term
+        // Search term (exam title, code, course code, course name, instructor name/email)
         if ($request->filled('search')) {
             $search = trim($request->search);
             $query->where(function ($q) use ($search) {
@@ -256,36 +245,50 @@ class ExamController extends Controller
             });
         }
 
+        // Academic Year filter
+        $reqYear = $request->get('academic_year') ?? $request->get('year');
+        if ($reqYear && strtolower($reqYear) !== 'all') {
+            $yr = trim($reqYear);
+            $query->where(function ($q) use ($yr) {
+                $q->where('settings->academic_year', $yr)
+                  ->orWhere('settings->academic_year', 'like', "%{$yr}%")
+                  ->orWhere('settings->year_level', $yr);
+                if (strlen($yr) === 4 && is_numeric($yr)) {
+                    $q->orWhereYear('scheduled_at', $yr)
+                      ->orWhereYear('created_at', $yr);
+                }
+            });
+        }
+
         // Semester filter
-        if ($request->filled('semester') && $request->semester !== 'all') {
-            $sem = $request->semester;
+        if ($request->filled('semester') && strtolower($request->semester) !== 'all') {
+            $sem = trim($request->semester);
             $query->where(function ($q) use ($sem) {
                 $q->where('settings->semester', $sem)
+                  ->orWhere('settings->semester', 'like', "%{$sem}%")
                   ->orWhereHas('course', function ($cq) use ($sem) {
                       $cq->where('semester', $sem);
                   });
             });
         }
 
-        // Academic year / year level filter
-        if ($request->filled('year') && $request->year !== 'all') {
-            $yr = $request->year;
-            $query->where(function ($q) use ($yr) {
-                $q->where('settings->year_level', $yr)
-                  ->orWhere('settings->academic_year', $yr)
-                  ->orWhereHas('course', function ($cq) use ($yr) {
-                      $cq->where('level', $yr);
-                  });
+        // Section filter
+        if ($request->filled('section') && strtolower($request->section) !== 'all') {
+            $sec = trim($request->section);
+            $query->where(function ($q) use ($sec) {
+                $q->where('section', $sec)
+                  ->orWhere('settings->section', $sec)
+                  ->orWhere('section', 'like', "%{$sec}%");
             });
         }
 
         // Course filter
-        if ($request->filled('course_code') && $request->course_code !== 'all') {
+        if ($request->filled('course_code') && strtolower($request->course_code) !== 'all') {
             $query->where('course_code', $request->course_code);
         }
 
         // Exam type filter
-        if ($request->filled('exam_type') && $request->exam_type !== 'all') {
+        if ($request->filled('exam_type') && strtolower($request->exam_type) !== 'all') {
             $type = strtolower($request->exam_type);
             $query->where(function ($q) use ($type) {
                 $q->where('settings->exam_type', $type)
@@ -294,18 +297,18 @@ class ExamController extends Controller
         }
 
         // Instructor filter
-        if ($request->filled('instructor_id') && $request->instructor_id !== 'all') {
+        if ($request->filled('instructor_id') && strtolower($request->instructor_id) !== 'all') {
             $query->where('user_id', $request->instructor_id);
         }
 
         // Status filter
-        if ($request->filled('status') && $request->status !== 'all') {
+        if ($request->filled('status') && strtolower($request->status) !== 'all') {
             $st = strtolower($request->status);
             if ($st === 'upcoming') {
                 $query->whereIn('status', ['scheduled', 'published'])
                       ->where(function ($q) use ($now) {
                           $q->whereNull('scheduled_at')
-                            ->orWhere('scheduled_at', '>=', $now->toDateString());
+                            ->orWhere('scheduled_at', '>=', $now);
                       });
             } elseif ($st === 'active') {
                 $query->whereIn('status', ['published', 'scheduled'])
@@ -338,6 +341,55 @@ class ExamController extends Controller
         }
 
         // -------------------------------------------------------------
+        // 3. Filter-Aware Real KPI Statistics
+        // -------------------------------------------------------------
+        $matchingExamsForStats = (clone $query)
+            ->with(['course'])
+            ->get();
+
+        $conflictsMap = $this->detectExamConflicts($matchingExamsForStats);
+        $totalExams = $matchingExamsForStats->count();
+
+        $activeExams = 0;
+        $upcomingExams = 0;
+        $scheduledExams = 0;
+        $completedExams = 0;
+        $cancelledExams = 0;
+        $draftExams = 0;
+
+        foreach ($matchingExamsForStats as $e) {
+            $status = $this->determineComputedStatus($e);
+            if ($status === 'Active') {
+                $activeExams++;
+            } elseif ($status === 'Scheduled' || $status === 'Published') {
+                $upcomingExams++;
+                $scheduledExams++;
+            } elseif ($status === 'Completed') {
+                $completedExams++;
+            } elseif ($status === 'Cancelled') {
+                $cancelledExams++;
+            } elseif ($status === 'Draft') {
+                $draftExams++;
+            }
+        }
+
+        $totalSubmissions = $matchingExamsForStats->sum('attempts_count');
+        $coursesWithExams = $matchingExamsForStats->pluck('course_code')->filter()->unique()->count();
+
+        $stats = [
+            'total'              => $totalExams,
+            'scheduled'          => $scheduledExams,
+            'upcoming'           => $upcomingExams,
+            'active'             => $activeExams,
+            'completed'          => $completedExams,
+            'cancelled'          => $cancelledExams,
+            'draft'              => $draftExams,
+            'conflicts'          => count($conflictsMap),
+            'total_submissions'  => $totalSubmissions,
+            'courses_with_exams' => $coursesWithExams,
+        ];
+
+        // -------------------------------------------------------------
         // 4. Sorting
         // -------------------------------------------------------------
         $sortBy = $request->query('sort_by', 'scheduled_at');
@@ -366,7 +418,7 @@ class ExamController extends Controller
 
         $totalDeptStudentsCount = User::where('department_id', $deptId)->where('role', 'student')->count();
 
-        $transformed = collect($paginated->items())->map(function ($exam) use ($deptStudentsByLevel, $totalDeptStudentsCount, $conflictsMap) {
+        $transformed = collect($paginated->items())->map(function ($exam, $idx) use ($deptStudentsByLevel, $totalDeptStudentsCount, $conflictsMap, $paginated) {
             $duration = $exam->duration_minutes ?? 60;
             $scheduledAt = $exam->scheduled_at;
             $endTime = $scheduledAt ? $scheduledAt->copy()->addMinutes($duration)->format('h:i A') : 'TBD';
@@ -377,16 +429,27 @@ class ExamController extends Controller
                 : $totalDeptStudentsCount;
 
             $displayStatus = $this->determineComputedStatus($exam);
+            $academicYear = $exam->settings['academic_year'] ?? ($scheduledAt ? $scheduledAt->format('Y') : date('Y'));
+            $semester = $exam->settings['semester'] ?? ($exam->course?->semester ?? 'N/A');
+            $section = $exam->section ?: ($exam->settings['section'] ?? 'All Sections');
 
             return [
+                'no'                      => ($paginated->currentPage() - 1) * $paginated->perPage() + $idx + 1,
                 'id'                      => $exam->id,
                 'title'                   => $exam->title,
                 'code'                    => $this->formatExamCode($exam),
                 'course'                  => $exam->course_name ?: ($exam->course->title ?? 'General Course'),
                 'courseName'              => $exam->course_name ?: ($exam->course->title ?? 'General Course'),
+                'course_name'             => $exam->course_name ?: ($exam->course->title ?? 'General Course'),
                 'courseCode'              => $exam->course_code ?: ($exam->course->code ?? 'N/A'),
+                'course_code'             => $exam->course_code ?: ($exam->course->code ?? 'N/A'),
                 'courseCredits'           => $exam->course->credits ?? null,
+                'section'                 => $section,
+                'academic_year'           => $academicYear,
+                'academicYear'            => $academicYear,
+                'semester'                => $semester,
                 'type'                    => $this->determineExamType($exam),
+                'exam_type'               => $this->determineExamType($exam),
                 'scheduled_at'            => $scheduledAt ? $scheduledAt->toIso8601String() : null,
                 'date'                    => $scheduledAt ? $scheduledAt->format('M d, Y') : 'Unscheduled',
                 'time'                    => $scheduledAt ? $scheduledAt->format('h:i A') : 'Flexible Window',
@@ -407,14 +470,14 @@ class ExamController extends Controller
                     'profile_picture_url' => $exam->instructor->profile_picture_url ?? null,
                 ] : null,
                 'attempts_count'          => $exam->attempts_count ?? 0,
+                'submissions'             => $exam->attempts_count ?? 0,
                 'eligible_students_count' => $eligibleCount,
-                'semester'                => $exam->settings['semester'] ?? ($exam->course?->semester ?? 'Semester 1'),
-                'year'                    => $exam->settings['year_level'] ?? ($exam->course?->level ?? 'Year 1'),
                 'room'                    => $exam->settings['room'] ?? 'Room 101',
                 'has_conflict'            => isset($conflictsMap[$exam->id]),
                 'conflict_reason'         => $conflictsMap[$exam->id] ?? null,
                 'can_edit'                => !in_array($displayStatus, ['Completed', 'Cancelled']),
                 'can_cancel'              => $displayStatus !== 'Cancelled',
+                'can_publish'             => $displayStatus !== 'Published' && !in_array($displayStatus, ['Completed', 'Cancelled']),
                 'settings'                => $exam->settings ?? [],
             ];
         });
@@ -426,13 +489,14 @@ class ExamController extends Controller
             'department'     => [
                 'id'      => $dept?->id,
                 'name'    => ucwords($dept?->name ?? 'Department'),
-                'code'    => $dept?->code ?? 'DEPT',
+                'code'    => $dept?->code ?? 'CV001',
                 'college' => $dept?->college ?? 'College of Computing and Informatics',
             ],
+            'active_term'    => [
+                'academic_year' => $reqYear && strtolower($reqYear) !== 'all' ? $reqYear : ($sysYear ?: '2026'),
+                'semester'      => $request->get('semester') && strtolower($request->semester) !== 'all' ? $request->semester : ($sysSem ?: 'Second Semester'),
+            ],
             'filter_options' => $filterOptions,
-            'semesters'      => $availableSemesters,
-            'years'          => $availableYears,
-            'exam_types'     => $filterOptions['exam_types'],
             'meta'           => [
                 'current_page' => $paginated->currentPage(),
                 'last_page'    => $paginated->lastPage(),
@@ -530,6 +594,11 @@ class ExamController extends Controller
         $createdByName = $exam->instructor?->name ?? 'Department Head';
         $displayStatus = $this->determineComputedStatus($exam);
 
+        $dept = $deptId ? Department::find($deptId) : null;
+        $academicYear = $settings['academic_year'] ?? ($exam->academic_year ?? ($exam->scheduled_at ? $exam->scheduled_at->format('Y') : '2026'));
+        $semester = $settings['semester'] ?? ($exam->semester ?? 'Second Semester');
+        $section = $settings['section'] ?? ($exam->section ?? 'All Sections');
+
         $formattedDetail = [
             'id'                 => $exam->id,
             'title'              => $exam->title,
@@ -537,6 +606,12 @@ class ExamController extends Controller
             'courseName'         => $exam->course_name ?: ($exam->course->title ?? 'General Course'),
             'courseCode'         => $exam->course_code ?: ($exam->course->code ?? 'N/A'),
             'courseCredits'      => $exam->course->credits ?? null,
+            'departmentName'     => $exam->course?->department?->name ?? ($dept?->name ?? 'Civil Engineering'),
+            'departmentCode'     => $exam->course?->department?->code ?? ($dept?->code ?? 'CV001'),
+            'academicYear'       => $academicYear,
+            'academic_year'      => $academicYear,
+            'semester'           => $semester,
+            'section'            => $section,
             'type'               => $this->determineExamType($exam),
             'date'               => $exam->scheduled_at ? $exam->scheduled_at->format('M d, Y') : 'Unscheduled',
             'time'               => $exam->scheduled_at ? $exam->scheduled_at->format('h:i A') : 'Flexible Window',
@@ -1280,17 +1355,105 @@ class ExamController extends Controller
             });
         }
 
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+        // Filter by Academic Year
+        $reqYear = $request->get('academic_year') ?? $request->get('year');
+        if ($reqYear && strtolower($reqYear) !== 'all') {
+            $query->where(function ($q) use ($reqYear) {
+                $q->where('academic_year', $reqYear)
+                  ->orWhereJsonContains('settings->academic_year', $reqYear)
+                  ->orWhereYear('scheduled_at', $reqYear);
+            });
+        }
+
+        // Filter by Semester
+        if ($request->filled('semester') && strtolower($request->semester) !== 'all') {
+            $sem = $request->semester;
+            $semNum = preg_replace('/[^0-9]/', '', $sem);
+            $query->where(function ($q) use ($sem, $semNum) {
+                $q->where('semester', $sem)
+                  ->orWhere('semester', 'like', "%{$sem}%")
+                  ->orWhereJsonContains('settings->semester', $sem);
+                if ($semNum) {
+                    $q->orWhere('semester', (int)$semNum)
+                      ->orWhere('semester', 'Semester ' . $semNum);
+                }
+            });
+        }
+
+        // Filter by Section
+        if ($request->filled('section') && strtolower($request->section) !== 'all') {
+            $sec = $request->section;
+            $query->where(function ($q) use ($sec) {
+                $q->where('section', $sec)
+                  ->orWhereJsonContains('settings->section', $sec)
+                  ->orWhereJsonContains('settings->target_sections', $sec);
+            });
         }
 
         if ($request->filled('course_code') && $request->course_code !== 'all') {
             $query->where('course_code', $request->course_code);
         }
 
+        if ($request->filled('exam_type') && strtolower($request->exam_type) !== 'all') {
+            $examType = $request->exam_type;
+            $query->where(function ($q) use ($examType) {
+                $q->where('exam_type', $examType)
+                  ->orWhereJsonContains('settings->exam_type', $examType);
+            });
+        }
+
+        if ($request->filled('instructor_id') && strtolower($request->instructor_id) !== 'all') {
+            $query->where('user_id', $request->instructor_id);
+        }
+
+        if ($request->filled('status') && strtolower($request->status) !== 'all') {
+            $statusVal = strtolower($request->status);
+            if ($statusVal === 'completed') {
+                $query->where(function ($q) {
+                    $q->where('status', 'completed')
+                      ->orWhere(function ($sq) {
+                          $sq->whereNotNull('scheduled_at')
+                             ->whereRaw("DATE_ADD(scheduled_at, INTERVAL COALESCE(duration_minutes, 60) MINUTE) < NOW()")
+                             ->whereNotIn('status', ['cancelled', 'draft']);
+                      });
+                });
+            } elseif ($statusVal === 'active') {
+                $query->where(function ($q) {
+                    $q->where('status', 'active')
+                      ->orWhere(function ($sq) {
+                          $sq->whereNotNull('scheduled_at')
+                             ->where('scheduled_at', '<=', now())
+                             ->whereRaw("DATE_ADD(scheduled_at, INTERVAL COALESCE(duration_minutes, 60) MINUTE) >= NOW()")
+                             ->whereNotIn('status', ['cancelled', 'draft', 'completed']);
+                      });
+                });
+            } elseif ($statusVal === 'upcoming' || $statusVal === 'scheduled') {
+                $query->where(function ($q) {
+                    $q->whereIn('status', ['scheduled', 'published'])
+                      ->where(function ($sq) {
+                          $sq->whereNull('scheduled_at')
+                             ->orWhere('scheduled_at', '>', now());
+                      });
+                });
+            } else {
+                $query->where('status', $statusVal);
+            }
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('scheduled_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('scheduled_at', '<=', $request->date_to);
+        }
+
         $exams = $query->orderBy('scheduled_at', 'desc')->get()->map(function ($e) {
             $e->code = $this->formatExamCode($e);
             $e->type = $this->determineExamType($e);
+            $set = $e->settings ?? [];
+            $e->academic_year = $set['academic_year'] ?? ($e->academic_year ?? ($e->scheduled_at ? $e->scheduled_at->format('Y') : '2026'));
+            $e->semester = $set['semester'] ?? ($e->semester ?? 'Second Semester');
+            $e->section = $set['section'] ?? ($e->section ?? 'All Sections');
             return $e;
         });
 
@@ -1344,21 +1507,23 @@ class ExamController extends Controller
 
         $html .= '<table class="data-table"><thead><tr>';
         $html .= '<th style="width: 25px;">#</th>';
-        $html .= '<th style="width: 60px;">Code</th>';
+        $html .= '<th style="width: 55px;">Code</th>';
         $html .= '<th>Exam Title</th>';
         $html .= '<th style="width: 50px;">Course</th>';
-        $html .= '<th style="width: 50px;">Type</th>';
-        $html .= '<th style="width: 65px;">Date</th>';
-        $html .= '<th style="width: 50px;">Time</th>';
-        $html .= '<th style="width: 45px;">Duration</th>';
-        $html .= '<th style="width: 35px;">Marks</th>';
+        $html .= '<th style="width: 45px;">Type</th>';
+        $html .= '<th style="width: 45px;">Section</th>';
+        $html .= '<th style="width: 60px;">AY • Sem</th>';
+        $html .= '<th style="width: 60px;">Date</th>';
+        $html .= '<th style="width: 45px;">Time</th>';
+        $html .= '<th style="width: 40px;">Duration</th>';
+        $html .= '<th style="width: 30px;">Marks</th>';
         $html .= '<th>Instructor</th>';
-        $html .= '<th style="width: 45px;">Attempts</th>';
-        $html .= '<th style="width: 55px;">Status</th>';
+        $html .= '<th style="width: 40px;">Attempts</th>';
+        $html .= '<th style="width: 50px;">Status</th>';
         $html .= '</tr></thead><tbody>';
 
         if ($exams->isEmpty()) {
-            $html .= '<tr><td colspan="12" style="text-align: center; padding: 15px; color: #94a3b8;">No examinations found.</td></tr>';
+            $html .= '<tr><td colspan="14" style="text-align: center; padding: 15px; color: #94a3b8;">No examinations found.</td></tr>';
         } else {
             foreach ($exams as $i => $e) {
                 $statusBadge = '<span class="badge-scheduled">' . strtoupper($e->status ?? 'SCHEDULED') . '</span>';
@@ -1371,6 +1536,7 @@ class ExamController extends Controller
                 $instName = $e->instructor ? htmlspecialchars($e->instructor->name) : 'Unassigned';
                 $schedDate = $e->scheduled_at ? $e->scheduled_at->format('M d, Y') : '—';
                 $schedTime = $e->scheduled_at ? $e->scheduled_at->format('h:i A') : '—';
+                $aySem = ($e->academic_year ?? '2026') . ' • ' . ($e->semester ?? 'Sem 2');
 
                 $html .= '<tr>';
                 $html .= '<td>' . ($i + 1) . '</td>';
@@ -1378,6 +1544,8 @@ class ExamController extends Controller
                 $html .= '<td>' . htmlspecialchars($e->title) . '</td>';
                 $html .= '<td>' . htmlspecialchars($e->course_code) . '</td>';
                 $html .= '<td>' . htmlspecialchars($e->type) . '</td>';
+                $html .= '<td>' . htmlspecialchars($e->section ?? 'All') . '</td>';
+                $html .= '<td>' . htmlspecialchars($aySem) . '</td>';
                 $html .= '<td>' . $schedDate . '</td>';
                 $html .= '<td>' . $schedTime . '</td>';
                 $html .= '<td>' . ($e->duration_minutes ?? 60) . 'm</td>';
@@ -1442,6 +1610,7 @@ class ExamController extends Controller
 
         fputcsv($handle, [
             '#', 'Exam Code', 'Exam Title', 'Course Code', 'Course Title',
+            'Academic Year', 'Semester', 'Section',
             'Exam Type', 'Scheduled Date', 'Start Time', 'Duration',
             'Total Marks', 'Questions', 'Assigned Instructor', 'Student Submissions', 'Status', 'Created Date'
         ]);
@@ -1457,6 +1626,9 @@ class ExamController extends Controller
                 $e->title,
                 $e->course_code,
                 $e->course_name,
+                $e->academic_year ?? '2026',
+                $e->semester ?? 'Second Semester',
+                $e->section ?? 'All Sections',
                 $e->type,
                 $schedDate,
                 $schedTime,

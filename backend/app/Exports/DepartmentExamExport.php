@@ -34,6 +34,9 @@ class DepartmentExamExport implements FromCollection, WithHeadings, WithMapping,
             'Exam Title',
             'Course Code',
             'Course Title',
+            'Section',
+            'Academic Year',
+            'Semester',
             'Exam Type',
             'Scheduled Date',
             'Start Time',
@@ -54,6 +57,9 @@ class DepartmentExamExport implements FromCollection, WithHeadings, WithMapping,
         $code = $exam->code ?? ('EXM-' . ($exam->scheduled_at ? $exam->scheduled_at->format('Y') : date('Y')) . '-' . str_pad((string)$exam->id, 3, '0', STR_PAD_LEFT));
         $courseCode = $exam->course_code ?? ($exam->course->code ?? 'N/A');
         $courseName = $exam->course_name ?? ($exam->course->title ?? 'General Course');
+        $section = $exam->section ?: ($exam->settings['section'] ?? 'All Sections');
+        $academicYear = $exam->settings['academic_year'] ?? ($exam->scheduled_at ? $exam->scheduled_at->format('Y') : date('Y'));
+        $semester = $exam->settings['semester'] ?? ($exam->course->semester ?? 'N/A');
         $type = $exam->type ?? 'Examination';
         $date = $exam->scheduled_at ? $exam->scheduled_at->format('M d, Y') : 'Unscheduled';
         $time = $exam->scheduled_at ? $exam->scheduled_at->format('h:i A') : 'Flexible';
@@ -71,6 +77,9 @@ class DepartmentExamExport implements FromCollection, WithHeadings, WithMapping,
             $exam->title ?? '',
             $courseCode,
             $courseName,
+            $section,
+            $academicYear,
+            $semester,
             $type,
             $date,
             $time,

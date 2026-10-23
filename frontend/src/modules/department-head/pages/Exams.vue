@@ -35,8 +35,17 @@ const showToast = (msg: string) => {
 
 // ── Active Academic Term & Header Data ──
 const activeTerm = computed(() => {
-  const y = settingsStore.academicYear || '2026'
-  const s = settingsStore.semester || 'Second Semester'
+  const y = academicYearFilter.value !== 'all' ? academicYearFilter.value : (settingsStore.academicYear || '2026')
+  const s = semesterFilter.value !== 'all' ? semesterFilter.value : (settingsStore.semester || 'Second Semester')
+  if (academicYearFilter.value === 'all' && semesterFilter.value === 'all') {
+    return 'All Academic Years & Semesters'
+  }
+  if (academicYearFilter.value === 'all') {
+    return `All Academic Years • ${s}`
+  }
+  if (semesterFilter.value === 'all') {
+    return `${y} • All Semesters`
+  }
   return `${y} • ${s}`
 })
 
@@ -68,7 +77,9 @@ const statsData = ref({
 })
 
 const filterOptions = ref({
+  academic_years: [] as string[],
   semesters: [] as string[],
+  sections: [] as string[],
   year_levels: [] as string[],
   courses: [] as any[],
   instructors: [] as any[],
@@ -79,8 +90,9 @@ const filterOptions = ref({
 // ── Search & Filter State ──
 const search = ref('')
 const searchDebounceTimer = ref<any>(null)
+const academicYearFilter = ref('all')
 const semesterFilter = ref('all')
-const yearFilter = ref('all')
+const sectionFilter = ref('all')
 const courseFilter = ref('all')
 const examTypeFilter = ref('all')
 const statusFilter = ref('all')
@@ -115,6 +127,8 @@ const examForm = ref({
   id: null as number | null,
   title: '',
   course_code: '',
+  academic_year: '2026',
+  semester: 'Second Semester',
   scheduled_at: '',
   duration_minutes: 90,
   total_marks: 100,
@@ -135,8 +149,9 @@ const conflictWarning = ref<string | null>(null)
 const activeFilterCount = computed(() => {
   let count = 0
   if (search.value.trim()) count++
+  if (academicYearFilter.value !== 'all') count++
   if (semesterFilter.value !== 'all') count++
-  if (yearFilter.value !== 'all') count++
+  if (sectionFilter.value !== 'all') count++
   if (courseFilter.value !== 'all') count++
   if (examTypeFilter.value !== 'all') count++
   if (statusFilter.value !== 'all') count++
@@ -146,8 +161,9 @@ const activeFilterCount = computed(() => {
 
 const resetFilters = () => {
   search.value = ''
+  academicYearFilter.value = 'all'
   semesterFilter.value = 'all'
-  yearFilter.value = 'all'
+  sectionFilter.value = 'all'
   courseFilter.value = 'all'
   examTypeFilter.value = 'all'
   statusFilter.value = 'all'
@@ -171,8 +187,9 @@ const fetchExams = async () => {
     }
 
     if (search.value.trim()) params.search = search.value.trim()
+    if (academicYearFilter.value !== 'all') params.academic_year = academicYearFilter.value
     if (semesterFilter.value !== 'all') params.semester = semesterFilter.value
-    if (yearFilter.value !== 'all') params.year = yearFilter.value
+    if (sectionFilter.value !== 'all') params.section = sectionFilter.value
     if (courseFilter.value !== 'all') params.course_code = courseFilter.value
     if (examTypeFilter.value !== 'all') params.exam_type = examTypeFilter.value
     if (statusFilter.value !== 'all') params.status = statusFilter.value
@@ -217,7 +234,7 @@ const onSearchInput = () => {
 }
 
 // Watch filters
-watch([semesterFilter, yearFilter, courseFilter, examTypeFilter, statusFilter, instructorFilter], () => {
+watch([academicYearFilter, semesterFilter, sectionFilter, courseFilter, examTypeFilter, statusFilter, instructorFilter], () => {
   currentPage.value = 1
   fetchExams()
 })
@@ -296,13 +313,15 @@ const openScheduleExam = () => {
     id: null,
     title: '',
     course_code: filterOptions.value.courses[0]?.code || '',
+    academic_year: academicYearFilter.value !== 'all' ? academicYearFilter.value : (settingsStore.academicYear || '2026'),
+    semester: semesterFilter.value !== 'all' ? semesterFilter.value : (settingsStore.semester || 'Second Semester'),
     scheduled_at: '',
     duration_minutes: 90,
     total_marks: 100,
     exam_type: 'Midterm',
     instructor_id: '',
     room: '',
-    section: '',
+    section: sectionFilter.value !== 'all' ? sectionFilter.value : '',
     description: '',
     status: 'published',
   }
@@ -326,6 +345,8 @@ const openEditExam = (exam: any) => {
     id: exam.id,
     title: exam.title || '',
     course_code: exam.course_code || exam.courseCode || '',
+    academic_year: exam.academic_year || exam.academicYear || (settingsStore.academicYear || '2026'),
+    semester: exam.semester || (settingsStore.semester || 'Second Semester'),
     scheduled_at: formattedDateInput,
     duration_minutes: exam.duration_minutes || 60,
     total_marks: exam.total_marks || exam.marks || 100,
@@ -362,6 +383,8 @@ const submitScheduleExam = async () => {
     await apiClient.post('/dept-head/exams', {
       title: examForm.value.title.trim(),
       course_code: examForm.value.course_code,
+      academic_year: examForm.value.academic_year,
+      semester: examForm.value.semester,
       scheduled_at: examForm.value.scheduled_at,
       duration_minutes: parseInt(String(examForm.value.duration_minutes)),
       total_marks: parseInt(String(examForm.value.total_marks)),
@@ -398,6 +421,8 @@ const submitEditExam = async () => {
   try {
     await apiClient.put(`/dept-head/exams/${selectedExam.value.id}`, {
       title: examForm.value.title.trim(),
+      academic_year: examForm.value.academic_year,
+      semester: examForm.value.semester,
       scheduled_at: examForm.value.scheduled_at,
       duration_minutes: parseInt(String(examForm.value.duration_minutes)),
       total_marks: parseInt(String(examForm.value.total_marks)),
@@ -515,8 +540,11 @@ const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
   try {
     const params: Record<string, any> = { format }
     if (search.value.trim()) params.search = search.value.trim()
+    if (academicYearFilter.value !== 'all') params.academic_year = academicYearFilter.value
     if (semesterFilter.value !== 'all') params.semester = semesterFilter.value
+    if (sectionFilter.value !== 'all') params.section = sectionFilter.value
     if (courseFilter.value !== 'all') params.course_code = courseFilter.value
+    if (examTypeFilter.value !== 'all') params.exam_type = examTypeFilter.value
     if (statusFilter.value !== 'all') params.status = statusFilter.value
 
     const res = await apiClient.get('/dept-head/exams/export', { params })
@@ -826,11 +854,19 @@ const getAvatarColor = (id: number) => {
             </div>
             <div class="flex justify-between">
               <span class="text-slate-400">Department:</span>
-              <span class="font-bold text-slate-800">{{ department.name }}</span>
+              <span class="font-bold text-slate-800">{{ selectedExam?.departmentName || department.name }} ({{ selectedExam?.departmentCode || department.code }})</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-400">Academic Semester:</span>
-              <span class="font-bold text-slate-800">{{ selectedExam?.semester || activeTerm }}</span>
+              <span class="text-slate-400">Academic Year:</span>
+              <span class="font-bold text-[#5138ed]">{{ selectedExam?.academicYear || selectedExam?.academic_year || '2026' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Semester:</span>
+              <span class="font-bold text-slate-800">{{ selectedExam?.semester || 'Second Semester' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Target Section:</span>
+              <span class="font-bold text-slate-800">{{ selectedExam?.section || 'All Sections' }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-slate-400">Created Date:</span>
@@ -1233,7 +1269,18 @@ const getAvatarColor = (id: number) => {
           </div>
 
           <!-- Filters Row -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
+            <!-- Academic Year Filter -->
+            <select
+              v-model="academicYearFilter"
+              class="text-xs font-semibold px-3 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed]"
+            >
+              <option value="all">All Academic Years</option>
+              <option v-for="ay in filterOptions.academic_years" :key="ay" :value="ay">
+                {{ ay }}
+              </option>
+            </select>
+
             <!-- Semester Filter -->
             <select
               v-model="semesterFilter"
@@ -1252,6 +1299,15 @@ const getAvatarColor = (id: number) => {
               <option v-for="c in filterOptions.courses" :key="c.code" :value="c.code">
                 {{ c.code }} — {{ c.title }}
               </option>
+            </select>
+
+            <!-- Section Filter -->
+            <select
+              v-model="sectionFilter"
+              class="text-xs font-semibold px-3 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:border-[#5138ed]"
+            >
+              <option value="all">All Sections</option>
+              <option v-for="sec in filterOptions.sections" :key="sec" :value="sec">{{ sec }}</option>
             </select>
 
             <!-- Exam Type Filter -->
@@ -1274,13 +1330,41 @@ const getAvatarColor = (id: number) => {
         </div>
 
         <!-- Active Filter Indicator / Reset -->
-        <div v-if="activeFilterCount > 0" class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-          <div class="flex items-center gap-2 text-slate-500 font-medium">
-            <span>Filtered by {{ activeFilterCount }} condition(s)</span>
+        <div v-if="activeFilterCount > 0" class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+          <div class="flex flex-wrap items-center gap-1.5 text-slate-500 font-medium">
+            <span class="text-slate-400 font-semibold mr-1">Active filters ({{ activeFilterCount }}):</span>
+            <span v-if="academicYearFilter !== 'all'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[11px] border border-indigo-200">
+              AY: {{ academicYearFilter }}
+              <button @click="academicYearFilter = 'all'" class="hover:text-indigo-900 ml-0.5 cursor-pointer">✕</button>
+            </span>
+            <span v-if="semesterFilter !== 'all'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[11px] border border-indigo-200">
+              Sem: {{ semesterFilter }}
+              <button @click="semesterFilter = 'all'" class="hover:text-indigo-900 ml-0.5 cursor-pointer">✕</button>
+            </span>
+            <span v-if="sectionFilter !== 'all'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[11px] border border-indigo-200">
+              Sec: {{ sectionFilter }}
+              <button @click="sectionFilter = 'all'" class="hover:text-indigo-900 ml-0.5 cursor-pointer">✕</button>
+            </span>
+            <span v-if="courseFilter !== 'all'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[11px] border border-indigo-200">
+              Course: {{ courseFilter }}
+              <button @click="courseFilter = 'all'" class="hover:text-indigo-900 ml-0.5 cursor-pointer">✕</button>
+            </span>
+            <span v-if="examTypeFilter !== 'all'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[11px] border border-indigo-200">
+              Type: {{ examTypeFilter }}
+              <button @click="examTypeFilter = 'all'" class="hover:text-indigo-900 ml-0.5 cursor-pointer">✕</button>
+            </span>
+            <span v-if="statusFilter !== 'all'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[11px] border border-indigo-200">
+              Status: {{ statusFilter }}
+              <button @click="statusFilter = 'all'" class="hover:text-indigo-900 ml-0.5 cursor-pointer">✕</button>
+            </span>
+            <span v-if="search.trim()" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-[#5138ed] font-bold text-[11px] border border-indigo-200">
+              "{{ search.trim() }}"
+              <button @click="search = ''; fetchExams()" class="hover:text-indigo-900 ml-0.5 cursor-pointer">✕</button>
+            </span>
           </div>
           <button
             @click="resetFilters"
-            class="text-[#5138ed] font-bold hover:underline cursor-pointer"
+            class="text-[#5138ed] font-bold hover:underline cursor-pointer ml-auto"
           >
             Clear all filters
           </button>
@@ -1322,6 +1406,7 @@ const getAvatarColor = (id: number) => {
           <table class="w-full text-left text-xs">
             <thead>
               <tr class="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                <th class="py-3.5 px-3 w-10 text-center">#</th>
                 <th @click="setSort('title')" class="py-3.5 px-4 cursor-pointer hover:text-slate-800">
                   <div class="flex items-center gap-1.5">
                     <span>Exam Title</span>
@@ -1331,7 +1416,9 @@ const getAvatarColor = (id: number) => {
                 <th @click="setSort('course_code')" class="py-3.5 px-4 cursor-pointer hover:text-slate-800">
                   <span>Course</span>
                 </th>
-                <th class="py-3.5 px-4">Exam Type</th>
+                <th class="py-3.5 px-3">Exam Type</th>
+                <th class="py-3.5 px-3">Section</th>
+                <th class="py-3.5 px-4">Academic Year & Semester</th>
                 <th @click="setSort('scheduled_at')" class="py-3.5 px-4 cursor-pointer hover:text-slate-800">
                   <div class="flex items-center gap-1.5">
                     <span>Date & Time Window</span>
@@ -1340,17 +1427,22 @@ const getAvatarColor = (id: number) => {
                 </th>
                 <th class="py-3.5 px-4">Duration & Marks</th>
                 <th class="py-3.5 px-4">Assigned Faculty</th>
-                <th class="py-3.5 px-4 text-center">Submissions</th>
-                <th class="py-3.5 px-4 text-center">Status</th>
+                <th class="py-3.5 px-3 text-center">Submissions</th>
+                <th class="py-3.5 px-3 text-center">Status</th>
                 <th class="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr
-                v-for="exam in exams"
+                v-for="(exam, idx) in exams"
                 :key="exam.id"
                 class="hover:bg-slate-50/80 transition-colors group"
               >
+                <!-- Row Number -->
+                <td class="py-3.5 px-3 text-center text-slate-400 font-bold text-xs">
+                  {{ exam.no || (idx + 1) }}
+                </td>
+
                 <!-- Title & Code -->
                 <td class="py-3.5 px-4">
                   <div class="flex items-start gap-2.5">
@@ -1373,10 +1465,23 @@ const getAvatarColor = (id: number) => {
                 </td>
 
                 <!-- Exam Type -->
-                <td class="py-3.5 px-4">
+                <td class="py-3.5 px-3">
                   <span :class="[typeBadge(exam.type), 'px-2 py-0.5 text-[11px] font-bold rounded-md']">
                     {{ exam.type }}
                   </span>
+                </td>
+
+                <!-- Section -->
+                <td class="py-3.5 px-3">
+                  <span class="px-2 py-0.5 text-[11px] font-semibold rounded bg-slate-100 text-slate-700 whitespace-nowrap">
+                    {{ exam.section || 'All Sections' }}
+                  </span>
+                </td>
+
+                <!-- Academic Year & Semester -->
+                <td class="py-3.5 px-4">
+                  <p class="font-bold text-slate-800 leading-snug">{{ exam.academic_year || '2026' }}</p>
+                  <p class="text-[11px] text-slate-500 font-medium">{{ exam.semester || 'Second Semester' }}</p>
                 </td>
 
                 <!-- Date & Time -->
@@ -1408,14 +1513,14 @@ const getAvatarColor = (id: number) => {
                 </td>
 
                 <!-- Student Submissions -->
-                <td class="py-3.5 px-4 text-center">
+                <td class="py-3.5 px-3 text-center">
                   <span class="font-bold text-slate-800">{{ exam.attempts_count }}</span>
-                  <span class="text-slate-400 text-[11px] ml-1">submitted</span>
+                  <span class="text-slate-400 text-[11px] ml-1">subm.</span>
                 </td>
 
                 <!-- Status Badge -->
-                <td class="py-3.5 px-4 text-center">
-                  <span :class="[statusBadge(exam.status), 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border']">
+                <td class="py-3.5 px-3 text-center">
+                  <span :class="[statusBadge(exam.status), 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border whitespace-nowrap']">
                     {{ exam.status }}
                   </span>
                 </td>
@@ -1505,7 +1610,7 @@ const getAvatarColor = (id: number) => {
           >
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
-                <div class="flex items-center gap-2 mb-1">
+                <div class="flex flex-wrap items-center gap-1.5 mb-1">
                   <span class="px-2 py-0.5 text-xs font-mono font-bold rounded bg-indigo-50 text-[#5138ed] border border-indigo-200">
                     {{ exam.code }}
                   </span>
@@ -1514,6 +1619,9 @@ const getAvatarColor = (id: number) => {
                   </span>
                   <span :class="[typeBadge(exam.type), 'px-2 py-0.5 rounded text-[10px] font-bold']">
                     {{ exam.type }}
+                  </span>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
+                    {{ exam.section || 'All Sections' }}
                   </span>
                 </div>
                 <h3 class="font-bold text-slate-900 text-sm leading-snug">{{ exam.title }}</h3>
@@ -1548,16 +1656,17 @@ const getAvatarColor = (id: number) => {
                 <span class="text-slate-400 text-[11px] block">{{ exam.time }}</span>
               </div>
               <div>
-                <span class="text-slate-400 block text-[10px] uppercase font-bold">Faculty</span>
-                <span class="font-bold text-slate-800 truncate block">{{ exam.instructor_name }}</span>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Term & Section</span>
+                <span class="font-bold text-slate-800 truncate block">{{ exam.academic_year || '2026' }} • {{ exam.semester || 'Sem 2' }}</span>
+                <span class="text-slate-500 text-[11px] block">{{ exam.section || 'All Sections' }}</span>
               </div>
               <div>
                 <span class="text-slate-400 block text-[10px] uppercase font-bold">Duration</span>
                 <span class="font-bold text-slate-800">{{ exam.duration }} ({{ exam.marks }} pts)</span>
               </div>
               <div>
-                <span class="text-slate-400 block text-[10px] uppercase font-bold">Submissions</span>
-                <span class="font-bold text-slate-800">{{ exam.attempts_count }} submissions</span>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Faculty</span>
+                <span class="font-bold text-slate-800 truncate block">{{ exam.instructor_name }}</span>
               </div>
             </div>
 
@@ -1759,10 +1868,29 @@ const getAvatarColor = (id: number) => {
                 class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white"
               >
                 <option value="">All Cohort Sections</option>
-                <option value="Section A">Section A</option>
-                <option value="Section B">Section B</option>
-                <option value="Section C">Section C</option>
-                <option value="Both Sections">Both Sections</option>
+                <option v-for="sec in filterOptions.sections" :key="sec" :value="sec">{{ sec }}</option>
+              </select>
+            </div>
+
+            <!-- Academic Year -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Academic Year *</label>
+              <select
+                v-model="examForm.academic_year"
+                class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white"
+              >
+                <option v-for="ay in filterOptions.academic_years" :key="ay" :value="ay">{{ ay }}</option>
+              </select>
+            </div>
+
+            <!-- Semester -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Semester *</label>
+              <select
+                v-model="examForm.semester"
+                class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white"
+              >
+                <option v-for="sem in filterOptions.semesters" :key="sem" :value="sem">{{ sem }}</option>
               </select>
             </div>
           </div>
@@ -1870,6 +1998,40 @@ const getAvatarColor = (id: number) => {
                 <option v-for="inst in filterOptions.instructors" :key="inst.id" :value="inst.id">
                   {{ inst.name }} ({{ inst.id_no || 'Faculty' }})
                 </option>
+              </select>
+            </div>
+
+            <!-- Section -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Cohort Section (Optional)</label>
+              <select
+                v-model="examForm.section"
+                class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white"
+              >
+                <option value="">All Cohort Sections</option>
+                <option v-for="sec in filterOptions.sections" :key="sec" :value="sec">{{ sec }}</option>
+              </select>
+            </div>
+
+            <!-- Academic Year -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Academic Year *</label>
+              <select
+                v-model="examForm.academic_year"
+                class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white"
+              >
+                <option v-for="ay in filterOptions.academic_years" :key="ay" :value="ay">{{ ay }}</option>
+              </select>
+            </div>
+
+            <!-- Semester -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Semester *</label>
+              <select
+                v-model="examForm.semester"
+                class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#5138ed] bg-white"
+              >
+                <option v-for="sem in filterOptions.semesters" :key="sem" :value="sem">{{ sem }}</option>
               </select>
             </div>
           </div>
