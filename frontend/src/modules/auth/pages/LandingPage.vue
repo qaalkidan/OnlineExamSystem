@@ -108,16 +108,16 @@ const cancelStep2 = () => {
         alt="Wollo University Campus"
         class="w-full h-full object-cover object-bottom"
       />
-      <!-- Subtle, light overlay to preserve natural sky, sunlight and campus building colors -->
-      <div class="absolute inset-0 bg-gradient-to-b from-blue-900/25 via-blue-900/10 to-blue-950/30"></div>
-      <div class="absolute inset-0 bg-black/10"></div>
+      <!-- Directional navy backdrop on the left for maximum text contrast, smoothly fading to transparent in the center to preserve full sunlight on campus building -->
+      <div class="absolute inset-0 bg-gradient-to-r from-[#071F42]/90 via-[#071F42]/60 to-transparent"></div>
+      <div class="absolute inset-0 bg-gradient-to-b from-blue-950/25 via-transparent to-blue-950/30"></div>
     </div>
 
     <!-- ── Header ── -->
-    <header class="relative z-20 w-full px-6 sm:px-10 py-4 sm:py-5 flex items-center justify-between max-w-6xl mx-auto">
+    <header class="relative z-20 w-full px-6 sm:px-12 lg:px-16 py-5 sm:py-6 flex items-center justify-between max-w-7xl mx-auto">
       <!-- Left side: University logo + Branding -->
-      <div class="flex items-center gap-2.5 sm:gap-3">
-        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/10 p-0.5 border border-white/70 shadow-md shrink-0 flex items-center justify-center overflow-hidden">
+      <div class="flex items-center gap-3 sm:gap-4">
+        <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/10 p-0.5 border border-white/70 shadow-md shrink-0 flex items-center justify-center overflow-hidden">
           <img
             :src="wolloLogo"
             alt="Wollo University Logo"
@@ -125,10 +125,10 @@ const cancelStep2 = () => {
           />
         </div>
         <div>
-          <h1 class="text-sm sm:text-base font-bold text-white tracking-tight leading-tight drop-shadow-sm">
+          <h1 class="text-base sm:text-lg font-bold text-white tracking-tight leading-tight drop-shadow-md">
             Wollo University
           </h1>
-          <p class="text-[10px] sm:text-[11px] text-white/85 font-medium tracking-wide">
+          <p class="text-[11px] sm:text-xs text-white/90 font-medium tracking-wide drop-shadow-sm">
             Online Exam System
           </p>
         </div>
@@ -136,106 +136,106 @@ const cancelStep2 = () => {
 
       <!-- Right side: University Slogan -->
       <div class="hidden sm:block text-right">
-        <span class="text-[11px] sm:text-xs font-normal text-white/85 tracking-wide drop-shadow-sm">
-          Better Learning <span class="text-white/40 mx-1">|</span> Brighter Future
+        <span class="text-xs sm:text-sm font-medium text-white/90 tracking-wider drop-shadow-md">
+          Better Learning <span class="text-white/40 mx-1.5">|</span> Brighter Future
         </span>
       </div>
     </header>
 
     <!-- ── Main Hero Content ── -->
-    <main class="relative z-20 flex-1 flex items-center max-w-6xl mx-auto w-full px-6 sm:px-10 py-6 sm:py-8">
-      <div class="w-full flex flex-col lg:flex-row items-center lg:items-center justify-between gap-8 lg:gap-12">
+    <main class="relative z-20 flex-1 flex items-center max-w-7xl mx-auto w-full px-6 sm:px-12 lg:px-16 py-6 sm:py-10">
+      <div class="w-full flex flex-col lg:flex-row items-center lg:items-center justify-between gap-8 lg:gap-14">
         
         <!-- Left Column: Hero Text & Feature Highlights -->
-        <div class="flex-1 max-w-lg text-left">
+        <div class="flex-1 max-w-xl text-left">
           
           <!-- Welcome Badge -->
-          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/35 border border-blue-300/40 text-white text-[11px] font-medium backdrop-blur-xs mb-3.5 shadow-xs">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/50 border border-blue-400/50 text-white text-xs font-semibold backdrop-blur-md mb-4 shadow-sm">
             <svg class="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 3L1 9L12 15L21 10.09V17H23V9M5 13.18V17.18C5 19.94 8.13 22 12 22C15.87 22 19 19.94 19 17.18V13.18L12 17L5 13.18Z" />
             </svg>
             <span>Welcome to Wollo University</span>
           </div>
 
-          <!-- Main Heading: Resized and Refined -->
-          <h2 class="text-2xl sm:text-3xl lg:text-[2.25rem] font-bold text-white tracking-tight leading-tight mb-3 drop-shadow-sm">
-            Online <span class="text-blue-400">Exam</span> System
+          <!-- Main Heading: High-contrast, vibrant, and razor-sharp -->
+          <h2 class="text-3xl sm:text-4xl lg:text-[3.25rem] font-extrabold text-white tracking-tight leading-[1.12] mb-4 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+            Online <span class="text-amber-400 drop-shadow-[0_2px_10px_rgba(245,158,11,0.5)]">Exam</span> System
           </h2>
 
-          <!-- Description: Compact & Readable -->
-          <p class="text-xs sm:text-sm text-white/90 leading-relaxed mb-6 max-w-md font-normal drop-shadow-sm">
+          <!-- Description: High visibility -->
+          <p class="text-xs sm:text-sm lg:text-base text-white/95 leading-relaxed mb-6 sm:mb-8 max-w-md font-normal drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
             Secure, reliable and easy way to take your exams. Access your exams anytime, anywhere.
           </p>
 
-          <!-- 3 Compact Feature Highlights: Refined Sizes -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-1 max-w-md">
+          <!-- 3 Feature Highlights: Frosted glass panels for 100% clarity -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 pt-1 max-w-lg">
             <!-- Feature 1: Secure -->
-            <div class="flex flex-col items-start">
-              <div class="w-8 h-8 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center text-white mb-2 backdrop-blur-xs shadow-xs">
-                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg transition-all">
+              <div class="w-9 h-9 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2 shadow-xs">
+                <svg class="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
-              <h3 class="text-xs font-semibold text-white mb-0.5">Secure</h3>
-              <p class="text-[10px] text-white/80 leading-tight">Your data is protected with advanced security.</p>
+              <h3 class="text-xs sm:text-sm font-bold text-white mb-0.5 drop-shadow-sm">Secure</h3>
+              <p class="text-[10px] sm:text-xs text-white/90 leading-snug">Your data is protected with advanced security.</p>
             </div>
 
             <!-- Feature 2: Fast & Reliable -->
-            <div class="flex flex-col items-start">
-              <div class="w-8 h-8 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center text-white mb-2 backdrop-blur-xs shadow-xs">
-                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg transition-all">
+              <div class="w-9 h-9 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2 shadow-xs">
+                <svg class="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h3 class="text-xs font-semibold text-white mb-0.5">Fast & Reliable</h3>
-              <p class="text-[10px] text-white/80 leading-tight">A smooth and stable exam experience.</p>
+              <h3 class="text-xs sm:text-sm font-bold text-white mb-0.5 drop-shadow-sm">Fast & Reliable</h3>
+              <p class="text-[10px] sm:text-xs text-white/90 leading-snug">A smooth and stable exam experience.</p>
             </div>
 
             <!-- Feature 3: Any Device -->
-            <div class="flex flex-col items-start">
-              <div class="w-8 h-8 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center text-white mb-2 backdrop-blur-xs shadow-xs">
-                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex flex-col items-start bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg transition-all">
+              <div class="w-9 h-9 rounded-xl bg-blue-500/25 border border-blue-400/40 flex items-center justify-center text-white mb-2 shadow-xs">
+                <svg class="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 class="text-xs font-semibold text-white mb-0.5">Any Device</h3>
-              <p class="text-[10px] text-white/80 leading-tight">Access from computer, tablet or mobile.</p>
+              <h3 class="text-xs sm:text-sm font-bold text-white mb-0.5 drop-shadow-sm">Any Device</h3>
+              <p class="text-[10px] sm:text-xs text-white/90 leading-snug">Access from computer, tablet or mobile.</p>
             </div>
           </div>
         </div>
 
-        <!-- Right Column: Reduced & Compact Login Card -->
-        <div class="w-full sm:w-[320px] md:w-[330px] lg:w-[340px] shrink-0">
-          <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-xl border border-slate-100 transition-all text-slate-800">
+        <!-- Right Column: Login Card -->
+        <div class="w-full sm:w-[360px] md:w-[380px] lg:w-[400px] shrink-0">
+          <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 transition-all text-slate-800">
             
-            <!-- ── STEP 1: COMPACT LOGIN FORM ── -->
+            <!-- ── STEP 1: LOGIN FORM ── -->
             <template v-if="!authStore.pendingInstructor">
               <!-- Card Header -->
-              <div class="mb-4">
-                <h2 class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight mb-0.5">Welcome Back</h2>
-                <p class="text-[11px] text-slate-400 font-normal">Log in to your account to continue</p>
+              <div class="mb-5">
+                <h2 class="text-2xl font-bold text-slate-800 tracking-tight mb-1">Welcome Back</h2>
+                <p class="text-xs text-slate-500 font-medium">Log in to your account to continue</p>
               </div>
 
               <!-- Error Banner -->
               <div
                 v-if="authStore.error"
-                class="mb-3.5 p-2.5 bg-rose-50 border border-rose-200 text-rose-600 text-[11px] rounded-lg flex items-center gap-2"
+                class="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-600 text-xs rounded-xl flex items-center gap-2"
               >
-                <svg class="w-3.5 h-3.5 shrink-0 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 shrink-0 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span class="font-medium leading-tight">{{ authStore.error }}</span>
               </div>
 
               <!-- Form -->
-              <form @submit.prevent="handleLogin" class="space-y-3">
+              <form @submit.prevent="handleLogin" class="space-y-4">
                 
                 <!-- Username or Student ID -->
                 <div>
                   <label for="username-input" class="sr-only">Username or Student ID</label>
                   <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                     </div>
@@ -246,7 +246,7 @@ const cancelStep2 = () => {
                       placeholder="Username or Student ID"
                       autocomplete="username"
                       required
-                      class="block w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#1769E0] focus:ring-1 focus:ring-[#1769E0]/20 transition-all font-medium"
+                      class="block w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#1769E0] focus:ring-2 focus:ring-[#1769E0]/20 transition-all font-medium"
                     />
                   </div>
                 </div>
@@ -255,8 +255,8 @@ const cancelStep2 = () => {
                 <div>
                   <label for="password-input" class="sr-only">Password</label>
                   <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
                     </div>
@@ -267,20 +267,20 @@ const cancelStep2 = () => {
                       placeholder="Password"
                       autocomplete="current-password"
                       required
-                      class="block w-full pl-8 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#1769E0] focus:ring-1 focus:ring-[#1769E0]/20 transition-all font-medium"
+                      class="block w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#1769E0] focus:ring-2 focus:ring-[#1769E0]/20 transition-all font-medium"
                     />
                     <!-- Toggle Password Visibility -->
                     <button
                       type="button"
                       @click="showPassword = !showPassword"
-                      class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                      class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
                       aria-label="Toggle password visibility"
                     >
-                      <svg v-if="!showPassword" class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg v-if="!showPassword" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
-                      <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                       </svg>
                     </button>
@@ -288,16 +288,16 @@ const cancelStep2 = () => {
                 </div>
 
                 <!-- Submit Button -->
-                <div class="pt-0.5">
+                <div class="pt-1">
                   <button
                     type="submit"
                     :disabled="authStore.isLoading"
-                    class="w-full py-2.5 px-4 rounded-lg bg-[#1769E0] hover:bg-[#1258be] active:bg-[#0e489e] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                    class="w-full py-2.5 sm:py-3 px-4 rounded-xl bg-[#1769E0] hover:bg-[#1258be] active:bg-[#0e489e] text-white font-semibold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    <svg v-if="!authStore.isLoading" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg v-if="!authStore.isLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                     </svg>
-                    <svg v-else class="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg v-else class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -306,20 +306,26 @@ const cancelStep2 = () => {
                 </div>
               </form>
 
-              <!-- Divider: Need Help? -->
-              <div class="relative flex items-center justify-center my-3.5">
-                <div class="border-t border-slate-200 w-full"></div>
-                <span class="bg-white px-2.5 text-[10px] text-slate-400 font-medium">Need Help?</span>
-              </div>
-
-              <!-- Contact Support Link -->
-              <div class="text-center">
+              <!-- Divider: Need Help? (Crisp visible line + Blue clickable link on same row) -->
+              <div class="flex items-center gap-3 my-4">
+                <div class="h-px bg-slate-300 flex-1"></div>
                 <button
                   type="button"
                   @click="showSupportModal = true"
-                  class="inline-flex items-center justify-center gap-1 text-[11px] font-medium text-slate-500 hover:text-[#1769E0] transition-colors cursor-pointer"
+                  class="text-xs text-[#1769E0] font-semibold hover:underline shrink-0 whitespace-nowrap cursor-pointer"
                 >
-                  <svg class="w-3.5 h-3.5 text-[#1769E0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  Need Help?
+                </button>
+              </div>
+
+              <!-- Contact Support Link -->
+              <div class="text-center pt-0.5">
+                <button
+                  type="button"
+                  @click="showSupportModal = true"
+                  class="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#1769E0] transition-colors cursor-pointer"
+                >
+                  <svg class="w-4 h-4 text-[#1769E0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span>Contact Support</span>
@@ -329,24 +335,24 @@ const cancelStep2 = () => {
 
             <!-- ── STEP 2: INSTRUCTOR COURSE ASSIGNMENT SELECTION ── -->
             <template v-else>
-              <div class="mb-4">
-                <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-[#1769E0] text-[10px] font-semibold rounded-full mb-1.5">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="mb-5">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-[#1769E0] text-xs font-semibold rounded-full mb-2">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                   <span>Instructor Assignment</span>
                 </div>
-                <h2 class="text-base font-bold text-slate-800 tracking-tight">Select Teaching Context</h2>
-                <p class="text-[10px] text-slate-400 mt-0.5">Confirm department, course, and section.</p>
+                <h2 class="text-xl font-bold text-slate-800 tracking-tight">Select Teaching Context</h2>
+                <p class="text-xs text-slate-400 mt-1">Confirm your department, course, and section.</p>
               </div>
 
-              <div class="space-y-3">
+              <div class="space-y-3.5">
                 <!-- Department Selection -->
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-700 mb-1">Department</label>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Department</label>
                   <select
                     v-model="selectedDepartment"
-                    class="block w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
+                    class="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769E0]/20 focus:border-[#1769E0] transition-all font-medium"
                   >
                     <option
                       v-for="dept in authStore.pendingInstructor?.assignedOptions?.departments || []"
@@ -360,10 +366,10 @@ const cancelStep2 = () => {
 
                 <!-- Course Selection -->
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-700 mb-1">Course</label>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Course</label>
                   <select
                     v-model="selectedCourse"
-                    class="block w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
+                    class="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769E0]/20 focus:border-[#1769E0] transition-all font-medium"
                   >
                     <option
                       v-for="course in availableCourses"
@@ -377,10 +383,10 @@ const cancelStep2 = () => {
 
                 <!-- Section Selection -->
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-700 mb-1">Section</label>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Section</label>
                   <select
                     v-model="selectedSection"
-                    class="block w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
+                    class="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1769E0]/20 focus:border-[#1769E0] transition-all font-medium"
                   >
                     <option
                       v-for="sec in authStore.pendingInstructor?.assignedOptions?.sections || []"
@@ -393,21 +399,21 @@ const cancelStep2 = () => {
                 </div>
 
                 <!-- Step 2 Actions -->
-                <div class="flex gap-2 pt-1">
+                <div class="flex gap-2.5 pt-2">
                   <button
                     type="button"
                     @click="cancelStep2"
-                    class="flex-1 py-2 px-3 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                    class="flex-1 py-2.5 px-3 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                   >
                     Back
                   </button>
                   <button
                     type="button"
                     @click="handleCompleteSetup"
-                    class="flex-2 py-2 px-3 bg-[#1769E0] hover:bg-[#1258be] text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center justify-center gap-1"
+                    class="flex-2 py-2.5 px-4 bg-[#1769E0] hover:bg-[#1258be] text-white rounded-xl text-xs font-semibold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <span>Enter Portal</span>
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
                   </button>
@@ -428,35 +434,35 @@ const cancelStep2 = () => {
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs"
         @click.self="showSupportModal = false"
       >
-        <div class="bg-white rounded-2xl w-full max-w-sm p-5 sm:p-6 shadow-2xl relative border border-slate-100 text-slate-800">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative border border-slate-100 text-slate-800">
           <!-- Close button -->
           <button
             @click="showSupportModal = false"
-            class="absolute top-3.5 right-3.5 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Close support modal"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
 
           <!-- Modal Header -->
-          <div class="flex items-center gap-2.5 mb-4">
-            <div class="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1769E0] shrink-0">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1769E0] shrink-0">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             </div>
             <div>
-              <h3 class="text-sm font-bold text-slate-900 leading-tight">Wollo University ICT Support</h3>
-              <p class="text-[10px] text-slate-500">Online Examination Help Desk</p>
+              <h3 class="text-base font-bold text-slate-900 leading-tight">Wollo University ICT Support</h3>
+              <p class="text-xs text-slate-500">Online Examination Help Desk</p>
             </div>
           </div>
 
           <!-- Support Details -->
-          <div class="space-y-2.5 mb-5 text-[11px]">
-            <div class="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-              <svg class="w-3.5 h-3.5 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="space-y-3 mb-6 text-xs">
+            <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <svg class="w-4 h-4 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               <div>
@@ -465,8 +471,8 @@ const cancelStep2 = () => {
               </div>
             </div>
 
-            <div class="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-              <svg class="w-3.5 h-3.5 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <svg class="w-4 h-4 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
               <div>
@@ -475,8 +481,8 @@ const cancelStep2 = () => {
               </div>
             </div>
 
-            <div class="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-              <svg class="w-3.5 h-3.5 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <svg class="w-4 h-4 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -486,8 +492,8 @@ const cancelStep2 = () => {
               </div>
             </div>
 
-            <div class="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-              <svg class="w-3.5 h-3.5 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <svg class="w-4 h-4 text-[#1769E0] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div>
@@ -500,7 +506,7 @@ const cancelStep2 = () => {
           <button
             type="button"
             @click="showSupportModal = false"
-            class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+            class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
           >
             Close
           </button>
