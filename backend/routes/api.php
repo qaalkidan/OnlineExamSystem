@@ -215,6 +215,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'check.maintenance', 'password.
         Route::get('question-banks/{question_bank}/drafts', [InstructorQuestionBankController::class, 'getDraftQuestions']);
         Route::post('question-banks/{question_bank}/publish', [InstructorQuestionBankController::class, 'publishQuestions']);
         Route::post('question-banks/{question_bank}/import', [InstructorQuestionBankController::class, 'importQuestions']);
+        Route::get('question-banks/{question_bank}/questions/{question}', [InstructorQuestionBankController::class, 'showQuestion']);
+        Route::get('questions/{question}', [InstructorQuestionBankController::class, 'showQuestion']);
         Route::put('questions/{question}', [InstructorQuestionBankController::class, 'updateQuestion']);
         Route::delete('questions/{question}', [InstructorQuestionBankController::class, 'destroyQuestion']);
 

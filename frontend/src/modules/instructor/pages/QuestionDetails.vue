@@ -1,63 +1,116 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import apiClient from '../../../core/api/apiClient'
 
 const route = useRoute()
 const router = useRouter()
 
-const bankId = route.params.id
-const questionId = route.params.questionId
+const bankId = route.params.id as string
+const questionId = route.params.questionId as string
 
 const isLoading = ref(true)
+const error = ref('')
 
-// Mock Data matching the design
-const bank = ref({
+const bank = ref<any>({
   id: bankId,
-  title: 'Database Systems Mid Questions',
-  description: 'Questions prepared for Semester I Mid Examination.',
-  createdDate: 'May 24, 2026',
-  totalQuestions: 78,
-  createdBy: 'Dr. Abebe Kebede',
-  lastUpdated: 'May 30, 2026',
+  title: '',
+  description: '',
+  createdDate: '—',
+  totalQuestions: 0,
+  createdBy: '—',
+  lastUpdated: '—',
   status: 'Active'
 })
 
-const question = ref({
+const question = ref<any>({
   id: questionId,
-  displayId: 'QDB-001',
-  type: 'MCQ',
-  typeLabel: 'Multiple Choice Question',
+  displayId: `QDB-${questionId}`,
+  type: '',
+  typeLabel: '',
   difficulty: 'Medium',
   marks: 1,
   status: 'Active',
-  createdDate: 'May 24, 2026',
-  lastUpdated: 'May 30, 2026',
-  createdBy: 'Dr. Abebe Kebede',
-  text: 'What is the main purpose of a database management system?',
-  hasImage: true,
-  options: [
-    { label: 'A', text: 'To create presentations', isCorrect: false },
-    { label: 'B', text: 'To store, manage and retrieve data efficiently', isCorrect: true },
-    { label: 'C', text: 'To design graphics', isCorrect: false },
-    { label: 'D', text: 'To browse the internet', isCorrect: false }
-  ],
-  explanation: 'A DBMS is used to store, manage, and retrieve data efficiently while ensuring data integrity, security, and consistency.'
+  createdDate: '—',
+  lastUpdated: '—',
+  createdBy: '—',
+  text: '',
+  hasImage: false,
+  imageUrl: '',
+  options: [] as { label: string; text: string; isCorrect: boolean }[],
+  explanation: ''
 })
 
 const stats = ref({
-  timesUsed: 12,
-  averageScore: '68%',
-  correctRate: '72%',
-  totalAttempts: 356
+  timesUsed: 0,
+  averageScore: 'N/A',
+  correctRate: 'N/A',
+  totalAttempts: 0
 })
 
-const tags = ref(['Database', 'DBMS', 'Concepts', 'Fundamentals', 'Mid Exam'])
+const tags = ref<string[]>([])
+
+const formatDate = (dateString: string | null | undefined) => {
+  if (!dateString) return '—'
+  const d = new Date(dateString)
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const fetchQuestionDetails = async () => {
+  isLoading.value = true
+  error.value = ''
+  try {
+    const res = await apiClient.get(`/instructor/question-banks/${bankId}/questions/${questionId}`)
+    const data = res.data.data
+
+    bank.value = {
+      id: data.bank.id,
+      title: data.bank.title,
+      description: data.bank.description || 'No description provided.',
+      createdDate: formatDate(data.bank.created_at),
+      totalQuestions: data.bank.total_questions || 0,
+      createdBy: data.bank.created_by || 'Instructor',
+      lastUpdated: formatDate(data.bank.updated_at || data.bank.created_at),
+      status: data.bank.status || 'Active'
+    }
+
+    const q = data.question
+    question.value = {
+      id: q.id,
+      displayId: q.display_id || `QDB-${q.id}`,
+      type: q.type,
+      typeLabel: q.type_label || q.type,
+      difficulty: q.difficulty || 'Medium',
+      marks: q.marks || 1,
+      status: q.status || 'Active',
+      createdDate: formatDate(q.created_at),
+      lastUpdated: formatDate(q.updated_at || q.created_at),
+      createdBy: q.created_by || 'Instructor',
+      text: q.text || '',
+      hasImage: !!q.image_url,
+      imageUrl: q.image_url || '',
+      options: q.options || [],
+      explanation: q.explanation || 'No explanation provided.'
+    }
+
+    stats.value = {
+      timesUsed: data.stats?.times_used ?? 0,
+      averageScore: data.stats?.average_score ?? 'N/A',
+      correctRate: data.stats?.correct_rate ?? 'N/A',
+      totalAttempts: data.stats?.total_attempts ?? 0
+    }
+
+    tags.value = Array.isArray(q.tags) ? q.tags : []
+  } catch (err: any) {
+    console.error('Failed to fetch question details', err)
+    error.value = err.response?.data?.message || 'Failed to load question details.'
+  } finally {
+    isLoading.value = false
+  }
+}
 
 onMounted(() => {
-  // Simulate API fetch
-  setTimeout(() => {
-    isLoading.value = false
-  }, 400)
+  fetchQuestionDetails()
 })
 
 const goBack = () => {
@@ -77,6 +130,15 @@ const editQuestion = () => {
       <div class="flex flex-col items-center gap-3">
         <svg class="animate-spin w-8 h-8 text-[#5138ed]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
         <span class="text-[13px] text-slate-500 font-medium">Loading question details...</span>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center">
+      <p class="text-rose-600 font-medium text-[14px]">{{ error }}</p>
+      <div class="flex items-center justify-center gap-3 mt-4">
+        <button @click="goBack" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-colors">Go Back</button>
+        <button @click="fetchQuestionDetails" class="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-[13px] font-bold transition-colors">Retry</button>
       </div>
     </div>
 
@@ -200,17 +262,16 @@ const editQuestion = () => {
               <div>
                 <h3 class="text-[15px] font-bold text-slate-800 mb-4">Question</h3>
                 <div class="flex flex-col md:flex-row gap-6">
-                  <div class="flex-1 text-[14px] text-slate-700 leading-relaxed font-medium">
-                    {{ question.text }}
+                  <div class="flex-1 text-[14px] text-slate-700 leading-relaxed font-medium" v-html="question.text">
                   </div>
-                  <div v-if="question.hasImage" class="w-full md:w-64 shrink-0 rounded-xl overflow-hidden border border-slate-200">
-                    <img src="https://images.unsplash.com/photo-1544383835-bda2bc66a55d?auto=format&fit=crop&w=400&q=80" alt="Database Servers" class="w-full h-auto object-cover aspect-video" />
+                  <div v-if="question.hasImage && question.imageUrl" class="w-full md:w-64 shrink-0 rounded-xl overflow-hidden border border-slate-200">
+                    <img :src="question.imageUrl" :alt="question.displayId" class="w-full h-auto object-cover aspect-video" />
                   </div>
                 </div>
               </div>
 
               <!-- Options -->
-              <div>
+              <div v-if="question.options && question.options.length > 0">
                 <h3 class="text-[15px] font-bold text-slate-800 mb-4">Options</h3>
                 <div class="space-y-3">
                   <div 
@@ -353,10 +414,13 @@ const editQuestion = () => {
           <!-- Tags Card -->
           <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
             <h3 class="text-[14px] font-bold text-slate-800 mb-4">Tags</h3>
-            <div class="flex flex-wrap gap-2">
+            <div v-if="tags.length > 0" class="flex flex-wrap gap-2">
               <span v-for="tag in tags" :key="tag" class="bg-indigo-50 text-[#5138ed] px-3 py-1.5 rounded-lg text-[11px] font-bold">
                 {{ tag }}
               </span>
+            </div>
+            <div v-else class="text-[12px] text-slate-400 italic">
+              No tags added
             </div>
           </div>
 

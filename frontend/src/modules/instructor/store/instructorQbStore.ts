@@ -38,6 +38,14 @@ export interface QbStats {
   } | null
 }
 
+const DEFAULT_STATS: QbStats = {
+  total_banks: 0,
+  total_questions: 0,
+  mcq_questions: 0,
+  sa_questions: 0,
+  essay_questions: 0,
+}
+
 const MOCK_STATS: QbStats = {
   total_banks: 12,
   total_questions: 856,
@@ -53,7 +61,7 @@ const MOCK_BANKS: QuestionBank[] = [
 
 export const useInstructorQbStore = defineStore('instructorQb', () => {
   const banks = ref<QuestionBank[]>([])
-  const stats = ref<QbStats>({ ...MOCK_STATS })
+  const stats = ref<QbStats>({ ...DEFAULT_STATS })
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const usingMockData = ref(false)

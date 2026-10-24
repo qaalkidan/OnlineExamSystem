@@ -183,8 +183,10 @@ class InstructorQuestionBankController extends Controller
                     'options'        => $q->options,
                     'correct_answer' => $q->correct_answer,
                     'question_data'  => $q->question_data,
-                    'status'         => $q->status ? 'Active' : 'Inactive',
+                    'status'         => in_array(strtolower((string)$q->status), ['published', 'active', '1']) ? 'Active' : 'Draft',
                     'tags'           => $q->tags,
+                    'created_at'     => $q->created_at?->toISOString(),
+                    'updated_at'     => $q->updated_at?->toISOString(),
                 ]),
                 'categories' => $categoryCounts->map(fn($count, $name) => [
                     'name'  => $name ?: 'Uncategorized',
@@ -495,6 +497,110 @@ class InstructorQuestionBankController extends Controller
 
         return response()->json([
             'message' => 'Question bank deleted successfully'
+        ]);
+    }
+
+    /**
+     * Display the specified question with bank details.
+     */
+    public function showQuestion(Request $request, $bankOrQuestion, $questionId = null): JsonResponse
+    {
+        $question = null;
+        $questionBank = null;
+
+        if ($questionId !== null) {
+            $questionBank = QuestionBank::find($bankOrQuestion);
+            $question = Question::find($questionId);
+        } else {
+            $question = Question::find($bankOrQuestion);
+            $questionBank = $question?->questionBank;
+        }
+
+        if (!$question || !$questionBank) {
+            return response()->json(['message' => 'Question or question bank not found'], 404);
+        }
+
+        if (!$this->canAccessBank($request->user(), $questionBank)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $bankOwner = $questionBank->instructor?->load('department');
+        $totalQuestions = $questionBank->questions()->count();
+
+        // Calculate usage in exams
+        $timesUsed = DB::table('exam_questions')->where('question_id', $question->id)->count();
+
+        // Format options
+        $parsedOptions = [];
+        if (is_array($question->options)) {
+            foreach ($question->options as $index => $opt) {
+                $label = is_numeric($index) ? chr(65 + (int)$index) : (string)$index;
+                $optText = is_array($opt) ? ($opt['text'] ?? '') : (string)$opt;
+                $isCorrect = is_array($opt)
+                    ? (!empty($opt['is_correct']) || !empty($opt['isCorrect']) || $question->correct_answer === $label || $question->correct_answer === $optText)
+                    : ($question->correct_answer === $label || $question->correct_answer === $optText);
+
+                $parsedOptions[] = [
+                    'label' => $label,
+                    'text' => $optText,
+                    'isCorrect' => $isCorrect,
+                ];
+            }
+        }
+
+        $typeLabels = [
+            'multiple_choice' => 'Multiple Choice Question',
+            'true_false' => 'True / False Question',
+            'matching' => 'Matching Question',
+            'fill_in_blank' => 'Fill in the Blank Question',
+            'short_answer' => 'Short Answer Question',
+            'essay' => 'Essay Question',
+        ];
+
+        return response()->json([
+            'data' => [
+                'bank' => [
+                    'id'               => $questionBank->id,
+                    'title'            => $questionBank->title,
+                    'description'      => $questionBank->description,
+                    'course_code'      => $questionBank->course_code,
+                    'course_name'      => $questionBank->course_code ?: ($bankOwner?->course_name ?? 'General Course'),
+                    'total_questions'  => $totalQuestions,
+                    'created_by'       => $bankOwner?->name ?? 'Instructor',
+                    'created_at'       => $questionBank->created_at?->toISOString(),
+                    'updated_at'       => $questionBank->updated_at?->toISOString(),
+                    'status'           => 'Active',
+                ],
+                'question' => [
+                    'id'             => $question->id,
+                    'display_id'     => 'QDB-' . str_pad((string)$question->id, 3, '0', STR_PAD_LEFT),
+                    'type'           => $question->type,
+                    'type_label'     => $typeLabels[$question->type] ?? ucfirst(str_replace('_', ' ', $question->type)),
+                    'difficulty'     => $question->difficulty ?? 'Medium',
+                    'marks'          => $question->marks,
+                    'negative_marks' => $question->negative_marks ?? 0,
+                    'status'         => in_array(strtolower((string)$question->status), ['published', 'active', '1']) ? 'Active' : 'Draft',
+                    'text'           => $question->text,
+                    'image_url'      => $question->image_url,
+                    'has_image'      => !empty($question->image_url),
+                    'options'        => $parsedOptions,
+                    'correct_answer' => $question->correct_answer,
+                    'explanation'    => $question->explanation ?: 'No explanation provided.',
+                    'chapter'        => $question->chapter,
+                    'topic'          => $question->topic,
+                    'tags'           => $question->tags ? (is_array($question->tags) ? $question->tags : array_filter(array_map('trim', explode(',', $question->tags)))) : [],
+                    'question_data'  => $question->question_data,
+                    'created_by'     => $bankOwner?->name ?? 'Instructor',
+                    'created_at'     => $question->created_at?->toISOString(),
+                    'updated_at'     => $question->updated_at?->toISOString(),
+                ],
+                'stats' => [
+                    'times_used'     => $timesUsed,
+                    'average_score'  => 'N/A',
+                    'correct_rate'   => 'N/A',
+                    'total_attempts' => 0,
+                ]
+            ]
         ]);
     }
 

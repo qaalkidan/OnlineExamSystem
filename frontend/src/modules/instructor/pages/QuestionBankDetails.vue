@@ -186,118 +186,34 @@ const fetchBankDetails = async () => {
       status: data.bank.status,
       created_at: data.bank.created_at,
       updated_at: data.bank.updated_at,
-      created_by: data.bank.instructor?.user?.first_name 
-        ? `${data.bank.instructor.user.first_name} ${data.bank.instructor.user.last_name}` 
-        : 'Instructor',
+      created_by: typeof data.bank.instructor === 'string'
+        ? data.bank.instructor
+        : (data.bank.instructor?.user?.first_name 
+          ? `${data.bank.instructor.user.first_name} ${data.bank.instructor.user.last_name}` 
+          : (data.bank.instructor?.name || 'Instructor')),
     }
 
-    stats.value = data.stats
-    questions.value = data.questions
+    stats.value = data.stats || {
+      total: 0,
+      mcq: 0,
+      sa: 0,
+      essay: 0,
+      tf: 0,
+    }
+    questions.value = data.questions || []
   } catch (err: any) {
-    console.warn('API failed, falling back to mock bank and data', err)
-    // Fallback Mock Data for Bank
-    bank.value = {
-      id: Number(route.params.id) || 1,
-      title: 'Database Systems Mid Questions',
-      description: 'Questions prepared for Semester I Mid Examination.',
-      course_code: 'CS301',
-      course_name: 'Database Management Systems',
-      status: 'Active',
-      created_at: '2026-05-24T10:00:00Z',
-      updated_at: '2026-05-30T14:30:00Z',
-      created_by: 'Dr. Abebe Kebede',
+    console.error('Failed to load question bank details', err)
+    error.value = err.response?.data?.message || 'Failed to load question bank details.'
+    questions.value = []
+    stats.value = {
+      total: 0,
+      mcq: 0,
+      sa: 0,
+      essay: 0,
+      tf: 0,
     }
   } finally {
     isLoading.value = false
-  }
-
-  // Inject mock questions if empty (so the UI always shows data for demonstration)
-  if (!questions.value || questions.value.length === 0) {
-    stats.value = {
-      total: 6,
-      mcq: 2,
-      sa: 1,
-      essay: 1,
-      tf: 1,
-      matching: 1
-    } as any
-    questions.value = [
-      {
-        id: 1,
-        text: '<p>What does SQL stand for?</p>',
-        type: 'multiple_choice',
-        difficulty: 'Easy',
-        marks: 1,
-        chapter: 'Chapter 1: Intro to DB',
-        topic: 'SQL Basics',
-        status: 'Active',
-        explanation: 'Structured Query Language is standard for relational databases.',
-        options: [
-          'Structured Query Language',
-          'Strong Question Language',
-          'Structured Question Language',
-          'Simple Query Language'
-        ],
-        correct_answer: 'A',
-      },
-      {
-        id: 2,
-        text: '<p>Describe the difference between inner and outer joins.</p>',
-        type: 'essay',
-        difficulty: 'Hard',
-        marks: 5,
-        chapter: 'Chapter 3: SQL Queries',
-        topic: 'Joins',
-        status: 'Active',
-        explanation: 'Inner join requires match, outer join retains unmatched rows.',
-      },
-      {
-        id: 3,
-        text: '<p>A primary key must be unique and cannot be null.</p>',
-        type: 'true_false',
-        difficulty: 'Easy',
-        marks: 1,
-        chapter: 'Chapter 2: Relational Model',
-        topic: 'Constraints',
-        status: 'Active',
-        explanation: 'Primary keys enforce entity integrity.',
-        options: ['True', 'False'],
-        correct_answer: 'True',
-      },
-      {
-        id: 4,
-        text: '<p>Define 1NF.</p>',
-        type: 'short_answer',
-        difficulty: 'Medium',
-        marks: 2,
-        chapter: 'Chapter 4: Normalization',
-        topic: '1NF',
-        status: 'Active',
-        explanation: 'First Normal Form requires atomic attributes.',
-      },
-      {
-        id: 5,
-        text: '<p>Which of the following is a NoSQL database?</p>',
-        type: 'multiple_choice',
-        difficulty: 'Medium',
-        marks: 1,
-        chapter: 'Chapter 1: Intro to DB',
-        topic: 'NoSQL',
-        status: 'Draft',
-        explanation: 'MongoDB is a popular NoSQL database.',
-      },
-      {
-        id: 6,
-        text: '<p>Match the normal forms to their definitions.</p>',
-        type: 'matching',
-        difficulty: 'Hard',
-        marks: 3,
-        chapter: 'Chapter 4: Normalization',
-        topic: 'Overview',
-        status: 'Active',
-        explanation: '1NF: Atomic, 2NF: No partial dependency, 3NF: No transitive dependency.',
-      }
-    ]
   }
 }
 
@@ -1069,7 +985,7 @@ onMounted(() => {
               <td class="py-4 px-4 text-center">
                 <span class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-50 text-emerald-600">{{ q.status }}</span>
               </td>
-              <td class="py-4 px-4 text-center text-[12px] text-slate-500 font-medium">{{ formatDate(bank.created_at) }}</td>
+              <td class="py-4 px-4 text-center text-[12px] text-slate-500 font-medium">{{ formatDate(q.created_at || bank.created_at) }}</td>
               <td class="py-4 px-6 text-center">
                 <div class="flex items-center justify-center gap-1">
                   <button @click="openViewQuestion(q)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200 shadow-xs" title="View Question">
@@ -1176,7 +1092,7 @@ onMounted(() => {
       
       <!-- Table Footer -->
       <div class="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-[13px] font-medium text-slate-500 border-t border-slate-100">
-        <span class="text-center sm:text-left">Showing 1 to {{ filteredQuestions.length }} of {{ stats.total }} questions</span>
+        <span class="text-center sm:text-left">Showing {{ filteredQuestions.length > 0 ? 1 : 0 }} to {{ filteredQuestions.length }} of {{ stats.total }} questions</span>
         <div class="flex items-center justify-center gap-1">
           <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors min-h-[36px] min-w-[36px]"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
           <button class="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-[#5138ed] text-white font-bold shadow-xs min-h-[36px] min-w-[36px]">1</button>
