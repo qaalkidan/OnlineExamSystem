@@ -21,6 +21,7 @@ const bank = ref<any>({
   description: '',
   course_code: '',
   course_name: '',
+  total_marks: 0,
   status: 'Active',
   created_at: null,
   updated_at: null,
@@ -29,6 +30,7 @@ const bank = ref<any>({
 
 const stats = ref({
   total: 0,
+  total_marks: 0,
   mcq: 0,
   sa: 0,
   essay: 0,
@@ -36,6 +38,13 @@ const stats = ref({
 })
 
 const questions = ref<any[]>([])
+
+const totalMarks = computed(() => {
+  if (questions.value && questions.value.length > 0) {
+    return questions.value.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)
+  }
+  return stats.value.total_marks || bank.value.total_marks || 0
+})
 const manualCategories = ref<{name: string, count: number}[]>([])
 const categories = computed(() => {
   const map = new Map<string, number>()
@@ -183,6 +192,7 @@ const fetchBankDetails = async () => {
       description: data.bank.description,
       course_code: data.bank.course_code,
       course_name: data.bank.course_name,
+      total_marks: data.bank.total_marks ?? 0,
       status: data.bank.status,
       created_at: data.bank.created_at,
       updated_at: data.bank.updated_at,
@@ -195,6 +205,7 @@ const fetchBankDetails = async () => {
 
     stats.value = data.stats || {
       total: 0,
+      total_marks: 0,
       mcq: 0,
       sa: 0,
       essay: 0,
@@ -207,6 +218,7 @@ const fetchBankDetails = async () => {
     questions.value = []
     stats.value = {
       total: 0,
+      total_marks: 0,
       mcq: 0,
       sa: 0,
       essay: 0,
@@ -768,7 +780,7 @@ onMounted(() => {
       
       <div class="h-px bg-slate-100 w-full mb-4"></div>
       
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -785,6 +797,15 @@ onMounted(() => {
           <div>
             <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Questions</div>
             <div class="text-[12px] font-semibold text-slate-700">{{ stats.total }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+          </div>
+          <div>
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Marks</div>
+            <div class="text-[12px] font-semibold text-slate-700">{{ totalMarks }}</div>
           </div>
         </div>
         <div class="flex items-center gap-3">

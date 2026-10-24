@@ -163,6 +163,7 @@ class InstructorQuestionBankController extends Controller
                     'total_marks'      => $totalMarks,
                     'status'           => 'Active',
                     'created_at'       => $questionBank->created_at?->toISOString(),
+                    'updated_at'       => $questionBank->updated_at?->toISOString(),
                 ],
                 'stats' => [
                     'total'       => $total,
@@ -566,6 +567,7 @@ class InstructorQuestionBankController extends Controller
                     'course_code'      => $questionBank->course_code,
                     'course_name'      => $questionBank->course_code ?: ($bankOwner?->course_name ?? 'General Course'),
                     'total_questions'  => $totalQuestions,
+                    'total_marks'      => (int)$questionBank->questions()->sum('marks'),
                     'created_by'       => $bankOwner?->name ?? 'Instructor',
                     'created_at'       => $questionBank->created_at?->toISOString(),
                     'updated_at'       => $questionBank->updated_at?->toISOString(),
